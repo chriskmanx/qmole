@@ -1,0 +1,69 @@
+open Unix;;
+open Str;;
+
+let _ = print_endline "QMOLE-WSBAR START";;
+
+(* Set up environment *)
+
+putenv "FG" "'black'";;
+putenv "BG" "'grey'";;
+putenv "DISPLAY" "localhost:0.0";;
+putenv "PATH" "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";;
+
+(* Make us seven workspaces *)
+
+let statusDesk = Sys.command("herbstclient rename default Desk");;
+let statusTerminal = Sys.command("herbstclient add Terminal");;
+let statusWeb = Sys.command("herbstclient add Web");;
+let statusPdf = Sys.command("herbstclient add Pdf");;
+let statusEmail = Sys.command("herbstclient add Email");;
+let statusEmacs = Sys.command("/usr/bin/herbstclient add Emacs");;
+let statusFiles = Sys.command("/usr/bin/herbstclient add Files");;
+
+(* Set up routing *)
+
+let propEmacs = Sys.command("/usr/bin/herbstclient rule class~'[Ee]macs' tag=Emacs");;
+let propTerminal = Sys.command("/usr/bin/herbstclient rule class~'XTerm' tag=Terminal");;
+let propTerminal2 = Sys.command("/usr/bin/herbstclient rule class~'[Ii]vte' tag=Terminal");;
+let propFiles = Sys.command("/usr/bin/herbstclient rule class~'ROX-Filer' tag=Files");;
+let propWeb = Sys.command("/usr/bin/herbstclient rule class~'Netsurf' tag=Web");;
+let propEmail = Sys.command("/usr/bin/herbstclient rule class~'claws-mail' tag=Email");;
+let propPdf = Sys.command("/usr/bin/herbstclient rule class~'Xournal' tag=Pdf");;
+
+let monitorCmd = "{ 
+/usr/bin/herbstclient --idle 
+} | {
+   TAGS=( $(/usr/bin/herbstclient tag_status $monitor) ) 
+      separator=\"^fg(#1793D0)^ro(1x16)^fg()\"
+      while true; do
+         for i in \"${TAGS[@]}\" ; do
+            echo -n \"^ca(1,/usr/bin/herbstclient use ${i:1}) \"
+            case ${i:0:1} in
+            '#')
+               echo -n \"^fg(#1793D0)[^fg(#FFFFFF)${i:1}^fg(#1793D0)]\"
+               ;;
+            ':')
+               echo -n \"^fg(#FFFFFF) ${i:1} \"
+               ;;
+            *)\n
+               echo -n \"^fg(#123456) ${i:1} \"
+               ;;
+            esac
+            echo -n \"^ca()\"
+        done
+        echo -n \" $separator\"
+        echo
+        read line || break
+        TAGS=( $(/usr/bin/herbstclient tag_status $monitor) )                   
+      done
+} 2> /dev/null | /usr/local/bin/dzen2 -fn \"Sans:size=14\" -ta l -y 0 -x 0 -h 60 -fg 'black' -bg 'grey'";;
+
+
+let _ = print_endline monitorCmd;;
+
+let status = Sys.command(monitorCmd);;
+
+let _ = print_endline "QMOLE-WSBAR END";;
+
+
+

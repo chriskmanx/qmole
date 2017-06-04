@@ -1,0 +1,103 @@
+AC_INIT([startup-notification], [0.10],
+        [http://www.freedesktop.org/Software/startup-notification])
+AC_CONFIG_SRCDIR(libsn/sn-launchee.c)
+
+AM_INIT_AUTOMAKE
+AM_CONFIG_HEADER(config.h)
+
+# Honor aclocal flags
+AC_SUBST(ACLOCAL_AMFLAGS, "\${ACLOCAL_FLAGS}")
+
+AM_MAINTAINER_MODE
+
+AC_PROG_CC
+AC_ISC_POSIX
+AC_HEADER_STDC
+AC_LIBTOOL_WIN32_DLL
+AM_PROG_LIBTOOL
+
+changequote(,)dnl
+if test "x$GCC" = "xyes"; then
+  case " $CFLAGS " in
+  *[\ \	]-Wall[\ \	]*) ;;
+  *) CFLAGS="$CFLAGS -Wall" ;;
+  esac
+fi
+changequote([,])dnl
+
+AC_PATH_XTRA
+
+if test x$no_x = xyes ; then
+  AC_MSG_ERROR([X11 development libraries/headers not found])
+fi
+
+
+dnl (check from glib)
+dnl ok, here we try to check whether the systems prototypes for
+dnl malloc and friends actually match the prototypes provided
+dnl by sn-common.h (keep in sync). i currently only know how to check
+dnl this reliably with gcc (-Werror), improvements for other
+dnl compilers are appreciated.
+SANE_MALLOC_PROTOS=no
+AC_MSG_CHECKING([if malloc() and friends prototypes are sn-util.h compatible])
+lf_save_CFLAGS=$CFLAGS
+if test "x$GCC" = "xyes"; then
+  CFLAGS="$CFLAGS -Werror"
+  AC_TRY_COMPILE([#include <stdlib.h>], [
+    void* (*my_calloc_p)  (size_t, size_t) = calloc;
+    void* (*my_malloc_p)  (size_t)         = malloc;
+    void  (*my_free_p)    (void*)          = free;
+    void* (*my_realloc_p) (void*, size_t)  = realloc;
+    my_calloc_p = 0;
+    my_malloc_p = 0;
+    my_free_p = 0;
+    my_realloc_p = 0;
+  ],
+    AC_DEFINE(SANE_MALLOC_PROTOS, 1,
+              [Define if you have correct malloc prototypes])
+    SANE_MALLOC_PROTOS=yes)
+fi
+AC_MSG_RESULT($SANE_MALLOC_PROTOS)
+CFLAGS=$lf_save_CFLAGS
+
+dnl *** check for sane realloc() ***
+AC_CACHE_CHECK([whether realloc (NULL,) will work],lf_cv_sane_realloc,[
+        AC_TRY_RUN([
+        #include <stdlib.h>
+        int main() {
+          return realloc (0, sizeof (int)) == 0;
+        }],
+        [lf_cv_sane_realloc=yes],
+        [lf_cv_sane_realloc=no],
+	[])
+])
+if test x$lf_cv_sane_realloc = xyes; then
+  AC_DEFINE(REALLOC_0_WORKS,1,[whether realloc (NULL,) works])
+fi
+
+## try definining HAVE_BACKTRACE
+AC_CHECK_HEADERS(execinfo.h, [AC_CHECK_FUNCS(backtrace)])
+
+PKG_CHECK_MODULES([xcb], [xcb],,
+    [AC_MSG_ERROR([Cannot find xcb])])
+PKG_CHECK_MODULES([xcb_aux], [xcb-aux],,
+    [AC_MSG_ERROR([Cannot find xcb-aux])])
+PKG_CHECK_MODULES([xcb_event], [xcb-event],,
+    [AC_MSG_ERROR([Cannot find xcb-event])])
+PKG_CHECK_MODULES([xcb_atom], [xcb-atom],,
+    [AC_MSG_ERROR([Cannot find xcb-atom])])
+
+LIBSN_CFLAGS="$X_CFLAGS $xcb_CFLAGS $xcb_aux_CFLAGS $xcb_event_CFLAGS $xcb_atom_CFLAGS"
+LIBSN_LIBS=" $xcb_LIBS $xcb_aux_LIBS $xcb_event_LIBS $xcb_atom_LIBS $X_LIBS $X_PRE_LIBS -lX11 $X_EXTRA_LIBS"
+AC_SUBST(LIBSN_CFLAGS)
+AC_SUBST(LIBSN_LIBS)
+
+AC_CONFIG_FILES([
+Makefile
+libsn/Makefile
+test/Makefile
+doc/Makefile
+libstartup-notification-1.0.pc
+])
+
+AC_OUTPUT

@@ -1,6 +1,8 @@
 # qmole
 GNU Linux Desktop System for IPhone &amp; IPad
 
+![Flying Mole Banner](qmolefly.png)
+
 What is Qmole?
 
 1) It’s a smart routing tiling window manager for tablets.

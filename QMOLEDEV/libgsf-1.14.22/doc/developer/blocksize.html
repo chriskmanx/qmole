@@ -1,0 +1,124 @@
+<html>
+<head>
+<title>MSOLE block size variations</title>
+<body>
+
+<h1>Experiments with various block sizes in MS OLE</h1>
+
+<h2>Small files</h2>
+
+<h3>setup</h3>
+<p>I decided to test the following parameters:
+<ul>
+<li>Block size: powers of 2 from 128 B up to 8 KB, 7 possible values.
+(The small block size was always 64 B.)
+<li>Header size (3 possibilities):
+  <ol>
+  <li>512 B for all block sizes
+  <li>padded/truncated to block size; (padded with 0's)
+  <li>padded/truncated to block size; (padded with 0xff's)
+  </ol>
+<li>cSectDir: either set or 0
+<li>major version: either 3 or 4 (minor is always 0x3e)
+<li>doc or xls (I used two small files, 19KB doc file and 14KB xls file;
+so XBAT is never used for these tiny files).
+<li>version of windows (3 versions tested):
+  <ol>
+  <li>Win 98, Office 2000
+  <li>Win 2000 Pro, Office 2000
+  <li>Win XP Pro, Word viewer and Excel viewer, available for free from MS.
+  </ol>
+</ul>
+
+<h3>results</h3>
+<p>Using all combinations, I used a slightly modified test-cp-msole program
+to create 168 files (84 doc files and 84 xls files).
+I tried to run all of them on each of the three platforms.
+Here are the results:
+<p>All these files either opened OK, or were reported as incorrect files.
+I haven't experienced crashes, with only one exception (see the next paragraph).
+<p>There were no differences between Excel and Word, they behaved both the
+same, with one exception:  if a file with 8KB blocks was succesfully opened by
+Excel, then Word crashed on that file.  (If the file was reported as incorrect,
+Word also said it's incorrect, without any crash.)  The current libgsf code
+allows only block up to 4KB, so it's wise to keep this limitation.
+<p>When the header was padded to block size, it had never any influence whether
+it was padded by 0's or 0xff's.
+
+<h4>Win 2000 and Win XP results</h4>
+<p>Both of these platforms behaved exactly the same:
+<p>The major version set (3 or 4) had no influence.
+<p>Header size had to be = block size. (Constant 512 B header didn't work
+for any block size != 512.)
+<p>With _cSectDir set, all block sizes worked.  When _cSectDir was not set (0),
+only block sizes <= 512 worked.
+<p>(I hope the above text says unambiguously which files worked and which didn't.)
+
+<h4>Win 98 results</h4>
+<p>The major version had to be 3. (When set to 4, no file worked, not even with
+block size 512B.)
+<p>Header size had to be constant 512. (When header size = block size, no block
+size != 512 worked.)
+<p>It had no influence whether _cSectDir was set or not.
+
+<h2>Bigger files, tested on Win 2000 only</h2>
+
+<h3>Block sizes bigger then 512</h3>
+<p>I wanted to verify that the header really has size 512.
+In other words, that the header still has only 109 metabat pointers, and then
+an XBAT block is used.
+<p>I needed a file bigger then about 28 MB.  I created a 32MB file by Excel.
+<p>I copied it with the modified test-cp-msole in two configurations:
+<ol>
+<li>block size 1024 B, _cSectDir set, major ver. 4, header padded by 0xff
+<li>block size 1024 B, _cSectDir set, major ver. 3, header padded by 0
+</ol>
+(I used a hex dump to verify that the file really has one XBAT block.)
+<p>Both of these files worked.  I tried to save the file under another name, and re-open
+the file: it worked.  The saved file had 512B blocks again; the major/minor
+version is set to 3/3e, which is the same as libgsf's default values.
+
+<h3>Block sizes smaller then 512</h3>
+
+<h4>part one</h4>
+<p>I prepared two test files: one had size about 767 KB, the other had 2 MB.
+(Using 256B blocks, the former size is big enough to use more than 256 B of the
+header, the later is big enough to have more then 109 metabat pointers.)
+<p>When I copied these files with 256 B blocks, they didn't work.
+<p>This proved that the header is 512 B long, even if that means that block 0
+may not be used for data.  (Well, I used it for data in the previous experiment,
+but it cannot be used generally.)
+<p>Thus I modified the code so that the header is not truncated for block sizes < 512.
+At the beginning of the BAT table, I marked the block 0 (or blocks 0,1,2 for block
+size 128) as belonging to XBAT.
+<p>With that modified code, I again copied both of the test files using block size 256,
+and it worked.
+
+<h4>part two</h4>
+Then I experimented with smaller small block sizes, using the modified code, as explained
+above.  I used big block size 256, 128, 64,
+in combination with small block size 32 and 16. I copied the old small 14KB xls file. (6 combinations)
+<p>The ones with big block size 256 and 128 worked.
+<p>With big block size 64, excel crashed.  Even explorer crashed when I selected that file
+(I haven't tried to open it, I just selected it: it probably tries to determine the author
+and title of the file.) Thus I conclude that the current test that block size has to be >= dirent size
+(128) is good to keep.
+
+<h2>Conclusions and suggestions</h2>
+<p>I suggest to set _cSectDir always: it helps in certain situations and it never hurts.
+<p>There have to be a new instance variable, determining the offset of block 0.
+I prefer to call it block0_offset, not header_size, as the header data always take up
+exactly 512 B.  This will be set at the begining.  This determines whether the file will
+be compatible with Win 98 or Win 2000/XP.  (Only files with 512B blocks can be compatible
+with both.)  The default should be 2000/XP comaptibility as these are more common now.
+<p>(Previous versions of libgsf had block0_offset =
+MAX (block_size, 512), which is a mix of the two.)
+<p>With block0_offset > 512, the header should be padded with 0, as it's cleaner this
+way.
+<p>This is the most controversial proposal: we could set the major version to 4 when
+block0_offset is not 512.  That doesn't break compatibility with MS and enables us to
+distinguish the two types for the future.
+<hr>
+<p>These experiments were conducted and the document written by
+<a href="mailto:kasal@ucw.cz">Stepan Kasal</a> around August 23, 2004.
+</html>

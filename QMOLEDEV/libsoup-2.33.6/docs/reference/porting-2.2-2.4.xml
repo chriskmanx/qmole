@@ -1,0 +1,878 @@
+<?xml version="1.0"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" 
+               "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd">
+<refentry id="libsoup-porting-2.2-2.4">
+<refmeta>
+<refentrytitle>libsoup 2.2 to 2.4 porting notes</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBSOUP Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>Porting notes</refname><refpurpose>Notes on porting from libsoup 2.2 to 2.4</refpurpose>
+</refnamediv>
+
+<refsect2>
+<title>Overview</title>
+
+<para>
+After many API-compatible releases in the 2.2 series,
+<application>libsoup</application> has now changed its API and bumped
+its version number to 2.4. Changes were made for a variety of reasons:
+</para>
+
+<itemizedlist>
+    <listitem><para>
+	To fix bugs and add features that couldn't be done ABI-compatibly.
+    </para></listitem>
+
+    <listitem><para>
+	To make it easier to generate bindings for libsoup for
+	languages other than C.
+    </para></listitem>
+
+    <listitem><para>
+	To clean up ugly/confusing old APIs
+    </para></listitem>
+
+    <listitem><para>
+	To be more glib/gobject/gtk-like in general.
+    </para></listitem>
+</itemizedlist>
+
+</refsect2>
+
+<refsect2>
+<title>SoupMessage</title>
+
+<para>
+<link linkend="SoupMessage"><type>SoupMessage</type></link> has had a
+number of API changes made, mostly to increase its
+language-bindability.
+</para>
+
+<refsect3>
+<title>SoupMessageHeaders</title>
+
+<para>
+    <type>SoupMessage</type>'s
+    <structfield>request_headers</structfield> and
+    <structfield>response_headers</structfield> fields are now an
+    opaque type (<link
+    linkend="SoupMessageHeaders"><type>SoupMessageHeaders</type></link>)
+    rather than being <type>GHashTables</type>. The method names have
+    changed slightly to reflect this:
+</para>
+
+<variablelist>
+    <varlistentry>
+	<term><function>soup_message_add_header</function></term>
+	<listitem><para>
+	    &#8594; <link linkend="soup-message-headers-append"><function>soup_message_headers_append</function></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><function>soup_message_get_header</function></term>
+	<listitem><para>
+	    &#8594; <link linkend="soup-message-headers-get"><function>soup_message_headers_get</function></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><function>soup_message_foreach_header</function></term>
+	<listitem><para>
+	    &#8594; <link linkend="soup-message-headers-foreach"><function>soup_message_headers_foreach</function></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><function>soup_message_remove_header</function></term>
+	<listitem><para>
+	    &#8594; <link linkend="soup-message-headers-remove"><function>soup_message_headers_remove</function></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><function>soup_message_clear_headers</function></term>
+	<listitem><para>
+	    &#8594; <link linkend="soup-message-headers-clear"><function>soup_message_headers_clear</function></link>
+	</para></listitem>
+    </varlistentry>
+</variablelist>
+
+<para>
+    <function>soup_message_get_header_list</function> has no equivalent;
+    if multiple copies of a header are present,
+    <function>soup_message_headers_get</function> will return all of
+    them, concatenated together and separated by commas; RFC 2616 says
+    that the two forms (multiple headers, and a single header with
+    comma-separated values) are equivalent; this change to libsoup
+    ensures that applications will treat them as equivalent.
+</para>
+
+<para>
+    In addition, certain important header fields now have
+    dedicated get/set methods:
+</para>
+
+<itemizedlist>
+    <listitem><para>
+	<link linkend="soup-message-headers-get-encoding"><function>soup_message_headers_get_encoding</function></link> / <link linkend="soup-message-headers-set-encoding"><function>soup_message_headers_set_encoding</function></link>
+    </para></listitem>
+
+    <listitem><para>
+	<link linkend="soup-message-headers-get-content-length"><function>soup_message_headers_get_content_length</function></link> / <link linkend="soup-message-headers-set-content-length"><function>soup_message_headers_set_content_length</function></link>
+    </para></listitem>
+
+    <listitem><para>
+	<link linkend="soup-message-headers-get-expectations"><function>soup_message_headers_get_expectations</function></link> / <link linkend="soup-message-headers-set-expectations"><function>soup_message_headers_set_expectations</function></link>
+    </para></listitem>
+</itemizedlist>
+
+<para>
+    (<literal>soup_message_headers_set_expectation(msg,&#160;SOUP_EXPECTATION_CONTINUE)</literal>
+    replaces the <literal>SOUP_MESSAGE_EXPECT_CONTINUE</literal>
+    message flag).
+</para>
+
+</refsect3>
+
+<refsect3>
+<title>SoupMessageBody</title>
+
+<para>
+    Similarly, the <structfield>request_body</structfield> and
+    <structfield>response</structfield> fields (renamed from
+    <structfield>request</structfield> and <structfield>response</structfield>) are
+    now a new type, <link
+    linkend="SoupMessageBody"><type>SoupMessageBody</type></link>,
+    implemented in terms of <link
+    linkend="SoupBuffer"><type>SoupBuffer</type></link>, a refcounted
+    memory buffer type with clearer semantics than the old
+    <type>SoupDataBuffer</type>/<type>SoupOwnership</type>.
+</para>
+
+<variablelist>
+    <varlistentry>
+	<term><literal>SOUP_BUFFER_STATIC</literal></term>
+	<listitem><para>
+	    &#8594; <link
+	    linkend="SOUP-MEMORY-STATIC:CAPS"><literal>SOUP_MEMORY_STATIC</literal></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>SOUP_BUFFER_SYSTEM_OWNED</literal></term>
+	<listitem><para>
+	    &#8594; <link
+	    linkend="SOUP-MEMORY-TAKE:CAPS"><literal>SOUP_MEMORY_TAKE</literal></link>
+	    (meaning <application>libsoup</application>
+	    should take ownership of the memory from your).
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>SOUP_BUFFER_USER_OWNED</literal></term>
+	<listitem><para>
+	    &#8594; <link
+	    linkend="SOUP-MEMORY-COPY:CAPS"><literal>SOUP_MEMORY_COPY</literal></link>
+	    (meaning <application>libsoup</application>
+	    should make a copy of the memory, because you
+	    can't make any guarantees about how long it will
+	    last.)
+	</para></listitem>
+    </varlistentry>
+</variablelist>
+
+<para>
+    A fourth <type>SoupMemoryUse</type> value is also available: <link
+    linkend="SOUP-MEMORY-TEMPORARY:CAPS"><literal>SOUP_MEMORY_TEMPORARY</literal></link>,
+    which helps to avoid extra copies in some cases.
+    <literal>SOUP_MEMORY_TEMPORARY</literal> means that the memory
+    will last at least as long as the object you are handing it to (a
+    <type>SoupBuffer</type>, <type>SoupMessageBody</type>, or
+    <type>SoupMessage</type>), and so doesn't need to be copied right
+    away, but that if anyone makes a copy of the buffer,
+    <application>libsoup</application> needs to make a new copy of the
+    memory for them at that point, since the original pointer may not
+    remain valid for the lifetime of the new copy.
+</para>
+
+<para>
+    (In the future, there may be additional <type>SoupBuffer</type>
+    and <type>SoupMessageBody</type> methods to work directly with
+    mmapped memory, splicing to file descriptors, etc.)
+</para>
+
+<para>
+    <link
+	linkend="soup-message-set-request"><function>soup_message_set_request</function></link>
+    and <link
+    linkend="soup-message-set-response"><function>soup_message_set_response</function></link>
+    still work roughly like they used to.
+</para>
+
+<para>
+    Unlike the old <structfield>request</structfield> and
+    <structfield>response</structfield> fields, the new
+    <structfield>request_body</structfield> and
+    <structfield>response_body</structfield> fields are not guaranteed
+    to be filled in at all times. (In particular, the
+    <structfield>response_body</structfield> is not filled in until it
+    has been fully read, although you can use <link
+    linkend="soup-message-body-get-chunk"><function>soup_message_body_get_chunk</function></link>
+    to iterate through the chunks before that point if you need to.)
+</para>
+
+<para>
+    When <structfield>request_body</structfield> and
+    <structfield>response_body</structfield> <emphasis>are</emphasis>
+    filled in, they are <literal>'\0'</literal>-terminated for your
+    processing convenience. (The terminating 0 byte is not included in
+    their length.)
+</para>
+
+</refsect3>
+
+<refsect3>
+<title>Chunked encoding</title>
+
+<para>
+    The prototype of the <link
+    linkend="SoupMessage-got-chunk"><literal>SoupMessage::got_chunk</literal></link>
+    signal has been changed; it now includes the chunk as a
+    <type>SoupBuffer</type> parameter (rather than storing the chunk
+    data in <literal>msg->response</literal> as in 2.2). <link
+    linkend="SoupMessageFlags"><literal>SOUP_MESSAGE_OVERWRITE_CHUNKS</literal></link>
+    is now somewhat poorly named, but still has essentially the same
+    semantics: if you set it, each chunk will be discarded after it is
+    read, and <literal>msg->response_body</literal> will not be filled
+    in with the complete response at the end of message processing.
+</para>
+
+<para>
+    The API for sending chunked responses from a
+    <type>SoupServer</type> is also slightly different now:
+</para>
+
+<variablelist>
+    <varlistentry>
+	<term><function>soup_server_message_set_encoding</function></term>
+	<listitem><para>
+	    &#8594; <link
+	    linkend="soup-message-headers-set-encoding"><function>soup_message_headers_set_encoding</function></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><function>soup_message_add_chunk</function></term>
+	<listitem><para>
+	    &#8594; <link
+	    linkend="soup-message-body-append"><function>soup_message_body_append</function></link>
+	    or <link
+	    linkend="soup-message-body-append-buffer"><function>soup_message_body_append_buffer</function></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><function>soup_message_add_final_chunk</function></term>
+	<listitem><para>
+	    &#8594; <link
+	    linkend="soup-message-body-complete"><function>soup_message_body_complete</function></link>
+	</para></listitem>
+    </varlistentry>
+</variablelist>
+
+<para>
+    Since the new chunk-sending APIs require you to explicitly pass
+    the
+    <structfield>request_headers</structfield>/<structfield>request_body</structfield>
+    fields, rather than just assuming you're talking about the
+    response body, in theory it is now possible to use chunked
+    encoding with the request as well. As of the 2.3.0 release this
+    has not yet been tested.
+</para>
+
+</refsect3>
+
+<refsect3>
+<title>Methods</title>
+
+<para>
+    <type>SoupMessage</type>'s
+    <structfield>method</structfield> field is now an interned
+    string, and you can compare the method directly against
+    the defines such as <link
+    linkend="SOUP-METHOD-GET:CAPS"><literal>SOUP_METHOD_GET</literal></link>
+    (eg, in a <type>SoupServer</type> request handler).
+    <function>soup_method_get_id</function> and the
+    <literal>SOUP_METHOD_ID_*</literal> macros are now gone.
+</para>
+</refsect3>
+
+<refsect3>
+<title>Handlers</title>
+
+<para>
+    <link
+    linkend="soup-message-add-header-handler"><function>soup_message_add_header_handler</function></link>
+    and <link
+    linkend="soup-message-add-status-code-handler"><function>soup_message_add_status_code_handler</function></link>
+    are now just clever wrappers around
+    <function>g_signal_connect</function>. In particular, you now pass
+    a signal name to them rather than a <type>SoupHandlerPhase</type>,
+    and you remove them with the normal signal handler remove methods.
+    However, they still retain the special behavior that if the
+    message has been cancelled or requeued when the time comes for the
+    handler to run, then the handler will be skipped. (Use plain
+    <function>g_signal_connect</function> if you don't want that
+    behavior.)
+</para>
+</refsect3>
+
+<refsect3>
+<title>I/O-related <type>SoupMessage</type> methods</title>
+
+<para>
+    <function>soup_message_io_pause</function> and
+    <function>soup_message_io_unpause</function> have been moved to
+    <type>SoupSession</type> and <type>SoupServer</type>, to better
+    reflect the fact that the session/server control the I/O, and
+    <type>SoupMessage</type> is merely acted-upon by them.
+</para>
+
+<variablelist>
+    <varlistentry>
+	<term><function>soup_message_io_pause</function></term>
+	<listitem><para>
+	    &#8594; <link linkend="soup-session-pause-message"><function>soup_session_pause_message</function></link> / <link linkend="soup-server-pause-message"><function>soup_server_pause_message</function></link>
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><function>soup_message_io_unpause</function></term>
+	<listitem><para>
+	    &#8594; <link linkend="soup-session-unpause-message"><function>soup_session_unpause_message</function></link> / <link linkend="soup-server-unpause-message"><function>soup_server_unpause_message</function></link>
+	</para></listitem>
+    </varlistentry>
+</variablelist>
+
+<para>
+    <literal>msg->status</literal> (the I/O status) is now
+    gone as well, because (a) it's really an internal state of
+    <type>SoupSession</type>, and (b) it's too easy to confuse
+    with <literal>msg->status_code</literal> (the HTTP status)
+    anyway. Code that used to check if status was
+    <literal>SOUP_MESSAGE_STATUS_FINISHED</literal> needs to
+    be rewritten to track whether or not the <link
+    linkend="SoupMessage-finished"><literal>finished</literal></link>
+    signal has been emitted.
+</para>
+
+</refsect3>
+
+<refsect3>
+<title>HTTP-Version</title>
+
+<para>
+    <type>SoupHttpVersion</type> is now <link
+    linkend="SoupHTTPVersion"><type>SoupHTTPVersion</type></link>
+</para>
+</refsect3>
+
+</refsect2>
+
+<refsect2>
+<title>SoupSession</title>
+
+<refsect3>
+<title><function>soup_session_queue_message</function> callback</title>
+
+<para>
+    <link
+    linkend="soup-session-queue-message"><function>soup_session_queue_message</function></link>'s
+    callback parameter now includes the <type>SoupSession</type> as a
+    parameter, reflecting the fact that it is a
+    <type>SoupSession</type> callback, not a <type>SoupMessage</type>
+    callback. (It has also been renamed, from
+    <type>SoupMessageCallbackFn</type> to <link
+    linkend="SoupSessionCallback"><type>SoupSessionCallback</type></link>.)
+</para>
+</refsect3>
+
+<refsect3>
+<title>Authentication</title>
+
+<para>
+    <type>SoupSession</type>'s <literal>authenticate</literal> and
+    <literal>reauthenticate</literal> signals have been merged into a
+    single <link
+    linkend="SoupSession-authenticate"><literal>authenticate</literal></link>
+    signal with a <parameter>retrying</parameter> parameter to indicate if
+    it's the second (or later) try. Also, the signal now includes a
+    <link linkend="SoupAuth"><type>SoupAuth</type></link> directly,
+    and you authenticate by calling <link
+    linkend="soup-auth-authenticate"><function>soup_auth_authenticate</function></link>
+    on the auth (rather than passing back a username and password from
+    the signal handler).
+</para>
+</refsect3>
+
+<refsect3>
+<title><type>SoupLogger</type></title>
+
+<para>
+<link linkend="libsoup-SoupLogger"><type>SoupLogger</type></link> is a
+new object that copies the behavior of
+<application>evolution-exchange</application>'s
+<literal>E2K_DEBUG</literal> and its clones. That is, it causes a
+<type>SoupSession</type> to start logging some or all of its HTTP
+traffic to stdout, for debugging purposes.
+</para>
+</refsect3>
+
+<refsect3>
+<title><type>SoupMessageFilter</type></title>
+
+<para>
+    <type>SoupMessageFilter</type> is gone; code that used to use it
+    can now connect to the <link
+    linkend="SoupSession-request-started"><literal>SoupSession::request-started</literal></link>
+    signal to get a chance to act on each message as it is sent.
+    (This is how <type>SoupLogger</type> works.)
+</para>
+</refsect3>
+
+<refsect3>
+<title>Internal types</title>
+
+<para>
+    The <type>SoupConnection</type> and <type>SoupMessageQueue</type>
+    types (which should always have been internal to
+    <type>SoupSession</type>) have been removed from the public API.
+</para>
+</refsect3>
+
+</refsect2>
+
+<refsect2>
+<title>SoupURI</title>
+
+<type>SoupUri</type> has been renamed <link
+linkend="SoupURI"><type>SoupURI</type></link>, and its behavior has
+changed in a few ways:
+
+<itemizedlist>
+    <listitem>
+	<para>
+	    It no longer fully-decodes %-encoded URI components. This
+	    is necessary to ensure that complicated URIs (eg, URIs
+	    that include other URIs as query parameters) can be
+	    round-tripped correctly. This corresponds to the old
+	    <structfield>broken_encoding</structfield> behavior, but
+	    that flag no longer exists, since it is the default and
+	    there's no way to turn it off.
+	</para>
+
+	<para>
+	    In theory, this is an ABI-breaking change, especially for
+	    <link
+	    linkend="SoupServer"><type>SoupServer</type></link>s.
+	    However, it is unlikely to actually break anything. (And
+	    in the <type>SoupServer</type> case, servers now
+	    fully-decode the <structfield>path</structfield> component
+	    themselves unless you set the <link
+	    linkend="SOUP-SERVER-RAW-PATHS:CAPS"><literal>SOUP_SERVER_RAW_PATHS</literal></link>
+	    flag on the server, so the behavior should still be the
+	    same.
+	</para>
+    </listitem>	    
+
+    <listitem><para>
+	It uses the RFC3986 parsing rules, including support for IPv6 literal
+	addresses.
+    </para></listitem>
+
+    <listitem>
+	<para>
+	    The field formerly called
+	    <structfield>protocol</structfield> is now
+	    <structfield>scheme</structfield>, to match the spec, and
+	    it's an interned string rather than a quark. The names of
+	    the predefined values have changed to match:
+	</para>
+
+	<variablelist>
+	    <varlistentry>
+		<term><function>SOUP_PROTOCOL_HTTP</function></term>
+		<listitem><para>
+		    &#8594; <link linkend="SOUP-URI-SCHEME-HTTP:CAPS"><literal>SOUP_URI_SCHEME_HTTP</literal></link>
+		</para></listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term><function>SOUP_PROTOCOL_HTTPS</function></term>
+		<listitem><para>
+		    &#8594; <link linkend="SOUP-URI-SCHEME-HTTPS:CAPS"><literal>SOUP_URI_SCHEME_HTTPS</literal></link>
+		</para></listitem>
+	    </varlistentry>
+	</variablelist>
+    </listitem>
+</itemizedlist>
+
+<para>
+<link linkend="soup-uri-decode"><function>soup_uri_decode</function></link>
+now returns a new string rather than modifying its input string in
+place. The new method <link
+linkend="soup-uri-normalize"><function>soup_uri_normalize</function></link>,
+which removes some, but not all, %-encoding, behaves similarly.
+</para>
+
+<para>
+Finally, <type>SoupURI</type> (as well as most other struct types in
+<application>libsoup</application>) now uses the glib "slice"
+allocator, so any code that uses <link
+linkend="g-new"><function>g_new</function></link> to create
+<type>SoupURI</type>s is wrong. If you want to create a URI "by hand",
+you can call <link
+linkend="soup-uri-new"><function>soup_uri_new</function></link>,
+passing <literal>NULL</literal>, and you will get back an empty
+<type>SoupURI</type>. There are also now methods that can be used to
+set its fields (eg, <link
+linkend="soup-uri-set-scheme"><function>soup_uri_set_scheme</function></link>,
+<link
+linkend="soup-uri-set-path"><function>soup_uri_set_path</function></link>,
+etc) rather than mucking with the fields directly.
+</para>
+
+<refsect3>
+<title>Forms</title>
+
+<para>
+Related to <type>SoupURI</type>, there are some new helper methods for
+dealing with HTML forms. <link
+linkend="soup-form-decode-urlencoded">soup_form_decode_urlencoded</link>
+decodes a URI <structfield>query</structfield> component (or an
+<literal>application/x-www-form-urlencoded</literal> request body)
+into a <type>GHashTable</type>. <link
+linkend="soup-form-encode-urlencoded">soup_form_encode_urlencoded</link>
+reverses the process, allowing you to fill in a
+<literal>uri->query</literal> with a properly-encoded form dataset.
+(<type>SoupURI</type> also provides <link
+linkend="soup-uri-set-query-from-form"><function>soup_uri_set_query_from_form</function></link>
+to help with this.)
+</para>
+</refsect3>
+
+</refsect2>
+
+
+<refsect2>
+<title>XML-RPC and SOAP</title>
+
+<refsect3>
+<title>SOAP</title>
+<para>
+SOAP support has been removed; the existing methods covered only a
+teeny tiny subset of SOAP, which was really only useful to a single
+application. (The code that was formerly in libsoup has been moved to
+that application.). If you were using this code, you can resurrect a
+libsoup-2.4-compatible version of it from revision 1016 of libsoup
+svn.
+</para>
+</refsect3>
+
+<refsect3>
+<title>XML-RPC</title>
+<para>
+The XML-RPC code has been completely rewritten to make it simpler to
+implement XML-RPC clients and servers. (Note: the server-side code has
+not been heavily tested yet.) The <link
+linkend="libsoup-XMLRPC-Support">new XML-RPC API</link> makes use of
+<type>GValue</type>s, with the following type mappings:
+</para>
+
+<variablelist>
+    <varlistentry>
+	<term><literal>int</literal></term>
+	<listitem><para>
+	    &#8594; <type>int</type> (<link linkend="G-TYPE-INT:CAPS"><literal>G_TYPE_INT</literal></link>)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>boolean</literal></term>
+	<listitem><para>
+	    &#8594; <type>gboolean</type> (<link linkend="G-TYPE-BOOLEAN:CAPS"><literal>G_TYPE_BOOLEAN</literal></link>)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>string</literal></term>
+	<listitem><para>
+	    &#8594; <type>char *</type> (<link linkend="G-TYPE-STRING:CAPS"><literal>G_TYPE_STRING</literal></link>)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>double</literal></term>
+	<listitem><para>
+	    &#8594; <type>double</type> (<link linkend="G-TYPE-DOUBLE:CAPS"><literal>G_TYPE_DOUBLE</literal></link>)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>dateTime.iso8601</literal></term>
+	<listitem><para>
+	    &#8594; <link linkend="SoupDate"><type>SoupDate</type></link> (<link linkend="SOUP-TYPE-DATE:CAPS"><literal>SOUP_TYPE_DATE</literal></link>)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>base64</literal></term>
+	<listitem><para>
+	    &#8594; <type>GByteArray</type> (<link linkend="SOUP-TYPE-BYTE-ARRAY:CAPS"><literal>SOUP_TYPE_BYTE_ARRAY</literal></link>)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>struct</literal></term>
+	<listitem><para>
+	    &#8594; <type>GHashTable</type> (<link linkend="G-TYPE-HASH-TABLE:CAPS"><literal>G_TYPE_HASH_TABLE</literal></link>)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><literal>array</literal></term>
+	<listitem><para>
+	    &#8594; <type>GValueArray</type> (<link linkend="G-TYPE-VALUE-ARRAY:CAPS"><literal>G_TYPE_VALUE_ARRAY</literal></link>)
+	</para></listitem>
+    </varlistentry>
+</variablelist>
+
+<para>
+<type>SoupDate</type> is discussed below.
+<literal>SOUP_TYPE_BYTE_ARRAY</literal> is just a new
+<type>GType</type> value defined by <application>libsoup</application>
+to represent <type>GByteArray</type>s, which glib does not define a
+<type>GType</type> for.
+</para>
+
+<para>
+<application>libsoup</application> provides some additional <link
+linkend="libsoup-GValue-Support"><type>GValue</type> support
+methods</link> for working with
+<type>GValueArray</type>s, and <type>GHashTable</type>s of
+<type>GValue</type>s, for the XML-RPC <literal>struct</literal> and
+<literal>array</literal> types. Eg, you can use <link
+linkend="soup-value-hash-new"><function>soup_value_hash_new</function></link>
+to create a <type>GHashTable</type> to use with the XML-RPC methods,
+and <link
+linkend="soup-value-hash-insert"><function>soup_value_hash_insert</function></link>
+to add values to it without needing to muck with <type>GValue</type>s
+directly.
+</para>
+
+<para>
+The <literal>getbug</literal> and <literal>xmlrpc-test</literal>
+programs in the <application>libsoup</application> sources provide
+examples of how to use the new API. (Beware that
+<literal>xmlrpc-test</literal>'s use of the API is a little
+complicated because of the way it sends all calls through a single
+<literal>do_xmlrpc</literal> method.)
+</para>
+
+</refsect3>
+</refsect2>
+
+<refsect2>
+<title>SoupServer</title>
+
+<refsect3>
+<title>SoupServer handlers</title>
+
+<para>
+    The prototypes for <link
+    linkend="soup-server-add-handler"><function>soup_server_add_handler</function></link>,
+    and for the <link
+    linkend="SoupServerCallback"><type>SoupServer</type>
+    handlers</link> themselves have changed:
+</para>
+
+<informalexample><programlisting>
+typedef void (*SoupServerCallback)     (SoupServer         *server,
+					SoupMessage        *msg, 
+					const char         *path,
+					GHashTable         *query,
+					SoupClientContext  *client,
+					gpointer            user_data);
+
+void           soup_server_add_handler (SoupServer         *server,
+					const char         *path,
+					SoupServerCallback  callback,
+					gpointer            data,
+					GDestroyNotify      destroy);
+</programlisting></informalexample>
+
+<para>
+    <function>soup_server_add_handler</function> no longer takes a
+    <type>SoupServerAuthContext</type> (see the discussion of server
+    authentication below), and the order of the final two arguments
+    has been swapped. (Additionally, <type>SoupServerCallbackFn</type>
+    has been renamed to <type>SoupServerCallback</type>, and the old
+    <parameter>unregister</parameter> parameter of type
+    <type>SoupServerUnregisterFn</type> is now a standard
+    <type>GDestroyNotify</type>. The change to
+    <type>GDestroyNotify</type> and the swapping of the final two
+    arguments is to make the method conform to standard glib/gtk
+    practices.)
+</para>
+
+<para>
+    In <type>SoupServerCallback</type>, several bits of data that used
+    to be part of the <parameter>context</parameter> argument are now
+    provided directly, and <parameter>context</parameter> specifically
+    only contains more specifically-client-related information (such
+    as the <type>SoupSocket</type> that the request arrived on, and
+    information about authentication).
+</para>
+
+<para>
+    <parameter>path</parameter> is the fully %-decoded path component
+    of <parameter>msg</parameter>'s URI, and
+    <parameter>query</parameter> is a hash table containing
+    <parameter>msg</parameter>'s URI's
+    <structfield>query</structfield> component decoded with <link
+    linkend="soup-form-decode-urlencoded">soup_form_decode_urlencoded</link>.
+    These are provided for your convenience; if you need the raw
+    query, you can get it out of <parameter>msg</parameter>'s URI
+    directly. If you need the raw path, you'll need to set the <link
+    linkend="SOUP-SERVER-RAW-PATHS:CAPS"><literal>SOUP_SERVER_RAW_PATHS</literal></link>
+    property on the server, which actually changes the behavior of the
+    server with respect to how paths are matched; see the
+    documentation for details.
+</para>
+</refsect3>
+
+<refsect3>
+<title>Server-side authentication</title>
+
+<para>
+    <type>SoupServer</type> authentication has been completely
+    rewritten, with <type>SoupServerAuthContext</type> being replaced
+    with <link
+    linkend="SoupAuthDomain"><type>SoupAuthDomain</type></link>. Among
+    other improvements, you no longer need to have the cleartext
+    password available to check against. See the
+    <type>SoupAuthDomain</type> documentation, the <link
+    linkend="libsoup-server-howto">server tutorial</link>, and
+    <literal>tests/server-auth-test.c</literal>.
+</para>
+</refsect3>
+
+<refsect3>
+<title><literal>Expect: 100-continue</literal> and other early <type>SoupMessage</type> processing</title>
+
+<para>
+    <type>SoupServer</type> now handles
+    "<literal>Expect:&#160;100-continue</literal>" correctly. In
+    particular, if the client passes that header, and your server
+    requires authentication, then authentication will be checked
+    before reading the request body.
+</para>
+
+<para>
+    If you want to do additional pre-request-body handling, you can
+    connect to <type>SoupServer</type>'s <link
+    linkend="SoupServer-request-started"><literal>request_started</literal></link>
+    signal, and connect to the request's <link
+    linkend="SoupMessage-got-headers"><literal>got_headers</literal></link>
+    signal from there. (See the description of
+    <literal>request_started</literal> for information about other
+    related <type>SoupServer</type> signals.)
+</para>
+</refsect3>
+
+<refsect3>
+<title>Date header</title>
+
+<para>
+    <type>SoupServer</type> now automatically sets the
+    <literal>Date</literal> header on all responses, as required by
+    RFC 2616.
+</para>
+</refsect3>
+
+<refsect3>
+<title>SoupServerMessage</title>
+
+<para>
+    <type>SoupServerMessage</type> is now merged into
+    <type>SoupMessage</type>.
+    <function>soup_server_message_set_encoding</function> is replaced
+    with <link
+    linkend="soup-message-headers-set-encoding"><function>soup_message_headers_set_encoding</function></link>
+    as described in the section on <type>SoupMessage</type> above.
+</para>
+</refsect3>
+
+<refsect3>
+<title><function>soup_server_run</function> / <function>soup_server_quit</function></title>
+
+<para>
+    <link
+    linkend="soup-server-run"><function>soup_server_run</function></link>
+    and <link
+    linkend="soup-server-run-async"><function>soup_server_run_async</function></link>
+    no longer <function>g_object_ref</function> the server, and
+    <link
+    linkend="soup-server-quit"><function>soup_server_quit</function></link>
+    no longer unrefs it.
+</para>
+</refsect3>
+
+</refsect2>
+
+<refsect2>
+<title>Miscellaneous</title>
+
+<refsect3>
+<title>SoupDate</title>
+
+<para>
+    The new <link linkend="SoupDate"><type>SoupDate</type></link> type
+    replaces the old <function>soup_date_*</function> methods, and has
+    an improved (more liberal) date parser.
+</para>
+</refsect3>
+
+<refsect3>
+<title>Header parsing</title>
+
+<para>
+    <literal>soup-headers.h</literal> now has a few additional methods
+    for parsing list-type headers.
+</para>
+</refsect3>
+
+<refsect3>
+<title>SoupAddress, SoupSocket</title>
+
+<para>
+    <type>SoupSocket</type> has had various simplifications made to
+    reflect the fact that this is specifically libsoup's socket
+    implementation, not some random generic socket API.
+</para>
+
+<para>
+    Various <type>SoupAddress</type> and <type>SoupSocket</type>
+    methods now take arguments of the new <link
+    linkend="GCancellable"><type>GCancellable</type></link> type, from
+    libgio. When porting old code, you can just pass
+    <literal>NULL</literal> for these. (<link
+    linkend="soup-address-resolve-async"><function>soup_address_resolve_async</function></link>
+    also takes another new argument, a <link
+    linkend="GMainContext"><type>GMainContext</type></link> that
+    you'll want to pass <literal>NULL</literal> for.) If you pass a
+    <type>GCancellable</type>, you can use it to cleanly cancel the
+    address resolution / socket operation.
+</para>
+
+</refsect3>
+
+<refsect3>
+<title>Base64 methods</title>
+
+<para>
+    The deprecated base64 methods are now gone; use glib's base64
+    methods instead.
+</para>
+</refsect3>
+
+</refsect2>
+
+</refentry>

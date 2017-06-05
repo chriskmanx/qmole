@@ -1,0 +1,297 @@
+/private/var/chris/llvm-3.1.src/lib/VMCore/Release+Asserts/Core.o \
+  /private/var/chris/llvm-3.1.src/lib/VMCore/Release+Asserts/Core.d \
+  /private/var/chris/llvm-3.1.src/lib/VMCore/Release+Asserts/Core.o:  \
+ Core.cpp /private/var/chris/llvm-3.1.src/include/llvm-c/Core.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Module.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Function.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/GlobalValue.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Constant.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/User.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/ErrorHandling.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/Compiler.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/StringRef.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/type_traits.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Value.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Use.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/PointerIntPair.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/PointerLikeTypeTraits.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/Casting.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/CallingConv.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/BasicBlock.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Instruction.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/ilist_node.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/DebugLoc.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/DenseMapInfo.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Instruction.def \
+  /private/var/chris/llvm-3.1.src/include/llvm/SymbolTableListTraits.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/ilist.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/Twine.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/StringRef.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/ErrorHandling.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Argument.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Attributes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/MathExtras.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/SwapByteOrder.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/Compiler.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/GlobalVariable.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/OperandTraits.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/GlobalAlias.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Metadata.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/ArrayRef.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/SmallVector.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/FoldingSet.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/OwningPtr.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/PassRegistry.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/StringRef.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/IRBuilder.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Instructions.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/InstrTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/DerivedTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Type.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/SmallVector.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/BasicBlock.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/LLVMContext.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/ArrayRef.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/Twine.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/ConstantFolder.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Constants.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/APInt.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/ArrayRef.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/MathExtras.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/APFloat.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/APInt.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/InstrTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Attributes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Bitcode/ReaderWriter.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Constants.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/DerivedTypes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/GlobalVariable.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/GlobalAlias.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/LLVMContext.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/InlineAsm.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/IntrinsicInst.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Constants.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Instructions.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Intrinsics.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Intrinsics.gen \
+  /private/var/chris/llvm-3.1.src/include/llvm/PassManager.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Pass.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/PassSupport.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Pass.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/PassRegistry.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/InitializePasses.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/Atomic.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/Valgrind.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Config/llvm-config.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/PassAnalysisSupport.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/CallSite.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Attributes.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/ADT/PointerIntPair.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/CallingConv.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/Debug.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/ErrorHandling.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/MemoryBuffer.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/raw_ostream.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/system_error.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Support/type_traits.h \
+  /private/var/chris/llvm-3.1.src/include/llvm/Instruction.def
+
+/private/var/chris/llvm-3.1.src/include/llvm-c/Core.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Module.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Function.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/GlobalValue.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Constant.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/User.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/ErrorHandling.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/Compiler.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/StringRef.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/type_traits.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Value.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Use.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/PointerIntPair.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/PointerLikeTypeTraits.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/Casting.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/CallingConv.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/BasicBlock.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Instruction.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/ilist_node.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/DebugLoc.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/DenseMapInfo.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Instruction.def:
+
+/private/var/chris/llvm-3.1.src/include/llvm/SymbolTableListTraits.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/ilist.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/Twine.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/StringRef.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/ErrorHandling.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/DataTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Argument.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Attributes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/MathExtras.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/SwapByteOrder.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/Compiler.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/GlobalVariable.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/OperandTraits.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/GlobalAlias.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Metadata.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/ArrayRef.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/SmallVector.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/FoldingSet.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/OwningPtr.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/PassRegistry.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/StringRef.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/IRBuilder.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Instructions.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/InstrTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/DerivedTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Type.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/SmallVector.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/BasicBlock.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/LLVMContext.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/ArrayRef.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/Twine.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/ConstantFolder.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Constants.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/APInt.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/ArrayRef.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/MathExtras.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/APFloat.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/APInt.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/InstrTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Attributes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Bitcode/ReaderWriter.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Constants.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/DerivedTypes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/GlobalVariable.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/GlobalAlias.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/LLVMContext.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/InlineAsm.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/IntrinsicInst.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Constants.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Instructions.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Intrinsics.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Intrinsics.gen:
+
+/private/var/chris/llvm-3.1.src/include/llvm/PassManager.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Pass.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/PassSupport.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Pass.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/PassRegistry.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/InitializePasses.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/Atomic.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/Valgrind.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Config/llvm-config.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/PassAnalysisSupport.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/CallSite.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Attributes.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/ADT/PointerIntPair.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/CallingConv.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/Debug.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/ErrorHandling.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/MemoryBuffer.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/raw_ostream.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/system_error.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Support/type_traits.h:
+
+/private/var/chris/llvm-3.1.src/include/llvm/Instruction.def:

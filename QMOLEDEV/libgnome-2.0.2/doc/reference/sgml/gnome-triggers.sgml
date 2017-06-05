@@ -1,0 +1,256 @@
+<refentry id="libgnome-gnome-triggers">
+<refmeta>
+<refentrytitle>gnome-triggers</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBGNOME Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>gnome-triggers</refname><refpurpose>Hierarchical signal mechanism for GNOME events.</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+#include &lt;libgnome/libgnome.h&gt;
+
+
+enum        <link linkend="GnomeTriggerType">GnomeTriggerType</link>;
+void        (<link linkend="GnomeTriggerActionFunction">*GnomeTriggerActionFunction</link>)   (char *msg,
+                                             char *level,
+                                             char *supinfo[]);
+struct      <link linkend="GnomeTrigger">GnomeTrigger</link>;
+void        <link linkend="gnome-triggers-add-trigger">gnome_triggers_add_trigger</link>      (<link linkend="GnomeTrigger">GnomeTrigger</link> *nt,
+                                             ...);
+void        <link linkend="gnome-triggers-vadd-trigger">gnome_triggers_vadd_trigger</link>     (<link linkend="GnomeTrigger">GnomeTrigger</link> *nt,
+                                             char *supinfo[]);
+void        <link linkend="gnome-triggers-do">gnome_triggers_do</link>               (const char *msg,
+                                             const char *level,
+                                             ...);
+void        <link linkend="gnome-triggers-vdo">gnome_triggers_vdo</link>              (const char *msg,
+                                             const char *level,
+                                             const char *supinfo[]);
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+The triggers API provides a way for applications to tell GNOME about
+interesting events that then cause something to happen (for example, playing a
+sound). An event can either be a function that is called, a sound that is
+played or an external command that is run.
+</para>
+<para>
+Each trigger can optionally have a <wordasword>level</wordasword> associated
+with it and a <wordasword>section</wordasword>. The
+<wordasword>section</wordasword> is a list of strings that help to classify the
+event, which imposes a hierarchy on the trigger system. For example, messages
+about the hard drive partition /dev/hda1 may come under the section ("system",
+"device", "disk", "/dev/hda1"). This means that an application could trigger
+all events for the ("system", "device") sections and include those events, or
+be more specific and just trigger those for ("system", "device", "disk",
+"/dev/hda1").
+</para>
+<para>
+At the present time, triggers are not widely used in GNOME, being mostly used
+to play sound events in response to certain actions.
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="GnomeTriggerType">enum GnomeTriggerType</title>
+<programlisting>typedef enum {
+	GTRIG_NONE,
+	GTRIG_FUNCTION,
+	GTRIG_COMMAND,
+	GTRIG_MEDIAPLAY
+} GnomeTriggerType;
+</programlisting>
+<para>
+These are the different types of triggers that can be activated by an
+application.
+</para><informaltable pgwide="1" frame="none" role="enum">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row>
+<entry><literal>GTRIG_NONE</literal></entry>
+<entry>A null trigger type. Should never be used.
+</entry>
+</row>
+<row>
+<entry><literal>GTRIG_FUNCTION</literal></entry>
+<entry>The trigger causes a function to be executed.
+</entry>
+</row>
+<row>
+<entry><literal>GTRIG_COMMAND</literal></entry>
+<entry>The trigger causes a command to be executed (using <link linkend="execv">execv</link>()).
+</entry>
+</row>
+<row>
+<entry><literal>GTRIG_MEDIAPLAY</literal></entry>
+<entry>The trigger causes a sound to be played.
+
+</entry>
+</row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="GnomeTriggerActionFunction">GnomeTriggerActionFunction ()</title>
+<programlisting>void        (*GnomeTriggerActionFunction)   (char *msg,
+                                             char *level,
+                                             char *supinfo[]);</programlisting>
+<para>
+The signature of a function that can used as a target for <link linkend="GTRIG-FUNCTION-CAPS">GTRIG_FUNCTION</link>
+types of <link linkend="GnomeTrigger">GnomeTrigger</link> instances.
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>msg</parameter>&nbsp;:</entry>
+<entry>The human-readable message that was passed to <link linkend="gnome-triggers-do">gnome_triggers_do</link>(). May be
+<literal>NULL</literal>.
+</entry></row>
+<row><entry align="right"><parameter>level</parameter>&nbsp;:</entry>
+<entry>The severity level of the event. May be <literal>NULL</literal>.
+</entry></row>
+<row><entry align="right"><parameter>supinfo</parameter>&nbsp;:</entry>
+<entry>The section in which the event belongs. This is a <literal>NULL</literal> terminated
+array.
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="GnomeTrigger">struct GnomeTrigger</title>
+<programlisting>struct GnomeTrigger {
+	GnomeTriggerType type;
+	union {
+		/*
+		 * These will be passed the same info as
+		 * gnome_triggers_do was given.
+		 */
+		GnomeTriggerActionFunction function;
+		gchar *command;
+		struct {
+			gchar *file;
+			int cache_id;
+		} media;
+	} u;
+        gchar *level;
+};
+</programlisting>
+<para>
+This structure stores the information about an action that is triggered for
+a particular event. A filled in instance of this structure is passed to
+<link linkend="gnome-triggers-add-trigger">gnome_triggers_add_trigger</link>() and <link linkend="gnome-triggers-vadd-trigger">gnome_triggers_vadd_trigger</link>().
+</para></refsect2>
+<refsect2>
+<title><anchor id="gnome-triggers-add-trigger">gnome_triggers_add_trigger ()</title>
+<programlisting>void        gnome_triggers_add_trigger      (<link linkend="GnomeTrigger">GnomeTrigger</link> *nt,
+                                             ...);</programlisting>
+<para>
+Adds a new <link linkend="GnomeTrigger">GnomeTrigger</link> instance to the event hierarchy.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>nt</parameter>&nbsp;:</entry>
+<entry> Information on the new trigger to be added.
+</entry></row>
+<row><entry align="right"><parameter>...</parameter>&nbsp;:</entry>
+<entry> The section to add the trigger under.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="gnome-triggers-vadd-trigger">gnome_triggers_vadd_trigger ()</title>
+<programlisting>void        gnome_triggers_vadd_trigger     (<link linkend="GnomeTrigger">GnomeTrigger</link> *nt,
+                                             char *supinfo[]);</programlisting>
+<para>
+This does the same as <link linkend="gnome-triggers-add-trigger">gnome_triggers_add_trigger</link>(), except the section is
+stored in the <literal>NULL</literal> terminated array <parameter>supinfo</parameter> instead of as a variable
+length argument list.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>nt</parameter>&nbsp;:</entry>
+<entry> Information on the new trigger to be added.
+</entry></row>
+<row><entry align="right"><parameter>supinfo</parameter>&nbsp;:</entry>
+<entry> The section to add the trigger under.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="gnome-triggers-do">gnome_triggers_do ()</title>
+<programlisting>void        gnome_triggers_do               (const char *msg,
+                                             const char *level,
+                                             ...);</programlisting>
+<para>
+Notifies GNOME about an event happening, so that any appropriate handlers
+can be run.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>msg</parameter>&nbsp;:</entry>
+<entry> The human-readable message describing the event (can be <literal>NULL</literal>).
+</entry></row>
+<row><entry align="right"><parameter>level</parameter>&nbsp;:</entry>
+<entry> The level of severity of the event, or <literal>NULL</literal>.
+</entry></row>
+<row><entry align="right"><parameter>...</parameter>&nbsp;:</entry>
+<entry> The classification of the event.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="gnome-triggers-vdo">gnome_triggers_vdo ()</title>
+<programlisting>void        gnome_triggers_vdo              (const char *msg,
+                                             const char *level,
+                                             const char *supinfo[]);</programlisting>
+<para>
+Notifies GNOME about an event happening, so that any appropriate handlers
+can be run. This does the same as <link linkend="gnome-trigger-do">gnome_trigger_do</link>() except that it takes a
+<literal>NULL</literal> terminated array instead of a varargs list.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>msg</parameter>&nbsp;:</entry>
+<entry> The human-readable message describing the event (can be <literal>NULL</literal>).
+</entry></row>
+<row><entry align="right"><parameter>level</parameter>&nbsp;:</entry>
+<entry> The level of severity of the event, or <literal>NULL</literal>.
+</entry></row>
+<row><entry align="right"><parameter>supinfo</parameter>&nbsp;:</entry>
+<entry> The classification of the event (<literal>NULL</literal> terminated array).
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+
+</refentry>

@@ -1,0 +1,370 @@
+<?xml version="1.0"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" 
+               "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd">
+<refentry id="libsoup-server-howto">
+<refmeta>
+<refentrytitle>Soup Server Basics</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBSOUP Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>Soup Server Basics</refname><refpurpose>Server-side tutorial</refpurpose>
+</refnamediv>
+
+<refsect2>
+<title>Creating a SoupSession</title>
+
+<para>
+As with the client API, there is a single object that will encapsulate
+most of your interactions with libsoup. In this case, <link
+linkend="SoupServer"><type>SoupServer</type></link>.
+</para>
+
+<para>
+You create the server with <link
+linkend="soup-server-new"><function>soup_server_new</function></link>,
+and as with the <type>SoupSession</type> constructor, you can specify
+various additional options:
+</para>
+
+<variablelist>
+    <varlistentry>
+	<term><link linkend="SOUP-SERVER-PORT:CAPS"><literal>SOUP_SERVER_PORT</literal></link></term>
+	<listitem><para>
+	    The TCP port to listen on. If <literal>0</literal> (or
+	    left unspecified), some unused port will be selected for
+	    you. (You can find out what port by calling <link
+	    linkend="soup-server-get-port"><function>soup_server_get_port</function></link>.
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><link linkend="SOUP-SERVER-INTERFACE:CAPS"><literal>SOUP_SERVER_INTERFACE</literal></link></term>
+	<listitem><para>
+	    A <link linkend="SoupAddress"><type>SoupAddress</type></link>,
+	    specifying the IP address of the network interface to run
+	    the server on. If <literal>NULL</literal> (or left
+	    unspecified), the server will listen on all interfaces.
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><link linkend="SOUP-SERVER-SSL-CERT-FILE:CAPS"><literal>SOUP_SERVER_SSL_CERT_FILE</literal></link></term>
+	<listitem><para>
+	    Points to a file containing an SSL certificate to use. If
+	    this is set, then the server will speak HTTPS; otherwise
+	    it will speak HTTP.
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><link linkend="SOUP-SERVER-SSL-KEY-FILE:CAPS"><literal>SOUP_SERVER_SSL_KEY_FILE</literal></link></term>
+	<listitem><para>
+	    Points to a file containing the private key for the
+	    <literal>SOUP_SERVER_SSL_CERT_FILE</literal>. (It may
+	    point to the same file.)
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><link linkend="SOUP-SERVER-ASYNC-CONTEXT:CAPS"><literal>SOUP_SERVER_ASYNC_CONTEXT</literal></link></term>
+	<listitem><para>
+	    A <link linkend="GMainContext"><type>GMainContext</type></link> which
+	    the server will use for asynchronous operations. This can
+	    be set if you want to use a SoupServer in a thread
+	    other than the main thread.
+	</para></listitem>
+    </varlistentry>
+    <varlistentry>
+	<term><link linkend="SOUP-SERVER-RAW-PATHS:CAPS"><literal>SOUP_SERVER_RAW_PATHS</literal></link></term>
+	<listitem><para>
+	    Set this to <literal>TRUE</literal> if you don't want
+	    <application>libsoup</application> to decode %-encoding
+	    in the Request-URI. (Eg, because you need to treat
+	    <literal>"/foo/bar"</literal> and
+	    <literal>"/foo%2Fbar"</literal> as different paths.
+	</para></listitem>
+    </varlistentry>
+</variablelist>
+
+</refsect2>
+
+<refsect2>
+<title>Adding Handlers</title>
+
+<para>
+By default, <link linkend="SoupServer"><type>SoupServer</type></link>
+returns "404 Not Found" in response to all requests (except ones that
+it can't parse, which get "400 Bad Request"). To override this
+behavior, call <link
+linkend="soup-server-add-handler"><function>soup_server_add_handler</function></link>
+to set a callback to handle certain URI paths.
+</para>
+
+<informalexample><programlisting>
+	soup_server_add_handler (server, "/foo", server_callback,
+				 data, destroy_notify);
+</programlisting></informalexample>
+
+<para>
+The <literal>"/foo"</literal> indicates the base path for this
+handler. When a request comes in, if there is a handler registered for
+exactly the path in the request's <literal>Request-URI</literal>, then
+that handler will be called. Otherwise
+<application>libsoup</application> will strip path components one by
+one until it finds a matching handler. So for example, a request of
+the form
+"<literal>GET&#xA0;/foo/bar/baz.html?a=1&amp;b=2&#xA0;HTTP/1.1</literal>"
+would look for handlers for "<literal>/foo/bar/baz.html</literal>",
+"<literal>/foo/bar</literal>", and "<literal>/foo</literal>". If a
+handler has been registered with a <literal>NULL</literal> base path,
+then it is used as the default handler for any request that doesn't
+match any other handler.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>Responding to Requests</title>
+
+<para>
+A handler callback looks something like this:
+</para>
+
+<informalexample><programlisting>
+static void
+server_callback (SoupServer        *server,
+		 SoupMessage       *msg, 
+		 const char        *path,
+		 GHashTable        *query,
+		 SoupClientContext *client,
+		 gpointer           user_data)
+{
+	...
+}
+</programlisting></informalexample>
+
+<para>
+<literal>msg</literal> is the request that has been received and
+<literal>user_data</literal> is the data that was passed to <link
+linkend="soup-server-add-handler"><function>soup_server_add_handler</function></link>.
+<literal>path</literal> is the path (from <literal>msg</literal>'s
+URI), and <literal>query</literal> contains the result of parsing the
+URI query field. (It is <literal>NULL</literal> if there was no
+query.) <literal>client</literal> is a <link
+linkend="SoupClientContext"><type>SoupClientContext</type></link>,
+which contains additional information about the client (including its
+IP address, and whether or not it used HTTP authentication).
+</para>
+
+<para>
+By default, <application>libsoup</application> assumes that you have
+completely finished processing the message when you return from the
+callback, and that it can therefore begin sending the response. If you
+are not ready to send a response immediately (eg, you have to contact
+another server, or wait for data from a database), you must call <link
+linkend="soup-server-pause-message"><function>soup_server_pause_message</function></link>
+on the message before returning from the callback. This will delay
+sending a response until you call <link
+linkend="soup-server-unpause-message"><function>soup_server_unpause_message</function></link>.
+(You must also connect to the <link
+linkend="SoupMessage-finished">finished</link> signal on the message
+in this case, so that you can break off processing if the client
+unexpectedly disconnects before you start sending the data.)
+</para>
+
+<para>
+To set the response status, call <link
+linkend="soup-message-set-status"><function>soup_message_set_status</function></link>
+or <link
+linkend="soup-message-set-status-full"><function>soup_message_set_status_full</function></link>.
+If the response requires a body, you must decide whether to use
+<literal>Content-Length</literal> encoding (the default), or
+<literal>chunked</literal> encoding.
+</para>
+
+<refsect3>
+<title>Responding with <literal>Content-Length</literal>
+Encoding</title>
+
+<para>
+This is the simpler way to set a response body, if you have all of the
+data available at once.
+</para>
+
+<informalexample><programlisting>
+static void
+server_callback (SoupServer        *server,
+		 SoupMessage       *msg, 
+		 const char        *path,
+		 GHashTable        *query,
+		 SoupClientContext *client,
+		 gpointer           user_data)
+{
+	MyServerData *server_data = user_data;
+	const char *mime_type;
+	GByteArray *body;
+
+	if (msg->method != SOUP_METHOD_GET) {
+		soup_message_set_status (msg, SOUP_STATUS_NOT_IMPLEMENTED);
+		return;
+	}
+
+	/* This is somewhat silly. Presumably your server will do
+	 * something more interesting.
+	 */
+	body = g_hash_table_lookup (server_data->bodies, path);
+	mime_type = g_hash_table_lookup (server_data->mime_types, path);
+	if (!body || !mime_type) {
+		soup_message_set_status (msg, SOUP_STATUS_NOT_FOUND);
+		return;
+	}
+
+	soup_message_set_status (msg, SOUP_STATUS_OK);
+	soup_message_set_response (msg, mime_type, SOUP_MEMORY_COPY,
+				   body->data, body->len);
+}
+</programlisting></informalexample>
+
+</refsect3>
+
+<refsect3>
+<title>Responding with <literal>chunked</literal> Encoding</title>
+
+<para>
+If you want to supply the response body in chunks as it becomes
+available, use <literal>chunked</literal> encoding instead. In this
+case, first call <link
+linkend="soup-message-headers-set-encoding"><function>soup_message_headers_set_encoding</function></link>&#160;<literal>(msg->response_headers,&#160;<link
+linkend="SoupEncoding">SOUP_ENCODING_CHUNKED</link>)</literal>
+to tell <application>libsoup</application> that you'll be using
+chunked encoding. Then call <link
+linkend="soup-message-body-append"><function>soup_message_body_append</function></link>
+(or <link
+linkend="soup-message-body-append-buffer"><function>soup_message_body_append_buffer</function></link>)
+on <literal>msg->response_body</literal> with each chunk of the
+response body as it becomes available, and call <link
+linkend="soup-message-body-complete"><function>soup_message_body_complete</function></link>
+when the response is complete. After each of these calls, you must
+also call <link
+linkend="soup-server-unpause-message"><function>soup_server_unpause_message</function></link>
+to cause the chunk to be sent. (You do not normally need to call <link
+linkend="soup-server-pause-message"><function>soup_server_pause_message</function></link>,
+because I/O is automatically paused when doing a
+<literal>chunked</literal> transfer if no chunks are available.)
+</para>
+
+<para>
+When using chunked encoding, you must also connect to the <link
+linkend="SoupMessage-finished">finished</link> signal on the message,
+so that you will be notified if the client disconnects between two
+chunks; <type>SoupServer</type> will unref the message if that
+happens, so you must stop adding new chunks to the response at that
+point. (An alternate possibility is to write each new chunk only when
+the <link linkend="SoupMessage-wrote-chunk">wrote_chunk</link> signal
+is emitted indicating that the previous one was written successfully.)
+</para>
+
+<para>
+The <emphasis role="bold"><literal>simple-proxy</literal></emphasis>
+example in the <literal>tests/</literal> directory gives an example of
+using <literal>chunked</literal> encoding.
+</para>
+
+</refsect3>
+</refsect2>
+
+
+<refsect2>
+<title>Handling Authentication</title>
+
+<para>
+To have <link linkend="SoupServer"><type>SoupServer</type></link>
+handle HTTP authentication for you, create a <link
+linkend="SoupAuthDomainBasic"><type>SoupAuthDomainBasic</type></link>
+or <link
+linkend="SoupAuthDomainDigest"><type>SoupAuthDomainDigest</type></link>,
+and pass it to <link
+linkend="soup-server-add-auth-domain"><function>soup_server_add_auth_domain</function></link>:
+</para>
+
+<informalexample><programlisting>
+	SoupAuthDomain *domain;
+
+	domain = soup_auth_domain_basic_new (
+		SOUP_AUTH_DOMAIN_REALM, "My Realm",
+		SOUP_AUTH_DOMAIN_BASIC_AUTH_CALLBACK, auth_callback,
+		SOUP_AUTH_DOMAIN_BASIC_AUTH_DATA, auth_data,
+		SOUP_AUTH_DOMAIN_ADD_PATH, "/foo",
+		SOUP_AUTH_DOMAIN_ADD_PATH, "/bar/private",
+		NULL);
+	soup_server_add_auth_domain (server, domain);
+	g_object_unref (domain);
+</programlisting></informalexample>
+
+<para>
+Then, every request under one of the auth domain's paths will be
+passed to the <literal>auth_callback</literal> first before being
+passed to the <literal>server_callback</literal>:
+</para>
+
+<informalexample><programlisting>
+static gboolean
+auth_callback (SoupAuthDomain *domain, SoupMessage *msg,
+	       const char *username, const char *password,
+	       gpointer user_data)
+{
+	MyServerData *server_data = user_data;
+	MyUserData *user;
+
+	user = my_server_data_lookup_user (server_data, username);
+	if (!user)
+		return FALSE;
+
+	/* FIXME: Don't do this. Keeping a cleartext password database
+	 * is bad.
+	 */
+	return strcmp (password, user->password) == 0;
+}
+</programlisting></informalexample>
+
+<para>
+The <link
+linkend="SoupAuthDomainBasicAuthCallback"><type>SoupAuthDomainBasicAuthCallback</type></link>
+is given the username and password from the
+<literal>Authorization</literal> header and must determine, in some
+server-specific manner, whether or not to accept them. (In this
+example we compare the password against a cleartext password database,
+but it would be better to store the password somehow encoded, as in
+the UNIX password database. Alternatively, you may need to delegate
+the password check to PAM or some other service.)
+</para>
+
+<para>
+If you are using Digest authentication, note that <link
+linkend="SoupAuthDomainDigestAuthCallback"><type>SoupAuthDomainDigestAuthCallback</type></link>
+works completely differently (since the server doesn't receive the
+cleartext password from the client in that case, so there's no way to
+compare it directly). See the documentation for <link
+linkend="SoupAuthDomainDigest"><type>SoupAuthDomainDigest</type></link>
+for more details.
+</para>
+
+<para>
+You can have multiple <type>SoupAuthDomain</type>s attached to a
+<literal>SoupServer</literal>, either in separate parts of the path
+hierarchy, or overlapping. (Eg, you might want to accept either Basic
+or Digest authentication for a given path.) When more than one auth
+domain covers a given path, the request will be accepted if the user
+authenticates successfully against <emphasis>any</emphasis> of the
+domains.
+</para>
+
+<para>
+If you want to require authentication for some requests under a
+certain path, but not all of them (eg, you want to authenticate
+<literal>PUT</literal>s, but not <literal>GET</literal>s), use a 
+<link
+linkend="SoupAuthDomainFilter"><type>SoupAuthDomainFilter</type></link>.
+</para>
+
+</refsect2>
+
+</refentry>

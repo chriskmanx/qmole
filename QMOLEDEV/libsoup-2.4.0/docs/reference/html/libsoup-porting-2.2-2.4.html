@@ -1,0 +1,778 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<title>libsoup 2.2 to 2.4 porting notes</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.73.2">
+<link rel="start" href="index.html" title="libsoup Reference Manual">
+<link rel="up" href="ch01.html" title="Tutorial">
+<link rel="prev" href="libsoup-server-howto.html" title="Soup Server Basics">
+<link rel="next" href="ch02.html" title="API Reference">
+<meta name="generator" content="GTK-Doc V1.9 (XML mode)">
+<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="chapter" href="ch01.html" title="Tutorial">
+<link rel="chapter" href="ch02.html" title="API Reference">
+<link rel="index" href="ix01.html" title="Index">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<table class="navigation" id="top" width="100%" summary="Navigation header" cellpadding="2" cellspacing="2"><tr valign="middle">
+<td><a accesskey="p" href="libsoup-server-howto.html"><img src="left.png" width="24" height="24" border="0" alt="Prev"></a></td>
+<td><a accesskey="u" href="ch01.html"><img src="up.png" width="24" height="24" border="0" alt="Up"></a></td>
+<td><a accesskey="h" href="index.html"><img src="home.png" width="24" height="24" border="0" alt="Home"></a></td>
+<th width="100%" align="center">libsoup Reference Manual</th>
+<td><a accesskey="n" href="ch02.html"><img src="right.png" width="24" height="24" border="0" alt="Next"></a></td>
+</tr></table>
+<div class="refentry" lang="en">
+<a name="libsoup-porting-2.2-2.4"></a><div class="titlepage"></div>
+<div class="refnamediv"><table width="100%"><tr>
+<td valign="top">
+<h2><span class="refentrytitle">libsoup 2.2 to 2.4 porting notes</span></h2>
+<p>Porting notes &#8212; Notes on porting from libsoup 2.2 to 2.4</p>
+</td>
+<td valign="top" align="right"></td>
+</tr></table></div>
+<div class="refsect2" lang="en">
+<a name="id375980"></a><h3>Overview</h3>
+<p>
+After many API-compatible releases in the 2.2 series,
+<span class="application">libsoup</span> has now changed its API and bumped
+its version number to 2.4. Changes were made for a variety of reasons:
+</p>
+<div class="itemizedlist"><ul type="disc">
+<li><p>
+	To fix bugs and add features that couldn't be done ABI-compatibly.
+    </p></li>
+<li><p>
+	To make it easier to generate bindings for libsoup for
+	languages other than C.
+    </p></li>
+<li><p>
+	To clean up ugly/confusing old APIs
+    </p></li>
+<li><p>
+	To be more glib/gobject/gtk-like in general.
+    </p></li>
+</ul></div>
+</div>
+<hr>
+<div class="refsect2" lang="en">
+<a name="id362557"></a><h3>SoupMessage</h3>
+<p>
+<a class="link" href="SoupMessage.html" title="SoupMessage"><span class="type">SoupMessage</span></a> has had a
+number of API changes made, mostly to increase its
+language-bindability.
+</p>
+<div class="refsect3" lang="en">
+<a name="id350353"></a><h4>SoupMessageHeaders</h4>
+<p>
+    <span class="type">SoupMessage</span>'s
+    <em class="structfield"><code>request_headers</code></em> and
+    <em class="structfield"><code>response_headers</code></em> fields are now an
+    opaque type (<a class="link" href="libsoup-24-SoupMessageHeaders.html#SoupMessageHeaders"><span class="type">SoupMessageHeaders</span></a>)
+    rather than being <span class="type">GHashTables</span>. The method names have
+    changed slightly to reflect this:
+</p>
+<div class="variablelist"><table border="0">
+<col align="left" valign="top">
+<tbody>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_add_header</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-append"><code class="function">soup_message_headers_append</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_get_header</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-get"><code class="function">soup_message_headers_get</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_foreach_header</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-foreach"><code class="function">soup_message_headers_foreach</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_remove_header</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-remove"><code class="function">soup_message_headers_remove</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_clear_headers</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-clear"><code class="function">soup_message_headers_clear</code></a>
+	</p></td>
+</tr>
+</tbody>
+</table></div>
+<p>
+    <code class="function">soup_message_get_header_list</code> has no equivalent;
+    if multiple copies of a header are present,
+    <code class="function">soup_message_headers_get</code> will return all of
+    them, concatenated together and separated by commas; RFC 2616 says
+    that the two forms (multiple headers, and a single header with
+    comma-separated values) are equivalent; this change to libsoup
+    ensures that applications will treat them as equivalent.
+</p>
+<p>
+    In addition, certain important header fields now have
+    dedicated get/set methods:
+</p>
+<div class="itemizedlist"><ul type="disc">
+<li><p>
+	<a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-get-encoding"><code class="function">soup_message_headers_get_encoding</code></a> / <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-set-encoding"><code class="function">soup_message_headers_set_encoding</code></a>
+    </p></li>
+<li><p>
+	<a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-get-content-length"><code class="function">soup_message_headers_get_content_length</code></a> / <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-set-content-length"><code class="function">soup_message_headers_set_content_length</code></a>
+    </p></li>
+<li><p>
+	<a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-get-expectations"><code class="function">soup_message_headers_get_expectations</code></a> / <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-set-expectations"><code class="function">soup_message_headers_set_expectations</code></a>
+    </p></li>
+</ul></div>
+<p>
+    (<code class="literal">soup_message_headers_set_expectation(msg,&#160;SOUP_EXPECTATION_CONTINUE)</code>
+    replaces the <code class="literal">SOUP_MESSAGE_EXPECT_CONTINUE</code>
+    message flag).
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id380231"></a><h4>SoupMessageBody</h4>
+<p>
+    Similarly, the <em class="structfield"><code>request_body</code></em> and
+    <em class="structfield"><code>response</code></em> fields (renamed from
+    <em class="structfield"><code>request</code></em> and <em class="structfield"><code>response</code></em>) are
+    now a new type, <a class="link" href="libsoup-24-SoupMessageBody.html#SoupMessageBody"><span class="type">SoupMessageBody</span></a>,
+    implemented in terms of <a class="link" href="libsoup-24-SoupMessageBody.html#SoupBuffer"><span class="type">SoupBuffer</span></a>, a refcounted
+    memory buffer type with clearer semantics than the old
+    <span class="type">SoupDataBuffer</span>/<span class="type">SoupOwnership</span>.
+</p>
+<div class="variablelist"><table border="0">
+<col align="left" valign="top">
+<tbody>
+<tr>
+<td><p><span class="term"><code class="literal">SOUP_BUFFER_STATIC</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageBody.html#SOUP-MEMORY-STATIC:CAPS"><code class="literal">SOUP_MEMORY_STATIC</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">SOUP_BUFFER_SYSTEM_OWNED</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageBody.html#SOUP-MEMORY-TAKE:CAPS"><code class="literal">SOUP_MEMORY_TAKE</code></a>
+	    (meaning <span class="application">libsoup</span>
+	    should take ownership of the memory from your).
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">SOUP_BUFFER_USER_OWNED</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageBody.html#SOUP-MEMORY-COPY:CAPS"><code class="literal">SOUP_MEMORY_COPY</code></a>
+	    (meaning <span class="application">libsoup</span>
+	    should make a copy of the memory, because you
+	    can't make any guarantees about how long it will
+	    last.)
+	</p></td>
+</tr>
+</tbody>
+</table></div>
+<p>
+    A fourth <span class="type">SoupMemoryUse</span> value is also available: <a class="link" href="libsoup-24-SoupMessageBody.html#SOUP-MEMORY-TEMPORARY:CAPS"><code class="literal">SOUP_MEMORY_TEMPORARY</code></a>,
+    which helps to avoid extra copies in some cases.
+    <code class="literal">SOUP_MEMORY_TEMPORARY</code> means that the memory
+    will last at least as long as the object you are handing it to (a
+    <span class="type">SoupBuffer</span>, <span class="type">SoupMessageBody</span>, or
+    <span class="type">SoupMessage</span>), and so doesn't need to be copied right
+    away, but that if anyone makes a copy of the buffer,
+    <span class="application">libsoup</span> needs to make a new copy of the
+    memory for them at that point, since the original pointer may not
+    remain valid for the lifetime of the new copy.
+</p>
+<p>
+    (In the future, there may be additional <span class="type">SoupBuffer</span>
+    and <span class="type">SoupMessageBody</span> methods to work directly with
+    mmapped memory, splicing to file descriptors, etc.)
+</p>
+<p>
+    <a class="link" href="SoupMessage.html#soup-message-set-request"><code class="function">soup_message_set_request</code></a>
+    and <a class="link" href="SoupMessage.html#soup-message-set-response"><code class="function">soup_message_set_response</code></a>
+    still work roughly like they used to.
+</p>
+<p>
+    Unlike the old <em class="structfield"><code>request</code></em> and
+    <em class="structfield"><code>response</code></em> fields, the new
+    <em class="structfield"><code>request_body</code></em> and
+    <em class="structfield"><code>response_body</code></em> fields are not guaranteed
+    to be filled in at all times. (In particular, the
+    <em class="structfield"><code>response_body</code></em> is not filled in until it
+    has been fully read, although you can use <a class="link" href="libsoup-24-SoupMessageBody.html#soup-message-body-get-chunk"><code class="function">soup_message_body_get_chunk</code></a>
+    to iterate through the chunks before that point if you need to.)
+</p>
+<p>
+    When <em class="structfield"><code>request_body</code></em> and
+    <em class="structfield"><code>response_body</code></em> <span class="emphasis"><em>are</em></span>
+    filled in, they are <code class="literal">'\0'</code>-terminated for your
+    processing convenience. (The terminating 0 byte is not included in
+    their length.)
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id362931"></a><h4>Chunked encoding</h4>
+<p>
+    The prototype of the <a class="link" href="SoupMessage.html#SoupMessage-got-chunk"><code class="literal">SoupMessage::got_chunk</code></a>
+    signal has been changed; it now includes the chunk as a
+    <span class="type">SoupBuffer</span> parameter (rather than storing the chunk
+    data in <code class="literal">msg-&gt;response</code> as in 2.2). <a class="link" href="SoupMessage.html#SoupMessageFlags"><code class="literal">SOUP_MESSAGE_OVERWRITE_CHUNKS</code></a>
+    is now somewhat poorly named, but still has essentially the same
+    semantics: if you set it, each chunk will be discarded after it is
+    read, and <code class="literal">msg-&gt;response_body</code> will not be filled
+    in with the complete response at the end of message processing.
+</p>
+<p>
+    The API for sending chunked responses from a
+    <span class="type">SoupServer</span> is also slightly different now:
+</p>
+<div class="variablelist"><table border="0">
+<col align="left" valign="top">
+<tbody>
+<tr>
+<td><p><span class="term"><code class="function">soup_server_message_set_encoding</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-set-encoding"><code class="function">soup_message_headers_set_encoding</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_add_chunk</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageBody.html#soup-message-body-append"><code class="function">soup_message_body_append</code></a>
+	    or <a class="link" href="libsoup-24-SoupMessageBody.html#soup-message-body-append-buffer"><code class="function">soup_message_body_append_buffer</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_add_final_chunk</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-SoupMessageBody.html#soup-message-body-complete"><code class="function">soup_message_body_complete</code></a>
+	</p></td>
+</tr>
+</tbody>
+</table></div>
+<p>
+    Since the new chunk-sending APIs require you to explicitly pass
+    the
+    <em class="structfield"><code>request_headers</code></em>/<em class="structfield"><code>request_body</code></em>
+    fields, rather than just assuming you're talking about the
+    response body, in theory it is now possible to use chunked
+    encoding with the request as well. As of the 2.3.0 release this
+    has not yet been tested.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363088"></a><h4>Methods</h4>
+<p>
+    <span class="type">SoupMessage</span>'s
+    <em class="structfield"><code>method</code></em> field is now an interned
+    string, and you can compare the method directly against
+    the defines such as <a class="link" href="libsoup-24-soup-method.html#SOUP-METHOD-GET:CAPS"><code class="literal">SOUP_METHOD_GET</code></a>
+    (eg, in a <span class="type">SoupServer</span> request handler).
+    <code class="function">soup_method_get_id</code> and the
+    <code class="literal">SOUP_METHOD_ID_*</code> macros are now gone.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363132"></a><h4>Handlers</h4>
+<p>
+    <a class="link" href="SoupMessage.html#soup-message-add-header-handler"><code class="function">soup_message_add_header_handler</code></a>
+    and <a class="link" href="SoupMessage.html#soup-message-add-status-code-handler"><code class="function">soup_message_add_status_code_handler</code></a>
+    are now just clever wrappers around
+    <code class="function">g_signal_connect</code>. In particular, you now pass
+    a signal name to them rather than a <span class="type">SoupHandlerPhase</span>,
+    and you remove them with the normal signal handler remove methods.
+    However, they still retain the special behavior that if the
+    message has been cancelled or requeued when the time comes for the
+    handler to run, then the handler will be skipped. (Use plain
+    <code class="function">g_signal_connect</code> if you don't want that
+    behavior.)
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363180"></a><h4>I/O-related <span class="type">SoupMessage</span> methods</h4>
+<p>
+    <code class="function">soup_message_io_pause</code> and
+    <code class="function">soup_message_io_unpause</code> have been moved to
+    <span class="type">SoupSession</span> and <span class="type">SoupServer</span>, to better
+    reflect the fact that the session/server control the I/O, and
+    <span class="type">SoupMessage</span> is merely acted-upon by them.
+</p>
+<div class="variablelist"><table border="0">
+<col align="left" valign="top">
+<tbody>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_io_pause</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="SoupSession.html#soup-session-pause-message"><code class="function">soup_session_pause_message</code></a> / <a class="link" href="SoupServer.html#soup-server-pause-message"><code class="function">soup_server_pause_message</code></a>
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">soup_message_io_unpause</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="SoupSession.html#soup-session-unpause-message"><code class="function">soup_session_unpause_message</code></a> / <a class="link" href="SoupServer.html#soup-server-unpause-message"><code class="function">soup_server_unpause_message</code></a>
+	</p></td>
+</tr>
+</tbody>
+</table></div>
+<p>
+    <code class="literal">msg-&gt;status</code> (the I/O status) is now
+    gone as well, because (a) it's really an internal state of
+    <span class="type">SoupSession</span>, and (b) it's too easy to confuse
+    with <code class="literal">msg-&gt;status_code</code> (the HTTP status)
+    anyway. Code that used to check if status was
+    <code class="literal">SOUP_MESSAGE_STATUS_FINISHED</code> needs to
+    be rewritten to track whether or not the <a class="link" href="SoupMessage.html#SoupMessage-finished"><code class="literal">finished</code></a>
+    signal has been emitted.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363328"></a><h4>HTTP-Version</h4>
+<p>
+    <span class="type">SoupHttpVersion</span> is now <a class="link" href="SoupMessage.html#SoupHTTPVersion"><span class="type">SoupHTTPVersion</span></a>
+</p>
+</div>
+</div>
+<hr>
+<div class="refsect2" lang="en">
+<a name="id363352"></a><h3>SoupSession</h3>
+<div class="refsect3" lang="en">
+<a name="id363358"></a><h4>
+<code class="function">soup_session_queue_message</code> callback</h4>
+<p>
+    <a class="link" href="SoupSession.html#soup-session-queue-message"><code class="function">soup_session_queue_message</code></a>'s
+    callback parameter now includes the <span class="type">SoupSession</span> as a
+    parameter, reflecting the fact that it is a
+    <span class="type">SoupSession</span> callback, not a <span class="type">SoupMessage</span>
+    callback. (It has also been renamed, from
+    <span class="type">SoupMessageCallbackFn</span> to <a class="link" href="SoupSession.html#SoupSessionCallback"><span class="type">SoupSessionCallback</span></a>.)
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363405"></a><h4>Authentication</h4>
+<p>
+    <span class="type">SoupSession</span>'s <code class="literal">authenticate</code> and
+    <code class="literal">reauthenticate</code> signals have been merged into a
+    single <a class="link" href="SoupSession.html#SoupSession-authenticate"><code class="literal">authenticate</code></a>
+    signal with a <em class="parameter"><code>retrying</code></em> parameter to indicate if
+    it's the second (or later) try. Also, the signal now includes a
+    <a class="link" href="SoupAuth.html" title="SoupAuth"><span class="type">SoupAuth</span></a> directly,
+    and you authenticate by calling <a class="link" href="SoupAuth.html#soup-auth-authenticate"><code class="function">soup_auth_authenticate</code></a>
+    on the auth (rather than passing back a username and password from
+    the signal handler).
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363464"></a><h4><span class="type">SoupLogger</span></h4>
+<p>
+<span class="type">SoupLogger</span> is a
+new object that copies the behavior of
+<span class="application">evolution-exchange</span>'s
+<code class="literal">E2K_DEBUG</code> and its clones. That is, it causes a
+<span class="type">SoupSession</span> to start logging some or all of its HTTP
+traffic to stdout, for debugging purposes.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363500"></a><h4><span class="type">SoupMessageFilter</span></h4>
+<p>
+    <span class="type">SoupMessageFilter</span> is gone; code that used to use it
+    can now connect to the <a class="link" href="SoupSession.html#SoupSession-request-started"><code class="literal">SoupSession::request-started</code></a>
+    signal to get a chance to act on each message as it is sent.
+    (This is how <span class="type">SoupLogger</span> works.)
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363529"></a><h4>Internal types</h4>
+<p>
+    The <span class="type">SoupConnection</span> and <span class="type">SoupMessageQueue</span>
+    types (which should always have been internal to
+    <span class="type">SoupSession</span>) have been removed from the public API.
+</p>
+</div>
+</div>
+<hr>
+<div class="refsect2" lang="en">
+<a name="id363552"></a><h3>SoupURI</h3>
+<span class="type">SoupUri</span> has been renamed <a class="link" href="libsoup-24-SoupURI.html#SoupURI"><span class="type">SoupURI</span></a>, and its behavior has
+changed in a few ways:
+
+<div class="itemizedlist"><ul type="disc">
+<li>
+<p>
+	    It no longer fully-decodes %-encoded URI components. This
+	    is necessary to ensure that complicated URIs (eg, URIs
+	    that include other URIs as query parameters) can be
+	    round-tripped correctly. This corresponds to the old
+	    <em class="structfield"><code>broken_encoding</code></em> behavior, but
+	    that flag no longer exists, since it is the default and
+	    there's no way to turn it off.
+	</p>
+<p>
+	    In theory, this is an ABI-breaking change, especially for
+	    <a class="link" href="SoupServer.html" title="SoupServer"><span class="type">SoupServer</span></a>s.
+	    However, it is unlikely to actually break anything. (And
+	    in the <span class="type">SoupServer</span> case, servers now
+	    fully-decode the <em class="structfield"><code>path</code></em> component
+	    themselves unless you set the <a class="link" href="SoupServer.html#SOUP-SERVER-RAW-PATHS:CAPS"><code class="literal">SOUP_SERVER_RAW_PATHS</code></a>
+	    flag on the server, so the behavior should still be the
+	    same.
+	</p>
+</li>
+<li><p>
+	It uses the RFC3986 parsing rules, including support for IPv6 literal
+	addresses.
+    </p></li>
+<li>
+<p>
+	    The field formerly called
+	    <em class="structfield"><code>protocol</code></em> is now
+	    <em class="structfield"><code>scheme</code></em>, to match the spec, and
+	    it's an interned string rather than a quark. The names of
+	    the predefined values have changed to match:
+	</p>
+<div class="variablelist"><table border="0">
+<col align="left" valign="top">
+<tbody>
+<tr>
+<td><p><span class="term"><code class="function">SOUP_PROTOCOL_HTTP</code></span></p></td>
+<td><p>
+		    &#8594; <a class="link" href="libsoup-24-SoupURI.html#SOUP-URI-SCHEME-HTTP:CAPS"><code class="literal">SOUP_URI_SCHEME_HTTP</code></a>
+		</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="function">SOUP_PROTOCOL_HTTPS</code></span></p></td>
+<td><p>
+		    &#8594; <a class="link" href="libsoup-24-SoupURI.html#SOUP-URI-SCHEME-HTTPS:CAPS"><code class="literal">SOUP_URI_SCHEME_HTTPS</code></a>
+		</p></td>
+</tr>
+</tbody>
+</table></div>
+</li>
+</ul></div>
+<p>
+<a class="link" href="libsoup-24-SoupURI.html#soup-uri-decode"><code class="function">soup_uri_decode</code></a>
+now returns a new string rather than modifying its input string in
+place. The new method <a class="link" href="libsoup-24-SoupURI.html#soup-uri-normalize"><code class="function">soup_uri_normalize</code></a>,
+which removes some, but not all, %-encoding, behaves similarly.
+</p>
+<p>
+Finally, <span class="type">SoupURI</span> (as well as most other struct types in
+<span class="application">libsoup</span>) now uses the glib "slice"
+allocator, so any code that uses <a
+href="/usr/share/gtk-doc/html/glib/glib-Memory-Allocation.html#g-new"
+><code class="function">g_new</code></a> to create
+<span class="type">SoupURI</span>s is wrong. If you want to create a URI "by hand",
+you can call <a class="link" href="libsoup-24-SoupURI.html#soup-uri-new"><code class="function">soup_uri_new</code></a>,
+passing <code class="literal">NULL</code>, and you will get back an empty
+<span class="type">SoupURI</span>. There are also now methods that can be used to
+set its fields (eg, <a class="link" href="libsoup-24-SoupURI.html#soup-uri-set-scheme"><code class="function">soup_uri_set_scheme</code></a>,
+<a class="link" href="libsoup-24-SoupURI.html#soup-uri-set-path"><code class="function">soup_uri_set_path</code></a>,
+etc) rather than mucking with the fields directly.
+</p>
+<div class="refsect3" lang="en">
+<a name="id363776"></a><h4>Forms</h4>
+<p>
+Related to <span class="type">SoupURI</span>, there are some new helper methods for
+dealing with HTML forms. soup_form_decode_urlencoded
+decodes a URI <em class="structfield"><code>query</code></em> component (or an
+<code class="literal">application/x-www-form-urlencoded</code> request body)
+into a <span class="type">GHashTable</span>. soup_form_encode_urlencoded
+reverses the process, allowing you to fill in a
+<code class="literal">uri-&gt;query</code> with a properly-encoded form dataset.
+(<span class="type">SoupURI</span> also provides <a class="link" href="libsoup-24-SoupURI.html#soup-uri-set-query-from-form"><code class="function">soup_uri_set_query_from_form</code></a>
+to help with this.)
+</p>
+</div>
+</div>
+<hr>
+<div class="refsect2" lang="en">
+<a name="id363838"></a><h3>XML-RPC and SOAP</h3>
+<div class="refsect3" lang="en">
+<a name="id363844"></a><h4>SOAP</h4>
+<p>
+SOAP support has been removed; the existing methods covered only a
+teeny tiny subset of SOAP, which was really only useful to a single
+application. (The code that was formerly in libsoup has been moved to
+that application.). If you were using this code, you can resurrect a
+libsoup-2.4-compatible version of it from revision 1016 of libsoup
+svn.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id363858"></a><h4>XML-RPC</h4>
+<p>
+The XML-RPC code has been completely rewritten to make it simpler to
+implement XML-RPC clients and servers. (Note: the server-side code has
+not been heavily tested yet.) The new XML-RPC API makes use of
+<span class="type">GValue</span>s, with the following type mappings:
+</p>
+<div class="variablelist"><table border="0">
+<col align="left" valign="top">
+<tbody>
+<tr>
+<td><p><span class="term"><code class="literal">int</code></span></p></td>
+<td><p>
+	    &#8594; <span class="type">int</span> (<a
+href="/usr/share/gtk-doc/html/gobject/gobject-Type-Information.html#G-TYPE-INT:CAPS"
+><code class="literal">G_TYPE_INT</code></a>)
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">boolean</code></span></p></td>
+<td><p>
+	    &#8594; <span class="type">gboolean</span> (<a
+href="/usr/share/gtk-doc/html/gobject/gobject-Type-Information.html#G-TYPE-BOOLEAN:CAPS"
+><code class="literal">G_TYPE_BOOLEAN</code></a>)
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">string</code></span></p></td>
+<td><p>
+	    &#8594; <span class="type">char *</span> (<a
+href="/usr/share/gtk-doc/html/gobject/gobject-Type-Information.html#G-TYPE-STRING:CAPS"
+><code class="literal">G_TYPE_STRING</code></a>)
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">double</code></span></p></td>
+<td><p>
+	    &#8594; <span class="type">double</span> (<a
+href="/usr/share/gtk-doc/html/gobject/gobject-Type-Information.html#G-TYPE-DOUBLE:CAPS"
+><code class="literal">G_TYPE_DOUBLE</code></a>)
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">dateTime.iso8601</code></span></p></td>
+<td><p>
+	    &#8594; <a class="link" href="libsoup-24-Soup-Miscellaneous-Utilities.html#SoupDate"><span class="type">SoupDate</span></a> (<code class="literal">SOUP_TYPE_DATE</code>)
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">base64</code></span></p></td>
+<td><p>
+	    &#8594; <span class="type">GByteArray</span> (<a class="link" href="libsoup-24-GValue-Support.html#SOUP-TYPE-BYTE-ARRAY:CAPS"><code class="literal">SOUP_TYPE_BYTE_ARRAY</code></a>)
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">struct</code></span></p></td>
+<td><p>
+	    &#8594; <span class="type">GHashTable</span> (<a
+href="/usr/share/gtk-doc/html/gobject/gobject-Boxed-Types.html#G-TYPE-HASH-TABLE:CAPS"
+><code class="literal">G_TYPE_HASH_TABLE</code></a>)
+	</p></td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="literal">array</code></span></p></td>
+<td><p>
+	    &#8594; <span class="type">GValueArray</span> (<a
+href="/usr/share/gtk-doc/html/gobject/gobject-Generic-values.html#G-TYPE-VALUE-ARRAY:CAPS"
+><code class="literal">G_TYPE_VALUE_ARRAY</code></a>)
+	</p></td>
+</tr>
+</tbody>
+</table></div>
+<p>
+<span class="type">SoupDate</span> is discussed below.
+<code class="literal">SOUP_TYPE_BYTE_ARRAY</code> is just a new
+<span class="type">GType</span> value defined by <span class="application">libsoup</span>
+to represent <span class="type">GByteArray</span>s, which glib does not define a
+<span class="type">GType</span> for.
+</p>
+<p>
+<span class="application">libsoup</span> provides some additional <span class="type">GValue</span> support
+methods for working with
+<span class="type">GValueArray</span>s, and <span class="type">GHashTable</span>s of
+<span class="type">GValue</span>s, for the XML-RPC <code class="literal">struct</code> and
+<code class="literal">array</code> types. Eg, you can use <a class="link" href="libsoup-24-GValue-Support.html#soup-value-hash-new"><code class="function">soup_value_hash_new</code></a>
+to create a <span class="type">GHashTable</span> to use with the XML-RPC methods,
+and <a class="link" href="libsoup-24-GValue-Support.html#soup-value-hash-insert"><code class="function">soup_value_hash_insert</code></a>
+to add values to it without needing to muck with <span class="type">GValue</span>s
+directly.
+</p>
+<p>
+The <code class="literal">getbug</code> and <code class="literal">xmlrpc-test</code>
+programs in the <span class="application">libsoup</span> sources provide
+examples of how to use the new API. (Beware that
+<code class="literal">xmlrpc-test</code>'s use of the API is a little
+complicated because of the way it sends all calls through a single
+<code class="literal">do_xmlrpc</code> method.)
+</p>
+</div>
+</div>
+<hr>
+<div class="refsect2" lang="en">
+<a name="id364251"></a><h3>SoupServer</h3>
+<div class="refsect3" lang="en">
+<a name="id364257"></a><h4>SoupServer handlers</h4>
+<p>
+    The prototypes for <a class="link" href="SoupServer.html#soup-server-add-handler"><code class="function">soup_server_add_handler</code></a>,
+    and for the <a class="link" href="SoupServer.html#SoupServerCallback"><span class="type">SoupServer</span>
+    handlers</a> themselves have changed:
+</p>
+<div class="informalexample"><pre class="programlisting">
+typedef void (*SoupServerCallback)     (SoupServer         *server,
+					SoupMessage        *msg, 
+					const char         *path,
+					GHashTable         *query,
+					SoupClientContext  *client,
+					gpointer            user_data);
+
+void           soup_server_add_handler (SoupServer         *server,
+					const char         *path,
+					SoupServerCallback  callback,
+					gpointer            data,
+					GDestroyNotify      destroy);
+</pre></div>
+<p>
+    <code class="function">soup_server_add_handler</code> no longer takes a
+    <span class="type">SoupServerAuthContext</span> (see the discussion of server
+    authentication below), and the order of the final two arguments
+    has been swapped. (Additionally, <span class="type">SoupServerCallbackFn</span>
+    has been renamed to <span class="type">SoupServerCallback</span>, and the old
+    <em class="parameter"><code>unregister</code></em> parameter of type
+    <span class="type">SoupServerUnregisterFn</span> is now a standard
+    <span class="type">GDestroyNotify</span>. The change to
+    <span class="type">GDestroyNotify</span> and the swapping of the final two
+    arguments is to make the method conform to standard glib/gtk
+    practices.)
+</p>
+<p>
+    In <span class="type">SoupServerCallback</span>, several bits of data that used
+    to be part of the <em class="parameter"><code>context</code></em> argument are now
+    provided directly, and <em class="parameter"><code>context</code></em> specifically
+    only contains more specifically-client-related information (such
+    as the <span class="type">SoupSocket</span> that the request arrived on, and
+    information about authentication).
+</p>
+<p>
+    <em class="parameter"><code>path</code></em> is the fully %-decoded path component
+    of <em class="parameter"><code>msg</code></em>'s URI, and
+    <em class="parameter"><code>query</code></em> is a hash table containing
+    <em class="parameter"><code>msg</code></em>'s URI's
+    <em class="structfield"><code>query</code></em> component decoded with soup_form_decode_urlencoded.
+    These are provided for your convenience; if you need the raw
+    query, you can get it out of <em class="parameter"><code>msg</code></em>'s URI
+    directly. If you need the raw path, you'll need to set the <a class="link" href="SoupServer.html#SOUP-SERVER-RAW-PATHS:CAPS"><code class="literal">SOUP_SERVER_RAW_PATHS</code></a>
+    property on the server, which actually changes the behavior of the
+    server with respect to how paths are matched; see the
+    documentation for details.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id364417"></a><h4>Server-side authentication</h4>
+<p>
+    <span class="type">SoupServer</span> authentication has been completely
+    rewritten, with <span class="type">SoupServerAuthContext</span> being replaced
+    with <a class="link" href="SoupAuthDomain.html" title="SoupAuthDomain"><span class="type">SoupAuthDomain</span></a>. Among
+    other improvements, you no longer need to have the cleartext
+    password available to check against. See the
+    <span class="type">SoupAuthDomain</span> documentation, the <a class="link" href="libsoup-server-howto.html" title="Soup Server Basics">server tutorial</a>, and
+    <code class="literal">tests/server-auth-test.c</code>.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id364460"></a><h4>
+<code class="literal">Expect: 100-continue</code> and other early <span class="type">SoupMessage</span> processing</h4>
+<p>
+    <span class="type">SoupServer</span> now handles
+    "<code class="literal">Expect:&#160;100-continue</code>" correctly. In
+    particular, if the client passes that header, and your server
+    requires authentication, then authentication will be checked
+    before reading the request body.
+</p>
+<p>
+    If you want to do additional pre-request-body handling, you can
+    connect to <span class="type">SoupServer</span>'s <a class="link" href="SoupServer.html#SoupServer-request-started"><code class="literal">request_started</code></a>
+    signal, and connect to the request's <a class="link" href="SoupMessage.html#SoupMessage-got-headers"><code class="literal">got_headers</code></a>
+    signal from there. (See the description of
+    <code class="literal">request_started</code> for information about other
+    related <span class="type">SoupServer</span> signals.)
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id364526"></a><h4>Date header</h4>
+<p>
+    <span class="type">SoupServer</span> now automatically sets the
+    <code class="literal">Date</code> header on all responses, as required by
+    RFC 2616.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id364547"></a><h4>SoupServerMessage</h4>
+<p>
+    <span class="type">SoupServerMessage</span> is now merged into
+    <span class="type">SoupMessage</span>.
+    <code class="function">soup_server_message_set_encoding</code> is replaced
+    with <a class="link" href="libsoup-24-SoupMessageHeaders.html#soup-message-headers-set-encoding"><code class="function">soup_message_headers_set_encoding</code></a>
+    as described in the section on <span class="type">SoupMessage</span> above.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id364586"></a><h4>
+<code class="function">soup_server_run</code> / <code class="function">soup_server_quit</code>
+</h4>
+<p>
+    <a class="link" href="SoupServer.html#soup-server-run"><code class="function">soup_server_run</code></a>
+    and <a class="link" href="SoupServer.html#soup-server-run-async"><code class="function">soup_server_run_async</code></a>
+    no longer <code class="function">g_object_ref</code> the server, and
+    <a class="link" href="SoupServer.html#soup-server-quit"><code class="function">soup_server_quit</code></a>
+    no longer unrefs it.
+</p>
+</div>
+</div>
+<hr>
+<div class="refsect2" lang="en">
+<a name="id364642"></a><h3>Miscellaneous</h3>
+<div class="refsect3" lang="en">
+<a name="id364648"></a><h4>SoupDate</h4>
+<p>
+    The new <a class="link" href="libsoup-24-Soup-Miscellaneous-Utilities.html#SoupDate"><span class="type">SoupDate</span></a> type
+    replaces the old <code class="function">soup_date_*</code> methods, and has
+    an improved (more liberal) date parser.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id364672"></a><h4>Header parsing</h4>
+<p>
+    <code class="literal">soup-headers.h</code> now has a few additional methods
+    for parsing list-type headers.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id364690"></a><h4>SoupAddress, SoupSocket</h4>
+<p>
+    <span class="type">SoupSocket</span> has had various simplifications made to
+    reflect the fact that this is specifically libsoup's socket
+    implementation, not some random generic socket API.
+</p>
+<p>
+    Various <span class="type">SoupAddress</span> and <span class="type">SoupSocket</span>
+    methods now take arguments of the new <span class="type">GCancellable</span> type, from
+    libgio. When porting old code, you can just pass
+    <code class="literal">NULL</code> for these. (<a class="link" href="SoupAddress.html#soup-address-resolve-async"><code class="function">soup_address_resolve_async</code></a>
+    also takes another new argument, a <a
+href="/usr/share/gtk-doc/html/glib/glib-The-Main-Event-Loop.html#GMainContext"
+><span class="type">GMainContext</span></a> that
+    you'll want to pass <code class="literal">NULL</code> for.) If you pass a
+    <span class="type">GCancellable</span>, you can use it to cleanly cancel the
+    address resolution / socket operation.
+</p>
+</div>
+<div class="refsect3" lang="en">
+<a name="id385013"></a><h4>Base64 methods</h4>
+<p>
+    The deprecated base64 methods are now gone; use glib's base64
+    methods instead.
+</p>
+</div>
+</div>
+</div>
+</body>
+</html>

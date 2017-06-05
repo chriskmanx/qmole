@@ -1,0 +1,327 @@
+/private/var/chris/DEV/llvm-2.8/tools/llvm-ld/Release/llvm-ld.o \
+  /private/var/chris/DEV/llvm-2.8/tools/llvm-ld/Release/llvm-ld.d \
+  /private/var/chris/DEV/llvm-2.8/tools/llvm-ld/Release/llvm-ld.o:  \
+ llvm-ld.cpp /private/var/chris/DEV/llvm-2.8/include/llvm/LinkAllVMCore.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/LLVMContext.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Module.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Function.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/GlobalValue.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Constant.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/User.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Value.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/AbstractTypeUser.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Use.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/Casting.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/PointerIntPair.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/PointerLikeTypeTraits.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/CallingConv.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/BasicBlock.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Instruction.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/ilist_node.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/DebugLoc.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Instruction.def \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/SymbolTableListTraits.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/ilist.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/Twine.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Argument.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Attributes.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/MathExtras.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/Compiler.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/GlobalVariable.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/OperandTraits.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/GlobalAlias.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Metadata.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/FoldingSet.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/type_traits.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/OwningPtr.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Instructions.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/InstrTypes.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Operator.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Constants.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/APInt.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/MathExtras.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/APFloat.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/APInt.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/DerivedTypes.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Type.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/GraphTraits.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/IntrinsicInst.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Intrinsics.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Intrinsics.gen \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/InlineAsm.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Analysis/Verifier.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Alarm.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/DynamicLibrary.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Memory.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Mutex.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Threading.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Path.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/TimeValue.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Process.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Program.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Path.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Signals.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/TimeValue.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/Dwarf.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Linker.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/LLVMContext.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Program.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Module.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/PassManager.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Pass.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/PassSupport.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Pass.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/PassRegistry.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringMap.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/Allocator.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/AlignOf.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/MathExtras.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/PassAnalysisSupport.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Bitcode/ReaderWriter.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Target/TargetData.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Pass.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Target/TargetMachine.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Target/TargetInstrItineraries.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/CommandLine.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/type_traits.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/Compiler.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/Twine.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/FileUtilities.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Path.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/ManagedStatic.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Atomic.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Threading.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/MemoryBuffer.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/PrettyStackTrace.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/SystemUtils.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Support/raw_ostream.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/System/Signals.h \
+  /private/var/chris/DEV/llvm-2.8/include/llvm/Config/config.h
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/LinkAllVMCore.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/LLVMContext.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Module.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Function.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/GlobalValue.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Constant.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/User.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Value.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/AbstractTypeUser.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Use.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/Casting.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/PointerIntPair.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/PointerLikeTypeTraits.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/CallingConv.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/BasicBlock.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Instruction.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/ilist_node.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/DebugLoc.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Instruction.def:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/SymbolTableListTraits.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/ilist.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/Twine.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Argument.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Attributes.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/MathExtras.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/Compiler.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/GlobalVariable.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/OperandTraits.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/GlobalAlias.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Metadata.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/FoldingSet.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/type_traits.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/OwningPtr.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Instructions.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/InstrTypes.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Operator.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Constants.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/APInt.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/MathExtras.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/APFloat.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/APInt.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/DerivedTypes.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Type.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/GraphTraits.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/IntrinsicInst.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Intrinsics.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Intrinsics.gen:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/InlineAsm.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Analysis/Verifier.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Alarm.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/DynamicLibrary.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Memory.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/DataTypes.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Mutex.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Threading.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Path.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/TimeValue.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Process.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Program.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Path.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Signals.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/TimeValue.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/Dwarf.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Linker.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/LLVMContext.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Program.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Module.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/PassManager.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Pass.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/PassSupport.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Pass.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/PassRegistry.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringMap.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/Allocator.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/AlignOf.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/MathExtras.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/PassAnalysisSupport.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Bitcode/ReaderWriter.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Target/TargetData.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Pass.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Target/TargetMachine.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Target/TargetInstrItineraries.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/CommandLine.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/type_traits.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/Compiler.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/SmallVector.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/Twine.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/FileUtilities.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Path.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/ManagedStatic.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Atomic.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Threading.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/MemoryBuffer.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/ADT/StringRef.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/PrettyStackTrace.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/SystemUtils.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Support/raw_ostream.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/System/Signals.h:
+
+/private/var/chris/DEV/llvm-2.8/include/llvm/Config/config.h:

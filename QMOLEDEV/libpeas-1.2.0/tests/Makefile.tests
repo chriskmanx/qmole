@@ -1,0 +1,67 @@
+GTESTER = gtester
+
+TEST_PROGS =
+
+test: all
+	@test -z "$(TEST_PROGS)" || \
+	 G_SLICE=debug-blocks $(GTESTER) --verbose $(TEST_PROGS)
+
+if GDB_ENABLED
+
+test-gdb: all
+	@test -z "$(TEST_PROGS)" || \
+	 for test_prog in $(TEST_PROGS) ; do \
+	   G_SLICE=debug-blocks $(GTESTER) --verbose $$test_prog || { \
+	     G_SLICE=debug-blocks \
+	       libtool --mode=execute gdb --ex "run --verbose" $$test_prog ; \
+	     exit 1 ; \
+	   } \
+	 done
+
+else
+
+test-gdb:
+	@echo "You need GDB"
+
+endif # GDB_ENABLED
+
+if VALGRIND_ENABLED
+
+test-valgrind: all
+	@test -z "$(TEST_PROGS)" || \
+	 for test_prog in $(TEST_PROGS) ; do \
+	   if test -e vgdump-$$test_prog; then \
+	     unlink vgdump-$$test_prog; \
+	   fi ; \
+	   G_SLICE=always-malloc G_DEBUG=gc-friendly,resident-modules \
+	     libtool --mode=execute valgrind --leak-check=full \
+	     --leak-resolution=high --num-callers=20 \
+	     --suppressions=$(top_srcdir)/tests/valgrind.suppressions \
+	     --log-file=vgdump-$$test_prog $$test_prog || exit 1 ; \
+	 done
+
+test-callgrind: all
+	@test -z "$(TEST_PROGS)" || \
+	 for test_prog in $(TEST_PROGS) ; do \
+	   if test -e cgdump-$$test_prog; then \
+	     unlink cgdump-$$test_prog; \
+	   fi ; \
+	   libtool --mode=execute valgrind --tool=callgrind \
+	     --callgrind-out-file=cgdump-$$test_prog \
+	     --log-file=/dev/null $$test_prog || exit 1 ; \
+	 done
+
+else
+
+test-valgrind test-callgrind:
+	@echo "You need Valgrind"
+
+endif # VALGRIND_ENABLED
+
+generate-report: all
+	@test -z "$(TEST_PROGS)" || \
+	 G_SLICE=debug-blocks $(GTESTER) $(GTESTER_ARGS) $(TEST_PROGS)
+
+CLEANFILES = cgdump-* vgdump-*
+
+.PHONY: test test-gdb test-valgrind test-callgrind generate-report

@@ -1,0 +1,568 @@
+Changes in libsoup from 2.3.4 to 2.4.0:
+
+	* Fixed a small memory leak in SoupSession. [#518798, Wouter
+          Cloetens]
+
+	* Minor fixes to redirect behavior; PROPFINDs can now be
+          automatically redirected (pointed out by Christian Kellner),
+          and 302 is treated like 307, not 303. Also fixed to make
+          sure that redirect-test actually gets run by "make check".
+
+	* The SoupSocket I/O methods now set nread/nwrote even on
+          error. [Benjamin Otte]
+
+Changes in libsoup from 2.3.2 to 2.3.4:
+
+	* The documentation should be accessible from devhelp again
+          [#518384, Mart Raudsepp]. (Also fixed another
+          documentation-generation bug that affected builds from svn,
+          but not the 2.3.2 tarball for some reason. [#518317,
+          Benjamin Otte].)
+
+	* Fixed dependencies in libsoup-2.4.pc file [#517631,
+          Sebastian Dröge]
+
+Changes in libsoup from 2.3.0.1 to 2.3.2:
+
+	API changes / Behavior changes:
+
+	* soup_server_add_auth_domain() now refs the auth domain when
+          adding it. (soup_server_remove_auth_domain() already
+          unreffed it.) This means existing applications using
+          SoupAuthDomain will now have a small memory leak. Those
+          applications should update their libsoup-2.4 requirement to
+          ">= 2.3.2" at some point before the final GNOME 2.22.0
+          release, and then fix the code to unref the auth domain
+          after adding it to the server.
+
+	* SoupSession's automatic redirect-handling behavior now obeys
+          RFC 2616 more closely. In particular, status codes 300 and
+          304 are no longer mistakenly considered redirects; POSTs
+          that receive 303 are now redirected into GETs; and POSTs
+          that receive 301, 302, or 307 are now not redirected.
+
+	  Applications that were using the SOUP_MESSAGE_NO_REDIRECT
+	  flag to prevent libsoup from redirecting POSTs incorrectly
+	  before should now be able to remove that if they depend on
+	  libsoup-2.4 >= 2.3.2.
+
+	API additions:
+
+	* Added a SOUP_SESSION_USER_AGENT property to SoupSession, and
+          SOUP_SERVER_SERVER_HEADER to SoupServer, to support
+          automatically adding "User-Agent" and "Server" headers to
+          messages. (The default behavior is to do nothing, as
+          before.)
+
+	* Added several new methods to soup-forms.h. Applications that
+          are encoding a fixed set of form fields can now just pass
+          them to soup_form_encode(), rather than needing to construct
+          a GHashTable or GData list. (Likewise, the new
+          soup_uri_set_query_from_fields() behaves similarly for
+          directly updating a URI with form data.) There are also now
+          soup_form_request_new() and other related methods, to
+          directly create a GET or POST SoupMessage for submitting a
+          form query.
+
+	  The original soup_form_* methods have all been renamed,
+	  although #defines exist for backward compatibility.
+
+	* Added soup_message_set_chunk_allocator() and
+	  soup_buffer_new_with_owner(), to give applications more
+	  control over memory usage/copying when doing streaming HTTP.
+	  [Wouter Cloetens, #513810].
+
+	* Added several new methods to soup-value-utils.h for working
+          with multiple array or hash table values at once:
+          soup_value_hash_new_with_vals(),
+          soup_value_hash_insert_vals(),
+          soup_value_hash_lookup_vals(),
+          soup_value_array_new_with_vals(), and
+          soup_value_array_append_vals().
+
+	  This helps to simplify XML-RPC calls that send or receive
+          structs or arrays.
+
+	* Added soup_date_to_time_t().
+
+	* Added SoupMessageHeadersIterator, an iterator type for
+          SoupMessageHeaders that can be used instead of
+          soup_message_headers_foreach().
+
+	Bug fixes:
+
+	* Fixed a crash-when-idle in evolution-exchange [#437835] and
+          rhythmbox [#506552].
+
+	* Added the API version to the gtk-doc installation dir, to
+          prevent parallel-installation problems with libsoup 2.2 and
+          2.4. [#512810, Daniel Gryniewicz].
+
+	* Fixed tests/query-test to compile correctly on Solaris.
+          [#513602, patch from Jeff Cai]
+
+	* Fixed some other minor HTTP conformance issues.
+
+	Python bindings:
+
+	* Although not present in the release tarball, there are now
+          experimental python bindings for libsoup in GNOME subversion
+          (in the python/ subdirectory of libsoup trunk). These are
+          not yet stable (and are not built by default or installed
+          even when building from svn), but comments on them are
+          welcome at libsoup-list@gnome.org
+
+Changes in libsoup from the 2.2 series to 2.3.0.1:
+
+	libsoup 2.3.0 is the first beta release of the libsoup 2.4
+        series. It is an API break from the earlier 2.2 series that
+        fixes various bugs and API warts and lays the groundwork for
+        language bindings and various new features in upcoming
+        releases.
+
+	(2.3.0.1 is identical to the 2.3.0 release in terms of code,
+	but includes this updated NEWS file which was accidentally
+	left out of the 2.3.0 tarball.)
+
+	http://library.gnome.org/devel/libsoup/unstable/libsoup-porting-2.2-2.4.html
+	goes over the API changes in detail. If you have questions not
+	answered by the porting document, please send mail to
+	libsoup-list@gnome.org.
+
+	Specific user-reported bugs fixed in this release:
+
+	* SoupURI now correctly handles URIs with complex encoded
+          queries [#266516, Jean-Yves Lefort]
+
+	* It is now possible for a SoupServer to use Digest auth
+          without needing to have the cleartext password available.
+          [#347108, Anas Nashif]
+
+	* Digest authentication now properly handles "stale=true" and
+          "nextnonce=..." [#471380, Jari Urpalainen]
+
+	* SoupServer is now subclassible [#491653, Mathias Hasselmann]
+
+	* soup_server_run_async and soup_server_quit no longer ref and
+          unref the server, as that doesn't match ordinary GObject
+          conventions [#494128, Mathias Hasselmann]
+
+	* The test programs no longer use a symbol name that conflicts
+          with Cygwin [#501631, Cygwin Ports Maintainer]
+
+	* libsoup can now handle the not-quite-HTTP responses returned
+          by Shoutcast servers [#502325, Wouter Cloetens]
+
+	* If you use libsoup while disconnected from the network, it
+          no longer caches the failed DNS results [#508593, Bradley
+          Worley]
+
+	Items from http://live.gnome.org/LibSoup/ToDo fixed:
+
+	* "Expect: 100-continue" processing now works correctly on
+	  both client and server.
+
+	* SoupSessions are no longer leaked
+
+	* The XML-RPC API is improved. The SOAP API is gone...
+
+	* Added utility functions for HTML form handling
+
+	* Improved message header handling
+
+	* SoupServer now automatically adds a "Date" header
+
+==========
+
+Changes in libsoup from 2.2.103 to 2.2.104:
+
+	* soup_message_io_pause() and soup_message_io_pause() are now
+	  allowed for client messages (and in particular, they don't
+	  mess up when called from the "got_chunk" callback).
+	  [#452280, Marco Barisione]
+
+	* Fixed some bugs in SOUP_SESSION_ASYNC_CONTEXT support that
+	  would cause parts of an operation to run in the default
+	  context rather than the session's context. Also fixed some
+	  leaks and added a regression test. [#498509, Wouter
+	  Cloetens]
+
+	* There is a new test/sample program, tests/pull-api.c,
+	  showing how to implement a pull API using SoupSessionAsync.
+	  (This depends on the fixes for #452280 and #498509, so it
+	  won't work with older versions of libsoup.)
+
+	* Discovered "valgrind --leak-resolution=med" and fixed some
+          more memory leaks.
+
+Changes in libsoup from 2.2.102 to 2.2.103:
+
+	* Fix memory corruption in SoupSessionAsync that caused
+          rhythmbox to crash. [#484988, patch from Rob Bradford]
+
+	* Fix socket refcounting in SoupServer to fix warnings /
+          possible crash. [#459896, Emanuele Aina]
+
+Changes in libsoup from 2.2.101 to 2.2.102:
+
+	* Unbreak the build when building without SSL. Not that you
+          should be building without SSL anyway, but... (reported by
+          guenther).
+
+Changes in libsoup from 2.2.100 to 2.2.101:
+
+	* Fix build on cygwin [384498]
+
+	* Fix SSL rehandshaking on synchronous sockets [415402, Jacob
+          Berkman] and add a regression test for it.
+
+	* Fix two bugs in https tunnels over proxies that require
+	  authentication (noticed by Varadhan), and add a regression
+	  test for them.
+
+	* Ensure that if you queue multiple messages at once to an
+	  http server that requires authentication but that you
+	  haven't authenticated to yet, that all of the messages get
+	  properly authenticated [271540, James Willcox]. And add a
+	  regression test for it.
+
+	* Fix NTLM authentication, which got broken by the previous
+          fix. [471389, Varadhan]. Add a basic NTLM regression test
+          that doesn't really test the crypto/encoding parts, but at
+          least makes sure that the message flow is correct.
+
+	* Allow trailing whitespace after HTTP version in
+          Response-Line, for compatibility with broken servers
+          [475169, Stephane Loeuillet]. Add that case to the
+          header-parsing regression test.
+
+	* Fix crash when the session's "authenticate" handler returns
+	  a username and no password when using NTLM. [480987, Wendell
+	  MacKenzie]
+
+	* Use "new" glib base64 and iso8601 methods rather than
+          duplicating them. [337010, patch from Emmanuele Bassi].
+
+	* Implement soup_session_queue_message() for SoupSessionSync.
+
+	* Add G_BEGIN_DECLS / G_END_DECLS to all headers that were
+          missing them. [438776, patch from Jonathon Jongsma].
+
+	* Fix broken definition of SOUP_IS_MESSAGE_FILTER_CLASS. Noted
+          by "cascardo" on libsoup-list.
+
+	* Remove documentation of non-public MD5 methods [440092,
+          Jonathon Jongsma]. Removed a mysterious half-sentence in the
+          SoupMessage docs [458116, Marco Barisione].
+
+Changes in libsoup from 2.2.99 to 2.2.100:
+
+	* Fixed soup_headers_parse_status_line() so WebDAV response
+          parsing will work again. [406997]
+
+	* Fixed a bug in the header-parsing regression test that
+          caused the test to fail sometimes, even though the actual
+          header-parsing code was fine.
+
+Changes in libsoup from 2.2.98 to 2.2.99:
+
+	* Fixed header parsing, including a crash in SoupServer with
+          certain malformed requests [391970].
+
+	* Fixed redirection to other hosts with SoupSessionAsync.
+          [382251]
+
+	* Fixed a small memory leak pointed out by Chris Austin.
+
+Changes in libsoup from 2.2.97 to 2.2.98:
+
+	* The XML-RPC code now correctly interprets <value>foo</value>
+	  as meaning the same thing as
+	  <value><string>foo</string></value>. [364490] Pointed out by
+	  Todd Kulesza.
+
+	* Memory leak fixes from Andrew W. Nosenko.
+
+	* A few symbols that should have been static before now are.
+	  [376387] Patch from Matthias Clasen.
+
+Changes in libsoup from 2.2.96 to 2.2.97:
+
+	* Fixed SOAP and XML-RPC code to handle whitespace and
+          comments in the XML better. (Based on a patch from Andrew W.
+          Nosenko.)
+
+	* Fixed lots of typecasting/constness warnings in the code
+          (mostly via a patch from Andrew W. Nosenko)
+
+	* Fixed build on Cygwin [321827]
+
+	* Fixed libsoup-2.2.pc fields [343340] and make it get
+          uninstalled correctly [356809]. (Mikhail Zabaluev and
+          Matthew Barnes)
+
+	* Fixed some small leaks in SoupServer pointed out by Paolo
+          Borelli. [351500]
+
+Changes in libsoup from 2.2.95.1 to 2.2.96:
+
+	* SoupServer now works even if you don't explicitly set an
+	  encoding for the response. (In particular, the automatic 404
+	  if you request a path with no handlers now works. Problem
+	  pointed out by Dennis Jacobfeuerborn.)
+
+	* WWW-Authenticate and Proxy-Authenticate responses with no
+          realm parameter are now ignored, as per RFC 2617, fixing a
+          crash pointed out by Nate Nielsen.
+
+	* Added soup_xmlrpc_message_from_string(), from Fernando
+          Herrera [348532].
+
+	* simple-httpd and "get" now support HEAD
+
+Changes in libsoup from 2.2.94 to 2.2.95.1:
+
+	* Even more fixes to XML-RPC, found by the new XML-RPC
+          regression test. This includes some API changes that I don't
+          feel guilty about, because the code totally didn't work at
+          all before.
+
+	* Fixed a bug in soup_mktime_utc()
+
+	* (2.2.95 was identical to 2.2.95.1. The only difference is
+	  that the shared library version was belatedly bumped from
+	  8.2.0 to 8.3.0 to reflect the API "additions")
+
+Changes in libsoup from 2.2.93 to 2.2.94:
+
+	* Various fixes to the XML-RPC code (which apparently had not
+	  actually ever worked before) from Brent Smith. [343973,
+	  344222, 344458]
+
+	* Added client and server API tutorials to the docs
+
+	* auth-test now uses a local Apache 2.2 install, if possible,
+          rather than depending on files that used to be on an old
+          Ximian web server but haven't been anywhere for a long time.
+	  [311825]
+
+Changes in libsoup from 2.2.92 to 2.2.93:
+
+	* Fixed outgoing data corruption caused when SoupServer
+          started writing out a response a second time after already
+          having started once. [334469]. Also fixed 342640 and another
+          bug caused by the workaround for 334469 in 2.2.92. Based on
+          patches and analysis from William Jon McCann and Armin
+          Bauer.
+
+	* Fixed a deadlock when changing a session's proxy URI.
+          [309867 / bnc 174255, based on a patch by Veerapuram
+          Varadhan].
+
+	* Fixed https-via-proxies in the synchronous case. [bnc 174255]
+
+	* Fixed a crash in evolution-exchange [342545, fix based on an
+          analysis by Wang Xin].
+
+	* Fixed simple-proxy to not crash at startup. Oops. (Alex
+          Larsson)
+
+Changes in libsoup from 2.2.91 to 2.2.92:
+
+	* Fixed server-side digest auth to return a valid "algorithm"
+	  value and client-side to not crash if it sees an invalid one
+	  [328615].
+
+	* Fixed the Request-Line parsing code to not hardcode a
+          maximum URI length (to allow very long DAAP requests from
+          iTunes in Rhythmbox). [335040]
+
+	* Fixed some warnings (signed/unsigned mismatch).
+
+Changes in libsoup from 2.2.7 to 2.2.91:
+
+	* (The large version number bump is because there was an
+	  internal 2.2.90 release for SUSE 10.1 alphas, which was
+	  supposed to be intermediate between 2.2.7 and 2.4.0. But
+	  2.4.0 didn't end up happening, and I don't want to regress
+	  the version number at this point.)
+
+	* SoupSession, SoupServer, SoupConnection, SoupSocket, and
+          SoupAddress now have an "async-context" property that allows
+          you to use the async API in a non-default GMainContext.
+          [Based on patches from Armin Bauer and Jürg Billeter.]
+
+	* SoupSession, SoupConnection, and SoupSocket now have a
+          "timeout" property to stop synchronous sockets from hanging
+          forever if the remote end is unresponsive (from Varadhan).
+
+	* Fixed some bugs in soup_date_iso8601_parse(). [324671, from
+          Emmanuele Bassi]
+
+	* More Windows build fixes from Tor.
+
+Changes in libsoup from 2.2.6.1 to 2.2.7:
+
+	* Fixed a crash when using NTLM connections [316313, probably
+	  also 318252]. (Also 321208, which was a bug introduced in
+	  the original fix for 316313.)
+
+	* Fixed a bug that could cause soup to suck up all available
+          CPU when a connection to a SoupServer was dropped by the
+          other side [319305, patch from Jonathan Matthew]
+
+	* Fixed the creation of struct elements in XMLRPC messages
+	  [321362, patch from Sebastian Bauer]
+
+	* Plugged a small memory leak in SoupSocket (from Wang Xin).
+
+	* Fixed two compile problems, a gccism [320349, patch from
+          Roland Illig], and a strict-aliasing warning from gcc 4.1.
+
+Changes in libsoup from 2.2.6 to 2.2.6.1:
+
+	* Fixed a crash when using SoupSoapMessage
+
+Changes from 2.2.5 to 2.2.6:
+
+	* Fixed a crash when canceling a message (from Tambet Ingo)
+
+	* Fixed a bug where a connection could be leaked forever in
+          some circumstances if a request got a 30x, 401, or 407
+          response, eventually causing a hang when the session hit its
+          maximum connection limit. (Dan/Tambet)
+
+	* Fixed a memory leak. (Tambet)
+
+	* Fixed a bug that would sometimes show up when connecting to
+	  a server on localhost [#312540]
+
+	* Added some API to SoupServer and SoupSocket to help fix a
+          long-standing rcd bug.
+
+Changes from 2.2.4 to 2.2.5:
+
+	* Win32 support (from Tor Lillqvist)
+
+	* Up-to-date API documentation pretty much everywhere
+
+	* Basic XMLRPC support (from Mariano Suarez-Alvarez, Fernando
+	  Herrera, and Jeff Bailey)
+
+	* New HTTP timestamp-manipulation methods soup_date_parse,
+	  soup_date_generate, and soup_date_iso8601_parse.
+
+	* SoupSession now handles relative URLs in the Location header
+          (in violation of RFC 2616, but in line with how some servers
+          behave.) [270688]
+
+Changes from 2.2.3 to 2.2.4:
+
+	* Fixed a problem with NTLM authentication against
+	  multi-domain servers. [306877]
+
+	* Fixed DNS lookups on Solaris. [254551, 268389]
+
+Changes from 2.2.2 to 2.2.3:
+
+	* Now compiles against gnutls 1.2.0 [257811]
+
+	* Fixed a bug that could result in 100% CPU usage if an SSL
+	  server closed the connection uncleanly. [273352]
+
+Changes from 2.2.1 to 2.2.2:
+
+	* The SSL validation fix from 2.2.1 [264414] is now completely
+          fixed. (Part of the fix didn't actually make it into 2.2.1)
+
+	* HTTPS certificate validation now works when using an HTTP
+          proxy. [268583]
+
+	* HTTP proxy code deals better with proxies that try to make
+          the user do HTML-form-based authentication. [268531]
+
+	* 64-bit fixes for NTLM auth code. [270323, from Michael
+          Zucchi]
+
+Changes from 2.2.0 to 2.2.1:
+
+	* Updated for a libgcrypt API change between 1.1.9x and 1.2.x
+          that caused a crash at runtime if you compiled against
+          1.2.x. [266342]
+
+	* SSL certificate validation failure should now always result
+          in a status of SOUP_STATUS_SSL_FAILED, rather than getting
+          turned into SOUP_STATUS_IO_ERROR. [264414]
+
+
+Changes in libsoup from the 2.0 series (1.99.x versions) to 2.2:
+
+	* Most of the libsoup datatypes are now GObjects. (SoupUri
+	  is currently an exception to this.)
+
+		* SoupMessage now emits signals at various stages of
+	          processing. (Eg, "wrote_body", "got_headers".) (You
+	          can also still use soup_message_add_*handler().)
+
+	* SoupContexts are gone; soup_message_new() now takes a URI
+	  string.
+
+	* All formerly global state is now maintained by the
+          SoupSession object. (This includes the connection pool,
+          proxy server, cached authentication information, SSL
+          certificates, etc.)
+
+		* You can create a SoupSessionAsync (for 2.0-like
+		  behavior) or SoupSessionSync (for blocking,
+		  synchronous usage).
+
+		* You can add SoupMessageFilter objects to a session
+                  to have certain processing automatically performed
+                  on every message sent via that session. (Eg, setting
+                  up handlers.)
+
+		* NTLM authentication is no longer supported by
+	          default. You must enable it by setting the
+		  SOUP_SESSION_USE_NTLM flag on the session.
+
+		* The preferred method of handling authentication is
+	          now via the "authenticate" and "reauthenticate"
+	          signals on SoupSession. (The old style, of encoding
+	          the user and password information into the url is
+	          also still supported.)
+
+	* The SOUP_ERROR_* values are now SOUP_STATUS_* (so that we
+          don't have "SOUP_ERROR_OK" and the like).
+
+		* SOUP_MESSAGE_IS_ERROR() is gone, since some cases
+		  want to include 3xx responses and some don't.
+
+		* SOUP_ERROR_CANT_AUTHENTICATE and
+                  SOUP_ERROR_CANT_AUTHENTICATE_PROXY are now gone,
+                  since they didn't carry any information that
+                  SOUP_STATUS_UNAUTHORIZED and
+                  SOUP_STATUS_PROXY_UNAUTHORIZED don't.
+
+		* DNS errors now show up as the new status code
+		  SOUP_STATUS_CANT_RESOLVE rather than being mixed in
+		  with SOUP_ERROR_CANT_CONNECT.
+
+	* Minimal SOAP support has been added back, via
+          SoupSoapMessage/SoupSoapResponse
+
+	* The HTTP I/O state machine was completely rewritten, fixing
+	  numerous crashes, leaks, and protocol errors.
+
+	* SoupUri now conforms to RFC 2396. Mostly.
+
+	* Various test programs have been added under tests/
+
+	* Removed:
+
+		* Support for OpenSSL (which was horribly buggy) and
+		  Mozilla NSS (which was never finished). We only
+		  support GNUTLS for SSL now.
+
+		* SOCKS support
+
+		* CGI support in SoupServer

@@ -1,0 +1,394 @@
+m4_define([rsvg_major_version],[2])
+m4_define([rsvg_minor_version],[32])
+m4_define([rsvg_micro_version],[1])
+m4_define([rsvg_extra_version],[])
+m4_define([rsvg_version],[rsvg_major_version.rsvg_minor_version.rsvg_micro_version()rsvg_extra_version])
+m4_define([rsvg_lt_version_info],m4_eval(rsvg_major_version + rsvg_minor_version):rsvg_micro_version:rsvg_minor_version)
+
+AC_INIT([RSVG],[rsvg_version],[https://bugzilla.gnome.org/enter_bug.cgi?product=librsvg],[librsvg])
+
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_SRCDIR([rsvg.h])
+
+AM_INIT_AUTOMAKE([1.9 foreign no-dist-gzip dist-bzip2])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+
+AM_MAINTAINER_MODE([enable])
+
+dnl ===========================================================================
+dnl API versioning
+dnl ===========================================================================
+
+RSVG_API_VERSION=2.0
+RSVG_API_MAJOR_VERSION=2
+
+AC_SUBST([RSVG_API_VERSION])
+AC_SUBST([RSVG_API_MAJOR_VERSION])
+
+dnl ===========================================================================
+
+FONTCONFIG_REQUIRED=1.0.1	dnl Same as in Pango, ???
+GLIB_REQUIRED=2.12.0
+GIO_REQUIRED=2.16.0
+LIBXML_REQUIRED=2.4.7
+CAIRO_REQUIRED=1.2.0
+PANGOFT2_REQUIRED=1.2.0
+PANGOCAIRO_REQUIRED=1.10.0
+GDK_PIXBUF_REQUIRED=1.3.7
+GTK2_REQUIRED=2.16.0
+GTK3_REQUIRED=2.90.0
+
+# ===========================================================================
+
+AC_SUBST([RSVG_LT_VERSION_INFO],[rsvg_lt_version_info])
+AC_SUBST([LIBRSVG_MAJOR_VERSION],[rsvg_major_version])
+AC_SUBST([LIBRSVG_MINOR_VERSION],[rsvg_minor_version])
+AC_SUBST([LIBRSVG_MICRO_VERSION],[rsvg_micro_version])
+
+dnl ===========================================================================
+
+AC_PROG_LN_S
+AC_ISC_POSIX
+AC_PROG_CC
+AC_PROG_CPP
+AC_PROG_AWK
+AC_LIBTOOL_WIN32_DLL
+AM_PROG_LIBTOOL
+AC_STDC_HEADERS
+AM_PROG_CC_C_O
+
+AC_C_BIGENDIAN
+
+PKG_PROG_PKG_CONFIG
+
+dnl ===========================================================================
+
+#AC_CANONICAL_HOST
+
+AC_MSG_CHECKING([for some Win32 platform])
+case "$host" in
+  *-*-mingw*|*-*-cygwin*)
+    platform_win32=yes
+    ;;
+  *)
+    platform_win32=no
+    ;;
+esac
+AC_MSG_RESULT([$platform_win32])
+AM_CONDITIONAL(PLATFORM_WIN32, test "$platform_win32" = "yes")
+
+AC_MSG_CHECKING([for native Win32])
+case "$host" in
+  *-*-mingw*)
+    native_win32=yes
+    ;;
+  *)
+    native_win32=no
+    ;;
+esac
+AC_MSG_RESULT([$native_win32])
+AM_CONDITIONAL(OS_WIN32, test "$native_win32" = "yes")
+
+dnl ===========================================================================
+
+GLIB_MKENUMS=`$PKG_CONFIG --variable=glib_mkenums glib-2.0`
+AC_SUBST(GLIB_MKENUMS)
+
+PKG_CHECK_MODULES(LIBRSVG, \
+	gdk-pixbuf-2.0 >= $GDK_PIXBUF_REQUIRED \
+	glib-2.0 >= $GLIB_REQUIRED \
+	gio-2.0 >= $GIO_REQUIRED \
+	libxml-2.0 >= $LIBXML_REQUIRED \
+	pangoft2 >= $PANGOFT2_REQUIRED \
+	pangocairo >= $PANGOCAIRO_REQUIRED \
+	cairo >= $CAIRO_REQUIRED \
+	cairo-png >= $CAIRO_REQUIRED \
+	fontconfig >= $FONTCONFIG_REQUIRED
+	freetype2)
+
+PKG_CHECK_MODULES([GTHREAD],[gthread-2.0 >= $GLIB_REQUIRED])
+
+dnl ===========================================================================
+
+# Using GIO 2.24 we support reading .svg.gz data
+
+svgz_warning=
+
+AC_MSG_CHECKING([whether gio 2.24 is available])
+PKG_CHECK_EXISTS([gio-2.0 >= 2.24.0],[have_gio_2_24=yes],[have_gio_2_24=no])
+AC_MSG_RESULT([$have_gio_2_24])
+
+AC_SUBST([HAVE_GIO_2_24],[$have_gio_2_24])
+
+if test "$have_gio_2_24" = "yes"; then
+  svgz_define=1
+  test_svgz=true
+else
+  LIBGSF_CFLAGS=""
+  LIBGSF_LIBS=""
+
+  LIBGSFPKG=""
+  test_svgz=true
+  AC_ARG_WITH(svgz,[  --with-svgz  Use libgsf for run-time decompression],[
+          if test "x$withval" = "xno"; then
+                  test_svgz=false
+          fi
+  ])
+  if test "x$test_svgz" = "xtrue"; then
+          PKG_CHECK_MODULES(LIBGSF,[libgsf-1 >= 1.6.0], test_svgz=true, test_svgz=false)
+  fi
+
+  if test "x$test_svgz" = "xtrue"; then
+          svgz_define=1
+          AC_DEFINE([HAVE_GSF],[1],[Define if using libgsf])
+          LIBGSFPKG="libgsf-1"
+  else
+          svgz_define=0
+          AC_MSG_WARN([SVGZ support disabled, as requested (Use --with-svgz to enable)])
+  fi
+
+  AC_SUBST(LIBGSFPKG)
+
+  AC_SUBST(LIBGSF_CFLAGS)
+  AC_SUBST(LIBGSF_LIBS)
+fi # have_gio_2_24
+
+if test "$test_svgz" != "true"; then
+  svgz_warning="You are building without libgsf support. LibRSVG will not be able to handle GZipped SVGs, as is required per the SVG specification. If you are a library vendor or distributor, you are doing the world a disservice and should strongly consider shipping libgsf."
+fi
+
+AC_SUBST([SVGZ_SUPPORTED],[$test_svgz])
+AC_SUBST([LIBRSVG_HAVE_SVGZ],[$svgz_define])
+
+dnl ===========================================================================
+
+LIBCROCO_CFLAGS=""
+LIBCROCO_LIBS=""
+LIBCROCOPKG=""
+
+test_croco=true
+AC_ARG_WITH(croco,[  --with-croco  Use libcroco for CSS parsing],[
+	if test "x$withval" = "xno"; then
+		test_croco=false
+	fi
+])
+if test "x$test_croco" = "xtrue"; then
+	PKG_CHECK_MODULES(LIBCROCO,[libcroco-0.6 >= 0.6.1], test_croco=true, test_croco=false)
+fi
+
+if test "x$test_croco" = "xtrue"; then
+        croco_define=1
+	LIBCROCO_CFLAGS="$LIBCROCO_CFLAGS -DHAVE_LIBCROCO=1"
+	LIBCROCOPKG="libcroco-0.6"
+else
+        croco_define=0
+	AC_MSG_WARN([LibCroco support disabled, as requested (Use --with-croco to enable)])
+        croco_warning="
+You are building without libcroco support. LibRSVG will not be able to handle embedded CSS, as is required per the SVG specification. If you are a library vendor or distributor, you are doing the world a disservice and should strongly consider shipping libcroco. Even KSVG needs libcroco now..."
+fi
+
+AC_SUBST(LIBCROCOPKG)
+AC_SUBST(LIBCROCO_CFLAGS)
+AC_SUBST(LIBCROCO_LIBS)
+
+AC_SUBST([CSS_SUPPORTED],[$test_croco])
+AC_SUBST([LIBRSVG_HAVE_CSS],[$croco_define])
+
+dnl ===========================================================================
+
+AC_CHECK_FUNCS(strtok_r)
+
+dnl ===========================================================================
+
+dnl Turn on the additional warnings last, so -Werror doesn't affect other tests.
+
+AC_ARG_ENABLE(more-warnings,
+[  --enable-more-warnings  Maximum compiler warnings],
+set_more_warnings="$enableval",[
+if test -f $srcdir/CVSVERSION; then
+        is_cvs_version=true
+        set_more_warnings=yes
+else
+        set_more_warnings=no
+fi
+])
+AC_MSG_CHECKING(for more warnings, including -Werror)
+if test "$GCC" = "yes" -a "$set_more_warnings" != "no"; then
+        AC_MSG_RESULT(yes)
+        CFLAGS="\
+        -Wall \
+        -Wchar-subscripts -Wmissing-declarations -Wmissing-prototypes \
+        -Wnested-externs -Wpointer-arith \
+        -Wcast-align -Wsign-compare \
+        $CFLAGS"
+else
+        AC_MSG_RESULT(no)
+fi
+
+dnl ===========================================================================
+dnl GTK theme engine
+dnl ===========================================================================
+
+AC_MSG_CHECKING([whether to build the GTK+ theme engine])
+AC_ARG_ENABLE([gtk-theme],
+  [AS_HELP_STRING([--disable-gtk-theme],[Disable a RSVG based GTK+ theme engine (default=yes)])],
+  [],[enable_gtk_theme=yes])
+AC_MSG_RESULT([$enable_gtk_theme])
+
+have_gtk_2=no
+have_gtk_3=no
+GTK2_BINARY_VERSION=
+GTK3_BINARY_VERSION=
+
+if test "x$enable_gtk_theme" = "xyes" -o "x$enable_pixbuf_loader" = "xyes"; then
+  PKG_CHECK_MODULES([GTK2],[gtk+-2.0 >= $GTK2_REQUIRED],[have_gtk_2=yes],[have_gtk_2=no])
+
+  if test "$have_gtk_2" = "yes"; then
+     GTK2_BINARY_VERSION="`$PKG_CONFIG --variable=gtk_binary_version gtk+-2.0`"
+  fi
+fi
+
+AC_SUBST([GTK2_BINARY_VERSION])
+AC_SUBST([GTK3_BINARY_VERSION])
+
+AM_CONDITIONAL([ENABLE_GTK_ENGINE],[test "$enable_gtk_theme" = "yes"])
+AM_CONDITIONAL([HAVE_GTK_2],[test "$have_gtk_2" = "yes"])
+AM_CONDITIONAL([HAVE_GTK_3],[test "$have_gtk_3" = "yes"])
+
+dnl ===========================================================================
+dnl GDK-Pixbuf SVG loader
+dnl ===========================================================================
+
+AC_MSG_CHECKING([whether to build the GDK-Pixbuf SVG loader])
+AC_ARG_ENABLE([pixbuf-loader],
+  [AS_HELP_STRING([--disable-pixbuf-loader],[Disable a RSVG based GdkPixbuf loader (default=yes)])],
+  [],[enable_pixbuf_loader=yes])
+AC_MSG_RESULT([$enable_pixbuf_loader])
+
+gdk_pixbuf_moduledir=
+if test "$enable_pixbuf_loader" = "yes"; then
+  PKG_CHECK_MODULES([GDK_PIXBUF],[gdk-pixbuf-2.0 >= $GDK_PIXBUF_REQUIRED])
+
+  AC_PATH_PROG([GDK_PIXBUF_QUERYLOADERS],[gdk-pixbuf-query-loaders],[none])
+
+  if test "x$GDK_PIXBUF_QUERYLOADERS" = "xnone"; then
+    AC_MSG_ERROR([gdk-pixbuf-query-loaders not found in path])
+  fi
+
+  # First try the standalone gdk-pixbuf
+  gdk_pixbuf_binary_version="`$PKG_CONFIG --variable=gdk_pixbuf_binary_version gdk-pixbuf-2.0`"
+  gdk_pixbuf_binarydir="`$PKG_CONFIG --variable=gdk_pixbuf_binarydir gdk-pixbuf-2.0`"
+  gdk_pixbuf_moduledir=`$PKG_CONFIG --variable gdk_pixbuf_moduledir gdk-pixbuf-2.0`
+  gdk_pixbuf_cache_file=`$PKG_CONFIG --variable gdk_pixbuf_cache_file gdk-pixbuf-2.0`
+
+  # If that didn't work, fall back to the gtk+-2.0 one
+  if test "x$gdk_pixbuf_moduledir" = "x"; then
+    gtk_binary_version="`$PKG_CONFIG --variable=gtk_binary_version gtk+-2.0`"
+    gdk_pixbuf_binarydir='${sysconfdir}/gtk-2.0'
+    gdk_pixbuf_moduledir='${libdir}/gtk-2.0/'
+    gdk_pixbuf_moduledir="$gdk_pixbuf_moduledir/$gtk_binary_version/loaders"
+    gdk_pixbuf_cache_file='${gdk_pixbuf_binarydir}/gdk-pixbuf.loaders'
+  fi
+fi
+
+AC_SUBST([gdk_pixbuf_binary_version])
+AC_SUBST([gdk_pixbuf_binarydir])
+AC_SUBST([gdk_pixbuf_moduledir])
+AC_SUBST([gdk_pixbuf_cache_file])
+
+AM_CONDITIONAL([ENABLE_PIXBUF_LOADER],[test "$enable_pixbuf_loader" = "yes"])
+
+##################################################
+# Checks for gtk-doc and docbook-tools
+##################################################
+
+GTK_DOC_CHECK([1.13],[--flavour no-tmpl])
+
+AC_SUBST([GLIB_PREFIX],[$($PKG_CONFIG --variable=prefix glib-2.0)])
+AC_SUBST([GDK_PIXBUF_PREFIX],[$($PKG_CONFIG --variable=prefix gdk-pixbuf-2.0)])
+AC_SUBST([GTK_PREFIX],[$($PKG_CONFIG --variable=prefix gdk-pixbuf-2.0)])
+AC_SUBST([CAIRO_PREFIX],[$($PKG_CONFIG --variable=prefix cairo)])
+
+dnl ===========================================================================
+dnl Do we build the miscellaenous tools provided with librsvg ?
+
+AC_ARG_ENABLE(tools,
+              AC_HELP_STRING([--disable-tools],
+                             [do not build miscellaenous tools [default=no]]),
+              [build_misc_tools=$enableval],
+              [build_misc_tools=yes])
+
+AC_MSG_CHECKING(whether to build miscellaenous tools)
+if test "x$build_misc_tools" = "xyes" ; then
+	AC_MSG_RESULT(yes)
+else
+	AC_MSG_RESULT(no)
+fi
+AM_CONDITIONAL([BUILD_MISC_TOOLS], [test "x$build_misc_tools" = "xyes"])
+
+dnl ===========================================================================
+
+m4_copy([AC_DEFUN],[glib_DEFUN])
+glib_DEFUN([GLIB_LC_MESSAGES],
+  [AC_CHECK_HEADERS([locale.h])
+    if test $ac_cv_header_locale_h = yes; then
+    AC_CACHE_CHECK([for LC_MESSAGES], am_cv_val_LC_MESSAGES,
+      [AC_TRY_LINK([#include <locale.h>], [return LC_MESSAGES],
+       am_cv_val_LC_MESSAGES=yes, am_cv_val_LC_MESSAGES=no)])
+    if test $am_cv_val_LC_MESSAGES = yes; then
+      AC_DEFINE(HAVE_LC_MESSAGES, 1,
+        [Define if your <locale.h> file defines LC_MESSAGES.])
+    fi
+  fi])
+
+GLIB_LC_MESSAGES
+
+dnl ===========================================================================
+
+AC_CONFIG_FILES([
+librsvg.spec
+librsvg-features.h
+Makefile
+librsvg-zip
+data/Makefile
+gtk-engine/Makefile
+gtk-engine/examples/Makefile
+gtk-engine/examples/bubble/Makefile
+gdk-pixbuf-loader/Makefile
+tests/Makefile
+tests/pdiff/Makefile
+tools/Makefile
+doc/Makefile
+doc/version.xml
+])
+
+AC_CONFIG_FILES([librsvg-${RSVG_API_VERSION}.pc:librsvg.pc.in],[],[RSVG_API_VERSION=$RSVG_API_VERSION])
+AC_CONFIG_FILES([librsvg-${RSVG_API_VERSION}-uninstalled.pc:librsvg-uninstalled.pc.in],[],[RSVG_API_VERSION=$RSVG_API_VERSION])
+
+if test "$with_gtk" = "2.0"; then
+  AC_CONFIG_FILES([rsvg])
+fi
+
+AC_OUTPUT
+
+dnl =============================================================================================
+echo "
+librsvg-$VERSION
+
+	prefix:                         ${prefix}
+	compiler:                       ${CC}
+	
+	Build GdkPixbuf loader:         ${enable_pixbuf_loader}
+	Build theme engine:             ${enable_gtk_theme}
+	Build miscellaenous tools:      ${build_misc_tools}
+	Handle svgz files:              ${test_svgz}
+	Use libcroco for css parsing:   ${test_croco}
+"
+
+if test "x$croco_warning" != "x"; then
+   AC_MSG_RESULT([$croco_warning]);
+fi
+
+if test "x$svgz_warning" != "x"; then
+   AC_MSG_NOTICE([$svgz_warning]);
+fi

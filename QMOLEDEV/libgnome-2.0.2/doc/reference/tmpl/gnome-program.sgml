@@ -1,0 +1,468 @@
+<!-- ##### SECTION Title ##### -->
+gnome-program
+
+<!-- ##### SECTION Short_Description ##### -->
+Initialize and retrieve information about a GNOME application.
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### ENUM GnomeFileDomain ##### -->
+<para>
+Many of the files that a GNOME application needs to access will be installed in
+standard locations. For example, GNOME help files will be in one location,
+while help files specific to the current application might be in another
+location.
+</para>
+<para>
+The different types of files are given in this enum. User applications make use
+of the <structfield>GNOME_FILE_DOMAIN_APP_*</structfield> types, which specify
+locations relative to #GNOME_PARAM_APP_DATADIR.
+</para>
+
+@GNOME_FILE_DOMAIN_UNKNOWN: An unknown file domain (should never be used).
+@GNOME_FILE_DOMAIN_LIBDIR: Libraries in the main GNOME installation.
+@GNOME_FILE_DOMAIN_DATADIR: Data files in the main GNOME installation.
+@GNOME_FILE_DOMAIN_SOUND: Sound files in the main GNOME installation.
+@GNOME_FILE_DOMAIN_PIXMAP: Pixmap files in the main GNOME installation.
+@GNOME_FILE_DOMAIN_CONFIG: Config files in the main GNOME installation.
+@GNOME_FILE_DOMAIN_HELP: Help files in the main GNOME installation.
+@GNOME_FILE_DOMAIN_APP_LIBDIR: Application specific libraries.
+@GNOME_FILE_DOMAIN_APP_DATADIR: Application specific data files.
+@GNOME_FILE_DOMAIN_APP_SOUND: Application specific sound files.
+@GNOME_FILE_DOMAIN_APP_PIXMAP: Application specific pixmap files.
+@GNOME_FILE_DOMAIN_APP_CONFIG: Application specific config files.
+@GNOME_FILE_DOMAIN_APP_HELP: Application specific help files.
+
+<!-- ##### STRUCT GnomeProgram ##### -->
+<para>
+A structure containing information about the current application. Initialised
+during a call to gnome_program_init().
+</para>
+
+@object: A #GObject containing the parameters and their values which were set
+dring initialisation.
+@_priv: Private data about the program instance.
+
+<!-- ##### STRUCT GnomeModuleInfo ##### -->
+<para>
+A structure containing information about a module. This contains descriptive
+information about the module, as well as how to initialise it and what its
+dependencies are (chained via the @requirements parameter).
+</para>
+
+@name: The module name.
+@version: The module's version string.
+@description: A string describing the module (can be %NULL).
+@requirements: A pointer to an array of modules that are required by this
+module. The last module in the array should have its required_version field set
+to %NULL.
+@instance_init: A function to call to initialise an instance of this module
+(can be %NULL).
+@pre_args_parse: A function to call before parsing the arguments for this
+module (can be %NULL).
+@post_args_parse: A function to call after parsing the arguments for this
+module (can be %NULL).
+@options: A #poptOption structure giving any special arguments for this module
+(can be %NULL).
+@init_pass: A function which is run before the @init_instance function to allow
+the module to register other modules as needed. The module cannot assume its
+required modules are initialized (although they might be).
+@class_init: A function to call to initialise this module prior to creating any
+instances (can be %NULL).
+@opt_prefix: Unused.
+@expansion1: Unused.
+
+<!-- ##### STRUCT GnomeModuleRequirement ##### -->
+<para>
+A structure which allows a module to specify the minimum required versions of
+modules it depends upon.
+</para>
+
+@required_version: The version required by the parent module.
+@module_info: A #GnomeModuleInfo structure detailing the required module.
+
+<!-- ##### USER_FUNCTION GnomeModuleInitHook ##### -->
+<para>
+A function that will be called to allow a module to do any pre-initialisation
+it might need to do prior to having arguments parsed by the controlling parent
+module (the parent will do the argument parsing for all modules in the
+hierarchy).
+</para>
+
+@mod_info: The current module.
+
+
+<!-- ##### USER_FUNCTION GnomeModuleClassInitHook ##### -->
+<para>
+A function called to perform any class specific setup that is required by each
+module.
+</para>
+
+@klass: The class of the parent module (which could be this module's class).
+This will usually be #GnomeProgramClass.
+@mod_info: The current module.
+
+
+<!-- ##### USER_FUNCTION GnomeModuleHook ##### -->
+<para>
+A function that is called to perform some intialisation in a module (which
+could be either the main init function or the pre or post argument parsing
+phase).
+</para>
+
+@program: The #GnomeProgram instance which is being initialised.
+@mod_info: The current module's #GnomeModuleInfo structure.
+
+
+<!-- ##### FUNCTION gnome_program_init ##### -->
+<para>
+Every GNOME application will need to call this function (or
+gnome_program_initv()) early in its lifetime to initialize the various GNOME
+libraries in a consistent fashion. This function is very flexible in allowing
+the user to specify which modules should be initialised and any special
+paramter values that should be passed to these modules (along with processing
+commandline options).
+</para>
+<para>
+It loads the specified @module_info, which is normally #LIBGNOME_MODULE or
+#LIBGNOMEUI_MODULE and pulls in all the dependencies.  Programs that are not
+running in setuid or setgid mode will also load modules specified in the
+<parameter class="option">--load-modules</parameter> and also in the <parameter
+class="option">GNOME_MODULES</parameter> environment variable.
+</para>
+<para>
+After setting up the module loading, this function then calls (in order)
+gnome_program_preinit(), gnome_program_parse_args() and
+gnome_program_postinit().
+</para>
+<para>The following example shows how one might initialise a typical program
+using a popt table that is defined elsewhere (in other words, this is how to
+remove the use of the deprecated gnome_init_with_popt_table() from code).
+</para>
+<example>
+<title>Initializing a GNOME application</title>
+<programlisting>
+int main(int argc, char **argv) {
+	GnomeProgram *my_app;
+	
+	/* We assume PACKAGE and VERSION are set the program name and version
+	 * number respectively. Also, assume the 'options' is a global array of
+	 * poptOptions.
+	 */
+	my_app = gnome_program_init(PACKAGE, VERSION, LIBGNOMEUI_MODULE,
+	                            argc, argv, GNOME_PARAM_POPT_TABLE, options,
+				    GNOME_PARAM_NONE);
+	/* Now process any extra args, etc ... */
+}
+</programlisting>
+</example>
+
+@app_id: 
+@app_version: 
+@module_info: 
+@argc: 
+@argv: 
+@first_property_name: 
+@Varargs: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_initv ##### -->
+<para>
+
+</para>
+
+@type: 
+@app_id: 
+@app_version: 
+@module_info: 
+@argc: 
+@argv: 
+@first_property_name: 
+@args: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_get ##### -->
+<para>
+
+</para>
+
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_get_human_readable_name ##### -->
+<para>
+
+</para>
+
+@program: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_get_app_id ##### -->
+<para>
+
+</para>
+
+@program: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_get_app_version ##### -->
+<para>
+
+</para>
+
+@program: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_locate_file ##### -->
+<para>
+
+</para>
+
+@program: 
+@domain: 
+@file_name: 
+@only_if_exists: 
+@ret_locations: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_module_register ##### -->
+<para>
+
+</para>
+
+@module_info: 
+
+
+<!-- ##### FUNCTION gnome_program_module_registered ##### -->
+<para>
+
+</para>
+
+@module_info: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_module_load ##### -->
+<para>
+
+</para>
+
+@mod_name: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_install_property ##### -->
+<para>
+
+</para>
+
+@pclass: 
+@get_fn: 
+@set_fn: 
+@pspec: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_preinit ##### -->
+<para>
+
+</para>
+
+@program: 
+@app_id: 
+@app_version: 
+@argc: 
+@argv: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnome_program_parse_args ##### -->
+<para>
+
+</para>
+
+@program: 
+
+
+<!-- ##### FUNCTION gnome_program_postinit ##### -->
+<para>
+
+</para>
+
+@program: 
+
+
+<!-- ##### MACRO GNOME_PARAM_POPT_TABLE ##### -->
+<para>
+This parameter contains the table of options to be passed to popt (write on
+init only).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_POPT_FLAGS ##### -->
+<para>
+This parameter contains the flags to use for popt (write on init only).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_POPT_CONTEXT ##### -->
+<para>
+This parameter contains the context pointer that #GnomeProgram is using for
+popt parsing (readable).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_CREATE_DIRECTORIES ##### -->
+<para>
+This parameter contains %TRUE if the standard GNOME directories should be
+created on startup.
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_ENABLE_SOUND ##### -->
+<para>
+This parameter determines whether or not to enable sound on startup.
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_ESPEAKER ##### -->
+<para>
+This parameter describes how to connect to esd.
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_APP_ID ##### -->
+<para>
+This parameter contains the ID string to use for the application (readable).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_APP_VERSION ##### -->
+<para>
+This parameter contains the application version (readable).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_GNOME_PREFIX ##### -->
+<para>
+This parameter contains the prefix where the main GNOME system is installed
+(readable, writable on init only).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_GNOME_SYSCONFDIR ##### -->
+<para>
+This parameter contains the prefix where the GNOME configuration files
+are installed (readable, writable on init only).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_GNOME_DATADIR ##### -->
+<para>
+This parameter contains the prefix where the GNOME data files are installed
+(readable, writable on init only).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_GNOME_LIBDIR ##### -->
+<para>
+This parameter contains the prefix where the GNOME library files are installed
+(readable, writable on init only).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_APP_PREFIX ##### -->
+<para>
+This parameter contains the prefix where this application was installed
+(read / write).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_APP_SYSCONFDIR ##### -->
+<para>
+This parameter contains the prefix where this application's configuration files
+are installed (read / write).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_APP_DATADIR ##### -->
+<para>
+This parameter contains the prefix where this application's data files are
+installed (read / write).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_APP_LIBDIR ##### -->
+<para>
+This parameter contains the prefix where this application's library files are
+installed (read / write).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_HUMAN_READABLE_NAME ##### -->
+<para>
+This parameter contains the human readable name of the application (readable).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_GNOME_PATH ##### -->
+<para>
+This parameter contains the path in which to look for installed files (taken
+from the GNOME2_PATH environment variable).
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PARAM_NONE ##### -->
+<para>
+Used to terminate a list of parameters and their values.
+</para>
+
+
+
+<!-- ##### MACRO GNOME_PROGRAM_STANDARD_PROPERTIES ##### -->
+<para>
+When PREFIX, SYSCONFDIR, DATADIR and LIBDIR are defined during the build
+process, this macro can be used to assign these values to
+#GNOME_PARAM_APP_PREFIX, #GNOME_PARAM_APP_SYSCONFDIR, #GNOME_PARAM_APP_DATADIR
+and #GNOME_PARAM_APP_LIBDIR respectively so that the GNOME libraries
+automatically know where to fetch application specific data from.  </para>
+
+<para>
+Every respectable GNOME application should set these variables and use
+GNOME_PROGRAM_STANDARD_PROPERTIES in the call to gnome_program_init().
+</para>
+
+
+

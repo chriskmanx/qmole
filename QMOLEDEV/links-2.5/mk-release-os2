@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+WARPIN="d:\prg\WarpIN"
+DLLPATH="d:\prg\emx\dll"
+DLLS="bz2.dll crypto.dll jpeg.dll lzma.dll png.dll ssl.dll z.dll"
+FILES="AUTHORS BRAILLE_HOWTO COPYING KEYS README links.exe"
+CC="gcc.exe"
+export CC
+CFLAGS="-Wall -W -Wno-unused-parameter -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -O2 -pipe -ansi -U__STRICT_ANSI__ -fno-common"
+export CFLAGS
+rc -r linksos2.rc linksos2.res
+if [ ! -f Makefile -o ! -f config.h ]; then
+	LIBS=linksos2.res
+	export LIBS
+	bash ./configure --enable-graphics --without-x --disable-utf8 --disable-debuglevel
+fi
+make
+emxbind -a links.exe -h192
+
+for i in $DLLS; do
+	cp "$DLLPATH\\$i" .
+done
+
+rm -f links.wpi
+cmd /c set BEGINLIBPATH="$WARPIN" \& "$WARPIN\wic.exe" -a links.wpi 1 $FILES $DLLS -s links.wis
+
+rm -rf links links.zip
+mkdir links
+cp $FILES $DLLS links
+pkzip /Add /Recurse /Path /NoExtended links.zip links\\
+rm -rf links
+rm $DLLS

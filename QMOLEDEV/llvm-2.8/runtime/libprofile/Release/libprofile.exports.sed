@@ -1,0 +1,4 @@
+_llvm_start_edge_profiling
+_llvm_start_opt_edge_profiling
+_llvm_start_basic_block_tracing
+_llvm_trace_basic_block

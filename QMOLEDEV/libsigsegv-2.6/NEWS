@@ -1,0 +1,90 @@
+New in 2.6:
+
+* sigsegv_leave_handler is changed. Previously it was a normal function with
+  no arguments. Now it is a function that take a non-returning continuation
+  function and three arguments for it as arguments.
+  Where you had code like
+     int my_handler(void* fault_address, int serious)
+     {
+       ...code_before()...;
+       sigsegv_leave_handler();
+       ...code_after()...;
+       longjmp(...);
+     }
+  you now have to write
+     void my_handler_tail(void* arg1, void* arg2, void* arg3)
+     {
+       ...code_after()...;
+       longjmp(...);
+     }
+     int my_handler(void* fault_address, int serious)
+     {
+       ...code_before()...;
+       #if LIBSIGSEGV_VERSION >= 0x0206
+       return sigsegv_leave_handler(my_handler_tail, arg, NULL, NULL);
+       #else
+       sigsegv_leave_handler();
+       my_handler_tail(arg, NULL, NULL);
+       /* NOTREACHED */
+       abort();
+       #endif
+     }
+* sigsegv_leave_handler now works correctly on MacOS X.
+* Support for 64-bit ABI on MacOS X 10.5.
+* Support for building universal binaries on MacOS X.
+* Improved distinction between stack overflow and other fault on NetBSD,
+  OpenBSD, FreeBSD, Linux, AIX, Solaris. Contributed by Eric Blake.
+* GNU gnulib now has an autoconf macro for locating libsigsegv:
+  http://www.gnu.org/software/gnulib/MODULES.html#module=libsigsegv
+
+New in 2.5:
+
+* Support for MacOS X 10.5.
+
+New in 2.4:
+
+* Support for GCC 4 on more platforms.
+* Added support for catching stack overflow on NetBSD.
+* Improved support for catching stack overflow on Linux, Solaris:
+  Works also when /proc is not mounted or lacks read permissions.
+
+New in 2.3:
+
+* Support for GCC 4 on some platforms contributed by Paolo Bonzini.
+* Support for MacOS X i386 contributed by Bruno Haible.
+* Improved support for Woe32 contributed by Doug Currie.
+
+New in 2.2:
+
+* Support for new versions of MacOS X contributed by Paolo Bonzini.
+* Improved support for AIX 5, contributed by Bruno Haible.
+
+New in 2.1:
+
+* Support for MacOS X contributed by Paolo Bonzini.
+* Support for Cygwin contributed by Paolo Bonzini.
+* Support for Linux/ia64 and Linux/hppa contributed by Bruno Haible.
+* Support for OpenBSD/i386 contributed by Bruno Haible.
+* Support for NetBSD/alpha contributed by Paolo Bonzini.
+
+New in 2.0:
+
+* Modernized infrastructure.
+* Added support for catching stack overflow on AIX 4, HP-UX, and BeOS.
+* Dropped support for NeXTstep.
+* The function sigsegv_leave_handler() no longer restores the signal mask.
+  This must now be done by the calling handler (either through sigprocmask
+  or through siglongjmp).
+
+New in 1.2:
+
+* Support for HP-UX contributed by Paolo Bonzini.
+
+New in 1.1:
+
+* Catching stack overflow now works on some Unix systems:
+  - Linux 2.2.x with glibc-2.1,
+  - Sun Solaris,
+  - DEC OSF/1 4.0,
+  - SGI Irix.
+

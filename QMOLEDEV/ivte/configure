@@ -1,0 +1,244 @@
+#!/bin/sh
+
+rm -f src/*.o src/*.mk src/custom.h src/ivte.h src/install.sh src/uninstall.sh
+
+DO_CAT=cat
+DO_ECHO=echo
+prefix="/usr/local"
+CONF_FILE="src/config.h"
+
+for opt do
+  case "$opt" in
+  --with-gtk=*) with_gtk=`echo $opt | cut -d '=' -f 2`
+  ;;
+  --quiet) DO_CAT=true
+           DO_ECHO=true
+  ;;
+  --prefix=*) prefix=`echo $opt | cut -d '=' -f 2`
+  ;;
+  --config=*) CONF_FILE=`echo $opt | cut -d '=' -f 2`
+  ;;
+  -h | "-?" | --help | --config | --prefix | --quiet=* | --with-gtk)
+     echo
+     echo " Options: --prefix=/usr/local (default)"
+     echo "          --prefix=/usr"
+     echo
+     echo "          --config=src/config.h (default)"
+     echo '          --config=$HOME/.config/ivte/config.h'
+     echo
+     echo "          --with-gtk=2.0 (default)"
+     echo "          --with-gtk=3.0"
+     echo "          --with-gtk=2+3"
+     echo "          --with-gtk=3+2"
+     exec echo
+  ;;
+  *)
+     $DO_ECHO
+     $DO_ECHO Option '"'$opt'"' is not supported yet. | sed 's/=.* is/" is/'
+  ;;
+  esac
+done
+
+if [ ! -e $CONF_FILE ] || [ -d $CONF_FILE ]; then
+  $DO_ECHO
+  $DO_ECHO "[1m[31mWARNING:[m parsing error: $CONF_FILE"
+  HOME_ERR=`echo $CONF_FILE | grep '~'`
+  if [ "$HOME_ERR" != "" ]; then
+    $DO_ECHO '         Please do not use "~".'
+  else
+    $DO_ECHO "         Please make sure your configuration file is correct."
+  fi
+  exec $DO_ECHO
+fi
+
+PROG=`grep PROGRAM_NAME $CONF_FILE | sed -e 's/\t/ /g' -e 's/^\( \)*//g' | grep -v ^\/\/ | tail -n 1 | cut -d '"' -f 2`
+[ "$PROG" = "" ] && PROG=ivte
+
+SUSE_LD=`ld -v 2>&1 | tr A-Z a-z | grep suse`
+[ "$SUSE_LD" != "" ] && echo \#define DEF_TAB_LABEL >> src/config.mk
+
+ARCH_UNAME=`uname -a | grep -- '-ARCH '`
+[ "$ARCH_UNAME" != "" ] && echo \#define DEF_TAB_LABEL >> src/config.mk
+
+real_gtk=$with_gtk
+if [ "$with_gtk" != "2.0" ] && [ "$with_gtk" != "3.0" ]; then
+  with_gtk=2.0
+  VTEINC=`pkg-config --cflags vte 2> /dev/null`
+  if [ $? != 0 ]; then
+    VTEINC=`pkg-config --cflags vte-2.90 2> /dev/null`
+    [ $? = 0 ] && with_gtk=3.0
+  fi
+fi
+
+if [ "$real_gtk" = "3+2" ]; then
+  with_gtk=3.0
+  VTEINC=`pkg-config --cflags vte-2.90 2> /dev/null`
+  if [ $? != 0 ]; then
+    VTEINC=`pkg-config --cflags vte 2> /dev/null`
+    [ $? = 0 ] && with_gtk=2.0
+  fi
+fi
+
+if [ "$with_gtk" = "2.0" ]; then
+  VTEINC=`pkg-config --cflags vte 2> /dev/null`
+  [ $? != 0 ] && exec pkg-config --cflags vte
+  LIBS_VTE="-lgdk-x11-2.0 -lgtk-x11-2.0 -lvte"
+  LIBS_VTE_L=`pkg-config --libs-only-L vte 2> /dev/null`
+fi
+
+if [ "$with_gtk" = "3.0" ]; then
+  VTEINC=`pkg-config --cflags vte-2.90 2> /dev/null`
+  [ $? != 0 ] && exec pkg-config --cflags vte-2.90
+  LIBS_VTE="-lgdk-3 -lgtk-3 -lvte2_90"
+  LIBS_VTE_L=`pkg-config --libs-only-L vte-2.90 2> /dev/null`
+fi
+
+if [ "$real_gtk" = "2+3" ] || [ "$real_gtk" = "3+2" ]; then
+  real_gtk="all"
+  LIBS_VTE="-ldl"
+fi
+
+  $DO_ECHO
+  [ "$SUSE_LD" != "" ] && $DO_ECHO "OS    :" [1m[33mSUSE[m
+  [ "$ARCH_UNAME" != "" ] && $DO_ECHO "OS    :" [1m[33mArch Linux[m
+  [ "$with_gtk" = "2.0" ] && $DO_ECHO "VTE   :" [1m[33m`pkg-config --modversion vte`[m
+  [ "$with_gtk" = "3.0" ] && $DO_ECHO "VTE   :" [1m[33m`pkg-config --modversion vte-2.90`[m
+  $DO_ECHO "GTK+  :" [1m[33m`pkg-config --modversion gtk+-$with_gtk`[m
+  $DO_ECHO Prefix: [1m[33m$prefix[m
+  $DO_ECHO -n "Configuration: "
+  DEFINE_LINES=`cat $CONF_FILE | tr '\t' ' ' | tr -s ' ' ' ' | sed -e 's/^ //' -e 's~/\*~\n~g' | grep ^\#define | wc -l`
+  if [ "$DEFINE_LINES" = "0" ]; then
+    $DO_ECHO [1m[31mDisable everything.[m
+  else
+    $DO_ECHO
+  fi
+  $DO_CAT $CONF_FILE | tr '\t' ' ' | tr -s ' ' ' ' | sed -e 's/^ //' -e 's~/\*~\n~g' | grep ^\#define | grep -v \*\/ | \
+  sed -e 's/$/[m/' \
+      -e 's/"/[1m[32m"/' \
+      -e 's/ 0/[1m[32m 0/' \
+      -e 's/ 1/[1m[32m 1/' \
+      -e 's/ 2/[1m[32m 2/' \
+      -e 's/ 3/[1m[32m 3/' \
+      -e 's/ 4/[1m[32m 4/' \
+      -e 's/ 5/[1m[32m 5/' \
+      -e 's/ 6/[1m[32m 6/' \
+      -e 's/ 7/[1m[32m 7/' \
+      -e 's/ 8/[1m[32m 8/' \
+      -e 's/ 9/[1m[32m 9/' \
+      -e 's/TRUE/[1m[32mTRUE/' \
+      -e 's/FALSE/[1m[31mFALSE/' \
+      -e 's/ AUTO/[1m[32m AUTO/' \
+      -e 's/ ERASE_TTY/[1m[32m ERASE_TTY/' \
+      -e 's/ BLOCK/[1m[32m BLOCK/' \
+      -e 's/ IBEAM/[1m[32m IBEAM/' \
+      -e 's/ UNDERLINE/[1m[32m UNDERLINE/' \
+      -e 's/ BACKSPACE/[1m[32m BACKSPACE/g' \
+      -e 's/BACKSPACE_KEY/[mBACKSPACE_KEY/' \
+      -e 's/ DELETE/[1m[32m DELETE/g' \
+      -e 's/DELETE_KEY/[mDELETE_KEY/' \
+      -e 's/ LINUX/[1m[32m LINUX/' \
+      -e 's/ RXVT/[1m[32m RXVT/' \
+      -e 's/ TANGO/[1m[32m TANGO/' \
+      -e 's/ XTERM/[1m[32m XTERM/' \
+      -e 's/ ZENBURN/[1m[32m ZENBURN/' \
+      -e 's/ g_/[1m[32m g_/' \
+      -e 's/ RIGHT/[1m[32m RIGHT/' \
+      -e 's/ LEFT/[1m[32m LEFT/' \
+      -e 's/ OFF_R/[1m[32m OFF_R/' \
+      -e 's/ OFF_L/[1m[32m OFF_L/' \
+      -e 's/ TOP/[1m[32m TOP/' \
+      -e 's/ BOTTOM/[1m[32m BOTTOM/' \
+      -e 's/ ALT(/[1m[32m ALT(/' \
+      -e 's/ ALT_SHIFT(/[1m[32m ALT_SHIFT(/' \
+      -e 's/ CTRL(/[1m[32m CTRL(/' \
+      -e 's/ CTRL_ALT(/[1m[32m CTRL_ALT(/' \
+      -e 's/ CTRL_ALT_SHIFT(/[1m[32m CTRL_ALT_SHIFT(/' \
+      -e 's/ CTRL_SHIFT(/[1m[32m CTRL_SHIFT(/' \
+      -e 's/ SHIFT(/[1m[32m SHIFT(/'
+  $DO_ECHO
+  $DO_ECHO Please edit [1m[33m$CONF_FILE[m to customize your options.
+  $DO_ECHO
+
+bindir=$prefix/bin
+mandir=$prefix/share/man/man1
+deskdir=$prefix/share/applications
+ICON_DIR=$prefix/share/pixmaps
+THEME_DIR=$prefix/share/icons
+GNOME_DEF_APP=$prefix/share/gnome-control-center/default-apps
+PROGRAM_VERSION=`head -n 1 ChangeLog`
+
+echo "VTEINC=$VTEINC" >> src/config.mk
+# sed -i 's/-pthread//' src/config.mk
+echo "LIBS_VTE=$LIBS_VTE" >> src/config.mk
+echo "LIBS_VTE_L=$LIBS_VTE_L" >> src/config.mk
+echo "prefix=$prefix" >> src/config.mk
+echo "bindir=\$(DESTDIR)$bindir" >> src/config.mk
+echo "mandir=\$(DESTDIR)$mandir" >> src/config.mk
+echo "deskdir=\$(DESTDIR)$deskdir" >> src/config.mk
+echo \#define ICON_DIR '"'$ICON_DIR'"' >> src/config.mk
+echo "ICON_DIR_INSTALL=\$(DESTDIR)$ICON_DIR" >> src/config.mk
+echo "THEME_DIR=\$(DESTDIR)$THEME_DIR" >> src/config.mk
+echo "GNOME_DEF_APP=\$(DESTDIR)$GNOME_DEF_APP" >> src/config.mk
+echo "PROG=$PROG" >> src/config.mk
+echo \#ifndef PROGRAM_VERSION >> src/config.mk
+echo \#define PROGRAM_VERSION '"'$PROGRAM_VERSION'"' >> src/config.mk
+echo \#endif >> src/config.mk
+[ "$real_gtk" = "all" ] && echo \#define RULE_THEM_ALL >> src/config.mk
+echo "CONF_FILE=$CONF_FILE" >> src/config.mk
+head -n 1 $0 > src/uninstall.sh
+echo "set -x" >> src/uninstall.sh
+echo "rm -f $bindir/$PROG" >> src/uninstall.sh
+echo "rm -f $bindir/showvte" >> src/uninstall.sh
+echo "rmdir $bindir 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $deskdir/ivte.desktop" >> src/uninstall.sh
+echo "rmdir $deskdir 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $GNOME_DEF_APP/ivte.xml" >> src/uninstall.sh
+echo "rmdir $GNOME_DEF_APP 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $prefix/share/gnome-control-center 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $mandir/ivte.1" >> src/uninstall.sh
+echo "rm -f $mandir/showvte.1" >> src/uninstall.sh
+echo "rmdir $mandir 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $prefix/share/man 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $ICON_DIR/ivte.png" >> src/uninstall.sh
+echo "rmdir $ICON_DIR 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/16x16/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/16x16/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/16x16 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/20x20/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/20x20/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/20x20 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/22x22/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/22x22/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/22x22 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/24x24/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/24x24/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/24x24 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/32x32/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/32x32/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/32x32 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/36x36/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/36x36/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/36x36 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/40x40/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/40x40/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/40x40 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/48x48/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/48x48/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/48x48 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/64x64/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/64x64/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/64x64 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/72x72/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/72x72/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/72x72 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/96x96/apps/ivte.png" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/96x96/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/96x96 2> /dev/null" >> src/uninstall.sh
+echo "rm -f $THEME_DIR/hicolor/scalable/apps/ivte.svg" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/scalable/apps 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor/scalable 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR/hicolor 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $THEME_DIR 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $prefix/share 2> /dev/null" >> src/uninstall.sh
+echo "rmdir $prefix 2> /dev/null" >> src/uninstall.sh
+echo "true" >> src/uninstall.sh

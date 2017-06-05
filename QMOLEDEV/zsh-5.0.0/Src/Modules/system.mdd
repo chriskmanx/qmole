@@ -1,0 +1,30 @@
+name=zsh/system
+link=dynamic
+load=no
+
+autofeatures="b:sysread b:syswrite b:syserror p:errnos"
+
+objects="system.o errnames.o"
+
+headers="errcount.h"
+
+:<<\Make
+# careful: ERRNO_H may contain a list
+errnames.c: errnames1.awk errnames2.awk $(dir_top)/config.h @ERRNO_H@
+	   if [ x"@ERRNO_H@" = x ]; then \
+		touch errtmp.out; \
+	   else \
+		$(AWK) -f $(sdir)/errnames1.awk @ERRNO_H@ >errtmp.c; \
+		$(CPP) errtmp.c >errtmp.out; \
+	   fi
+	   $(AWK) -f $(sdir)/errnames2.awk errtmp.out > $@
+	   rm -f errtmp.c errtmp.out
+
+errcount.h: errnames.c
+	grep 'define.*ERRCOUNT' errnames.c > $@
+
+clean-here: clean.system
+clean.system:
+	rm -f errcount.h errnames.c
+Make
+

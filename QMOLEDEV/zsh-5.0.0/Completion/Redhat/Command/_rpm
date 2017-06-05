@@ -1,0 +1,327 @@
+#compdef rpm
+
+# This uses `_arguments' in a state-machine kind of way. These states
+# have names and before executing the default action for such a state
+# we try to call a function with the name `_rpm_<state>'. If such a
+# function exists, we return with its return status immediately. This
+# allows users to override the default completions by simply defining
+# these functions.
+# The states (and possible values for the `<state>' above) are:
+#
+#  query
+#    complete for `rpm -q' query
+#  verify
+#    complete for `rpm --verify'
+#  install
+#    complete for `rpm -i' or `rpm --install'
+#  upgrade
+#    complete for `rpm -U' or `rpm --upgrade'
+#  uninstall
+#    complete for `rpm -e' or `rpm --erase'
+#  build_b
+#    complete for `rpm -bx' (the stage `x' is already completed)
+#  build_t
+#    complete for `rpm -tx' (the stage `x' is already completed)
+#  sigcheck
+#    complete for `rpm --sigcheck'
+#  rebuild
+#    complete for `rpm --rebuild'
+#  package
+#    complete a RPM package name
+#  package_file
+#    complete a RPM package file name
+#  package_or_file
+#    the previous two together
+#  tags
+#    complete a tag name
+#  capability
+#    complete a capability
+#  relocate
+#    complete a `old=new' pair of paths
+
+_rpm () {
+  local curcontext="$curcontext" state lstate line nm="$compstate[nmatches]"
+  typeset -A opt_args
+  local ret=1
+  local -a tmp expl commonopts selectopts
+
+  commonopts=(
+    '(-v --verbose)--quiet[print as little as possible]'
+    '(--quiet)*'{-v,--verbose}'[verbose output]'
+    '--rcfile:resource file:_files'
+    '--ftpproxy:ftp proxy server:_hosts'
+    '--ftpport:ftp port number'
+    '--httpproxy:http proxy server:_hosts'
+    '--httpport:http port number'
+    {-\?,--help}'[print help information]'
+    '--version[print version number]'
+    '--pipe:pipe command:->command'
+  )
+
+  # package selection options of which only one can be used
+  selectopts=(
+    {-a,--all}'[query all packages]'
+    {-f,--file}'[query packages that own specified files]'
+    {-p,--package}'[query uninstalled packages]'
+    {-g,--group}'[query packages in one of specified groups]'
+    --fileid --hdrid --pkgid --tid --querybynumber
+    '--triggeredby'
+    '--whatprovides'
+    '--whatrequires'
+  )
+  sopts=${selectopts%\[*}\ --specfile
+  selectopts=(
+    "(* $sopts)"${selectopts[1,2]}
+    "($sopts)"${selectopts[3,-1]}
+    '(-a --all)*: :->package-select'
+  )
+
+  pathopts=(
+    '--root:rpm root directory:_files -/'
+    '--dbpath:rpm database path:_files -/'
+  )
+
+  _arguments -C -s \
+    "${commonopts[@]}" \
+    {-q+,--query}'[query mode]:*:query:->query' \
+    '(-V -y --verify)'{-V+,-y+,--verify}'[verify mode]:*:verify:->verify' \
+    '--import:*:public key' \
+    '(-K --checksig)'{-K,--checksig}'[signature check mode]:*:sigcheck:->sigcheck' \
+    '(-i --install)'{-i+,--install}'[install mode]:*:install:->install' \
+    '(-U --upgrade)'{-U+,--upgrade}'[upgrade mode]:*:upgrade:->upgrade' \
+    '(-F --freshen)'{-F+,--freshen}'[freshen mode]:*:upgrade:->upgrade' \
+    '(-e --erase)'{-e+,--erase}'[uninstall mode]:*:uninstall:->uninstall' \
+    --{initdb,querytags,showrc} \
+    '--rebuilddb:*:rebuild:->rebuild' \
+    --{resign,addsign}':*:package:->package_file' \
+    '--setperms[set file permissions]:*:package:->setattrs' \
+    '--setugids[set file owner/group]:*:package:->setattrs' \
+    '-b+[build mode (spec file)]:build stage:((p\:execute\ \%prep\ stage l\:do\ a\ list\ check c\:execute\ build\ stage i\:execute\ install\ stage b\:build\ a\ binary\ package a\:build\ binary\ and\ source\ packages)):*:build:->build_b' \
+    '(-b)-t+[build mode (tar file)]:build stage:((p\:execute\ \%prep\ stage l\:do\ a\ list\ check c\:execute\ build\ stage i\:execute\ install\ stage b\:build\ a\ binary\ package a\:build\ binary\ and\ source\ packages)):*:build:->build_t' \
+    '--rmsource:*:spec file:->spec_files' \
+    --{rebuild,recompile}':*:source rpm file:->package_src' \
+    '--eval:macro:->macros' && ret=0
+
+  # As long as we have a state name...
+
+  while [[ -n "$state" ]]; do
+
+    # First try to call a user-defined function.
+
+    _call_function ret _rpm_$state && return ret
+
+    # Copy the state and reset `state', to simplify the test above.
+
+    lstate="$state"
+    state=''
+    tmp=()
+
+    # Dispatch...
+
+    case "$lstate" in
+    query)
+      # --dump requires one of -{l,c,d}
+      # --triggers requires --script
+      _arguments -s \
+	\!{-q,--query} "${commonopts[@]}" "${selectopts[@]}" "${pathopts[@]}" \
+	"($sopts)--specfile[query specified spec file as if it were a package]" \
+	'(-i --info)'{-i,--info}'[display package information]' \
+	'--changelog[display change log]' \
+	'(-s --state -l --list --filesbypkg)'{-l,--list}'[display package file list]' \
+	'(-s --state -l --list --filesbypkg)'{-s,--state}'[show file states]' \
+	'(-s --state -l --list)--filesbypkg[list files with package names]' \
+	{-d,--docfiles}'[documentation files only]' \
+	{-c,--configfiles}'[configuration files only]' \
+	'--dump[show all information]' \
+	'--provides[show capabilities provided]' \
+	\*--{qf,queryformat}'[specify format for package information]:rpm query format:->tags' \
+	-{R,-requires}'[list dependencies]' \
+	'--scripts[show (un)install scripts]' \
+	{--triggers,--triggerscripts}'[show trigger scripts]' && ret=0
+      ;;
+    setattrs)
+      _arguments -s --set{perm,ugids} "${selectopts[@]}" && ret = 0
+      ;;
+    verify)
+      _arguments -s \!-{y,V} \
+	"${commonopts[@]}" "${selectopts[@]}" "${pathopts[@]}" \
+	--no{deps,files,scripts,digest,signature,linkto,md5,size,user,group,mtime,mode,rdev} && ret=0
+      ;;
+    upgrade)
+      tmp=( '(--force)--oldpackage' )
+      ;&
+    install)
+      _arguments -s \!-{i,U} "$tmp[@]" \
+	"${commonopts[@]}" "${pathopts[@]}" \
+	'--excludepath:file to exclude:_files -/' \
+	'--relocate:relocate:->relocate' \
+	'--prefix:package prefix directory:_files -/' \
+	'(-h --hash)'{-h,--hash} \
+	'(--replacepkgs --replacefiles --oldpackage)--force' \
+	'(--force)--'{replacefiles,replacepkgs} \
+	--{aid,allfiles,badreloc,excludedocs,ignorearch,ignoreos,ignoresize,includedocs,justdb,percent,repackage,test} \
+	--no{digest,signature,deps,suggest,order,pre,post,preun,postun,trigger{s,in,un,postun}} \
+	'(--nopre --nopost --nopreun --nopostun)--noscripts' \
+	'*:pkg file:->package_file' && ret=0
+      ;;
+    uninstall)
+      _arguments -s \!-e \
+	"${commonopts[@]}" "${pathopts[@]}" \
+	--{allmatches,justdb,repackage,test} \
+	--no{deps,scripts,preun,postun,trigger{s,un,postun}} \
+	'*:package:->package' && ret=0
+      ;;
+    build_b)
+      tmp=( '*:spec file:_files -g "*.spec(-.)"' )
+      ;&
+    build_t)
+      (( $#tmp )) || tmp=( '*:tar file:_files -g "*.(#i)tar(.*|)(-.)"' )
+
+      _arguments -s \
+	"${commonopts[@]}" "${pathopts[@]}" \
+	--{short-circuit,clean,nobuild,rmsource,sign,test} \
+	'--target:specify a build target:->target'\
+	'--buildroot:build root directory:_files -/' \
+	'--buildarch:architecture for which to build:->target' \
+	'--buildos:operating system for which to build:' \
+	'--timecheck:time check (seconds):' "$tmp[1]" && ret=0
+      ;;
+    sigcheck)
+      _arguments -s \!-K \
+	"${commonopts[@]}" \
+	--no{gpg,pgp,md5,signature,digest} \
+	'*:package file:->package_file' && ret=0
+      ;;
+    rebuild)
+      _arguments -s \
+	"${commonopts[@]}" "${pathopts[@]}" \
+	'*:source package file:->package_file' && ret=0
+      ;;
+    package-select)
+      case "${opt_args[(i)${sopts// /|}]}" in
+	-f|--file) _files ;;
+	-p|--package) state=package_file ;;
+	-g|--group) state=groups ;;
+	--fileid|--pkgid) _message -e md5 md5 ;;
+	--hdrid) _message -e sha1 sha1 ;;
+	--querybynumber) _message -e value number ;;
+	--what*) state=capabilities ;;
+	--specfile) state=spec_files ;;
+	*) state=package ;;
+     esac
+    ;;
+    macros)
+      local -a macros
+      local mfile
+      for mfile in {/usr/lib/rpm/{,redhat/}macros,/etc/rpm/macros,~/.rpmmacros}(N); do
+        macros+=( ${${(M)${(f)"$(<$mfile)"}:#%[^\{]*}%%[[:blank:]]*} )
+      done
+      if zstyle -t ":completion:${curcontext}:macros" prefix-hidden; then
+	macros=( ${macros#%} )
+	_wanted macros expl macro compadd -p '%' -a - macros
+      else
+	_wanted macros expl macro compadd -a - macros
+      fi
+      ;;
+    command)
+      compset -q
+      _normal
+      ;;
+    target)
+      _wanted targets expl 'target platform' compadd \
+	  ${${(M)${(f)"$(_call_programs targets rpm --showrc)"}:#compatible archs*}##*: } && ret=0
+      ;;
+    groups)
+      if ( (( ! $+_rpm_groups )) || _cache_invalid rpm-groups ) &&
+	  ! _retrieve_cache rpm-groups
+      then
+	typeset -gaU _rpm_groups
+	_rpm_groups=(
+	    ${(f)"$(_call_program groups rpm -qa --queryformat '%\{group}\\n' 2>/dev/null)"}
+	)
+	_store_cache RPM-groups _rpm_groups
+      fi
+      _wanted groups expl 'group' _multi_parts / _rpm_groups && ret=0
+    ;;
+    package_or_file)
+      state=package_file
+      ;;
+    package)
+      if ( [[ ${+_rpms} -eq 0 ]] || _cache_invalid RPMs ) &&
+	 ! _retrieve_cache RPMs;
+      then
+	_rpms=( $(_call_program packages rpm -qa 2>/dev/null) )
+	_store_cache RPMs _rpms
+      fi
+      _wanted packages expl 'package' \
+	  compadd -M 'r:|-=* r:|=*' - "$_rpms[@]" && ret=0
+      ;;
+    spec_files)
+      _wanted specfiles expl 'spec file' \
+	  _files -g '*.spec(-.)' && ret=0
+      ;;
+    package_file)
+      _wanted files expl 'package file' \
+	  _files -g '*.(#i)rpm(-.)' && ret=0
+      if [[ -prefix 1 (f|ht)tp:// ]]; then
+	_wanted urls expl 'URL of rpm package file' \
+	    _urls -f -g '*.(#i)rpm(-.)' "${expl[@]}" && ret=0
+      else
+	_wanted urls expl 'URL of rpm package file' \
+	    compadd -S '' "${expl[@]}" ftp:// http:// && ret=0
+      fi
+      ;;
+    package_src)
+      _files -g '(#i)*.src.rpm(-.)' && ret=0
+      ;;
+    tags)
+      local -a suf
+      if compset -P "*%*${${QIPREFIX:+{}:-\{}"; then
+        compset -S '(|\\)}*' || suf=( -qS ${${QIPREFIX:+\}}:-\\\}} )
+	_wanted tags expl 'rpm tag' compadd -M 'm:{a-z}={A-Z}' "$suf[@]" - \
+	    "${(L@)${(@f)$(_call_program tags rpm --querytags 2>/dev/null)}#RPMTAG_}" && ret=0
+      else
+	_message -e formats 'rpm query format'
+      fi
+      ;;
+    capabilities)
+      _wanted capabilities expl capability compadd \
+	  ${(f)"$(_call_program capabilities rpm -qa --queryformat '%\{requirename}\\n' 2>/dev/null)"}
+      ;;
+    relocate)
+      if compset -P '*='; then
+	_description directories expl 'new path'
+      else
+	_description directories expl 'old path'
+      fi
+
+      _files "$expl[@]" -/ && ret=0
+      ;;
+    esac
+
+    [[ ret -eq 0 || $nm -ne $compstate[nmatches] ]] && return 0
+  done
+
+  return ret
+}
+
+# set a sensible default caching policy
+local update_policy
+zstyle -s ":completion:*:*:rpm:*" cache-policy update_policy
+if [[ -z "$update_policy" ]]; then
+  zstyle ":completion:*:*:rpm:*" cache-policy _rpms_caching_policy
+fi
+
+_rpms_caching_policy () {
+  # rebuild if cache is more than a week old
+  local -a oldp
+  oldp=( "$1"(mw+1) )
+  (( $#oldp )) && return 0
+
+  pkg_indices=( /var/lib/rpm/{packages.rpm,Packages}(N) )
+  for pkg_index in $pkg_indices; do
+    [[ "$pkg_index" -nt "$1" ]] && return 0
+  done
+}
+
+_rpm "$@"

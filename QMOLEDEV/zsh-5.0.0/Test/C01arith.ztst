@@ -1,0 +1,212 @@
+# Tests corresponding to the texinfo node `Arithmetic Evaluation'
+
+%test
+
+  integer light there
+  (( light = 42 )) &&
+  let 'there = light' &&
+  print $(( there ))
+0:basic integer arithmetic
+>42
+
+  float light there
+  integer rnd
+  (( light = 3.1415 )) &&
+  let 'there = light' &&
+  print -- $(( rnd = there * 10000 ))
+# save rounding problems by converting to integer
+0:basic floating point arithmetic
+>31415.
+
+  print $(( 0x10 + 0X01 + 2#1010 ))
+0:base input
+>27
+
+  float light
+  (( light = 4 ))
+  print $light
+  typeset -F light
+  print $light
+0:conversion to float
+>4.000000000e+00
+>4.0000000000
+
+  integer i
+  (( i = 32.5 ))
+  print $i
+0:conversion to int
+>32
+
+  integer i
+  (( i = 4 - - 3 * 7 << 1 & 7 ^ 1 | 16 ** 2 ))
+  print $i
+0:precedence (arithmetic)
+>1591
+
+  fn() {
+    setopt localoptions c_precedences
+    integer i
+    (( i = 4 - - 3 * 7 << 1 & 7 ^ 1 | 16 ** 2 ))
+    print $i
+  }
+  fn
+0:precedence (arithmetic, with C_PRECEDENCES)
+>259
+
+  print $(( 1 < 2 || 2 < 2 && 3 > 4 ))
+0:precedence (logical)
+>1
+
+  print $(( 1 + 4 ? 3 + 2 ? 4 + 3 ? 5 + 6 ? 4 * 8 : 0 : 0 : 0 : 0 ))
+0:precedence (ternary)
+>32
+
+  print $(( 3 ? 2 ))
+1:parsing ternary (1)
+?(eval):1: ':' expected
+
+  print $(( 3 ? 2 : 1 : 4 ))
+1:parsing ternary (2)
+?(eval):1: ':' without '?'
+
+  print $(( 0, 4 ? 3 : 1, 5 ))
+0:comma operator
+>5
+
+  foo=000
+  print $(( ##A + ##\C-a + #foo + $#foo ))
+0:#, ## and $#
+>117
+
+  print $((##))
+1:## without following character
+?(eval):1: character missing after ##
+
+  print $((## ))
+0:## followed by a space
+>32
+
+  integer i
+  (( i = 3 + 5 * 1.75 ))
+  print $i
+0:promotion to float
+>11
+
+  typeset x      &&
+  (( x = 3.5 ))  &&
+  print $x       &&
+  (( x = 4 ))    &&
+  print $x
+0:use of scalars to store integers and floats
+>3.5
+>4
+
+  (( newarray[unsetvar] = 1 ))
+2:error using unset variable as index
+?(eval):1: newarray: assignment to invalid subscript range
+
+  integer setvar=1
+  (( newarray[setvar]++ ))
+  (( newarray[setvar]++ ))
+  print ${(t)newarray} ${#newarray} ${newarray[1]}
+0:setting array elements in math context
+>array 1 2
+
+  xarr=()
+  (( xarr = 3 ))
+  print ${(t)xarr} $xarr
+0:converting type from array
+>integer 3
+
+  print $(( 13 = 42 ))
+1:bad lvalue
+?(eval):1: lvalue required
+
+  x=/bar
+  (( x = 32 ))
+  print $x
+0:assigning to scalar which contains non-math string
+>32
+
+  print $(( ))
+0:empty math parse e.g. $(( )) acts like a zero
+>0
+
+  print $(( a = ))
+1:empty assignment
+?(eval):1: bad math expression: operand expected at `'
+
+  print $(( 3, ))
+1:empty right hand of comma
+?(eval):1: bad math expression: operand expected at `'
+
+  print $(( 3,,4 ))
+1:empty middle of comma
+?(eval):1: bad math expression: operand expected at `,4 '
+
+  print $(( (3 + 7, 4), 5 ))
+0:commas and parentheses, part 1
+>5
+
+  print $(( 5, (3 + 7, 4) ))
+0:commas and parentheses, part 1
+>4
+
+  (setopt octalzeroes; print $(( 08#77 )))
+0:octalzeroes doesn't affect bases
+>63
+
+  print $(( 36#z ))
+0:bases up to 36 work
+>35
+
+  print $(( 37#z ))
+1:bases beyond 36 don't work
+?(eval):1: invalid base (must be 2 to 36 inclusive): 37
+
+  print $(( 3 + "fail" ))
+1:parse failure in arithmetic
+?(eval):1: bad math expression: operand expected at `"fail" '
+
+  alias 3=echo
+  print $(( 3 + "OK"); echo "Worked")
+0:not a parse failure because not arithmetic
+>+ OK Worked
+
+  fn() {
+    emulate -L zsh
+    print $(( [#16] 255 ))
+    print $(( [##16] 255 ))
+    setopt cbases
+    print $(( [#16] 255 ))
+    print $(( [##16] 255 ))
+  }
+  fn
+0:doubled # in base removes radix
+>16#FF
+>FF
+>0xFF
+>FF
+
+  array=(1)
+  x=0
+  (( array[++x]++ ))
+  print $x
+  print $#array
+  print $array
+0:no double increment for subscript
+>1
+>1
+>2
+
+  # This is a bit naughty...  the value of array
+  # isn't well defined since there's no sequence point
+  # between the increments of x, however we just want
+  # to be sure that in this case, unlike the above,
+  # x does get incremented twice.
+  x=0
+  array=(1 2)
+  (( array[++x] = array[++x] + 1 ))
+  print $x
+0:double increment for repeated expression
+>2

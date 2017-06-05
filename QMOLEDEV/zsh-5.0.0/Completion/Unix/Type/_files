@@ -1,0 +1,139 @@
+#compdef -redirect-,-default-,-default-
+
+local opts tmp glob pat pats expl tag i def descr end ign ret=1 match tried
+local type sdef ignvars ignvar
+
+zparseopts -a opts \
+    '/=tmp' 'f=tmp' 'g+:-=tmp' q n 1 2 P: S: r: R: W: X+: M+: F: J+: V+:
+
+type="${(@j::M)${(@)tmp#-}#?}"
+if (( $tmp[(I)-g*] )); then
+  glob="${${${${(@M)tmp:#-g*}#-g}##[[:blank:]]#}%%[[:blank:]]#}"
+  [[ "$glob" = *[^\\][[:blank:]]* ]] &&
+      glob="{${glob//(#b)([^\\])[[:blank:]]##/${match[1]},}}"
+
+  # add `#q' to the beginning of any glob qualifier if not there already
+  [[ "$glob" = (#b)(*\()([^\|\~]##\)) && $match[2] != \#q* ]] &&
+      glob="${match[1]}#q${match[2]}"
+fi
+tmp=$opts[(I)-F]
+if (( tmp )); then
+  ignvars=($=opts[tmp+1])
+  if [[ $ignvars = _comp_ignore ]]; then
+    ign=( $_comp_ignore )
+  else
+    ign=()
+    for ignvar in $ignvars; do
+      ign+=(${(P)ignvar})
+    done
+    opts[tmp+1]=_comp_ignore
+  fi
+else
+  ign=()
+fi
+
+if zstyle -a ":completion:${curcontext}:" file-patterns tmp; then
+  [[ "$type" = */* ]] && glob="$glob,*(-/)"
+  pats=()
+
+  for i in ${tmp//\%p/${${glob:-\*}//:/\\:}}; do
+    if [[ $i = *[^\\]:* ]]; then
+      pats=( "$pats[@]" " $i " )
+    else
+      pats=( "$pats[@]" " ${i}:files " )
+    fi
+  done
+elif zstyle -t ":completion:${curcontext}:" list-dirs-first; then
+  if [[ "$type" = *g* ]]; then
+
+    # add `^-/' after `#q' glob qualifier if not there already
+    if [[ "$glob" = (#b)(*\(\#q)(*\)) ]]; then
+      [[ $match[2] != \^-/* ]] &&
+      glob="${match[1]}^-/,${match[2]}"
+    else
+      glob="$glob(#q^-/)"
+    fi
+
+    pats=( " *(-/):directories:directories ${glob//:/\\:}:globbed-files" )
+  elif [[ "$type" = */* ]] then
+    pats=( '*(-/):directories ' '*:all-files ' )
+  else
+    pats=( '*(-/):directories:directories *(^-/):other-files ' )
+  fi
+else
+  if [[ "$type" = *g* ]]; then
+
+  # People prefer to have directories shown on first try as default.
+  # Even if the calling function didn't use -/.
+  #
+  # if [[ "$type" = */* ]]; then
+
+    pats=( " ${glob//:/\\:}:globbed-files *(-/):directories" '*:all-files '
+
+    ### We could allow _next_tags to offer only globbed-files or directories
+    ### by adding:
+    ###   " ${glob//:/\\:}:only-globbed-files " ' *(-/):only-directories '
+
+      )
+
+  # else
+  #   pats=( " ${glob//:/\\:}:globbed-files "
+  #          '*(-/):directories ' '*:all-files ' )
+  # fi
+
+  elif [[ "$type" = */* ]]; then
+    pats=( '*(-/):directories ' '*:all-files ' )
+  else
+    pats=( '*:all-files ' )
+  fi
+fi
+
+tried=()
+for def in "$pats[@]"; do
+  eval "def=( ${${def//\\:/\\\\\\:}//(#b)([][()|*?^#~<>])/\\${match[1]}} )"
+
+  tmp="${(@M)def#*[^\\]:}"
+  (( $tried[(I)${(q)tmp}] )) && continue
+  tried=( "$tried[@]" "$tmp" )
+
+  for sdef in "$def[@]"; do
+
+    tag="${${sdef#*[^\\]:}%%:*}"
+    pat="${${sdef%%:${tag}*}//\\:/:}"
+
+    if [[ "$sdef" = *:${tag}:* ]]; then
+      descr="${(Q)sdef#*:${tag}:}"
+    else
+      if (( $opts[(I)-X] )); then
+        descr=
+      else
+        descr=file
+      fi
+      end=yes
+    fi
+
+    _tags "$tag"
+    while _tags; do
+      _comp_ignore=()
+      while _next_label "$tag" expl "$descr"; do
+        _comp_ignore=( $_comp_ignore $ign )
+        if [[ -n "$end" ]]; then
+          _path_files -g "$pat" "$opts[@]" "$expl[@]" && ret=0
+        else
+          _path_files "$expl[@]" -g "$pat" "$opts[@]" && ret=0
+        fi
+      done
+      (( ret )) || break
+    done
+
+    ### For that _next_tags change mentioned above we would have to
+    ### comment out the following line. (Or not, depending on the order
+    ### of the patterns.)
+
+    [[ "$pat" = '*' ]] && return ret
+
+  done
+  (( ret )) || return 0
+done
+
+return 1

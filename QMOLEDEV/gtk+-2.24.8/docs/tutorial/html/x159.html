@@ -1,0 +1,295 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Theory of Signals and Callbacks</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Getting Started"
+HREF="c39.html"><LINK
+REL="PREVIOUS"
+TITLE="Compiling Hello World"
+HREF="x111.html"><LINK
+REL="NEXT"
+TITLE="Events"
+HREF="x182.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x111.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Getting Started</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x182.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-THEORYOFSIGNALSANDCALLBACKS"
+>Theory of Signals and Callbacks</A
+></H1
+><DIV
+CLASS="NOTE"
+><P
+></P
+><TABLE
+CLASS="NOTE"
+WIDTH="100%"
+BORDER="0"
+><TR
+><TD
+WIDTH="25"
+ALIGN="CENTER"
+VALIGN="TOP"
+><IMG
+SRC="./stylesheet-images/note.gif"
+HSPACE="5"
+ALT="Note"></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><P
+>In version 2.0, the signal system has been moved from GTK to GLib, therefore the
+functions and types explained in this section have a "g_" prefix rather than a "gtk_" 
+prefix. We won't go into details about the extensions which the GLib 2.0 signal system
+has relative to the GTK 1.2 signal system.</P
+></TD
+></TR
+></TABLE
+></DIV
+><P
+>Before we look in detail at <I
+CLASS="EMPHASIS"
+>helloworld</I
+>, we'll discuss signals
+and callbacks. GTK is an event driven toolkit, which means it will
+sleep in gtk_main() until an event occurs and control is passed to the
+appropriate function.</P
+><P
+>This passing of control is done using the idea of "signals". (Note
+that these signals are not the same as the Unix system signals, and
+are not implemented using them, although the terminology is almost
+identical.) When an event occurs, such as the press of a mouse button,
+the appropriate signal will be "emitted" by the widget that was
+pressed.  This is how GTK does most of its useful work. There are
+signals that all widgets inherit, such as "destroy", and there are
+signals that are widget specific, such as "toggled" on a toggle
+button.</P
+><P
+>To make a button perform an action, we set up a signal handler to
+catch these signals and call the appropriate function. This is done by
+using a function such as:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>gulong g_signal_connect( gpointer      *object,
+                         const gchar   *name,
+                         GCallback     func,
+                         gpointer      func_data );</PRE
+></TD
+></TR
+></TABLE
+><P
+>where the first argument is the widget which will be emitting the
+signal, and the second the name of the signal you wish to catch. The
+third is the function you wish to be called when it is caught, and the
+fourth, the data you wish to have passed to this function.</P
+><P
+>The function specified in the third argument is called a "callback
+function", and should generally be of the form</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void callback_func( GtkWidget *widget,
+                    ... /* other signal arguments */
+                    gpointer   callback_data );</PRE
+></TD
+></TR
+></TABLE
+><P
+>where the first argument will be a pointer to the widget that emitted
+the signal, and the last a pointer to the data given as the last
+argument to the g_signal_connect() function as shown above.</P
+><P
+>Note that the above form for a signal callback function declaration is
+only a general guide, as some widget specific signals generate
+different calling parameters.</P
+><P
+>Another call used in the <I
+CLASS="EMPHASIS"
+>helloworld</I
+> example, is:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>gulong g_signal_connect_swapped( gpointer     *object,
+                                 const gchar  *name,
+                                 GCallback    func,
+                                 gpointer     *callback_data );</PRE
+></TD
+></TR
+></TABLE
+><P
+>g_signal_connect_swapped() is the same as g_signal_connect() except
+that the instance on which the signal is emitted and data will be swapped when
+calling the handler. So when using this function to connect signals, the callback
+should be of the form</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void callback_func( gpointer   callback_data,
+                    ... /* other signal arguments */
+                    GtkWidget *widget);</PRE
+></TD
+></TR
+></TABLE
+><P
+>where the object is usually a widget. We usually don't setup callbacks
+for g_signal_connect_swapped() however. They are usually used to call a
+GTK function that accepts a single widget or object as an argument, when a signal
+is emitted on some <I
+CLASS="EMPHASIS"
+>other</I
+> object. In the 
+<I
+CLASS="EMPHASIS"
+>helloworld</I
+> example, we connect to the "clicked" signal
+on the button, but call gtk_widget_destroy() on the window.</P
+><P
+>If your callbacks need additional data, use g_signal_connect() instead
+of g_signal_connect_swapped().</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x111.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x182.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Compiling Hello World</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c39.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Events</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

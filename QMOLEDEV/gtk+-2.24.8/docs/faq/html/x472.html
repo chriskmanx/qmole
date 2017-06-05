@@ -1,0 +1,372 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Is GTK+ thread safe? How do I write multi-threaded GTK+
+applications? [GTK 2.x]</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ FAQ"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Development with GTK+: general questions"
+HREF="c466.html"><LINK
+REL="PREVIOUS"
+TITLE="Development with GTK+: general questions"
+HREF="c466.html"><LINK
+REL="NEXT"
+TITLE="I'm doing some stuff with GTK+ in a separate thread, and
+properly locking with gdk_threads_enter/gdk_threads_leave()
+but the display doesn't update properly. [GTK 2.x]"
+HREF="x482.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ FAQ</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c466.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Development with GTK+: general questions</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x482.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN472"
+>Is GTK+ thread safe? How do I write multi-threaded GTK+
+applications? <I
+CLASS="EMPHASIS"
+>[GTK 2.x]</I
+></A
+></H1
+><P
+>The GLib library can be used in a thread-safe mode by
+calling g_thread_init() before making any other GLib
+calls. In this mode GLib automatically locks all internal
+data structures as needed.  This does not mean that two
+threads can simultaneously access, for example, a single hash
+table, but they can access two different hash tables
+simultaneously. If two different threads need to access the
+same hash table, the application is responsible for locking
+itself.</P
+><P
+>In order to make GDK thread aware, you also need to
+call gdk_threads_init() in conjunction with the above call.
+There is a single global
+lock that you must acquire with gdk_threads_enter() before
+making any GDK calls, and release with gdk_threads_leave()
+afterwards throughout your code.</P
+><P
+>A minimal main program for a threaded GTK+ application
+looks like:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>int
+main (int argc, char *argv[])
+{
+  GtkWidget *window;
+
+  /* init threads */	
+  g_thread_init(NULL);
+  gdk_threads_init();
+  
+  /* init gtk */
+  gtk_init(&#38;argc, &#38;argv);
+
+  window = create_window();
+  gtk_widget_show(window);
+
+  gdk_threads_enter();
+  gtk_main();
+  gdk_threads_leave();
+
+  return 0;
+}</PRE
+></TD
+></TR
+></TABLE
+><P
+>Callbacks require a bit of attention. Callbacks from
+GTK+ (signals) are made within the GTK+ lock. However
+callbacks from GLib (timeouts, IO callbacks, and idle
+functions) are made outside of the GTK+ lock. So, within a
+signal handler you do not need to call gdk_threads_enter(),
+but within the other types of callbacks, you do.</P
+><P
+>Erik Mouw contributed the following code example to
+illustrate how to use threads within GTK+ programs.</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>/*-------------------------------------------------------------------------
+ * Filename:      gtk-thread.c
+ * Version:       1.99.1
+ * Copyright:     Copyright (C) 1999, Erik Mouw
+ * Author:        Erik Mouw &#60;J.A.K.Mouw@its.tudelft.nl&#62;
+ * Description:   GTK threads example.
+ * Created at:    Sun Oct 17 21:27:09 1999
+ * Modified by:   Owen Taylor &#60;otaylor@gtk.org&#62;
+ * Modified at:   Wed May 28 10:43:00 2003
+ *-----------------------------------------------------------------------*/
+/*
+ * Compile with:
+ *
+ * cc -o gtk-thread gtk-thread.c `pkg-config --cflags --libs gtk+-2.0 gthread-2.0`
+ *
+ * Thanks to Sebastian Wilhelmi for pointing out some bugs in earlier versions.
+ *
+ */
+
+#include &#60;unistd.h&#62;
+#include &#60;gtk/gtk.h&#62;
+
+#define YES_IT_IS    (1)
+#define NO_IT_IS_NOT (0)
+
+typedef struct
+{
+  GtkWidget *label;
+  int what;
+} yes_or_no_args;
+
+G_LOCK_DEFINE_STATIC (yes_or_no);
+static volatile int yes_or_no = YES_IT_IS;
+
+void destroy(GtkWidget *widget, gpointer data)
+{
+  gtk_main_quit();
+}
+
+void *argument_thread(void *args)
+{
+  yes_or_no_args *data = (yes_or_no_args *)args;
+  gboolean say_something;
+
+  for(;;)
+    {
+      /* sleep a while */
+      sleep(g_random_int_range (1, 4));
+
+      /* lock the yes_or_no_variable */
+      G_LOCK(yes_or_no);
+
+      /* do we have to say something? */
+      say_something = (yes_or_no != data-&#62;what);
+
+      if(say_something)
+	{
+	  /* set the variable */
+	  yes_or_no = data-&#62;what;
+	}
+
+      /* Unlock the yes_or_no variable */
+      G_UNLOCK(yes_or_no);
+
+      if(say_something)
+	{
+	  /* get GTK thread lock */
+	  gdk_threads_enter();
+
+	  /* set label text */
+	  if(data-&#62;what == YES_IT_IS)
+	    gtk_label_set_text(GTK_LABEL(data-&#62;label), "O yes, it is!");
+	  else
+	    gtk_label_set_text(GTK_LABEL(data-&#62;label), "O no, it isn't!");
+
+	  /* Make sure all X commands are sent to the X server; not strictly
+	   * necessary here, but always a good idea when you do anything
+	   * from a thread other than the one where the main loop is running.
+	   */
+	  gdk_flush ();
+
+	  /* release GTK thread lock */
+	  gdk_threads_leave();
+	}
+    }
+
+  return NULL;
+}
+
+int main(int argc, char *argv[])
+{
+  GtkWidget *window;
+  GtkWidget *label;
+  GError *error = NULL;
+  yes_or_no_args yes_args, no_args;
+
+  /* init threads */
+  g_thread_init(NULL);
+  gdk_threads_init();
+
+  /* init gtk */
+  gtk_init(&#38;argc, &#38;argv);
+
+  /* create a window */
+  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+  g_signal_connect(window, "destroy",
+		   G_CALLBACK(destroy), NULL);
+
+  gtk_container_set_border_width(GTK_CONTAINER (window), 10);
+
+  /* create a label */
+  label = gtk_label_new("And now for something completely different ...");
+  gtk_container_add(GTK_CONTAINER(window), label);
+
+  /* show everything */
+  gtk_widget_show(label);
+  gtk_widget_show (window);
+
+  /* create the threads */
+  yes_args.label = label;
+  yes_args.what = YES_IT_IS;
+  if (!g_thread_create(argument_thread, &#38;yes_args, FALSE, &#38;error))
+    {
+      g_printerr ("Failed to create YES thread: %s\n", error-&#62;message);
+      return 1;
+    }
+
+  no_args.label = label;
+  no_args.what = NO_IT_IS_NOT;
+  if (!g_thread_create(argument_thread, &#38;no_args, FALSE, &#38;error))
+    {
+      g_printerr ("Failed to create NO thread: %s\n", error-&#62;message);
+      return 1;
+    }
+
+  /* enter the GTK main loop */
+  gdk_threads_enter();
+  gtk_main();
+  gdk_threads_leave();
+
+  return 0;
+}</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c466.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x482.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Development with GTK+: general questions</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c466.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>I'm doing some stuff with GTK+ in a separate thread, and
+properly locking with gdk_threads_enter/gdk_threads_leave()
+but the display doesn't update properly. <I
+CLASS="EMPHASIS"
+>[GTK 2.x]</I
+></TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

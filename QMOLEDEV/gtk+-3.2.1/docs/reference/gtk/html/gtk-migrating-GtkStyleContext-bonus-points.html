@@ -1,0 +1,136 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Bonus points</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.76.1">
+<link rel="home" href="index.html" title="GTK+ 3 Reference Manual">
+<link rel="up" href="gtk-migrating-GtkStyleContext.html" title="Theming changes">
+<link rel="prev" href="gtk-migrating-GtkStyleContext-parsing.html" title="Parsing of custom resources">
+<link rel="next" href="gtk-migrating-GtkApplication.html" title="Migrating from libunique to GApplication or GtkApplication">
+<meta name="generator" content="GTK-Doc V1.18.1 (XML mode)">
+<link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<table class="navigation" id="top" width="100%" summary="Navigation header" cellpadding="2" cellspacing="2"><tr valign="middle">
+<td><a accesskey="p" href="gtk-migrating-GtkStyleContext-parsing.html"><img src="left.png" width="24" height="24" border="0" alt="Prev"></a></td>
+<td><a accesskey="u" href="gtk-migrating-GtkStyleContext.html"><img src="up.png" width="24" height="24" border="0" alt="Up"></a></td>
+<td><a accesskey="h" href="index.html"><img src="home.png" width="24" height="24" border="0" alt="Home"></a></td>
+<th width="100%" align="center">GTK+ 3 Reference Manual</th>
+<td><a accesskey="n" href="gtk-migrating-GtkApplication.html"><img src="right.png" width="24" height="24" border="0" alt="Next"></a></td>
+</tr></table>
+<div class="section">
+<div class="titlepage"><div><div><h2 class="title" style="clear: both">
+<a name="gtk-migrating-GtkStyleContext-bonus-points"></a>Bonus points</h2></div></div></div>
+<p>
+      There are some features in <a class="link" href="GtkStyleContext.html" title="GtkStyleContext"><span class="type">GtkStyleContext</span></a> that were not available in
+      <a class="link" href="GtkStyle.html" title="GtkStyle"><span class="type">GtkStyle</span></a>, or were made available over time for certain widgets through
+      extending the detail string in obscure ways. There is a lot more
+      information available when rendering UI elements, and it is accessible
+      in more uniform, less hacky ways. By going through this list you'll
+      ensure your widget is a good citizen in a fully themable user interface.
+    </p>
+<div class="orderedlist"><ol class="orderedlist" type="1">
+<li class="listitem">
+        If your widget renders a series of similar elements, such as tabs
+        in a <a class="link" href="GtkNotebook.html" title="GtkNotebook"><span class="type">GtkNotebook</span></a> or rows/column in a <a class="link" href="GtkTreeView.html" title="GtkTreeView"><span class="type">GtkTreeView</span></a>, consider adding
+        regions through <a class="link" href="GtkStyleContext.html#gtk-style-context-add-region" title="gtk_style_context_add_region ()"><code class="function">gtk_style_context_add_region()</code></a>. These regions can be
+        referenced in CSS and the :nth-child pseudo-class may be used to match
+        the elements depending on the flags passed.
+
+        <div class="example">
+<a name="id1511361"></a><p class="title"><b>Example 131. Theming widget regions</b></p>
+<div class="example-contents">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GtkNotebook</span><span class="normal"> tab </span><span class="cbracket">{</span>
+<span class="normal">  background</span><span class="symbol">-</span><span class="normal">color</span><span class="symbol">:</span><span class="normal"> #f3329d</span><span class="symbol">;</span>
+<span class="cbracket">}</span>
+
+<span class="usertype">GtkTreeView</span><span class="normal"> row</span><span class="symbol">::</span><span class="normal">nth</span><span class="symbol">-</span><span class="function">child</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">even</span><span class="symbol">)</span><span class="normal"> </span><span class="cbracket">{</span>
+<span class="normal">  background</span><span class="symbol">-</span><span class="normal">color</span><span class="symbol">:</span><span class="normal"> #dddddd</span><span class="symbol">;</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<br class="example-break">
+</li>
+<li class="listitem">
+<p>
+          If your container renders child widgets within different regions,
+          make it implement GtkContainer::<code class="function">get_path_for_child()</code>. This function
+          lets containers assign a special <a class="link" href="gtk3-GtkWidgetPath.html#GtkWidgetPath" title="GtkWidgetPath"><span class="type">GtkWidgetPath</span></a> to child widgets
+          depending on their role/region. This is necessary to extend the
+          concept above throughout the widget hierarchy.
+        </p>
+<p>
+          For example, a <a class="link" href="GtkNotebook.html" title="GtkNotebook"><span class="type">GtkNotebook</span></a> modifies the tab labels' <a class="link" href="gtk3-GtkWidgetPath.html#GtkWidgetPath" title="GtkWidgetPath"><span class="type">GtkWidgetPath</span></a>
+          so the "tab" region is added. This makes it possible to theme tab
+          labels through:
+        </p>
+<div class="example">
+<a name="id1505204"></a><p class="title"><b>Example 132. Theming a widget within a parent container region</b></p>
+<div class="example-contents">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="normal"><a href="GtkNotebook.html">GtkNotebook</a> </span><span class="usertype">tab</span><span class="normal"> <a href="GtkLabel.html">GtkLabel</a> </span><span class="cbracket">{</span>
+<span class="normal">  font</span><span class="symbol">:</span><span class="normal"> Sans </span><span class="number">8</span><span class="symbol">;</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<br class="example-break">
+</li>
+<li class="listitem">
+        If you intend several visual elements to look interconnected,
+        make sure you specify rendered elements' connection areas with
+        <a class="link" href="GtkStyleContext.html#gtk-style-context-set-junction-sides" title="gtk_style_context_set_junction_sides ()"><code class="function">gtk_style_context_set_junction_sides()</code></a>. It is of course up to the
+        theme to make use of this information or not.
+      </li>
+<li class="listitem">
+<p>
+          <a class="link" href="GtkStyleContext.html" title="GtkStyleContext"><span class="type">GtkStyleContext</span></a> supports implicit animations on state changes for
+          the most simple case out-of-the-box: widgets with a single animatable
+          area, whose state is changed with <a class="link" href="GtkWidget.html#gtk-widget-set-state-flags" title="gtk_widget_set_state_flags ()"><code class="function">gtk_widget_set_state_flags()</code></a> or
+          <a class="link" href="GtkWidget.html#gtk-widget-unset-state-flags" title="gtk_widget_unset_state_flags ()"><code class="function">gtk_widget_unset_state_flags()</code></a>. These functions trigger animated
+          transitions for the affected state flags. Examples of widgets for
+          which this kind of animation may be sufficient are <a class="link" href="GtkButton.html" title="GtkButton"><span class="type">GtkButton</span></a> or
+          <a class="link" href="GtkEntry.html" title="GtkEntry"><span class="type">GtkEntry</span></a>.
+        </p>
+<p>
+          If your widget consists of more than a simple area, and these areas
+          may be rendered with different states, make sure to mark the rendered
+          areas with <a class="link" href="GtkStyleContext.html#gtk-style-context-push-animatable-region" title="gtk_style_context_push_animatable_region ()"><code class="function">gtk_style_context_push_animatable_region()</code></a> and
+          <a class="link" href="GtkStyleContext.html#gtk-style-context-pop-animatable-region" title="gtk_style_context_pop_animatable_region ()"><code class="function">gtk_style_context_pop_animatable_region()</code></a>.
+        </p>
+<p>
+          <a class="link" href="GtkStyleContext.html#gtk-style-context-notify-state-change" title="gtk_style_context_notify_state_change ()"><code class="function">gtk_style_context_notify_state_change()</code></a> may be used to trigger a
+          transition for a given state. The region ID will determine the
+          animatable region that is affected by this transition.
+        </p>
+</li>
+</ol></div>
+</div>
+<div class="footer">
+<hr>
+          Generated by GTK-Doc V1.18.1</div>
+</body>
+</html>

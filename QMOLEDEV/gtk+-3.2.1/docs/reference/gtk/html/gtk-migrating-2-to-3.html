@@ -1,0 +1,674 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Migrating from GTK+ 2.x to GTK+ 3</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.76.1">
+<link rel="home" href="index.html" title="GTK+ 3 Reference Manual">
+<link rel="up" href="migrating.html" title="Part V. Migrating from Previous Versions of GTK+">
+<link rel="prev" href="checklist-named-icons.html" title="Use named icons">
+<link rel="next" href="ch25s02.html" title="Changes that need to be done at the time of the switch">
+<meta name="generator" content="GTK-Doc V1.18.1 (XML mode)">
+<link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<table class="navigation" id="top" width="100%" summary="Navigation header" cellpadding="2" cellspacing="2"><tr valign="middle">
+<td><a accesskey="p" href="checklist-named-icons.html"><img src="left.png" width="24" height="24" border="0" alt="Prev"></a></td>
+<td><a accesskey="u" href="migrating.html"><img src="up.png" width="24" height="24" border="0" alt="Up"></a></td>
+<td><a accesskey="h" href="index.html"><img src="home.png" width="24" height="24" border="0" alt="Home"></a></td>
+<th width="100%" align="center">GTK+ 3 Reference Manual</th>
+<td><a accesskey="n" href="ch25s02.html"><img src="right.png" width="24" height="24" border="0" alt="Next"></a></td>
+</tr></table>
+<div class="chapter">
+<div class="titlepage"><div><div><h2 class="title">
+<a name="gtk-migrating-2-to-3"></a>Migrating from GTK+ 2.x to GTK+ 3</h2></div></div></div>
+<div class="toc"><dl>
+<dt><span class="section"><a href="gtk-migrating-2-to-3.html#id1537210">Preparation in GTK+ 2.x</a></span></dt>
+<dd><dl>
+<dt><span class="section"><a href="gtk-migrating-2-to-3.html#id1537205">Do not include individual headers</a></span></dt>
+<dt><span class="section"><a href="gtk-migrating-2-to-3.html#id1537095">Do not use deprecated symbols</a></span></dt>
+<dt><span class="section"><a href="gtk-migrating-2-to-3.html#id1537070">Use accessor functions instead of direct access</a></span></dt>
+<dt><span class="section"><a href="gtk-migrating-2-to-3.html#id1537035">Replace GDK_&lt;keyname&gt; with GDK_KEY_&lt;keyname&gt;</a></span></dt>
+<dt><span class="section"><a href="gtk-migrating-2-to-3.html#id1536998">Use GIO for launching applications</a></span></dt>
+<dt><span class="section"><a href="gtk-migrating-2-to-3.html#id1536872">Use cairo for drawing</a></span></dt>
+</dl></dd>
+<dt><span class="section"><a href="ch25s02.html">Changes that need to be done at the time of the switch</a></span></dt>
+<dd><dl>
+<dt><span class="section"><a href="ch25s02.html#id1536409">Replace size_request by get_preferred_width/height</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1398674">Replace GdkRegion by cairo_region_t</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1399674">Replace GdkPixmap by cairo surfaces</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1411213">Replace GdkColormap by GdkVisual</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1478923">GdkDrawable is gone</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1477304">Event filtering</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1536978">Backend-specific code</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1522136">GtkPlug and GtkSocket</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1477278">The GtkWidget::draw signal</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1500462">GtkProgressBar orientation</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1519360">Check your expand and fill flags</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1515896">Scrolling changes</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1525420">GtkObject is gone</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1527846">GtkEntryCompletion signal parameters</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1505157">Resize grips</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1523070">Prevent mixed linkage</a></span></dt>
+<dt><span class="section"><a href="ch25s02.html#id1523328">Install GTK+ modules in the right place</a></span></dt>
+</dl></dd>
+</dl></div>
+<p>
+    GTK+ 3 is a major new version of GTK+ that breaks both API and ABI
+    compared to GTK+ 2.x, which has remained API- and ABI-stable for a
+    long time. Thankfully, most of the changes are not hard to adapt to
+    and there are a number of steps that you can take to prepare your
+    GTK+ 2.x application for the switch to GTK+ 3. After that, there's
+    a small number of adjustments that you may have to do when you actually
+    switch your application to build against GTK+ 3.
+  </p>
+<div class="section">
+<div class="titlepage"><div><div><h2 class="title" style="clear: both">
+<a name="id1537210"></a>Preparation in GTK+ 2.x</h2></div></div></div>
+<p>
+      The steps outlined in the following sections assume that your
+      application is working with GTK+ 2.24, which is the final stable
+      release of GTK+ 2.x. It includes all the necessary APIs and tools
+      to help you port your application to GTK+ 3. If you are still using
+      an older version of GTK+ 2.x, you should first get your application
+      to build and work with 2.24.
+    </p>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1537205"></a>Do not include individual headers</h3></div></div></div>
+<p>
+    With GTK+ 2.x it was common to include just the header files for
+    a few widgets that your application was using, which could lead
+    to problems with missing definitions, etc. GTK+ 3 tightens the
+    rules about which header files you are allowed to include directly.
+    The allowed header files are are
+    </p>
+<div class="variablelist"><table border="0">
+<col align="left" valign="top">
+<tbody>
+<tr>
+<td><p><span class="term"><code class="filename">gtk/gtk.h</code></span></p></td>
+<td>for GTK</td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="filename">gtk/gtkunixprint.h</code></span></p></td>
+<td>for low-level, UNIX-specific printing functions</td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="filename">gdk/gdk.h</code></span></p></td>
+<td>for GDK</td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="filename">gdk/gdkx.h</code></span></p></td>
+<td>for GDK functions that are X11-specific</td>
+</tr>
+<tr>
+<td><p><span class="term"><code class="filename">gdk/gdkwin32.h</code></span></p></td>
+<td>for GDK functions that are Windows-specific</td>
+</tr>
+</tbody>
+</table></div>
+<p>
+    (these relative paths are assuming that you are using the include
+     paths that are specified in the gtk+-2.0.pc file, as returned by
+     <code class="literal">pkg-config --cflags gtk+-2.0.pc</code>.)
+  </p>
+<p>
+    To check that your application only includes the allowed headers,
+    you can use defines to disable inclusion of individual headers,
+    as follows:
+    </p>
+<pre class="programlisting">
+    make CFLAGS+="-DGTK_DISABLE_SINGLE_INCLUDES"
+    </pre>
+<p>
+  </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1537095"></a>Do not use deprecated symbols</h3></div></div></div>
+<p>
+    Over the years, a number of functions, and in some cases, entire
+    widgets have been deprecated. These deprecations are clearly spelled
+    out in the API reference, with hints about the recommended replacements.
+    The API reference also includes an
+    <a class="link" href="api-index-deprecated.html" title="Index of deprecated symbols">index</a> of all deprecated
+    symbols.
+  </p>
+<p>
+    To verify that your program does not use any deprecated symbols,
+    you can use defines to remove deprecated symbols from the header files,
+    as follows:
+    </p>
+<pre class="programlisting">
+    make CFLAGS+="-DGDK_DISABLE_DEPRECATED -DGTK_DISABLE_DEPRECATED"
+    </pre>
+<p>
+  </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1537070"></a>Use accessor functions instead of direct access</h3></div></div></div>
+<p>
+    GTK+ 3 removes many implementation details and struct members from
+    its public headers.
+  </p>
+<p>
+    To ensure that your application does not have problems with this, you
+    define the preprocessor symbol <code class="literal">GSEAL_ENABLE</code> while
+    building your application against GTK+ 2.x. This will make the compiler
+    catch all uses of direct access to struct fields so that you can go
+    through them one by one and replace them with a call to an accessor
+    function instead.
+    </p>
+<pre class="programlisting">
+    make CFLAGS+="-DGSEAL_ENABLE"
+    </pre>
+<p>
+  </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1537035"></a>Replace GDK_&lt;keyname&gt; with GDK_KEY_&lt;keyname&gt;</h3></div></div></div>
+<p>
+      Key constants have gained a <code class="literal">_KEY_</code> infix.
+      For example, <code class="literal">GDK_a</code> is now
+      <code class="literal">GDK_KEY_a</code>.  In GTK+ 2, the old names continue
+      to be available.  In GTK+ 3 however, the old names will require
+      an explicit include of the <code class="literal">gdkkeysyms-compat.h</code> header.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1536998"></a>Use GIO for launching applications</h3></div></div></div>
+<p>
+      The <code class="literal">gdk_spawn</code> family of functions has been
+      deprecated in GDK 2.24 and removed from GDK 3. Various replacements
+      exist; the best replacement depends on the circumstances:
+      </p>
+<div class="itemizedlist"><ul class="itemizedlist" type="disc">
+<li class="listitem">If you are opening a document or URI by launching a command
+        like <code class="literal">firefox http://my-favourite-website.com</code> or
+        <code class="literal">gnome-open ghelp:epiphany</code>, it is best to just use
+        <a class="link" href="gtk3-Filesystem-utilities.html#gtk-show-uri" title="gtk_show_uri ()"><code class="function">gtk_show_uri()</code></a>; as an added benefit, your application will henceforth
+        respect the users preference for what application to use.</li>
+<li class="listitem">If you are launching a regular, installed application that
+        has a desktop file, it is best to use GIOs <a href="http://library.gnome.org/devel/gio/unstable/GAppInfo.html"><span class="type">GAppInfo</span></a> with a suitable
+        launch context.
+        <div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GAppInfo</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">info</span><span class="symbol">;</span>
+<span class="usertype">GAppLaunchContext</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">context</span><span class="symbol">;</span>
+<span class="usertype">GError</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">error </span><span class="symbol">=</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">;</span>
+
+<span class="normal">info </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">(</span><span class="normal"><a href="http://library.gnome.org/devel/gio/unstable/GAppInfo.html">GAppInfo</a></span><span class="symbol">*)</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gio/unstable/gio-Desktop-file-based-GAppInfo.html#g-desktop-app-info-new">g_desktop_app_info_new</a></span><span class="normal"> </span><span class="symbol">(</span><span class="string">"epiphany.desktop"</span><span class="symbol">);</span>
+<span class="normal">context </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">(</span><span class="normal"><a href="http://library.gnome.org/devel/gio/unstable/GAppInfo.html#GAppLaunchContext">GAppLaunchContext</a></span><span class="symbol">*)</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/GdkDisplay.html#gdk-display-get-app-launch-context">gdk_display_get_app_launch_context</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">display</span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gio/unstable/GAppInfo.html#g-app-info-launch">g_app_info_launch</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">info</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">,</span><span class="normal"> context</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">error</span><span class="symbol">);</span>
+
+<span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">error</span><span class="symbol">)</span>
+<span class="normal">  </span><span class="cbracket">{</span>
+<span class="normal">    </span><span class="function"><a href="http://library.gnome.org/devel/glib/unstable/glib-Message-Logging.html#g-warning">g_warning</a></span><span class="normal"> </span><span class="symbol">(</span><span class="string">"Failed to launch epiphany: %s"</span><span class="symbol">,</span><span class="normal"> error</span><span class="symbol">-&gt;</span><span class="normal">message</span><span class="symbol">);</span>
+<span class="normal">    </span><span class="function"><a href="http://library.gnome.org/devel/glib/unstable/glib-Error-Reporting.html#g-error-free">g_error_free</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">error</span><span class="symbol">);</span>
+<span class="normal">  </span><span class="cbracket">}</span>
+
+<span class="function"><a href="http://library.gnome.org/devel/gobject/unstable/gobject-The-Base-Object-Type.html#g-object-unref">g_object_unref</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">info</span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gobject/unstable/gobject-The-Base-Object-Type.html#g-object-unref">g_object_unref</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+        Remember that you have to include
+        <code class="filename">gio/gdesktopappinfo.h</code>
+        and use the <code class="filename">gio-unix-2.0</code> pkg-config file
+        when using <a href="http://library.gnome.org/devel/gio/unstable/gio-Desktop-file-based-GAppInfo.html#g-desktop-app-info-new"><code class="function">g_desktop_app_info_new()</code></a>.
+        </li>
+<li class="listitem">If you are launching a custom commandline, you can
+        still use <a href="http://library.gnome.org/devel/gio/unstable/GAppInfo.html#g-app-info-launch"><code class="function">g_app_info_launch()</code></a> with a GAppInfo that is constructed
+        with <a href="http://library.gnome.org/devel/gio/unstable/GAppInfo.html#g-app-info-create-from-commandline"><code class="function">g_app_info_create_from_commandline()</code></a>, or you can use the
+        more lowlevel <code class="literal">g_spawn</code> family of functions
+        (e.g. <a href="http://library.gnome.org/devel/glib/unstable/glib-Spawning-Processes.html#g-spawn-command-line-async"><code class="function">g_spawn_command_line_async()</code></a>), and pass <code class="envar">DISPLAY</code>
+        in the environment. <a href="http://library.gnome.org/devel/gdk/GdkScreen.html#gdk-screen-make-display-name"><code class="function">gdk_screen_make_display_name()</code></a> can be
+        used to find the right value for the <code class="envar">DISPLAY</code>
+        environment variable.
+        </li>
+</ul></div>
+<p>
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1536872"></a>Use cairo for drawing</h3></div></div></div>
+<p>
+      In GTK+ 3, the GDK drawing API (which closely mimics the X
+      drawing API, which is itself modeled after PostScript) has been
+      removed. All drawing in GTK+ 3 is done via cairo.
+    </p>
+<p>
+      The <a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#GdkGC"><span class="type">GdkGC</span></a> and <a href="http://library.gnome.org/devel/gdk3/gdk-Images.html#GdkImage"><span class="type">GdkImage</span></a> objects, as well as all the functions using
+      them, are gone. This includes the <code class="literal">gdk_draw</code> family
+      of functions like <a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-rectangle"><code class="function">gdk_draw_rectangle()</code></a> and <a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-drawable"><code class="function">gdk_draw_drawable()</code></a>. As
+      <a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#GdkGC"><span class="type">GdkGC</span></a> is roughly equivalent to <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-t"><span class="type">cairo_t</span></a> and <a href="http://library.gnome.org/devel/gdk3/gdk-Images.html#GdkImage"><span class="type">GdkImage</span></a> was used for
+      drawing images to GdkWindows, which cairo supports automatically,
+      a transition is usually straightforward.
+    </p>
+<p>
+      The following examples show a few common drawing idioms used by
+      applications that have been ported to use cairo and how the code
+      was replaced.
+    </p>
+<div class="example">
+<a name="id1536803"></a><p class="title"><b>Example 111. Drawing a GdkPixbuf onto a GdkWindow</b></p>
+<div class="example-contents">
+<p>
+           Drawing a pixbuf onto a drawable used to be done like this:
+           </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-pixbuf">gdk_draw_pixbuf</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">window</span><span class="symbol">,</span>
+<span class="normal">                 </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-style">gtk_widget_get_style</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">)-&gt;</span><span class="normal">black_gc</span><span class="symbol">,</span>
+<span class="normal">                 pixbuf</span><span class="symbol">,</span>
+<span class="normal">                 </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span>
+<span class="normal">                 x</span><span class="symbol">,</span><span class="normal"> y</span><span class="symbol">,</span>
+<span class="normal">                 </span><span class="function"><a href="http://library.gnome.org/devel/gdk-pixbuf/unstable/gdk-pixbuf-The-GdkPixbuf-Structure.html#gdk-pixbuf-get-width">gdk_pixbuf_get_width</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pixbuf</span><span class="symbol">),</span>
+<span class="normal">                 </span><span class="function"><a href="http://library.gnome.org/devel/gdk-pixbuf/unstable/gdk-pixbuf-The-GdkPixbuf-Structure.html#gdk-pixbuf-get-height">gdk_pixbuf_get_height</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pixbuf</span><span class="symbol">),</span>
+<span class="normal">                 <a href="http://library.gnome.org/devel/gdk3/gdk-GdkRGB.html#GDK-RGB-DITHER-NORMAL:CAPS">GDK_RGB_DITHER_NORMAL</a></span><span class="symbol">,</span>
+<span class="normal">                 </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+           Doing the same thing with cairo:
+           </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">cairo_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cr </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-create">gdk_cairo_create</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">window</span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-set-source-pixbuf">gdk_cairo_set_source_pixbuf</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> pixbuf</span><span class="symbol">,</span><span class="normal"> x</span><span class="symbol">,</span><span class="normal"> y</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-paint">cairo_paint</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-destroy">cairo_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+           Note that very similar code can be used when porting code
+           using GdkPixmap to <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-surface-t.html#cairo-surface-t"><span class="type">cairo_surface_t</span></a> by calling
+           <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-set-source-surface"><code class="function">cairo_set_source_surface()</code></a> instead of
+           <a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-set-source-pixbuf"><code class="function">gdk_cairo_set_source_pixbuf()</code></a>.
+         </p>
+</div>
+</div>
+<br class="example-break"><div class="example">
+<a name="id1536749"></a><p class="title"><b>Example 112. Drawing a tiled GdkPixmap to a GdkWindow</b></p>
+<div class="example-contents">
+<p>
+          Tiled pixmaps are often used for drawing backgrounds.
+          Old code looked something like this:
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GdkGCValues</span><span class="normal"> gc_values</span><span class="symbol">;</span>
+<span class="usertype">GdkGC</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">gc</span><span class="symbol">;</span>
+
+<span class="comment">/* setup */</span>
+<span class="normal">gc </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-style">gtk_widget_get_style</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">)-&gt;</span><span class="normal">black_gc</span><span class="symbol">;</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-tile">gdk_gc_set_tile</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> pixmap</span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-fill">gdk_gc_set_fill</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#GDK-TILED:CAPS">GDK_TILED</a></span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-ts-origin">gdk_gc_set_ts_origin</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> x_origin</span><span class="symbol">,</span><span class="normal"> y_origin</span><span class="symbol">);</span>
+<span class="comment">/* use */</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-rectangle">gdk_draw_rectangle</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">window</span><span class="symbol">,</span><span class="normal"> gc</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#TRUE:CAPS">TRUE</a></span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> width</span><span class="symbol">,</span><span class="normal"> height</span><span class="symbol">);</span>
+<span class="comment">/* restore */</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-tile">gdk_gc_set_tile</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-fill">gdk_gc_set_fill</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#GDK-SOLID:CAPS">GDK_SOLID</a></span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-ts-origin">gdk_gc_set_ts_origin</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          The equivalent cairo code to draw a tiled surface looks
+          like this:
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">cairo_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cr</span><span class="symbol">;</span>
+<span class="usertype">cairo_surface_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">surface</span><span class="symbol">;</span>
+
+<span class="normal">surface </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">...</span>
+<span class="normal">cr </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-create">gdk_cairo_create</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">window</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-set-source-surface">cairo_set_source_surface</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> surface</span><span class="symbol">,</span><span class="normal"> x_origin</span><span class="symbol">,</span><span class="normal"> y_origin</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#cairo-pattern-set-extend">cairo_pattern_set_extend</a></span><span class="normal"> </span><span class="symbol">(</span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-get-source">cairo_get_source</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">),</span><span class="normal"> <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#CAIRO-EXTEND-REPEAT:CAPS">CAIRO_EXTEND_REPEAT</a></span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-Paths.html#cairo-rectangle">cairo_rectangle</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> width</span><span class="symbol">,</span><span class="normal"> height</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-fill">cairo_fill</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-destroy">cairo_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+The surface here can be either an image surface or a X surface,
+and can either be created on the spot or kept around for caching purposes.
+Another alternative is to use pixbufs instead of surfaces with
+<a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-set-source-pixbuf"><code class="function">gdk_cairo_set_source_pixbuf()</code></a> instead of <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-set-source-surface"><code class="function">cairo_set_source_surface()</code></a>.
+        </p>
+</div>
+</div>
+<br class="example-break"><div class="example">
+<a name="id1536699"></a><p class="title"><b>Example 113. Drawing a PangoLayout to a clipped area</b></p>
+<div class="example-contents">
+<p>
+          Drawing layouts clipped is often used to avoid overdraw or to
+          allow drawing selections. Code would have looked like this:
+	  </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GdkGC</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">gc</span><span class="symbol">;</span>
+
+<span class="comment">/* setup */</span>
+<span class="normal">gc </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-style">gtk_widget_get_style</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">)-&gt;</span><span class="normal">text_gc</span><span class="symbol">[</span><span class="normal">state</span><span class="symbol">];</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-clip-rectangle">gdk_gc_set_clip_rectangle</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">area</span><span class="symbol">);</span>
+<span class="comment">/* use */</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-layout">gdk_draw_layout</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">drawable</span><span class="symbol">,</span><span class="normal"> gc</span><span class="symbol">,</span><span class="normal"> x</span><span class="symbol">,</span><span class="normal"> y</span><span class="symbol">,</span><span class="normal"> layout</span><span class="symbol">);</span>
+<span class="comment">/* restore */</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Graphics-Contexts.html#gdk-gc-set-clip-rectangle">gdk_gc_set_clip_rectangle</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gc</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          With cairo, the same effect can be achieved using:
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GtkStyleContext</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">context</span><span class="symbol">;</span>
+<span class="usertype">GtkStateFlags</span><span class="normal"> flags</span><span class="symbol">;</span>
+<span class="usertype">GdkRGBA</span><span class="normal"> rgba</span><span class="symbol">;</span>
+<span class="usertype">cairo_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cr</span><span class="symbol">;</span>
+
+<span class="normal">cr </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-create">gdk_cairo_create</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">drawable</span><span class="symbol">);</span>
+<span class="comment">/* clip */</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-rectangle">gdk_cairo_rectangle</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">area</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-clip">cairo_clip</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="comment">/* set the correct source color */</span>
+<span class="normal">context </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-style-context">gtk_widget_get_style_context</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">));</span>
+<span class="normal">state </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-state-flags">gtk_widget_get_state_flags</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">);</span>
+<span class="function"><a href="GtkStyleContext.html#gtk-style-context-get-color">gtk_style_context_get_color</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">,</span><span class="normal"> state</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">rgba</span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-set-source-rgba">gdk_cairo_set_source_rgba</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">rgba</span><span class="symbol">);</span>
+<span class="comment">/* draw the text */</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-Paths.html#cairo-move-to">cairo_move_to</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> x</span><span class="symbol">,</span><span class="normal"> y</span><span class="symbol">);</span>
+<span class="function">pango_cairo_show_layout</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> layout</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-destroy">cairo_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          Clipping using <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-clip"><code class="function">cairo_clip()</code></a> is of course not restricted to text
+          rendering and can be used everywhere where GC clips were used.
+          And using <a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-set-source-color"><code class="function">gdk_cairo_set_source_color()</code></a> with style colors should
+          be used in all the places where a style’s GC was used to achieve
+          a particular color.
+        </p>
+</div>
+</div>
+<br class="example-break"><div class="section">
+<div class="titlepage"><div><div><h4 class="title">
+<a name="id1536653"></a>What should you be aware of ?</h4></div></div></div>
+<p><b>No more stippling. </b>
+          Stippling is the usage of a bi-level mask, called a <a href="http://library.gnome.org/devel/gdk3/gdk-Bitmaps-and-Pixmaps.html#GdkBitmap"><span class="type">GdkBitmap</span></a>.
+          It was often used to achieve a checkerboard effect. You can use
+          <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-mask"><code class="function">cairo_mask()</code></a> to achieve this effect. To get a checkerbox mask,
+          you can use code like this:
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#cairo-pattern-t">cairo_pattern_t</a> </span><span class="symbol">*</span>
+<span class="function">gtk_color_button_get_checkered</span><span class="normal"> </span><span class="symbol">(</span><span class="type">void</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">    </span><span class="comment">/* need to respect pixman's stride being a multiple of 4 */</span>
+<span class="normal">    </span><span class="keyword">static</span><span class="normal"> </span><span class="type">unsigned</span><span class="normal"> </span><span class="type">char</span><span class="normal"> data</span><span class="symbol">[</span><span class="number">8</span><span class="symbol">]</span><span class="normal"> </span><span class="symbol">=</span><span class="normal"> </span><span class="cbracket">{</span><span class="normal"> </span><span class="number">0xFF</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0x00</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0x00</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0x00</span><span class="symbol">,</span>
+<span class="normal">                                     </span><span class="number">0x00</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0xFF</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0x00</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0x00</span><span class="normal"> </span><span class="cbracket">}</span><span class="symbol">;</span>
+<span class="normal">    </span><span class="usertype">cairo_surface_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">surface</span><span class="symbol">;</span>
+<span class="normal">    </span><span class="usertype">cairo_pattern_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">pattern</span><span class="symbol">;</span>
+
+<span class="normal">    surface </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-Image-Surfaces.html#cairo-image-surface-create-for-data">cairo_image_surface_create_for_data</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">data</span><span class="symbol">,</span>
+<span class="normal">                                                   <a href="/usr/share/gtk-doc/html/cairo/cairo-Image-Surfaces.html#CAIRO-FORMAT-A8:CAPS">CAIRO_FORMAT_A8</a></span><span class="symbol">,</span>
+<span class="normal">                                                   </span><span class="number">2</span><span class="symbol">,</span><span class="normal"> </span><span class="number">2</span><span class="symbol">,</span>
+<span class="normal">                                                   </span><span class="number">4</span><span class="symbol">);</span>
+<span class="normal">    pattern </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#cairo-pattern-create-for-surface">cairo_pattern_create_for_surface</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">surface</span><span class="symbol">);</span>
+<span class="normal">    </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-surface-t.html#cairo-surface-destroy">cairo_surface_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">surface</span><span class="symbol">);</span>
+<span class="normal">    </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#cairo-pattern-set-extend">cairo_pattern_set_extend</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pattern</span><span class="symbol">,</span><span class="normal"> <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#CAIRO-EXTEND-REPEAT:CAPS">CAIRO_EXTEND_REPEAT</a></span><span class="symbol">);</span>
+<span class="normal">    </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#cairo-pattern-set-filter">cairo_pattern_set_filter</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pattern</span><span class="symbol">,</span><span class="normal"> <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-pattern-t.html#CAIRO-FILTER-NEAREST:CAPS">CAIRO_FILTER_NEAREST</a></span><span class="symbol">);</span>
+
+<span class="normal">    </span><span class="keyword">return</span><span class="normal"> pattern</span><span class="symbol">;</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          Note that stippling looks very outdated in UIs, and is rarely
+          used in modern applications. All properties that made use of
+          stippling have been removed from GTK+ 3. Most prominently,
+          stippling is absent from text rendering, in particular <a class="link" href="GtkTextTag.html" title="GtkTextTag"><span class="type">GtkTextTag</span></a>.
+        </p>
+<p><b>Using the target also as source or mask. </b>
+          The <a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-drawable"><code class="function">gdk_draw_drawable()</code></a> function allowed using the same drawable
+          as source and target. This was often used to achieve a scrolling
+          effect. Cairo does not allow this yet. You can however use
+          <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-push-group"><code class="function">cairo_push_group()</code></a> to get a different intermediate target that
+          you can copy to. So you can replace this code:
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-drawable">gdk_draw_drawable</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pixmap</span><span class="symbol">,</span>
+<span class="normal">                   gc</span><span class="symbol">,</span>
+<span class="normal">                   pixmap</span><span class="symbol">,</span>
+<span class="normal">                   area</span><span class="symbol">.</span><span class="normal">x </span><span class="symbol">+</span><span class="normal"> dx</span><span class="symbol">,</span><span class="normal"> area</span><span class="symbol">.</span><span class="normal">y </span><span class="symbol">+</span><span class="normal"> dy</span><span class="symbol">,</span>
+<span class="normal">                   area</span><span class="symbol">.</span><span class="normal">x</span><span class="symbol">,</span><span class="normal"> area</span><span class="symbol">.</span><span class="normal">y</span><span class="symbol">,</span>
+<span class="normal">                   area</span><span class="symbol">.</span><span class="normal">width</span><span class="symbol">,</span><span class="normal"> area</span><span class="symbol">.</span><span class="normal">height</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          By using this code:
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">cairo_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cr </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-create">cairo_create</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">surface</span><span class="symbol">);</span>
+<span class="comment">/* clipping restricts the intermediate surface's size, so it's a good idea</span>
+<span class="comment"> * to use it. */</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-rectangle">gdk_cairo_rectangle</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">area</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-clip">cairo_clip</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="comment">/* Now push a group to change the target */</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-push-group">cairo_push_group</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-set-source-surface">cairo_set_source_surface</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> surface</span><span class="symbol">,</span><span class="normal"> dx</span><span class="symbol">,</span><span class="normal"> dy</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-paint">cairo_paint</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="comment">/* Now copy the intermediate target back */</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-pop-group-to-source">cairo_pop_group_to_source</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-paint">cairo_paint</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-destroy">cairo_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+The surface here can be either an image surface or a X surface,
+and can either be created on the spot or kept around for caching purposes.
+Another alternative is to use pixbufs instead of surfaces with
+<a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-set-source-pixbuf"><code class="function">gdk_cairo_set_source_pixbuf()</code></a> instead of <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-set-source-surface"><code class="function">cairo_set_source_surface()</code></a>.
+        
+          The cairo developers plan to add self-copies in the future to allow
+          exactly this effect, so you might want to keep up on cairo
+          development to be able to change your code.
+        </p>
+<p><b>Using pango_cairo_show_layout() instead of gdk_draw_layout_with_colors(). </b>
+          GDK provided a way to ignore the color attributes of text and use
+          a hardcoded text color with the <a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-layout-with-colors"><code class="function">gdk_draw_layout_with_colors()</code></a>
+          function. This is often used to draw text shadows or selections.
+          Pango’s cairo support does not yet provide this functionality. If
+          you use Pango layouts that change colors, the easiest way to achieve
+          a similar effect is using <code class="function">pango_cairo_layout_path()</code> and <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-fill"><code class="function">cairo_fill()</code></a>
+          instead of <a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-draw-layout-with-colors"><code class="function">gdk_draw_layout_with_colors()</code></a>. Note that this results in
+          a slightly uglier-looking text, as subpixel anti-aliasing is not
+          supported.
+        </p>
+</div>
+</div>
+</div>
+</div>
+<div class="footer">
+<hr>
+          Generated by GTK-Doc V1.18.1</div>
+</body>
+</html>

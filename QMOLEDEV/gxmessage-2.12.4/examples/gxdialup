@@ -1,0 +1,155 @@
+#! /bin/bash
+
+## 
+## Usage: %PROG% [OPTIONS] [PROVIDER_LIST]
+## 
+## A simple ISP connection manager for a Debian machine with one or more
+## dial-up accounts handled by pppconfig, pon, and poff. (This script is
+## especially useful as a window manager menu item or a GNOME launcher.)
+## 
+## Options:
+##   -f COLOUR   set text foreground to COLOUR
+##   -b COLOUR   set text background to COLOUR
+##   -h          show this usage message, then exit
+## 
+## PROVIDER_LIST is a comma-separated list of provider names and screen
+## names. For example, if /etc/ppp/peers/ contains the files 'provider',
+## 'clear', and 'telecom', you might invoke %PROG% with:
+## 
+##     %PROG% '_IHUG=provider,Clear_NET=clear,_XTRA=telecom'
+## 
+# 2003-09-25 Tim Musson <trmusson@ihug.co.nz>
+
+# I, the Copyright holder of this work, hereby release it into the Public
+# Domain. This applies worldwide. In case this is not legally possible, I
+# grant anyone the right to use this work for any purpose, without any
+# conditions, unless such conditions are required by law.
+#
+# 2009 Timothy Richard Musson <trmusson@gmail.com>
+
+
+PROG=$(basename $0)
+EX_USAGE=64
+XMESSAGE=${XMESSAGE:-$(which gxmessage)} || XMESSAGE=xmessage
+TIMESTAMP=$HOME/.gxdialup.tmp
+
+PROVIDER_LIST='_default provider=provider'
+TIMEOUT=40
+
+MSG_TITLE='ISP Connection Status'
+MSG_FONT='sans 14'
+MSG_FG=
+MSG_BG=
+MSG_GEOM=400x90
+MSG_POS=-center
+
+
+[ "$XMESSAGE" = xmessage ] && MSG_FONT=
+
+
+showUsage ()
+{
+  sed -n '/^##/s/^## //p' $0 | sed -e "s#%PROG%#${PROG}#g"
+  exit
+}
+
+
+invocationError ()
+{
+  echo "Try '$PROG -h'" >&2
+  exit $EX_USAGE
+}
+
+
+gxPon ()
+{
+  # Dial a named ISP
+  /usr/bin/pon $1
+}
+
+
+gxPoff ()
+{
+  # Disconnect
+  /usr/bin/poff >/dev/null
+}
+
+
+alreadyConnected ()
+{
+  # Return 0 if currently connected, otherwise 1
+  [ -e /var/run/ppp0.pid ]
+}
+
+
+while getopts 'hf:b:' Option
+do
+  case $Option in
+  h) showUsage ;;
+  f) MSG_FG=$OPTARG ;;
+  b) MSG_BG=$OPTARG ;;
+  *) invocationError ;;
+  esac
+done
+shift $(($OPTIND - 1))
+[ "$#" -gt 1 ] && invocationError
+[ -n "$1" ] && PROVIDER_LIST=$1
+
+
+if alreadyConnected; then
+  if [ -f "$TIMESTAMP" ]; then
+    message=$(< "$TIMESTAMP")
+  else
+    message='Connected.'
+  fi
+  buttons='_Disconnect now:101'
+else
+  message='Not connected.'
+  buttons=''
+  num=0
+  IFS_tmp=$IFS
+  IFS=','
+  for provider in $PROVIDER_LIST; do
+    [ -n "$buttons" ] && buttons="$buttons,"
+    showname[$num]=${provider%%=*}
+    realname[$num]=${provider##*=}
+    buttons="${buttons}Dial ${showname[$num]}:$(( 102 + num ))"
+    (( num++ ))
+  done
+  IFS=$IFS_tmp
+fi
+buttons=$buttons,GTK_STOCK_CLOSE:100
+
+$XMESSAGE $MSG_POS                            \
+          ${MSG_GEOM:+-geometry "$MSG_GEOM"}  \
+          -title "$MSG_TITLE"                 \
+          ${MSG_FONT:+-fn "$MSG_FONT"}        \
+          ${MSG_FG:+-fg "$MSG_FG"}            \
+          ${MSG_BG:+-bg "$MSG_BG"}            \
+          -buttons "$buttons"                 \
+          -default GTK_STOCK_CLOSE            \
+          "$message"
+
+response=$?
+
+if [ "$response" -eq 101 ]; then
+  gxPoff
+elif [ "$response" -ge 102 ]; then
+  num=$(( response - 102 ))
+  gxPon ${realname[$num]} || exit 1
+  echo "Connected to ${showname[num]/_/} since $(date +%T)" > "$TIMESTAMP"
+  if [ "$TIMEOUT" -gt 0 ]; then
+    $XMESSAGE $MSG_POS                            \
+              ${MSG_GEOM:+-geometry "$MSG_GEOM"}  \
+              -title "$MSG_TITLE"                 \
+              ${MSG_FONT:+-fn "$MSG_FONT"}        \
+              ${MSG_FG:+-fg "$MSG_FG"}            \
+              ${MSG_BG:+-bg "$MSG_BG"}            \
+              -timeout $TIMEOUT                   \
+              -buttons ''                         \
+              "Dialing ${showname[$num]/_/}, please wait..." &
+  fi
+fi
+
+exit 0
+

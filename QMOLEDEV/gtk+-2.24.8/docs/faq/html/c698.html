@@ -1,0 +1,338 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Development with GTK+: widget specific questions</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ FAQ"
+HREF="book1.html"><LINK
+REL="PREVIOUS"
+TITLE="Why does GTK+/GLib leak memory?"
+HREF="x693.html"><LINK
+REL="NEXT"
+TITLE="How do I stop the column headings of a GtkCList
+disappearing when the list is scrolled?"
+HREF="x737.html"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ FAQ</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x693.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x737.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN698"
+></A
+>Development with GTK+: widget specific questions</H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN700"
+>How do I find out about the selection of a GtkList?</A
+></H1
+><P
+>Get the selection something like this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GList *sel;
+sel = GTK_LIST(list)-&#62;selection;</PRE
+></TD
+></TR
+></TABLE
+><P
+>This is how GList is defined (quoting glist.h):</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>typedef struct _GList GList;
+
+struct _GList
+{
+  gpointer data;
+  GList *next;
+  GList *prev;
+};</PRE
+></TD
+></TR
+></TABLE
+><P
+>A GList structure is just a simple structure for doubly
+linked lists. There exist several g_list_*() functions to
+modify a linked list in glib.h.  However the
+GTK_LIST(MyGtkList)-&#62;selection is maintained by the
+gtk_list_*() functions and should not be modified.</P
+><P
+>The selection_mode of the GtkList determines the
+selection facilities of a GtkList and therefore the contents
+of GTK_LIST(AnyGtkList)-&#62;selection:</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><A
+NAME="AEN708"
+></A
+><TABLE
+BORDER="1"
+BGCOLOR="#E0E0E0"
+CELLSPACING="0"
+CELLPADDING="4"
+CLASS="CALSTABLE"
+><THEAD
+><TR
+><TH
+><TT
+CLASS="LITERAL"
+>selection_mode</TT
+></TH
+><TH
+><TT
+CLASS="LITERAL"
+> GTK_LIST()-&#62;selection</TT
+>
+contents</TH
+></TR
+></THEAD
+><TBODY
+><TR
+><TD
+><TT
+CLASS="LITERAL"
+>GTK_SELECTION_SINGLE</TT
+></TD
+><TD
+>selection is either NULL or contains a GList*
+pointer for a single selected item.</TD
+></TR
+><TR
+><TD
+><TT
+CLASS="LITERAL"
+>GTK_SELECTION_BROWSE</TT
+></TD
+><TD
+>selection is NULL if the list contains no
+widgets, otherwise it contains a GList*
+pointer for one GList structure.</TD
+></TR
+><TR
+><TD
+><TT
+CLASS="LITERAL"
+>GTK_SELECTION_MULTIPLE</TT
+></TD
+><TD
+>selection is NULL if no listitems are selected
+or a a GList* pointer for the first selected
+item. that in turn points to a GList structure
+for the second selected item and so
+on.</TD
+></TR
+><TR
+><TD
+><TT
+CLASS="LITERAL"
+>GTK_SELECTION_EXTENDED</TT
+></TD
+><TD
+>selection is NULL.</TD
+></TR
+></TBODY
+></TABLE
+><P
+></P
+></DIV
+><P
+>The data field of the GList structure
+GTK_LIST(MyGtkList)-&#62;selection points to the first
+GtkListItem that is selected.  So if you would like to
+determine which listitems are selected you should go like
+this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>{
+        gchar           *list_items[]={
+                                "Item0",
+                                "Item1",
+                                "foo",
+                                "last Item",
+                        };
+        guint           nlist_items=sizeof(list_items)/sizeof(list_items[0]);
+        GtkWidget       *list_item;
+        guint           i;
+
+        list=gtk_list_new();
+        gtk_list_set_selection_mode(GTK_LIST(list), GTK_SELECTION_MULTIPLE);
+        gtk_container_add(GTK_CONTAINER(AnyGtkContainer), list);
+        gtk_widget_show (list);
+
+        for (i = 0; i &#60; nlist_items; i++)
+        {
+                list_item=gtk_list_item_new_with_label(list_items[i]);
+                gtk_object_set_user_data(GTK_OBJECT(list_item), (gpointer)i);
+                gtk_container_add(GTK_CONTAINER(list), list_item);
+                gtk_widget_show(list_item);
+        }
+}</PRE
+></TD
+></TR
+></TABLE
+><P
+>To get known about the selection:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>{
+        GList   *items;
+
+        items=GTK_LIST(list)-&#62;selection;
+
+        printf("Selected Items: ");
+        while (items) {
+                if (GTK_IS_LIST_ITEM(items-&#62;data))
+                        printf("%d ", (guint) 
+                gtk_object_get_user_data(items-&#62;data));
+                items=items-&#62;next;
+        }
+        printf("\n");
+}</PRE
+></TD
+></TR
+></TABLE
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x693.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x737.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Why does GTK+/GLib leak memory?</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>How do I stop the column headings of a GtkCList
+disappearing when the list is scrolled?</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

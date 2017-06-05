@@ -1,0 +1,481 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>What's a GScanner and how do I use one?</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ FAQ"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="About GLib"
+HREF="c866.html"><LINK
+REL="PREVIOUS"
+TITLE="Why use g_print, g_malloc, g_strdup and fellow glib
+functions?"
+HREF="x899.html"><LINK
+REL="NEXT"
+TITLE="GTK+ FAQ Contributions, Maintainers and Copyright"
+HREF="c948.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ FAQ</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x899.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>About GLib</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c948.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN909"
+>What's a GScanner and how do I use one?</A
+></H1
+><P
+>A GScanner will tokenize your text, that is, it'll return
+an integer for every word or number that appears in its input
+stream, following certain (customizable) rules to perform this
+translation. You still need to write the parsing functions on
+your own though.</P
+><P
+>Here's a little test program supplied by Tim Janik that
+will parse</P
+><P
+><P
+CLASS="LITERALLAYOUT"
+><TT
+CLASS="LITERAL"
+>&#60;SYMBOL&#62; = &#60;OPTIONAL-MINUS&#62; &#60;NUMBER&#62; ;</TT
+></P
+></P
+><P
+>constructs, while skipping "#\n" and "/**/" style
+comments.</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>#include &#60;glib.h&#62;
+
+/* some test text to be fed into the scanner */
+static const gchar *test_text =
+( "ping = 5;\n"
+  "/* slide in some \n"
+  " * comments, just for the\n"
+  " * fun of it \n"
+  " */\n"
+  "pong = -6; \n"
+  "\n"
+  "# the next value is a float\n"
+  "zonk = 0.7;\n"
+  "# redefine ping\n"
+  "ping = - 0.5;\n" );
+
+/* define enumeration values to be returned for specific symbols */
+enum {
+  SYMBOL_PING = G_TOKEN_LAST + 1,
+  SYMBOL_PONG = G_TOKEN_LAST + 2,
+  SYMBOL_ZONK = G_TOKEN_LAST + 3
+};
+
+/* symbol array */
+static const struct {
+  gchar *symbol_name;
+  guint  symbol_token;
+} symbols[] = {
+  { "ping", SYMBOL_PING, },
+  { "pong", SYMBOL_PONG, },
+  { "zonk", SYMBOL_ZONK, },
+  { NULL, 0, },
+}, *symbol_p = symbols;
+
+static gfloat ping = 0;
+static gfloat pong = 0;
+static gfloat zonk = 0;
+
+static guint
+parse_symbol (GScanner *scanner)
+{
+  guint symbol;
+  gboolean negate = FALSE;
+
+  /* expect a valid symbol */
+  g_scanner_get_next_token (scanner);
+  symbol = scanner-&#62;token;
+  if (symbol &#60; SYMBOL_PING ||
+      symbol &#62; SYMBOL_ZONK)
+    return G_TOKEN_SYMBOL;
+
+  /* expect '=' */
+  g_scanner_get_next_token (scanner);
+  if (scanner-&#62;token != '=')
+    return '=';
+
+  /* feature optional '-' */
+  g_scanner_peek_next_token (scanner);
+  if (scanner-&#62;next_token == '-')
+    {
+      g_scanner_get_next_token (scanner);
+      negate = !negate;
+    }
+
+  /* expect a float (ints are converted to floats on the fly) */
+  g_scanner_get_next_token (scanner);
+  if (scanner-&#62;token != G_TOKEN_FLOAT)
+    return G_TOKEN_FLOAT;
+
+  /* make sure the next token is a ';' */
+  if (g_scanner_peek_next_token (scanner) != ';')
+    {
+      /* not so, eat up the non-semicolon and error out */
+      g_scanner_get_next_token (scanner);
+      return ';';
+    }
+
+  /* assign value, eat the semicolon and exit successfully */
+  switch (symbol)
+    {
+    case SYMBOL_PING:
+      ping = negate ? - scanner-&#62;value.v_float : scanner-&#62;value.v_float;
+      break;
+    case SYMBOL_PONG:
+      pong = negate ? - scanner-&#62;value.v_float : scanner-&#62;value.v_float;
+      break;
+    case SYMBOL_ZONK:
+      zonk = negate ? - scanner-&#62;value.v_float : scanner-&#62;value.v_float;
+      break;
+    }
+  g_scanner_get_next_token (scanner);
+
+  return G_TOKEN_NONE;
+}
+
+int
+main (int argc, char *argv[])
+{
+  GScanner *scanner;
+  guint expected_token;
+
+  scanner = g_scanner_new (NULL);
+
+  /* adjust lexing behaviour to suit our needs
+   */
+  /* convert non-floats (octal values, hex values...) to G_TOKEN_INT */
+  scanner-&#62;config-&#62;numbers_2_int = TRUE;
+  /* convert G_TOKEN_INT to G_TOKEN_FLOAT */
+  scanner-&#62;config-&#62;int_2_float = TRUE;
+  /* don't return G_TOKEN_SYMBOL, but the symbol's value */
+  scanner-&#62;config-&#62;symbol_2_token = TRUE;
+
+  /* load symbols into the scanner */
+  while (symbol_p-&#62;symbol_name)
+    {
+      g_scanner_add_symbol (scanner,
+                            symbol_p-&#62;symbol_name,
+                            GINT_TO_POINTER (symbol_p-&#62;symbol_token));
+      symbol_p++;
+    }
+
+  /* feed in the text */
+  g_scanner_input_text (scanner, test_text, strlen (test_text));
+
+  /* give the error handler an idea on how the input is named */
+  scanner-&#62;input_name = "test text";
+
+  /* scanning loop, we parse the input until its end is reached,
+   * the scanner encountered a lexing error, or our sub routine came
+   * across invalid syntax
+   */
+  do
+    {
+      expected_token = parse_symbol (scanner);
+      
+      g_scanner_peek_next_token (scanner);
+    }
+  while (expected_token == G_TOKEN_NONE &#38;&#38;
+         scanner-&#62;next_token != G_TOKEN_EOF &#38;&#38;
+         scanner-&#62;next_token != G_TOKEN_ERROR);
+
+  /* give an error message upon syntax errors */
+  if (expected_token != G_TOKEN_NONE)
+    g_scanner_unexp_token (scanner, expected_token, NULL, "symbol", NULL, NULL, TRUE);
+
+  /* finsish parsing */
+  g_scanner_destroy (scanner);
+
+  /* print results */
+  g_print ("ping: %f\n", ping);
+  g_print ("pong: %f\n", pong);
+  g_print ("zonk: %f\n", zonk);
+  
+  return 0;
+}</PRE
+></TD
+></TR
+></TABLE
+><P
+>You need to understand that the scanner will parse its
+input and tokenize it, it is up to you to interpret these
+tokens, not define their types before they get parsed,
+e.g. watch gscanner parse a string:</P
+><P
+><P
+CLASS="LITERALLAYOUT"
+><TT
+CLASS="LITERAL"
+>"hi i am 17"</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  | |  |</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  | |  v</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  | v  TOKEN_INT, value: 17</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  v TOKEN_IDENTIFIER, value: "am"</TT
+><br>
+<TT
+CLASS="LITERAL"
+> v  TOKEN_CHAR, value: 'i'</TT
+><br>
+<TT
+CLASS="LITERAL"
+>TOKEN_IDENTIFIER, value: "hi"</TT
+></P
+></P
+><P
+>If you configure the scanner with:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>scanner-&#62;config-&#62;int_2_float = TRUE;
+scanner-&#62;config-&#62;char_2_token = TRUE;
+scanner-&#62;config-&#62;scan_symbols = TRUE;</PRE
+></TD
+></TR
+></TABLE
+><P
+>and add "am" as a symbol with</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>g_scanner_add_symbol (scanner, "am", "symbol value");</PRE
+></TD
+></TR
+></TABLE
+><P
+>GScanner will parse it as</P
+><P
+><P
+CLASS="LITERALLAYOUT"
+><TT
+CLASS="LITERAL"
+>"hi i am 17"</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  | |  |</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  | |  v</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  | v  TOKEN_FLOAT, value: 17.0  (automatic int-&#62;float conversion)</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  | TOKEN_SYMBOL, value: "symbol value"  (a successfull hash table lookup</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  |                                       turned a TOKEN_IDENTIFIER into a</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  |                                       TOKEN_SYMBOL and took over the</TT
+><br>
+<TT
+CLASS="LITERAL"
+> |  v                                       symbol's value)</TT
+><br>
+<TT
+CLASS="LITERAL"
+> v  'i'  ('i' can be a valid token as well, as all chars &#62;0 and &#60;256)</TT
+><br>
+<TT
+CLASS="LITERAL"
+>TOKEN_IDENTIFIER, value: "hi"</TT
+></P
+></P
+><P
+>You need to match the token sequence with your code, and
+if you encounter something that you don't want, you error
+out:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>/* expect an identifier ("hi") */
+g_scanner_get_next_token (scanner);
+if (scanner-&#62;token != G_TOKEN_IDENTIFIER)
+  return G_TOKEN_IDENTIFIER;
+/* expect a token 'i' */
+g_scanner_get_next_token (scanner);
+if (scanner-&#62;token != 'i')
+  return 'i';
+/* expect a symbol ("am") */
+g_scanner_get_next_token (scanner);
+if (scanner-&#62;token != G_TOKEN_SYMBOL)
+  return G_TOKEN_SYMBOL;
+/* expect a float (17.0) */
+g_scanner_get_next_token (scanner);
+if (scanner-&#62;token != G_TOKEN_FLOAT)
+  return G_TOKEN_FLOAT;</PRE
+></TD
+></TR
+></TABLE
+><P
+>If you got past here, you have parsed "hi i am 17" and
+would have accepted "dooh i am 42" and  "bah i am 0.75" as
+well, but you would have not accepted "hi 7 am 17" or "hi i hi
+17".</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x899.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c948.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Why use g_print, g_malloc, g_strdup and fellow glib
+functions?</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c866.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>GTK+ FAQ Contributions, Maintainers and Copyright</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

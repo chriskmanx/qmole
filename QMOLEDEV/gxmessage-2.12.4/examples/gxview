@@ -1,0 +1,99 @@
+#! /bin/bash
+
+## 
+## Usage: %PROG% [OPTIONS] [FILE]
+## 
+##   Uses gxmessage to view a file, with options to edit or print
+## 
+## Options:
+##   -c          center
+##   -f COLOUR   foreground colour
+##   -b COLOUR   background colour
+##   -s FONT     message font or style (e.g. 'serif 14')
+##   -w          wrap long lines
+##   -h          help
+## 
+
+# I, the Copyright holder of this work, hereby release it into the Public
+# Domain. This applies worldwide. In case this is not legally possible, I
+# grant anyone the right to use this work for any purpose, without any
+# conditions, unless such conditions are required by law.
+#
+# 2009 Timothy Richard Musson <trmusson@gmail.com>
+
+
+PROG=$(basename $0)
+EX_USAGE=64
+XMESSAGE=${XMESSAGE:-$(which gxmessage)} || XMESSAGE=xmessage
+GEDIT=gedit
+
+MSG_TITLE=$PROG
+MSG_FG=
+MSG_BG=
+MSG_GEOM=800x600
+MSG_FONT=monospace
+
+
+[ "$XMESSAGE" = xmessage ] && MSG_FONT=
+
+
+invocationError ()
+{
+  echo "Try '$PROG -h'" >&2
+  exit $EX_USAGE
+}
+
+
+showUsage ()
+{
+  sed -n '/^##/s/^## //p' $0 | sed -e "s#%PROG%#${PROG}#g"
+  exit
+}
+
+
+while getopts 'chf:b:s:w' Option
+do
+  case $Option in
+  c) center=1 ;;
+  f) MSG_FG=$OPTARG ;;
+  b) MSG_BG=$OPTARG ;;
+  s) MSG_FONT=$OPTARG ;;
+  w) wrap=1 ;;
+  h) showUsage ;;
+  *) invocationError ;;
+  esac
+done
+shift $(($OPTIND - 1))
+[ "$#" -gt 1 ] && invocationError
+
+
+filename=${1:--}
+
+if [ "$filename" = '-' ]; then
+  buttons=GTK_STOCK_CLOSE:103
+else
+  MSG_TITLE="$MSG_TITLE: $filename"
+  buttons=GTK_STOCK_EDIT:101,GTK_STOCK_PRINT:102,GTK_STOCK_CLOSE:103
+fi
+
+
+$XMESSAGE -title "$MSG_TITLE"                \
+          ${MSG_GEOM:+-geometry "$MSG_GEOM"} \
+          ${center:+-center}                 \
+          ${MSG_FONT:+-font "$MSG_FONT"}     \
+          ${MSG_FG:+-fg "$MSG_FG"}           \
+          ${MSG_BG:+-bg "$MSG_BG"}           \
+          ${wrap:+-wrap}                     \
+          -buttons "$buttons"                \
+          -default GTK_STOCK_CLOSE           \
+          -file "$filename"
+
+action=$?
+if [ "$action" -eq 101 ]; then
+  $GEDIT "$filename"
+elif [ "$action" -eq 102 ]; then
+  enscript -G "$filename" | lpr
+fi
+
+exit 0
+

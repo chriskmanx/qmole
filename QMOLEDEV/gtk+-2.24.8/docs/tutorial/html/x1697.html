@@ -1,0 +1,332 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Item Factory Example</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Menu Widget"
+HREF="c1499.html"><LINK
+REL="PREVIOUS"
+TITLE="Using ItemFactory"
+HREF="x1586.html"><LINK
+REL="NEXT"
+TITLE="Undocumented Widgets"
+HREF="c1701.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x1586.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Menu Widget</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c1701.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-ITEMFACTORYEXAMPLE"
+>Item Factory Example</A
+></H1
+><P
+>Here is an example using the GTK item factory.</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>&#13;#include &#60;gtk/gtk.h&#62;
+
+/* Obligatory basic callback */
+static void print_hello( GtkWidget *w,
+                         gpointer   data )
+{
+  g_message ("Hello, World!\n");
+}
+
+/* For the check button */
+static void print_toggle( gpointer   callback_data,
+                          guint      callback_action,
+                          GtkWidget *menu_item )
+{
+   g_message ("Check button state - %d\n",
+              GTK_CHECK_MENU_ITEM (menu_item)-&#62;active);
+}
+
+/* For the radio buttons */
+static void print_selected( gpointer   callback_data,
+                            guint      callback_action,
+                            GtkWidget *menu_item )
+{
+   if(GTK_CHECK_MENU_ITEM(menu_item)-&#62;active)
+     g_message ("Radio button %d selected\n", callback_action);
+}
+
+/* Our menu, an array of GtkItemFactoryEntry structures that defines each menu item */
+static GtkItemFactoryEntry menu_items[] = {
+  { "/_File",         NULL,         NULL,           0, "&#60;Branch&#62;" },
+  { "/File/_New",     "&#60;control&#62;N", print_hello,    0, "&#60;StockItem&#62;", GTK_STOCK_NEW },
+  { "/File/_Open",    "&#60;control&#62;O", print_hello,    0, "&#60;StockItem&#62;", GTK_STOCK_OPEN },
+  { "/File/_Save",    "&#60;control&#62;S", print_hello,    0, "&#60;StockItem&#62;", GTK_STOCK_SAVE },
+  { "/File/Save _As", NULL,         NULL,           0, "&#60;Item&#62;" },
+  { "/File/sep1",     NULL,         NULL,           0, "&#60;Separator&#62;" },
+  { "/File/_Quit",    "&#60;CTRL&#62;Q", gtk_main_quit, 0, "&#60;StockItem&#62;", GTK_STOCK_QUIT },
+  { "/_Options",      NULL,         NULL,           0, "&#60;Branch&#62;" },
+  { "/Options/tear",  NULL,         NULL,           0, "&#60;Tearoff&#62;" },
+  { "/Options/Check", NULL,         print_toggle,   1, "&#60;CheckItem&#62;" },
+  { "/Options/sep",   NULL,         NULL,           0, "&#60;Separator&#62;" },
+  { "/Options/Rad1",  NULL,         print_selected, 1, "&#60;RadioItem&#62;" },
+  { "/Options/Rad2",  NULL,         print_selected, 2, "/Options/Rad1" },
+  { "/Options/Rad3",  NULL,         print_selected, 3, "/Options/Rad1" },
+  { "/_Help",         NULL,         NULL,           0, "&#60;LastBranch&#62;" },
+  { "/_Help/About",   NULL,         NULL,           0, "&#60;Item&#62;" },
+};
+
+static gint nmenu_items = sizeof (menu_items) / sizeof (menu_items[0]);
+
+/* Returns a menubar widget made from the above menu */
+static GtkWidget *get_menubar_menu( GtkWidget  *window )
+{
+  GtkItemFactory *item_factory;
+  GtkAccelGroup *accel_group;
+
+  /* Make an accelerator group (shortcut keys) */
+  accel_group = gtk_accel_group_new ();
+
+  /* Make an ItemFactory (that makes a menubar) */
+  item_factory = gtk_item_factory_new (GTK_TYPE_MENU_BAR, "&#60;main&#62;",
+                                       accel_group);
+
+  /* This function generates the menu items. Pass the item factory,
+     the number of items in the array, the array itself, and any
+     callback data for the the menu items. */
+  gtk_item_factory_create_items (item_factory, nmenu_items, menu_items, NULL);
+
+  /* Attach the new accelerator group to the window. */
+  gtk_window_add_accel_group (GTK_WINDOW (window), accel_group);
+
+  /* Finally, return the actual menu bar created by the item factory. */
+  return gtk_item_factory_get_widget (item_factory, "&#60;main&#62;");
+}
+
+/* Popup the menu when the popup button is pressed */
+static gboolean popup_cb( GtkWidget *widget,
+                          GdkEvent *event,
+                          GtkWidget *menu )
+{
+   GdkEventButton *bevent = (GdkEventButton *)event;
+  
+   /* Only take button presses */
+   if (event-&#62;type != GDK_BUTTON_PRESS)
+     return FALSE;
+  
+   /* Show the menu */
+   gtk_menu_popup (GTK_MENU(menu), NULL, NULL,
+                   NULL, NULL, bevent-&#62;button, bevent-&#62;time);
+  
+   return TRUE;
+}
+
+/* Same as with get_menubar_menu() but just return a button with a signal to
+   call a popup menu */
+GtkWidget *get_popup_menu( void )
+{
+   GtkItemFactory *item_factory;
+   GtkWidget *button, *menu;
+  
+   /* Same as before but don't bother with the accelerators */
+   item_factory = gtk_item_factory_new (GTK_TYPE_MENU, "&#60;main&#62;",
+                                        NULL);
+   gtk_item_factory_create_items (item_factory, nmenu_items, menu_items, NULL);
+   menu = gtk_item_factory_get_widget (item_factory, "&#60;main&#62;");
+  
+   /* Make a button to activate the popup menu */
+   button = gtk_button_new_with_label ("Popup");
+   /* Make the menu popup when clicked */
+   g_signal_connect (button,
+                     "event",
+                     G_CALLBACK(popup_cb),
+                     (gpointer) menu);
+
+   return button;
+}
+
+/* Same again but return an option menu */
+GtkWidget *get_option_menu( void )
+{
+   GtkItemFactory *item_factory;
+   GtkWidget *option_menu;
+  
+   /* Same again, not bothering with the accelerators */
+   item_factory = gtk_item_factory_new (GTK_TYPE_OPTION_MENU, "&#60;main&#62;",
+                                        NULL);
+   gtk_item_factory_create_items (item_factory, nmenu_items, menu_items, NULL);
+   option_menu = gtk_item_factory_get_widget (item_factory, "&#60;main&#62;");
+
+   return option_menu;
+}
+
+/* You have to start somewhere */
+int main( int argc,
+          char *argv[] )
+{
+  GtkWidget *window;
+  GtkWidget *main_vbox;
+  GtkWidget *menubar, *option_menu, *popup_button;
+ 
+  /* Initialize GTK */
+  gtk_init (&#38;argc, &#38;argv);
+ 
+  /* Make a window */
+  window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  g_signal_connect (window, "destroy",
+                    G_CALLBACK (gtk_main_quit),
+                    NULL);
+  gtk_window_set_title (GTK_WINDOW(window), "Item Factory");
+  gtk_widget_set_size_request (GTK_WIDGET(window), 300, 200);
+ 
+  /* Make a vbox to put the three menus in */
+  main_vbox = gtk_vbox_new (FALSE, 1);
+  gtk_container_set_border_width (GTK_CONTAINER (main_vbox), 1);
+  gtk_container_add (GTK_CONTAINER (window), main_vbox);
+ 
+  /* Get the three types of menu */
+  /* Note: all three menus are separately created, so they are not the
+     same menu */
+  menubar = get_menubar_menu (window);
+  popup_button = get_popup_menu ();
+  option_menu = get_option_menu ();
+  
+  /* Pack it all together */
+  gtk_box_pack_start (GTK_BOX (main_vbox), menubar, FALSE, TRUE, 0);
+  gtk_box_pack_end (GTK_BOX (main_vbox), popup_button, FALSE, TRUE, 0);
+  gtk_box_pack_end (GTK_BOX (main_vbox), option_menu, FALSE, TRUE, 0);
+
+  /* Show the widgets */
+  gtk_widget_show_all (window);
+  
+  /* Finished! */
+  gtk_main ();
+ 
+  return 0;
+}</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x1586.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c1701.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Using ItemFactory</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c1499.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Undocumented Widgets</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

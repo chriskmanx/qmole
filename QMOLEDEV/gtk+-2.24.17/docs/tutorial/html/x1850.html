@@ -1,0 +1,361 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Retrieving the selection</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Managing Selections"
+HREF="c1834.html"><LINK
+REL="PREVIOUS"
+TITLE="Managing Selections"
+HREF="c1834.html"><LINK
+REL="NEXT"
+TITLE="Supplying the selection"
+HREF="x1873.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c1834.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Managing Selections</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x1873.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-RETRIEVINGTHESELECTION"
+>Retrieving the selection</A
+></H1
+><P
+>Retrieving the selection is an asynchronous process. To start the
+process, you call:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>gboolean gtk_selection_convert( GtkWidget *widget, 
+                                GdkAtom    selection, 
+                                GdkAtom    target,
+                                guint32    time );</PRE
+></TD
+></TR
+></TABLE
+><P
+>This <I
+CLASS="EMPHASIS"
+>converts</I
+> the selection into the form specified by
+<TT
+CLASS="LITERAL"
+>target</TT
+>. If at all possible, the time field should be the time
+from the event that triggered the selection. This helps make sure that
+events occur in the order that the user requested them. However, if it
+is not available (for instance, if the conversion was triggered by a
+"clicked" signal), then you can use the constant
+<TT
+CLASS="LITERAL"
+>GDK_CURRENT_TIME</TT
+>.</P
+><P
+>When the selection owner responds to the request, a
+"selection_received" signal is sent to your application. The handler
+for this signal receives a pointer to a <TT
+CLASS="LITERAL"
+>GtkSelectionData</TT
+>
+structure, which is defined as:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>struct _GtkSelectionData
+{
+  GdkAtom selection;
+  GdkAtom target;
+  GdkAtom type;
+  gint    format;
+  guchar *data;
+  gint    length;
+};</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>selection</TT
+> and <TT
+CLASS="LITERAL"
+>target</TT
+> are the values you gave in your
+<TT
+CLASS="LITERAL"
+>gtk_selection_convert()</TT
+> call. <TT
+CLASS="LITERAL"
+>type</TT
+> is an atom that
+identifies the type of data returned by the selection owner. Some
+possible values are "STRING", a string of latin-1 characters, "ATOM",
+a series of atoms, "INTEGER", an integer, etc. Most targets can only
+return one type. <TT
+CLASS="LITERAL"
+>format</TT
+> gives the length of the units (for
+instance characters) in bits. Usually, you don't care about this when
+receiving data. <TT
+CLASS="LITERAL"
+>data</TT
+> is a pointer to the returned data, and
+<TT
+CLASS="LITERAL"
+>length</TT
+> gives the length of the returned data, in bytes. If
+<TT
+CLASS="LITERAL"
+>length</TT
+> is negative, then an error occurred and the selection
+could not be retrieved. This might happen if no application owned the
+selection, or if you requested a target that the application didn't
+support. The buffer is actually guaranteed to be one byte longer than
+<TT
+CLASS="LITERAL"
+>length</TT
+>; the extra byte will always be zero, so it isn't
+necessary to make a copy of strings just to nul-terminate them.</P
+><P
+>In the following example, we retrieve the special target "TARGETS",
+which is a list of all targets into which the selection can be
+converted.</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>&#13;#include &#60;stdlib.h&#62;
+#include &#60;gtk/gtk.h&#62;
+
+static void selection_received( GtkWidget        *widget, 
+                                GtkSelectionData *selection_data, 
+                                gpointer          data );
+
+/* Signal handler invoked when user clicks on the "Get Targets" button */
+static void get_targets( GtkWidget *widget,
+                         gpointer data )
+{
+  static GdkAtom targets_atom = GDK_NONE;
+  GtkWidget *window = (GtkWidget *)data;	
+
+  /* Get the atom corresponding to the string "TARGETS" */
+  if (targets_atom == GDK_NONE)
+    targets_atom = gdk_atom_intern ("TARGETS", FALSE);
+
+  /* And request the "TARGETS" target for the primary selection */
+  gtk_selection_convert (window, GDK_SELECTION_PRIMARY, targets_atom,
+			 GDK_CURRENT_TIME);
+}
+
+/* Signal handler called when the selections owner returns the data */
+static void selection_received( GtkWidget        *widget,
+                                GtkSelectionData *selection_data, 
+                                gpointer          data )
+{
+  GdkAtom *atoms;
+  GList *item_list;
+  int i;
+
+  /* **** IMPORTANT **** Check to see if retrieval succeeded  */
+  if (selection_data-&#62;length &#60; 0)
+    {
+      g_print ("Selection retrieval failed\n");
+      return;
+    }
+  /* Make sure we got the data in the expected form */
+  if (selection_data-&#62;type != GDK_SELECTION_TYPE_ATOM)
+    {
+      g_print ("Selection \"TARGETS\" was not returned as atoms!\n");
+      return;
+    }
+  
+  /* Print out the atoms we received */
+  atoms = (GdkAtom *)selection_data-&#62;data;
+
+  item_list = NULL;
+  for (i = 0; i &#60; selection_data-&#62;length / sizeof(GdkAtom); i++)
+    {
+      char *name;
+      name = gdk_atom_name (atoms[i]);
+      if (name != NULL)
+	g_print ("%s\n",name);
+      else
+	g_print ("(bad atom)\n");
+    }
+
+  return;
+}
+
+int main( int   argc,
+          char *argv[] )
+{
+  GtkWidget *window;
+  GtkWidget *button;
+  
+  gtk_init (&#38;argc, &#38;argv);
+
+  /* Create the toplevel window */
+
+  window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_title (GTK_WINDOW (window), "Event Box");
+  gtk_container_set_border_width (GTK_CONTAINER (window), 10);
+
+  g_signal_connect (window, "destroy",
+	            G_CALLBACK (exit), NULL);
+
+  /* Create a button the user can click to get targets */
+
+  button = gtk_button_new_with_label ("Get Targets");
+  gtk_container_add (GTK_CONTAINER (window), button);
+
+  g_signal_connect (button, "clicked",
+		    G_CALLBACK (get_targets), (gpointer) window);
+  g_signal_connect (window, "selection_received",
+		    G_CALLBACK (selection_received), NULL);
+
+  gtk_widget_show (button);
+  gtk_widget_show (window);
+  
+  gtk_main ();
+  
+  return 0;
+}</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c1834.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x1873.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Managing Selections</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c1834.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Supplying the selection</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

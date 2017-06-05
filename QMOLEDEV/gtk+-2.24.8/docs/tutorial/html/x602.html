@@ -1,0 +1,339 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Adjustment Internals</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Adjustments"
+HREF="c563.html"><LINK
+REL="PREVIOUS"
+TITLE="Using Adjustments the Easy Way"
+HREF="x587.html"><LINK
+REL="NEXT"
+TITLE="Range Widgets"
+HREF="c633.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x587.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Adjustments</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c633.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-ADJUSTMENTINTERNALS"
+>Adjustment Internals</A
+></H1
+><P
+>Ok, you say, that's nice, but what if I want to create my own handlers
+to respond when the user adjusts a range widget or a spin button, and
+how do I get at the value of the adjustment in these handlers?  To
+answer these questions and more, let's start by taking a look at
+<TT
+CLASS="LITERAL"
+>struct _GtkAdjustment</TT
+> itself:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>struct _GtkAdjustment
+{
+  GtkObject parent_instance;
+  
+  gdouble lower;
+  gdouble upper;
+  gdouble value;
+  gdouble step_increment;
+  gdouble page_increment;
+  gdouble page_size;
+};</PRE
+></TD
+></TR
+></TABLE
+><P
+>If you don't like to poke directly at struct internals like a 
+<I
+CLASS="EMPHASIS"
+>real</I
+> C programmer, you can use the following accessor to
+inspect the <TT
+CLASS="LITERAL"
+>value</TT
+> of an adjustment:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>gdouble	gtk_adjustment_get_value( GtkAdjustment *adjustment);</PRE
+></TD
+></TR
+></TABLE
+><P
+>Since, when you set the <TT
+CLASS="LITERAL"
+>value</TT
+> of an Adjustment, you generally
+want the change to be reflected by every widget that uses this
+adjustment, GTK provides this convenience function to do this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void gtk_adjustment_set_value( GtkAdjustment *adjustment,
+                               gdouble       value );</PRE
+></TD
+></TR
+></TABLE
+><P
+>As mentioned earlier, Adjustment is a subclass of Object just
+like all the various widgets, and thus it is able to emit signals.
+This is, of course, why updates happen automagically when you share an
+adjustment object between a scrollbar and another adjustable widget;
+all adjustable widgets connect signal handlers to their adjustment's
+<TT
+CLASS="LITERAL"
+>value_changed</TT
+> signal, as can your program. Here's the definition
+of this signal in <TT
+CLASS="LITERAL"
+>struct _GtkAdjustmentClass</TT
+>:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>  void (* value_changed) (GtkAdjustment *adjustment);</PRE
+></TD
+></TR
+></TABLE
+><P
+>The various widgets that use the Adjustment object will emit this
+signal on an adjustment whenever they change its value. This happens
+both when user input causes the slider to move on a range widget, as
+well as when the program explicitly changes the value with
+gtk_adjustment_set_value(). So, for example, if you have a scale
+widget, and you want to change the rotation of a picture whenever its
+value changes, you would create a callback like this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void cb_rotate_picture (GtkAdjustment *adj, GtkWidget *picture)
+{
+  set_picture_rotation (picture, gtk_adjustment_get_value (adj));
+...</PRE
+></TD
+></TR
+></TABLE
+><P
+>and connect it to the scale widget's adjustment like this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>g_signal_connect (adj, "value_changed",
+	          G_CALLBACK (cb_rotate_picture), picture);</PRE
+></TD
+></TR
+></TABLE
+><P
+>What about when a widget reconfigures the <TT
+CLASS="LITERAL"
+>upper</TT
+> or <TT
+CLASS="LITERAL"
+>lower</TT
+>
+fields of its adjustment, such as when a user adds more text to a text
+widget?  In this case, it emits the <TT
+CLASS="LITERAL"
+>changed</TT
+> signal, which looks
+like this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>  void (* changed) (GtkAdjustment *adjustment);</PRE
+></TD
+></TR
+></TABLE
+><P
+>Range widgets typically connect a handler to this signal, which
+changes their appearance to reflect the change - for example, the size
+of the slider in a scrollbar will grow or shrink in inverse proportion
+to the difference between the <TT
+CLASS="LITERAL"
+>lower</TT
+> and <TT
+CLASS="LITERAL"
+>upper</TT
+> values of its
+adjustment.</P
+><P
+>You probably won't ever need to attach a handler to this signal,
+unless you're writing a new type of range widget.  However, if you
+change any of the values in a Adjustment directly, you should emit
+this signal on it to reconfigure whatever widgets are using it, like
+this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>g_signal_emit_by_name (adjustment, "changed");</PRE
+></TD
+></TR
+></TABLE
+><P
+>Now go forth and adjust!</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x587.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c633.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Using Adjustments the Easy Way</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c563.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Range Widgets</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

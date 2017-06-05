@@ -1,0 +1,529 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>The DrawingArea Widget, And Drawing</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Scribble, A Simple Example Drawing Program"
+HREF="c2422.html"><LINK
+REL="PREVIOUS"
+TITLE="Event Handling"
+HREF="x2431.html"><LINK
+REL="NEXT"
+TITLE="Adding XInput support"
+HREF="x2529.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x2431.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Scribble, A Simple Example Drawing Program</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x2529.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-THEDRAWINGAREAWIDGET"
+>The DrawingArea Widget, And Drawing</A
+></H1
+><P
+>We now turn to the process of drawing on the screen. The 
+widget we use for this is the DrawingArea widget. A drawing area
+widget is essentially an X window and nothing more. It is a blank
+canvas in which we can draw whatever we like. A drawing area
+is created using the call:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GtkWidget* gtk_drawing_area_new        (void);</PRE
+></TD
+></TR
+></TABLE
+><P
+>A default size for the widget can be specified by calling:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void       gtk_drawing_area_size       (GtkDrawingArea      *darea,
+					gint                 width,
+					gint                 height);</PRE
+></TD
+></TR
+></TABLE
+><P
+>This default size can be overridden, as is true for all widgets,
+by calling <TT
+CLASS="LITERAL"
+>gtk_widget_set_size_request()</TT
+>, and that, in turn, can
+be overridden if the user manually resizes the the window containing
+the drawing area.</P
+><P
+>It should be noted that when we create a DrawingArea widget, we are
+<I
+CLASS="EMPHASIS"
+>completely</I
+> responsible for drawing the contents. If our
+window is obscured then uncovered, we get an exposure event and must
+redraw what was previously hidden.</P
+><P
+>Having to remember everything that was drawn on the screen so we
+can properly redraw it can, to say the least, be a nuisance. In
+addition, it can be visually distracting if portions of the
+window are cleared, then redrawn step by step. The solution to
+this problem is to use an offscreen <I
+CLASS="EMPHASIS"
+>backing pixmap</I
+>.
+Instead of drawing directly to the screen, we draw to an image
+stored in server memory but not displayed, then when the image
+changes or new portions of the image are displayed, we copy the
+relevant portions onto the screen.</P
+><P
+>To create an offscreen pixmap, we call the function:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GdkPixmap* gdk_pixmap_new               (GdkWindow  *window,
+					 gint        width,
+					 gint        height,
+					 gint        depth);</PRE
+></TD
+></TR
+></TABLE
+><P
+>The <TT
+CLASS="LITERAL"
+>window</TT
+> parameter specifies a GDK window that this pixmap
+takes some of its properties from. <TT
+CLASS="LITERAL"
+>width</TT
+> and <TT
+CLASS="LITERAL"
+>height</TT
+>
+specify the size of the pixmap. <TT
+CLASS="LITERAL"
+>depth</TT
+> specifies the <I
+CLASS="EMPHASIS"
+>color
+depth</I
+>, that is the number of bits per pixel, for the new window.
+If the depth is specified as <TT
+CLASS="LITERAL"
+>-1</TT
+>, it will match the depth
+of <TT
+CLASS="LITERAL"
+>window</TT
+>.</P
+><P
+>We create the pixmap in our "configure_event" handler. This event
+is generated whenever the window changes size, including when it
+is originally created.</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>/* Backing pixmap for drawing area */
+static GdkPixmap *pixmap = NULL;
+
+/* Create a new backing pixmap of the appropriate size */
+static gboolean
+configure_event( GtkWidget *widget, GdkEventConfigure *event )
+{
+  if (pixmap)
+    g_object_unref(pixmap);
+
+  pixmap = gdk_pixmap_new(widget-&#62;window,
+			  widget-&#62;allocation.width,
+			  widget-&#62;allocation.height,
+			  -1);
+  gdk_draw_rectangle (pixmap,
+		      widget-&#62;style-&#62;white_gc,
+		      TRUE,
+		      0, 0,
+		      widget-&#62;allocation.width,
+		      widget-&#62;allocation.height);
+
+  return TRUE;
+}</PRE
+></TD
+></TR
+></TABLE
+><P
+>The call to <TT
+CLASS="LITERAL"
+>gdk_draw_rectangle()</TT
+> clears the pixmap
+initially to white. We'll say more about that in a moment.</P
+><P
+>Our exposure event handler then simply copies the relevant portion
+of the pixmap onto the screen (we determine the area we need
+to redraw by using the event-&#62;area field of the exposure event):</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>/* Redraw the screen from the backing pixmap */
+static gboolean
+expose_event( GtkWidget *widget, GdkEventExpose *event )
+{
+  gdk_draw_drawable(widget-&#62;window,
+		    widget-&#62;style-&#62;fg_gc[gtk_widget_get_state (widget)],
+		    pixmap,
+		    event-&#62;area.x, event-&#62;area.y,
+		    event-&#62;area.x, event-&#62;area.y,
+		    event-&#62;area.width, event-&#62;area.height);
+
+  return FALSE;
+}</PRE
+></TD
+></TR
+></TABLE
+><P
+>We've now seen how to keep the screen up to date with our pixmap, but
+how do we actually draw interesting stuff on our pixmap?  There are a
+large number of calls in GTK's GDK library for drawing on
+<I
+CLASS="EMPHASIS"
+>drawables</I
+>. A drawable is simply something that can be drawn
+upon. It can be a window, a pixmap, or a bitmap (a black and white
+image).  We've already seen two such calls above,
+<TT
+CLASS="LITERAL"
+>gdk_draw_rectangle()</TT
+> and <TT
+CLASS="LITERAL"
+>gdk_draw_drawable()</TT
+>. The
+complete list is:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>gdk_draw_point ()
+gdk_draw_line ()
+gdk_draw_rectangle ()
+gdk_draw_arc ()
+gdk_draw_polygon ()
+gdk_draw_pixmap ()
+gdk_draw_bitmap ()
+gdk_draw_image ()
+gdk_draw_points ()
+gdk_draw_segments ()
+gdk_draw_lines ()
+gdk_draw_pixbuf ()
+gdk_draw_glyphs ()
+gdk_draw_layout_line ()
+gdk_draw_layout ()
+gdk_draw_layout_line_with_colors ()
+gdk_draw_layout_with_colors ()
+gdk_draw_glyphs_transformed ()
+gdk_draw_glyphs_trapezoids ()</PRE
+></TD
+></TR
+></TABLE
+><P
+>See the reference documentation or the header file
+<TT
+CLASS="LITERAL"
+>&#60;gdk/gdkdrawable.h&#62;</TT
+> for further details on these functions.
+These functions all share the same first two arguments. The first
+argument is the drawable to draw upon, the second argument is a
+<I
+CLASS="EMPHASIS"
+>graphics context</I
+> (GC).</P
+><P
+>A graphics context encapsulates information about things such as
+foreground and background color and line width. GDK has a full set of
+functions for creating and modifying graphics contexts, but to keep
+things simple we'll just use predefined graphics contexts. Each widget
+has an associated style. (Which can be modified in a gtkrc file, see
+the section GTK's rc file.) This, among other things, stores a number
+of graphics contexts. Some examples of accessing these graphics
+contexts are:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>widget-&#62;style-&#62;white_gc
+widget-&#62;style-&#62;black_gc
+widget-&#62;style-&#62;fg_gc[GTK_STATE_NORMAL]
+widget-&#62;style-&#62;bg_gc[gtk_widget_get_state(widget)]</PRE
+></TD
+></TR
+></TABLE
+><P
+>The fields <TT
+CLASS="LITERAL"
+>fg_gc</TT
+>, <TT
+CLASS="LITERAL"
+>bg_gc</TT
+>, <TT
+CLASS="LITERAL"
+>dark_gc</TT
+>, and
+<TT
+CLASS="LITERAL"
+>light_gc</TT
+> are indexed by a parameter of type
+<TT
+CLASS="LITERAL"
+>GtkStateType</TT
+> which can take on the values:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GTK_STATE_NORMAL,
+GTK_STATE_ACTIVE,
+GTK_STATE_PRELIGHT,
+GTK_STATE_SELECTED,
+GTK_STATE_INSENSITIVE</PRE
+></TD
+></TR
+></TABLE
+><P
+>For instance, for <TT
+CLASS="LITERAL"
+>GTK_STATE_SELECTED</TT
+> the default foreground
+color is white and the default background color, dark blue.</P
+><P
+>Our function <TT
+CLASS="LITERAL"
+>draw_brush()</TT
+>, which does the actual drawing
+on the screen, is then:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>/* Draw a rectangle on the screen */
+static void
+draw_brush (GtkWidget *widget, gdouble x, gdouble y)
+{
+  GdkRectangle update_rect;
+
+  update_rect.x = x - 5;
+  update_rect.y = y - 5;
+  update_rect.width = 10;
+  update_rect.height = 10;
+  gdk_draw_rectangle (pixmap,
+  		      widget-&#62;style-&#62;black_gc,
+  		      TRUE,
+		      update_rect.x, update_rect.y,
+		      update_rect.width, update_rect.height);
+  gtk_widget_queue_draw_area (widget, 		      
+                              update_rect.x, update_rect.y,
+		              update_rect.width, update_rect.height);
+}</PRE
+></TD
+></TR
+></TABLE
+><P
+>After we draw the rectangle representing the brush onto the pixmap,
+we call the function:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void       gtk_widget_queue_draw_area (GtkWidget           *widget,
+			               gint                 x,
+			               gint                 y,
+			               gint                 width,
+			               gint                 height)</PRE
+></TD
+></TR
+></TABLE
+><P
+>which notifies X that the area given by the <TT
+CLASS="LITERAL"
+>x</TT
+>, 
+<TT
+CLASS="LITERAL"
+>y</TT
+>, <TT
+CLASS="LITERAL"
+>width</TT
+> and <TT
+CLASS="LITERAL"
+>height</TT
+> parameters
+needs to be updated. X will eventually generate an expose event
+(possibly combining the areas passed in several calls to
+<TT
+CLASS="LITERAL"
+>gtk_widget_queue_draw_area()</TT
+>) which will cause our expose event handler
+to copy the relevant portions to the screen.</P
+><P
+>We have now covered the entire drawing program except for a few
+mundane details like creating the main window.</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x2431.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x2529.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Event Handling</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c2422.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Adding XInput support</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

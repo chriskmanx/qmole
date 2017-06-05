@@ -1,0 +1,744 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Using ItemFactory</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Menu Widget"
+HREF="c1499.html"><LINK
+REL="PREVIOUS"
+TITLE="Manual Menu Example"
+HREF="x1577.html"><LINK
+REL="NEXT"
+TITLE="Item Factory Example"
+HREF="x1697.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x1577.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Menu Widget</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x1697.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-USINGITEMFACTORY"
+>Using ItemFactory</A
+></H1
+><P
+>Now that we've shown you the hard way, here's how you do it using the
+gtk_item_factory calls.</P
+><P
+>ItemFactory creates a menu out of an array of ItemFactory entries. This 
+means you can define your menu in its simplest form and then create the
+menu/menubar widgets with a minimum of function calls.</P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="SEC-ITEMFACTORYENTRIES"
+>ItemFactory entries</A
+></H2
+><P
+>At the core of ItemFactory is the ItemFactoryEntry. This structure defines
+one menu item, and when an array of these entries is defined a whole
+menu is formed. The ItemFactory entry struct definition looks like this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>struct _GtkItemFactoryEntry
+{
+  gchar *path;
+  gchar *accelerator;
+
+  GtkItemFactoryCallback callback;
+  guint                  callback_action;
+
+  gchar          *item_type;
+};</PRE
+></TD
+></TR
+></TABLE
+><P
+>Each field defines part of the menu item.</P
+><P
+><TT
+CLASS="LITERAL"
+>*path</TT
+> is a string which defines both the name and the
+path of a menu item, for example, "/File/Open" would be the name of a menu
+item which would come under the ItemFactory entry with path "/File". Note however
+that "/File/Open" would be displayed in the File menu as "Open". Also note
+since the forward slashes are used to define the path of the menu,
+they cannot be used as part of the name. A letter preceded by an underscore
+indicates an accelerator (shortcut) key once the menu is open.</P
+><P
+><TT
+CLASS="LITERAL"
+>*accelerator</TT
+> is a string that indicates a key combination
+that can be used as a shortcut to that menu item. The string can be made up
+of either a single character, or a combination of modifier keys with a single
+character. It is case insensitive.</P
+><P
+>The available modifier keys are:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>"&#60;ALT&#62;                             - alt
+"&#60;CTL&#62;" or "&#60;CTRL&#62;" or "&#60;CONTROL&#62;" - control
+"&#60;MOD1&#62;" to "&#60;MOD5&#62;"               - modn
+"&#60;SHFT&#62;" or "&#60;SHIFT&#62;"              - shift</PRE
+></TD
+></TR
+></TABLE
+><P
+>Examples:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>"&#60;ConTroL&#62;a"
+"&#60;SHFT&#62;&#60;ALT&#62;&#60;CONTROL&#62;X"</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>callback</TT
+> is the function that is called when the menu item
+emits the "activate" signal. The form of the callback is described
+in the <A
+HREF="x1586.html#SEC-ITEMFACTORYCALLBACK"
+>Callback Description</A
+>
+section.</P
+><P
+>The value of <TT
+CLASS="LITERAL"
+>callback_action</TT
+> is passed to the callback
+function. It also affects the function prototype, as shown
+in the <A
+HREF="x1586.html#SEC-ITEMFACTORYCALLBACK"
+>Callback Description</A
+>
+section.</P
+><P
+><TT
+CLASS="LITERAL"
+>item_type</TT
+> is a string that defines what type of widget is
+packed into the menu items container. It can be:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>NULL or "" or "&#60;Item&#62;" - create a simple item
+"&#60;Title&#62;"              - create a title item
+"&#60;CheckItem&#62;"          - create a check item
+"&#60;ToggleItem&#62;"         - create a toggle item
+"&#60;RadioItem&#62;"          - create a (root) radio item
+"Path"                 - create a sister radio item
+"&#60;Tearoff&#62;"            - create a tearoff
+"&#60;Separator&#62;"          - create a separator
+"&#60;Branch&#62;"             - create an item to hold submenus (optional)
+"&#60;LastBranch&#62;"         - create a right justified branch
+"&#60;StockItem&#62;"          - create a simple item with a stock image. 
+                               see <TT
+CLASS="FILENAME"
+>gtkstock.h</TT
+> for builtin stock items
+ </PRE
+></TD
+></TR
+></TABLE
+><P
+>Note that &#60;LastBranch&#62; is only useful for one submenu of
+a menubar.</P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="SEC-ITEMFACTORYCALLBACK"
+>Callback Description</A
+></H3
+><P
+>The callback for an ItemFactory entry can take two forms. If
+<TT
+CLASS="LITERAL"
+>callback_action</TT
+> is zero, it is of the following
+form:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void callback( void )</PRE
+></TD
+></TR
+></TABLE
+><P
+>otherwise it is of the form:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void callback( gpointer    callback_data,
+               guint       callback_action,
+               GtkWidget  *widget )</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>callback_data</TT
+> is a pointer to an arbitrary piece of data and
+is set during the call to gtk_item_factory_create_items().</P
+><P
+><TT
+CLASS="LITERAL"
+>callback_action</TT
+> is the same value as
+<TT
+CLASS="LITERAL"
+>callback_action</TT
+> in the ItemFactory entry.</P
+><P
+><TT
+CLASS="LITERAL"
+>*widget</TT
+> is a pointer to a menu item widget
+(described in <A
+HREF="c1499.html#SEC-MANUALMENUCREATION"
+>Manual Menu Creation</A
+>).</P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="SEC-ITEMFACTORYENTRYEXAMPLES"
+>ItemFactory entry examples</A
+></H3
+><P
+>Creating a simple menu item:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GtkItemFactoryEntry entry = {"/_File/_Open...", "&#60;CTRL&#62;O", print_hello,
+				0, "&#60;Item&#62;"};</PRE
+></TD
+></TR
+></TABLE
+><P
+>This will define a new simple menu entry "/File/Open" (displayed as "Open"),
+under the menu entry "/File". It has the accelerator (shortcut) control+'O'
+that when clicked calls the function print_hello(). print_hello() is of
+the form <TT
+CLASS="LITERAL"
+>void print_hello(void)</TT
+> since the callback_action
+field is zero. When displayed the 'O' in "Open" will be underlined and if the
+menu item is visible on the screen pressing 'O' will activate the item. Note
+that "File/_Open" could also have been used as the path instead of
+"/_File/_Open".</P
+><P
+>Creating an entry with a more complex callback:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GtkItemFactoryEntry entry = {"/_View/Display _FPS", NULL, print_state,
+				7,"&#60;CheckItem&#62;"};</PRE
+></TD
+></TR
+></TABLE
+><P
+>This defines a new menu item displayed as "Display FPS" which is under
+the menu item "View". When clicked the function print_state() will be called.
+Since <TT
+CLASS="LITERAL"
+>callback_action</TT
+> is not zero print_state() is of the
+form:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void print_state( gpointer    callback_data,
+                  guint       callback_action,
+                  GtkWidget  *widget )</PRE
+></TD
+></TR
+></TABLE
+><P
+>with <TT
+CLASS="LITERAL"
+>callback_action</TT
+> equal to 7.</P
+><P
+>Creating a radio button set:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GtkItemFactoryEntry entry1 = {"/_View/_Low Resolution", NULL, change_resolution,
+				1, "&#60;RadioButton&#62;"};
+GtkItemFactoryEntry entry2 = {"/_View/_High Resolution", NULL, change_resolution,
+				2, "/View/Low Resolution"};</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>entry1</TT
+> defines a lone radio button that when toggled
+calls the function change_resolution() with the parameter
+<TT
+CLASS="LITERAL"
+>callback_action</TT
+> equal to 1. change_resolution() is of
+the form:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void change_resolution(gpointer    callback_data,
+                       guint       callback_action,
+                       GtkWidget  *widget)</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>entry2</TT
+> defines a radio button that belongs to the
+radio group that entry1 belongs to. It calls the same function when toggled
+but with the parameter <TT
+CLASS="LITERAL"
+>callback_action</TT
+> equal to 2. Note that
+the item_type of <TT
+CLASS="LITERAL"
+>entry2</TT
+> is the path of entry1
+<I
+CLASS="EMPHASIS"
+>without</I
+> the accelerators ('_'). If another radio button was
+required in the same group then it would be defined in the same way as
+<TT
+CLASS="LITERAL"
+>entry2</TT
+> was with its <TT
+CLASS="LITERAL"
+>item_type</TT
+> again
+equal to "/View/Low Resolution".</P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="SEC-ITEMFACTORYENTRYARRAYS"
+>ItemFactoryEntry Arrays</A
+></H3
+><P
+>An ItemFactoryEntry on it's own however isn't useful. An array of
+entries is what's required to define a menu. Below is an example of how
+you'd declare this array.</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>static GtkItemFactoryEntry entries[] = {
+  { "/_File",         NULL,      NULL,         0, "&#60;Branch&#62;" },
+  { "/File/tear1",    NULL,      NULL,         0, "&#60;Tearoff&#62;" },
+  { "/File/_New",     "&#60;CTRL&#62;N", new_file,     1, "&#60;Item&#62;" },
+  { "/File/_Open...", "&#60;CTRL&#62;O", open_file,    1, "&#60;Item&#62;" },
+  { "/File/sep1",     NULL,      NULL,         0, "&#60;Separator&#62;" },
+  { "/File/_Quit",    "&#60;CTRL&#62;Q", quit_program, 0, "&#60;StockItem&#62;", GTK_STOCK_QUIT } };</PRE
+></TD
+></TR
+></TABLE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="SEC-ITEMFACTORYCREATION"
+>Creating an ItemFactory</A
+></H2
+><P
+>An array of GtkItemFactoryEntry items defines a menu. Once this
+array is defined then the item factory can be created. The function that
+does this is:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GtkItemFactory* gtk_item_factory_new( GtkType        container_type,
+                                      const gchar   *path,
+                                      GtkAccelGroup *accel_group );</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>container_type</TT
+> can be one of:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GTK_TYPE_MENU
+GTK_TYPE_MENU_BAR
+GTK_TYPE_OPTION_MENU</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>container_type</TT
+> defines what type of menu
+you want, so when you extract it later it is either a menu (for pop-ups
+for instance), a menu bar, or an option menu (like a combo box but with
+a menu of pull downs).</P
+><P
+><TT
+CLASS="LITERAL"
+>path</TT
+> defines the path of the root of the menu.
+Basically it is a unique name for the root of the menu, it must be
+surrounded by "&#60;&#62;". This is important for the naming of the
+accelerators and should be unique. It should be unique both for each
+menu and between each program. For example in a program named 'foo', the
+main menu should be called "&#60;FooMain&#62;", and a pop-up menu
+"&#60;FooImagePopUp&#62;", or similar. What's important is that they're unique.</P
+><P
+><TT
+CLASS="LITERAL"
+>accel_group</TT
+> is a pointer to a gtk_accel_group. The
+item factory sets up the accelerator table while generating menus. New
+accelerator groups are generated by gtk_accel_group_new().</P
+><P
+>But this is just the first step. To convert the array of GtkItemFactoryEntry
+information into widgets the following function is used:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void gtk_item_factory_create_items( GtkItemFactory      *ifactory,
+                                    guint                n_entries,
+                                    GtkItemFactoryEntry *entries,
+                                    gpointer             callback_data );</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>*ifactory</TT
+> a pointer to the above created item factory.</P
+><P
+><TT
+CLASS="LITERAL"
+>n_entries</TT
+> is the number of entries in the
+GtkItemFactoryEntry array.</P
+><P
+><TT
+CLASS="LITERAL"
+>*entries</TT
+> is a pointer to the GtkItemFactoryEntry array.</P
+><P
+><TT
+CLASS="LITERAL"
+>callback_data</TT
+> is what gets passed to all the callback functions
+for all the entries with callback_action != 0.</P
+><P
+>The accelerator group has now been formed, so you'll probably want
+to attach it to the window the menu is in:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void gtk_window_add_accel_group( GtkWindow     *window,
+                                 GtkAccelGroup *accel_group);</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="SEC-USINGMENUANDITEMS"
+>Making use of the menu and its menu items</A
+></H2
+><P
+>The last thing to do is make use of the menu. The following function
+extracts the relevant widgets from the ItemFactory:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GtkWidget* gtk_item_factory_get_widget( GtkItemFactory *ifactory,
+                                        const gchar    *path );</PRE
+></TD
+></TR
+></TABLE
+><P
+>For instance if an ItemFactory has two entries "/File" and "/File/New",
+using a path of "/File" would retrieve a <I
+CLASS="EMPHASIS"
+>menu</I
+> widget from the
+ItemFactory. Using a path of "/File/New" would retrieve a
+<I
+CLASS="EMPHASIS"
+>menu item</I
+> widget. This makes it possible to set the initial state
+of menu items. For example to set the default radio
+item to the one with the path "/Shape/Oval" then the following code would
+be used:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>gtk_check_menu_item_set_active(
+	GTK_CHECK_MENU_ITEM (gtk_item_factory_get_item (item_factory, "/Shape/Oval")),
+	TRUE);</PRE
+></TD
+></TR
+></TABLE
+><P
+>Finally to retrieve the root of the menu use gtk_item_factory_get_item()
+with a path of "&#60;main&#62;" (or whatever path was used in
+gtk_item_factory_new()). In the case of the ItemFactory being created with
+type GTK_TYPE_MENU_BAR this returns a menu bar widget. With type GTK_TYPE_MENU
+a menu widget is returned. With type GTK_TYPE_OPTION_MENU an option menu
+widget is returned.</P
+><P
+><I
+CLASS="EMPHASIS"
+>Remember</I
+> for an entry defined with path "/_File"
+the path here is actually "/File".</P
+><P
+>Now you have a menubar or menu which can be manipulated in the same
+way as shown in the
+<A
+HREF="c1499.html#SEC-MANUALMENUCREATION"
+>Manual Menu Creation</A
+>
+section.</P
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x1577.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x1697.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Manual Menu Example</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c1499.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Item Factory Example</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

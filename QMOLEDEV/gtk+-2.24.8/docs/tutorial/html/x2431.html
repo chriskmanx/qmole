@@ -1,0 +1,465 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Event Handling</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Scribble, A Simple Example Drawing Program"
+HREF="c2422.html"><LINK
+REL="PREVIOUS"
+TITLE="Scribble, A Simple Example Drawing Program"
+HREF="c2422.html"><LINK
+REL="NEXT"
+TITLE="The DrawingArea Widget, And Drawing"
+HREF="x2470.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c2422.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Scribble, A Simple Example Drawing Program</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x2470.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-EVENTHANDLING"
+>Event Handling</A
+></H1
+><P
+>The GTK signals we have already discussed are for high-level actions,
+such as a menu item being selected. However, sometimes it is useful to
+learn about lower-level occurrences, such as the mouse being moved, or
+a key being pressed. There are also GTK signals corresponding to these
+low-level <I
+CLASS="EMPHASIS"
+>events</I
+>. The handlers for these signals have an
+extra parameter which is a pointer to a structure containing
+information about the event. For instance, motion event handlers are
+passed a pointer to a GdkEventMotion structure which looks (in part)
+like:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>struct _GdkEventMotion
+{
+  GdkEventType type;
+  GdkWindow *window;
+  guint32 time;
+  gdouble x;
+  gdouble y;
+  ...
+  guint state;
+  ...
+};</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>type</TT
+> will be set to the event type, in this case
+<TT
+CLASS="LITERAL"
+>GDK_MOTION_NOTIFY</TT
+>, window is the window in which the event
+occurred. <TT
+CLASS="LITERAL"
+>x</TT
+> and <TT
+CLASS="LITERAL"
+>y</TT
+> give the coordinates of the event.
+<TT
+CLASS="LITERAL"
+>state</TT
+> specifies the modifier state when the event
+occurred (that is, it specifies which modifier keys and mouse buttons
+were pressed). It is the bitwise OR of some of the following:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GDK_SHIFT_MASK  
+GDK_LOCK_MASK   
+GDK_CONTROL_MASK
+GDK_MOD1_MASK   
+GDK_MOD2_MASK   
+GDK_MOD3_MASK   
+GDK_MOD4_MASK   
+GDK_MOD5_MASK   
+GDK_BUTTON1_MASK
+GDK_BUTTON2_MASK
+GDK_BUTTON3_MASK
+GDK_BUTTON4_MASK
+GDK_BUTTON5_MASK</PRE
+></TD
+></TR
+></TABLE
+><P
+>As for other signals, to determine what happens when an event occurs
+we call <TT
+CLASS="LITERAL"
+>gtk_signal_connect()</TT
+>. But we also need let GTK
+know which events we want to be notified about. To do this, we call
+the function:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void gtk_widget_set_events (GtkWidget *widget,
+                            gint      events);</PRE
+></TD
+></TR
+></TABLE
+><P
+>The second field specifies the events we are interested in. It
+is the bitwise OR of constants that specify different types
+of events. For future reference the event types are:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GDK_EXPOSURE_MASK
+GDK_POINTER_MOTION_MASK
+GDK_POINTER_MOTION_HINT_MASK
+GDK_BUTTON_MOTION_MASK     
+GDK_BUTTON1_MOTION_MASK    
+GDK_BUTTON2_MOTION_MASK    
+GDK_BUTTON3_MOTION_MASK    
+GDK_BUTTON_PRESS_MASK      
+GDK_BUTTON_RELEASE_MASK    
+GDK_KEY_PRESS_MASK         
+GDK_KEY_RELEASE_MASK       
+GDK_ENTER_NOTIFY_MASK      
+GDK_LEAVE_NOTIFY_MASK      
+GDK_FOCUS_CHANGE_MASK      
+GDK_STRUCTURE_MASK         
+GDK_PROPERTY_CHANGE_MASK   
+GDK_PROXIMITY_IN_MASK      
+GDK_PROXIMITY_OUT_MASK     </PRE
+></TD
+></TR
+></TABLE
+><P
+>There are a few subtle points that have to be observed when calling
+<TT
+CLASS="LITERAL"
+>gtk_widget_set_events()</TT
+>. First, it must be called before the X window
+for a GTK widget is created. In practical terms, this means you
+should call it immediately after creating the widget. Second, the
+widget must have an associated X window. For efficiency, many widget
+types do not have their own window, but draw in their parent's window.
+These widgets are:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GtkAlignment
+GtkArrow
+GtkBin
+GtkBox
+GtkImage
+GtkItem
+GtkLabel
+GtkPixmap
+GtkScrolledWindow
+GtkSeparator
+GtkTable
+GtkAspectFrame
+GtkFrame
+GtkVBox
+GtkHBox
+GtkVSeparator
+GtkHSeparator</PRE
+></TD
+></TR
+></TABLE
+><P
+>To capture events for these widgets, you need to use an EventBox
+widget. See the section on the <A
+HREF="c1226.html#SEC-EVENTBOX"
+>EventBox</A
+> widget for details.</P
+><P
+>For our drawing program, we want to know when the mouse button is
+pressed and when the mouse is moved, so we specify
+<TT
+CLASS="LITERAL"
+>GDK_POINTER_MOTION_MASK</TT
+> and <TT
+CLASS="LITERAL"
+>GDK_BUTTON_PRESS_MASK</TT
+>. We also
+want to know when we need to redraw our window, so we specify
+<TT
+CLASS="LITERAL"
+>GDK_EXPOSURE_MASK</TT
+>. Although we want to be notified via a
+Configure event when our window size changes, we don't have to specify
+the corresponding <TT
+CLASS="LITERAL"
+>GDK_STRUCTURE_MASK</TT
+> flag, because it is
+automatically specified for all windows.</P
+><P
+>It turns out, however, that there is a problem with just specifying
+<TT
+CLASS="LITERAL"
+>GDK_POINTER_MOTION_MASK</TT
+>. This will cause the server to add a new
+motion event to the event queue every time the user moves the mouse.
+Imagine that it takes us 0.1 seconds to handle a motion event, but the
+X server queues a new motion event every 0.05 seconds. We will soon
+get way behind the users drawing. If the user draws for 5 seconds,
+it will take us another 5 seconds to catch up after they release 
+the mouse button! What we would like is to only get one motion
+event for each event we process. The way to do this is to 
+specify <TT
+CLASS="LITERAL"
+>GDK_POINTER_MOTION_HINT_MASK</TT
+>. </P
+><P
+>When we specify <TT
+CLASS="LITERAL"
+>GDK_POINTER_MOTION_HINT_MASK</TT
+>, the server sends
+us a motion event the first time the pointer moves after entering
+our window, or after a button press or release event. Subsequent 
+motion events will be suppressed until we explicitly ask for
+the position of the pointer using the function:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GdkWindow*    gdk_window_get_pointer     (GdkWindow       *window,
+					  gint            *x,
+					  gint            *y,
+					  GdkModifierType *mask);</PRE
+></TD
+></TR
+></TABLE
+><P
+>(There is another function, <TT
+CLASS="LITERAL"
+>gtk_widget_get_pointer()</TT
+> which
+has a simpler interface, but turns out not to be very useful, since
+it only retrieves the position of the mouse, not whether the buttons
+are pressed.)</P
+><P
+>The code to set the events for our window then looks like:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>  gtk_signal_connect (GTK_OBJECT (drawing_area), "expose_event",
+		      (GtkSignalFunc) expose_event, NULL);
+  gtk_signal_connect (GTK_OBJECT(drawing_area),"configure_event",
+		      (GtkSignalFunc) configure_event, NULL);
+  gtk_signal_connect (GTK_OBJECT (drawing_area), "motion_notify_event",
+		      (GtkSignalFunc) motion_notify_event, NULL);
+  gtk_signal_connect (GTK_OBJECT (drawing_area), "button_press_event",
+		      (GtkSignalFunc) button_press_event, NULL);
+
+  gtk_widget_set_events (drawing_area, GDK_EXPOSURE_MASK
+			 | GDK_LEAVE_NOTIFY_MASK
+			 | GDK_BUTTON_PRESS_MASK
+			 | GDK_POINTER_MOTION_MASK
+			 | GDK_POINTER_MOTION_HINT_MASK);</PRE
+></TD
+></TR
+></TABLE
+><P
+>We'll save the "expose_event" and "configure_event" handlers for
+later. The "motion_notify_event" and "button_press_event" handlers
+are pretty simple:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>static gboolean
+button_press_event( GtkWidget *widget, GdkEventButton *event )
+{
+  if (event-&#62;button == 1 &#38;&#38; pixmap != NULL)
+      draw_brush (widget, event-&#62;x, event-&#62;y);
+
+  return TRUE;
+}
+
+static gboolean
+motion_notify_event( GtkWidget *widget, GdkEventMotion *event )
+{
+  int x, y;
+  GdkModifierType state;
+
+  if (event-&#62;is_hint)
+    gdk_window_get_pointer (event-&#62;window, &#38;x, &#38;y, &#38;state);
+  else
+    {
+      x = event-&#62;x;
+      y = event-&#62;y;
+      state = event-&#62;state;
+    }
+    
+  if (state &#38; GDK_BUTTON1_MASK &#38;&#38; pixmap != NULL)
+    draw_brush (widget, x, y);
+  
+  return TRUE;
+}</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c2422.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x2470.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Scribble, A Simple Example Drawing Program</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c2422.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>The DrawingArea Widget, And Drawing</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

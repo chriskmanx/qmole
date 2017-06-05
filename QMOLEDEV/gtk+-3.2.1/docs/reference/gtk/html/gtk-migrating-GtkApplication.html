@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Migrating from libunique to GApplication or GtkApplication</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.76.1">
+<link rel="home" href="index.html" title="GTK+ 3 Reference Manual">
+<link rel="up" href="migrating.html" title="Part V. Migrating from Previous Versions of GTK+">
+<link rel="prev" href="gtk-migrating-GtkStyleContext-bonus-points.html" title="Bonus points">
+<link rel="next" href="ch28s02.html" title="Commands and Messages">
+<meta name="generator" content="GTK-Doc V1.18.1 (XML mode)">
+<link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<table class="navigation" id="top" width="100%" summary="Navigation header" cellpadding="2" cellspacing="2"><tr valign="middle">
+<td><a accesskey="p" href="gtk-migrating-GtkStyleContext-bonus-points.html"><img src="left.png" width="24" height="24" border="0" alt="Prev"></a></td>
+<td><a accesskey="u" href="migrating.html"><img src="up.png" width="24" height="24" border="0" alt="Up"></a></td>
+<td><a accesskey="h" href="index.html"><img src="home.png" width="24" height="24" border="0" alt="Home"></a></td>
+<th width="100%" align="center">GTK+ 3 Reference Manual</th>
+<td><a accesskey="n" href="ch28s02.html"><img src="right.png" width="24" height="24" border="0" alt="Next"></a></td>
+</tr></table>
+<div class="chapter">
+<div class="titlepage"><div><div><h2 class="title">
+<a name="gtk-migrating-GtkApplication"></a>Migrating from libunique to GApplication or GtkApplication</h2></div></div></div>
+<div class="toc"><dl>
+<dt><span class="section"><a href="gtk-migrating-GtkApplication.html#id1357247">Uniqueness</a></span></dt>
+<dt><span class="section"><a href="ch28s02.html">Commands and Messages</a></span></dt>
+</dl></div>
+<p>
+    libunique offers 'unique application' support as well as ways to
+    communicate with a running application instance. This is implemented
+    in various ways, either using D-Bus, or socket-based communication.
+  </p>
+<p>
+    Starting with GLib 2.26, D-Bus support has been integrated into GIO
+    in the form of GDBus, and <a href="http://library.gnome.org/devel/gio/unstable/GApplication.html"><span class="type">GApplication</span></a> has been added to provide
+    the same level of application support as libunique.
+  </p>
+<div class="example">
+<a name="id1400017"></a><p class="title"><b>Example 133. A unique application</b></p>
+<div class="example-contents">
+<p>Here is a simple application using libunique:
+  </p>
+<pre class="programlisting">
+int
+main (int argc, char *argv[])
+{
+  UniqueApp *app;
+  GtkWidget *window;
+
+  gtk_init (&amp;argc, &amp;argv);
+
+  app = unique_app_new ("org.gtk.TestApplication", NULL);
+
+  if (unique_app_is_running (app))
+    {
+      UniqueResponse response;
+
+      response = unique_app_send_message (app, UNIQUE_ACTIVATE, NULL);
+      g_object_unref (app);
+
+      return response == UNIQUE_RESPONSE_OK ? 0 : 1;
+    }
+
+  window = create_my_window ();
+
+  unique_app_watch_window (app, GTK_WINDOW (window));
+
+  gtk_widget_show (window);
+
+  gtk_main ();
+
+  g_object_unref (app);
+
+  return 0;
+}
+</pre>
+<p>
+The same application using GtkApplication:
+</p>
+<pre class="programlisting">
+static void
+activate (GtkApplication *app)
+{
+  GList *list;
+  GtkWidget *window;
+
+  list = gtk_application_get_windows (app);
+
+  if (list)
+    {
+      gtk_window_present (GTK_WINDOW (list-&gt;data));
+    }
+  else
+    {
+      window = create_my_window ();
+      gtk_window_set_application (GTK_WINDOW (window), app);
+      gtk_widget_show (window);
+    }
+}
+
+int
+main (int argc, char *argv[])
+{
+  GtkApplication *app;
+  gint status;
+
+  app = gtk_application_new ("org.gtk.TestApplication", 0);
+  g_signal_connect (app, "activate", G_CALLBACK (activate), NULL);
+
+  status = g_application_run (app);
+
+  g_object_unref (app);
+
+  return status;
+}
+</pre>
+<p>
+</p>
+</div>
+</div>
+<br class="example-break"><div class="section">
+<div class="titlepage"><div><div><h2 class="title" style="clear: both">
+<a name="id1357247"></a>Uniqueness</h2></div></div></div>
+<p>
+      Instead of creating a <span class="type">UniqueApp</span> with <code class="function">unique_app_new()</code>, create
+      a <a href="http://library.gnome.org/devel/gio/unstable/GApplication.html"><span class="type">GApplication</span></a> with <a href="http://library.gnome.org/devel/gio/unstable/GApplication.html#g-application-new"><code class="function">g_application_new()</code></a> or a <a class="link" href="GtkApplication.html" title="GtkApplication"><span class="type">GtkApplication</span></a>
+      with <a class="link" href="GtkApplication.html#gtk-application-new" title="gtk_application_new ()"><code class="function">gtk_application_new()</code></a>. The <em class="parameter"><code>name</code></em> that was used with
+      <code class="function">unique_app_new()</code> is very likely usable as the <em class="parameter"><code>application_id</code></em> for
+      <a href="http://library.gnome.org/devel/gio/unstable/GApplication.html#g-application-new"><code class="function">g_application_new()</code></a> without any changes, and GtkApplication passes
+      the <code class="envar">DESKTOP_STARTUP_ID</code> environment variable
+      automatically.
+    </p>
+<p>
+      While libunique expects you to check for an already running instance
+      yourself and activate it manually, GApplication handles all this on
+      its own in <a href="http://library.gnome.org/devel/gio/unstable/GApplication.html#g-application-run"><code class="function">g_application_run()</code></a>. If you still need to find out if there
+      is a running instance of your application, use
+      <a href="http://library.gnome.org/devel/gio/unstable/GApplication.html#g-application-get-is-remote"><code class="function">g_application_get_is_remote()</code></a> instead of <code class="function">unique_app_is_running()</code>.
+    </p>
+</div>
+</div>
+<div class="footer">
+<hr>
+          Generated by GTK-Doc V1.18.1</div>
+</body>
+</html>

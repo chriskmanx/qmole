@@ -1,0 +1,221 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>A checklist for widgets</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.76.1">
+<link rel="home" href="index.html" title="GTK+ 3 Reference Manual">
+<link rel="up" href="gtk-migrating-GtkStyleContext.html" title="Theming changes">
+<link rel="prev" href="gtk-migrating-GtkStyleContext-css.html" title="Using the CSS file format">
+<link rel="next" href="gtk-migrating-GtkStyleContext-parsing.html" title="Parsing of custom resources">
+<meta name="generator" content="GTK-Doc V1.18.1 (XML mode)">
+<link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<table class="navigation" id="top" width="100%" summary="Navigation header" cellpadding="2" cellspacing="2"><tr valign="middle">
+<td><a accesskey="p" href="gtk-migrating-GtkStyleContext-css.html"><img src="left.png" width="24" height="24" border="0" alt="Prev"></a></td>
+<td><a accesskey="u" href="gtk-migrating-GtkStyleContext.html"><img src="up.png" width="24" height="24" border="0" alt="Up"></a></td>
+<td><a accesskey="h" href="index.html"><img src="home.png" width="24" height="24" border="0" alt="Home"></a></td>
+<th width="100%" align="center">GTK+ 3 Reference Manual</th>
+<td><a accesskey="n" href="gtk-migrating-GtkStyleContext-parsing.html"><img src="right.png" width="24" height="24" border="0" alt="Next"></a></td>
+</tr></table>
+<div class="section">
+<div class="titlepage"><div><div><h2 class="title" style="clear: both">
+<a name="gtk-migrating-GtkStyleContext-checklist"></a>A checklist for widgets</h2></div></div></div>
+<p>
+      When porting your widgets to use <a class="link" href="GtkStyleContext.html" title="GtkStyleContext"><span class="type">GtkStyleContext</span></a>, this checklist
+      might be useful.
+    </p>
+<div class="orderedlist"><ol class="orderedlist" type="1">
+<li class="listitem">
+        Replace <a class="link" href="GtkWidget.html#GtkWidget-style-set" title='The "style-set" signal'><span class="type">"style-set"</span></a> handlers with
+        <a class="link" href="GtkWidget.html#GtkWidget-style-updated" title='The "style-updated" signal'><span class="type">"style-updated"</span></a> handlers.
+      </li>
+<li class="listitem">
+<p>
+          Try to identify the role of what you're rendering with any number
+          of classes. This will replace the detail string. There is a predefined
+          set of CSS classes which you can reuse where appropriate. Doing so
+          will give you theming 'for free', whereas custom classes will require
+          extra work in the theme. Note that complex widgets are likely to
+          need different styles when rendering different parts, and style
+          classes are one way to achieve this. This could result in code like
+          the following (simplified) examples:
+        </p>
+<div class="example">
+<a name="id1525359"></a><p class="title"><b>Example 127. Setting a permanent CSS class</b></p>
+<div class="example-contents">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">gtk_button_init</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkButton</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">button</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkStyleContext</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">context</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="symbol">...</span>
+
+<span class="normal">  context </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-style-context">gtk_widget_get_style_context</a></span><span class="normal"> </span><span class="symbol">(</span><span class="function">GTK_WIDGET</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">button</span><span class="symbol">));</span>
+
+<span class="normal">  </span><span class="comment">/* Set the "button" class */</span>
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-style-context-add-class">gtk_style_context_add_class</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">,</span><span class="normal"> <a href="GtkStyleContext.html#GTK-STYLE-CLASS-BUTTON:CAPS">GTK_STYLE_CLASS_BUTTON</a></span><span class="symbol">);</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<br class="example-break"><p>
+          Or
+        </p>
+<div class="example">
+<a name="id1525379"></a><p class="title"><b>Example 128. Using dynamic CSS classes for different elements</b></p>
+<div class="example-contents">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Basic-Types.html#gboolean">gboolean</a></span>
+<span class="function">gtk_spin_button_draw</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkSpinButton</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">spin</span><span class="symbol">,</span>
+<span class="normal">                      </span><span class="usertype">cairo_t</span><span class="normal">       </span><span class="symbol">*</span><span class="normal">cr</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkStyleContext</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">context</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="symbol">...</span>
+
+<span class="normal">  context </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-style-context">gtk_widget_get_style_context</a></span><span class="normal"> </span><span class="symbol">(</span><span class="function">GTK_WIDGET</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">spin</span><span class="symbol">));</span>
+
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-style-context-save">gtk_style_context_save</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">);</span>
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-style-context-add-class">gtk_style_context_add_class</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">,</span><span class="normal"> <a href="GtkStyleContext.html#GTK-STYLE-CLASS-ENTRY:CAPS">GTK_STYLE_CLASS_ENTRY</a></span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="comment">/* Call to entry draw impl with "entry" class */</span>
+<span class="normal">  parent_class</span><span class="symbol">-&gt;</span><span class="function">draw</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">spin</span><span class="symbol">,</span><span class="normal"> cr</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-style-context-restore">gtk_style_context_restore</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">);</span>
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-style-context-save">gtk_style_context_save</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="comment">/* Render up/down buttons with the "button" class */</span>
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-style-context-add-class">gtk_style_context_add_class</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">,</span><span class="normal"> <a href="GtkStyleContext.html#GTK-STYLE-CLASS-BUTTON:CAPS">GTK_STYLE_CLASS_BUTTON</a></span><span class="symbol">);</span>
+<span class="normal">  </span><span class="function">draw_up_button</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">spin</span><span class="symbol">,</span><span class="normal"> cr</span><span class="symbol">);</span>
+<span class="normal">  </span><span class="function">draw_down_button</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">spin</span><span class="symbol">,</span><span class="normal"> cr</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-style-context-restore">gtk_style_context_restore</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="symbol">...</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<br class="example-break"><p>
+          Note that <a class="link" href="GtkStyleContext.html" title="GtkStyleContext"><span class="type">GtkStyleContext</span></a> only provides fg/bg colors, so text/base
+          is done through distinctive theming of the different classes. For
+          example, an entry would usually be black on white while a button
+          would usually be black on light grey.
+        </p>
+</li>
+<li class="listitem">
+<p>
+          Replace all <code class="literal">gtk_paint_*()</code> calls with corresponding
+          <code class="literal">gtk_render_*()</code> calls.
+        </p>
+<p>
+          The most distinctive changes are the use of <a class="link" href="gtk3-Standard-Enumerations.html#GtkStateFlags" title="enum GtkStateFlags"><span class="type">GtkStateFlags</span></a> to
+          represent the widget state and the lack of <a class="link" href="gtk3-Standard-Enumerations.html#GtkShadowType" title="enum GtkShadowType"><span class="type">GtkShadowType</span></a>. Note
+          that widget state is now passed implicitly via the context, so
+          to render in a certain state, you have to temporarily set the
+          state on the context, as in the following example:
+        </p>
+<div class="example">
+<a name="id1353295"></a><p class="title"><b>Example 129. Rendering with a specific state</b></p>
+<div class="example-contents">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="function"><a href="GtkStyleContext.html#gtk-style-context-save">gtk_style_context_save</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">);</span>
+<span class="function"><a href="GtkStyleContext.html#gtk-style-context-set-state">gtk_style_context_set_state</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">,</span><span class="normal"> <a href="gtk3-Standard-Enumerations.html#GTK-STATE-FLAG-ACTIVE:CAPS">GTK_STATE_FLAG_ACTIVE</a></span><span class="symbol">);</span>
+<span class="function"><a href="GtkStyleContext.html#gtk-render-check">gtk_render_check</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">,</span><span class="normal"> cr</span><span class="symbol">,</span><span class="normal"> x</span><span class="symbol">,</span><span class="normal"> y</span><span class="symbol">,</span><span class="normal"> width</span><span class="symbol">,</span><span class="normal"> height</span><span class="symbol">);</span>
+<span class="function"><a href="GtkStyleContext.html#gtk-style-context-restore">gtk_style_context_restore</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<br class="example-break"><p>
+          For <a class="link" href="GtkStyleContext.html#gtk-render-check" title="gtk_render_check ()"><code class="function">gtk_render_check()</code></a> and <a class="link" href="GtkStyleContext.html#gtk-render-option" title="gtk_render_option ()"><code class="function">gtk_render_option()</code></a>, the <em class="parameter"><code>shadow_type</code></em>
+          parameter is replaced by the <a class="link" href="gtk3-Standard-Enumerations.html#GTK-STATE-FLAG-ACTIVE:CAPS"><span class="type">GTK_STATE_FLAG_ACTIVE</span></a> and
+          <a class="link" href="gtk3-Standard-Enumerations.html#GTK-STATE-FLAG-INCONSISTENT:CAPS"><span class="type">GTK_STATE_FLAG_INCONSISTENT</span></a> state flags. For things such as
+          pressed/unpressed button states, <a class="link" href="gtk3-Standard-Enumerations.html#GTK-STATE-FLAG-ACTIVE:CAPS"><span class="type">GTK_STATE_FLAG_ACTIVE</span></a> is used,
+          and the CSS may style normal/active states differently to render
+          outset/inset borders, respectively.
+        </p>
+</li>
+<li class="listitem">
+        The various <code class="literal">gtk_widget_modify_*()</code> functions to
+        override colors or fonts for individual widgets have been replaced
+        by similar <code class="literal">gtk_widget_override_*()</code> functions.
+      </li>
+<li class="listitem">
+        It is no longer necessary to call <a class="link" href="GtkWidget.html#gtk-widget-style-attach" title="gtk_widget_style_attach ()"><code class="function">gtk_widget_style_attach()</code></a>,
+        <a class="link" href="GtkStyle.html#gtk-style-attach" title="gtk_style_attach ()"><code class="function">gtk_style_attach()</code></a>, <a class="link" href="GtkStyle.html#gtk-style-detach" title="gtk_style_detach ()"><code class="function">gtk_style_detach()</code></a> or <a class="link" href="GtkWidget.html#gtk-widget-ensure-style" title="gtk_widget_ensure_style ()"><code class="function">gtk_widget_ensure_style()</code></a>.
+      </li>
+<li class="listitem">
+        Replace all uses of xthickness/ythickness. <a class="link" href="GtkStyleContext.html" title="GtkStyleContext"><span class="type">GtkStyleContext</span></a> uses the
+        CSS box model, and there are border-width/padding/margin properties to
+        replace the different applications of X and Y thickness. Note that all
+        of this is merely a guideline. Widgets may choose to follow it or not.
+      </li>
+</ol></div>
+</div>
+<div class="footer">
+<hr>
+          Generated by GTK-Doc V1.18.1</div>
+</body>
+</html>

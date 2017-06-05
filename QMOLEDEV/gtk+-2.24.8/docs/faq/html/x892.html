@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Memory does not seem to be released when I free the
+list nodes I've allocated</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ FAQ"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="About GLib"
+HREF="c866.html"><LINK
+REL="PREVIOUS"
+TITLE="How can I use the doubly linked lists?"
+HREF="x885.html"><LINK
+REL="NEXT"
+TITLE="Why use g_print, g_malloc, g_strdup and fellow glib
+functions?"
+HREF="x899.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ FAQ</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x885.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>About GLib</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x899.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN892"
+>Memory does not seem to be released when I free the
+list nodes I've allocated</A
+></H1
+><P
+>GLib tries to be "intelligent" on this special issue: it
+assumes that you are likely to reuse the objects, so caches
+the allocated memory. If you do not want to use this behavior,
+you'll probably want to set up a special allocator.</P
+><P
+>To quote Tim Janik:</P
+><P
+><SPAN
+CLASS="QUOTE"
+>"If you have a certain portion of code that uses *lots*
+of GLists or GNodes, and you know you'd better want to release
+all of them after a short while, you'd want to use a
+GAllocator. Pushing an allocator into g_list will make all
+subsequent glist operations private to that allocator's memory
+pool (and thus you have to take care to pop the allocator
+again, before making any external calls): "</SPAN
+></P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>GAllocator *allocator;
+GList *list = NULL;
+guint i;
+
+/* set a new allocation pool for GList nodes */
+allocator = g_allocator_new ("list heap", 1024);
+g_list_push_allocator (allocator);
+
+/* do some list operations */
+for (i = 0; i &#60; 4096; i++)
+  list = g_list_prepend (list, NULL);
+list = g_list_reverse (list);
+
+/* beware to pop allocator befor calling external functions */
+g_list_pop_allocator ();
+gtk_label_set_text (GTK_LABEL (some_label), "some text");
+
+/* and set our private glist pool again */
+g_list_push_allocator (allocator);
+
+/* do some list operations */
+g_list_free (list);
+list = NULL;
+for (i = 0; i &#60; 4096; i++)
+  list = g_list_prepend (list, NULL);
+  
+/* and back out (while freeing all of the list nodes in our pool) */
+g_list_pop_allocator ();
+g_allocator_free (allocator);</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x885.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x899.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>How can I use the doubly linked lists?</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c866.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Why use g_print, g_malloc, g_strdup and fellow glib
+functions?</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

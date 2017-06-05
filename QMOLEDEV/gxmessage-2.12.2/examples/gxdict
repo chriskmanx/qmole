@@ -1,0 +1,92 @@
+#! /bin/bash
+
+## 
+## Usage: %PROG% [OPTIONS] [WORD]
+## 
+##   Look up WORD using the dict program, and display it using gxmessage
+## 
+## Options:
+##   -c            Center the window
+##   -f COLOUR     Foreground colour
+##   -b COLOUR     Background colour
+##   -g GEOMETRY   Window size (e.g. 800x600)
+##   -s FONT       Message font or style (e.g. 'serif 14')
+## 
+# trm 2006-11-15
+
+# I, the Copyright holder of this work, hereby release it into the Public
+# Domain. This applies worldwide. In case this is not legally possible, I
+# grant anyone the right to use this work for any purpose, without any
+# conditions, unless such conditions are required by law.
+#
+# 2009 Timothy Richard Musson <trmusson@gmail.com>
+
+
+PROG=$(basename $0)
+TMPFILE=${TMPDIR:-/tmp}/$$.$PROG
+EX_USAGE=64
+
+MSG_TITLE=$PROG
+MSG_FONT=sans
+MSG_FG=
+MSG_BG=
+MSG_GEOM=
+
+
+trap 'rm -f "$TMPFILE"' EXIT
+
+
+invocationError ()
+{
+  echo "Try '$PROG -h'" >&2
+  exit $EX_USAGE
+}
+
+
+showUsage ()
+{
+  sed -n '/^##/s/^## //p' $0 | sed -e "s#%PROG%#${PROG}#g"
+  exit
+}
+
+
+while getopts 'b:cf:g:hs:' Option
+do
+  case $Option in
+  b) MSG_BG=$OPTARG ;;
+  c) CENTER=yes ;;
+  f) MSG_FG=$OPTARG ;;
+  g) MSG_GEOM=$OPTARG ;;
+  h) showUsage ;;
+  s) MSG_FONT=$OPTARG ;;
+  *) invocationError ;;
+  esac
+done
+shift $(($OPTIND - 1))
+
+word="$@"
+
+[ -z "$word" ] && cat <<-EOF > "$TMPFILE"
+	Type a word into the box below, then press ENTER.
+	To quit, leave the box empty or press ESC.
+	EOF
+
+while :
+do
+
+  [ -n "$word" ] && dict "$word" 2>&1 > "$TMPFILE"
+
+  word=$(gxmessage ${MSG_FONT:+-fn "$MSG_FONT"}   \
+                   ${MSG_FG:+-fg "$MSG_FG"}       \
+                   ${MSG_BG:+-bg "$MSG_BG"}       \
+                   ${MSG_GEOM:+-geom "$MSG_GEOM"} \
+                   ${CENTER:+-center}             \
+                   -title "$MSG_TITLE"            \
+                   -entrytext "$word"             \
+                   -buttons ""                    \
+                   -file "$TMPFILE")
+
+  [ $? -eq 1 -o -z "$word" ] && exit
+
+done
+

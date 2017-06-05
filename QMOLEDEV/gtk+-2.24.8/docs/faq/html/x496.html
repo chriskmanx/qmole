@@ -1,0 +1,371 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Why does this strange 'x io error' occur when I
+fork() in my GTK+ app? [GTK 2.x]</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ FAQ"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Development with GTK+: general questions"
+HREF="c466.html"><LINK
+REL="PREVIOUS"
+TITLE="What's an easy way to run a function in the thread with
+the main loop? [GTK 2.x]"
+HREF="x490.html"><LINK
+REL="NEXT"
+TITLE="Why don't the contents of a button move when the button
+is pressed? Here's a patch to make it work that way... [GTK 2.x]"
+HREF="x509.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ FAQ</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x490.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Development with GTK+: general questions</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x509.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN496"
+>Why does this strange 'x io error' occur when I
+<TT
+CLASS="LITERAL"
+>fork()</TT
+> in my GTK+ app? <I
+CLASS="EMPHASIS"
+>[GTK 2.x]</I
+></A
+></H1
+><P
+>This is not really a GTK+ problem, and the problem is
+not related to <TT
+CLASS="LITERAL"
+>fork()</TT
+> either. If the 'x io
+error' occurs then you probably use the <TT
+CLASS="LITERAL"
+>exit()</TT
+> function
+in order to exit from the child process.</P
+><P
+>When GDK opens an X display, it creates a socket file
+descriptor. When you use the <TT
+CLASS="LITERAL"
+>exit()</TT
+>
+function, you implicitly close all the open file descriptors,
+and the underlying X library really doesn't like this.</P
+><P
+>The right function to use here is
+<TT
+CLASS="LITERAL"
+>_exit()</TT
+>.</P
+><P
+>Erik Mouw contributed the following code example to
+illustrate handling fork() and exit().</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>/*-------------------------------------------------------------------------
+ * Filename:      gtk-fork.c
+ * Version:       0.99.2
+ * Copyright:     Copyright (C) 1999, Erik Mouw
+ * Author:        Erik Mouw &#60;J.A.K.Mouw@its.tudelft.nl&#62;
+ * Description:   GTK+ fork example
+ * Created at:    Thu Sep 23 21:37:55 1999
+ * Modified by:   Erik Mouw &#60;J.A.K.Mouw@its.tudelft.nl&#62;
+ * Modified at:   Thu Sep 23 22:39:39 1999
+ * Modified by:   Tony Gale &#60;gale@gtk.org&#62;
+ * Modified at:   Wed Jan 14 12:38:00 2004
+ *-----------------------------------------------------------------------*/
+/*
+ * Compile with:
+ *
+ * cc -o gtk-fork gtk-fork.c `pkg-config gtk+-2.0 --cflags --libs`
+ *
+ */
+
+#include &#60;stdio.h&#62;
+#include &#60;stdlib.h&#62;
+#include &#60;signal.h&#62;
+#include &#60;sys/types.h&#62;
+#include &#60;sys/wait.h&#62;
+#include &#60;unistd.h&#62;
+#include &#60;gtk/gtk.h&#62;
+
+void sigchld_handler(int num)
+{
+  sigset_t set, oldset;
+  pid_t pid;
+  int status, exitstatus;
+
+  /* block other incoming SIGCHLD signals */
+  sigemptyset(&#38;set);
+  sigaddset(&#38;set, SIGCHLD);
+  sigprocmask(SIG_BLOCK, &#38;set, &#38;oldset);
+
+  /* wait for child */
+  while((pid = waitpid((pid_t)-1, &#38;status, WNOHANG)) &#62; 0)
+    {
+      if(WIFEXITED(status))
+	{
+	  exitstatus = WEXITSTATUS(status);
+
+	  fprintf(stderr, 
+		  "Parent: child exited, pid = %d, exit status = %d\n", 
+		  (int)pid, exitstatus);
+	}
+      else if(WIFSIGNALED(status))
+	{
+	  exitstatus = WTERMSIG(status);
+
+	  fprintf(stderr,
+		  "Parent: child terminated by signal %d, pid = %d\n",
+		  exitstatus, (int)pid);
+	}
+      else if(WIFSTOPPED(status))
+	{
+	  exitstatus = WSTOPSIG(status);
+
+	  fprintf(stderr,
+		  "Parent: child stopped by signal %d, pid = %d\n",
+		  exitstatus, (int)pid);
+	}
+      else
+	{
+	  fprintf(stderr,
+		  "Parent: child exited magically, pid = %d\n",
+		  (int)pid);
+	}
+    }
+
+  /* re-install the signal handler (some systems need this) */
+  signal(SIGCHLD, sigchld_handler);
+  
+  /* and unblock it */
+  sigemptyset(&#38;set);
+  sigaddset(&#38;set, SIGCHLD);
+  sigprocmask(SIG_UNBLOCK, &#38;set, &#38;oldset);
+}
+
+gint delete_event(GtkWidget *widget, GdkEvent *event, gpointer data)
+{
+  return(FALSE);
+}
+
+void destroy(GtkWidget *widget, gpointer data)
+{
+  gtk_main_quit();
+}
+
+void fork_me(GtkWidget *widget, gpointer data)
+{
+  pid_t pid;
+
+  pid = fork();
+
+  if(pid == -1)
+    {
+      /* ouch, fork() failed */
+      perror("fork");
+      exit(-1);
+    }
+  else if(pid == 0)
+    {
+      /* child */
+      fprintf(stderr, "Child: pid = %d\n", (int)getpid());
+
+      execlp("ls", "ls", "-CF", "/", NULL);
+      
+      /* if exec() returns, there is something wrong */
+      perror("execlp");
+
+      /* exit child. note the use of _exit() instead of exit() */
+      _exit(-1);
+    }
+  else
+    {
+      /* parent */
+      fprintf(stderr, "Parent: forked a child with pid = %d\n", (int)pid);
+    }
+}
+
+int main(int argc, char *argv[])
+{
+  GtkWidget *window;
+  GtkWidget *button;
+
+  gtk_init(&#38;argc, &#38;argv);
+
+  /* the basic stuff: make a window and set callbacks for destroy and
+   * delete events 
+   */
+  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+  g_signal_connect(G_OBJECT (window), "delete_event",
+		     G_CALLBACK(delete_event), NULL);
+          
+  g_signal_connect(G_OBJECT (window), "destroy",
+		     G_CALLBACK(destroy), NULL);
+
+#if (GTK_MAJOR_VERSION == 1) &#38;&#38; (GTK_MINOR_VERSION == 0)
+  gtk_container_border_width(GTK_CONTAINER (window), 10);
+#else  
+  gtk_container_set_border_width(GTK_CONTAINER (window), 10);
+#endif
+
+  /* add a button to do something useful */
+  button = gtk_button_new_with_label("Fork me!");
+          
+  g_signal_connect(G_OBJECT (button), "clicked",
+		     G_CALLBACK(fork_me), NULL);
+
+  gtk_container_add(GTK_CONTAINER(window), button);
+          
+  /* show everything */
+  gtk_widget_show (button);
+  gtk_widget_show (window);
+
+
+  /* install a signal handler for SIGCHLD signals */
+  signal(SIGCHLD, sigchld_handler);
+
+  
+  /* main loop */
+  gtk_main ();
+
+  exit(0);         
+}</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x490.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x509.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>What's an easy way to run a function in the thread with
+the main loop? <I
+CLASS="EMPHASIS"
+>[GTK 2.x]</I
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c466.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Why don't the contents of a button move when the button
+is pressed? Here's a patch to make it work that way... <I
+CLASS="EMPHASIS"
+>[GTK 2.x]</I
+></TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

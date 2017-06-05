@@ -1,0 +1,394 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Supplying the selection</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="GTK+ 2.0 Tutorial"
+HREF="book1.html"><LINK
+REL="UP"
+TITLE="Managing Selections"
+HREF="c1834.html"><LINK
+REL="PREVIOUS"
+TITLE="Retrieving the selection"
+HREF="x1850.html"><LINK
+REL="NEXT"
+TITLE="Drag-and-drop (DND)"
+HREF="c1899.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>GTK+ 2.0 Tutorial</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x1850.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Managing Selections</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c1899.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="SEC-SUPPLYINGTHESELECTION"
+>Supplying the selection</A
+></H1
+><P
+>Supplying the selection is a bit more complicated. You must register 
+handlers that will be called when your selection is requested. For
+each selection/target pair you will handle, you make a call to:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void gtk_selection_add_target( GtkWidget           *widget, 
+                               GdkAtom              selection,
+                               GdkAtom              target,
+                               guint                info );</PRE
+></TD
+></TR
+></TABLE
+><P
+><TT
+CLASS="LITERAL"
+>widget</TT
+>, <TT
+CLASS="LITERAL"
+>selection</TT
+>, and <TT
+CLASS="LITERAL"
+>target</TT
+> identify the requests
+this handler will manage. When a request for a selection is received,
+the "selection_get" signal will be called. <TT
+CLASS="LITERAL"
+>info</TT
+> can be used as an
+enumerator to identify the specific target within the callback function.</P
+><P
+>The callback function has the signature:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void  "selection_get"( GtkWidget          *widget,
+                       GtkSelectionData   *selection_data,
+                       guint               info,
+                       guint               time );</PRE
+></TD
+></TR
+></TABLE
+><P
+>The GtkSelectionData is the same as above, but this time, we're
+responsible for filling in the fields <TT
+CLASS="LITERAL"
+>type</TT
+>, <TT
+CLASS="LITERAL"
+>format</TT
+>,
+<TT
+CLASS="LITERAL"
+>data</TT
+>, and <TT
+CLASS="LITERAL"
+>length</TT
+>. (The <TT
+CLASS="LITERAL"
+>format</TT
+> field is actually
+important here - the X server uses it to figure out whether the data
+needs to be byte-swapped or not. Usually it will be 8 - <I
+CLASS="EMPHASIS"
+>i.e.</I
+> a
+character - or 32 - <I
+CLASS="EMPHASIS"
+>i.e.</I
+> an integer.) This is done by calling the
+function:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>void gtk_selection_data_set( GtkSelectionData *selection_data,
+                             GdkAtom           type,
+                             gint              format,
+                             guchar           *data,
+                             gint              length );</PRE
+></TD
+></TR
+></TABLE
+><P
+>This function takes care of properly making a copy of the data so that
+you don't have to worry about keeping it around. (You should not fill
+in the fields of the GtkSelectionData structure by hand.)</P
+><P
+>When prompted by the user, you claim ownership of the selection by
+calling:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>gboolean gtk_selection_owner_set( GtkWidget *widget,
+                                  GdkAtom    selection,
+                                  guint32    time );</PRE
+></TD
+></TR
+></TABLE
+><P
+>If another application claims ownership of the selection, you will
+receive a "selection_clear_event".</P
+><P
+>As an example of supplying the selection, the following program adds
+selection functionality to a toggle button. When the toggle button is
+depressed, the program claims the primary selection. The only target
+supported (aside from certain targets like "TARGETS" supplied by GTK
+itself), is the "STRING" target. When this target is requested, a
+string representation of the time is returned.</P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>&#13;#include &#60;stdlib.h&#62;
+#include &#60;gtk/gtk.h&#62;
+#include &#60;time.h&#62;
+#include &#60;string.h&#62;
+
+GtkWidget *selection_button;
+GtkWidget *selection_widget;
+
+/* Callback when the user toggles the selection */
+static void selection_toggled( GtkWidget *widget,
+                               gint      *have_selection )
+{
+  if (GTK_TOGGLE_BUTTON (widget)-&#62;active)
+    {
+      *have_selection = gtk_selection_owner_set (selection_widget,
+						 GDK_SELECTION_PRIMARY,
+						 GDK_CURRENT_TIME);
+      /* if claiming the selection failed, we return the button to
+	 the out state */
+      if (!*have_selection)
+	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (widget), FALSE);
+    }
+  else
+    {
+      if (*have_selection)
+	{
+	  /* Before clearing the selection by setting the owner to NULL,
+	     we check if we are the actual owner */
+	  if (gdk_selection_owner_get (GDK_SELECTION_PRIMARY) == widget-&#62;window)
+	    gtk_selection_owner_set (NULL, GDK_SELECTION_PRIMARY,
+				     GDK_CURRENT_TIME);
+	  *have_selection = FALSE;
+	}
+    }
+}
+
+/* Called when another application claims the selection */
+static gboolean selection_clear( GtkWidget         *widget,
+                                 GdkEventSelection *event,
+                                 gint              *have_selection )
+{
+  *have_selection = FALSE;
+  gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (selection_button), FALSE);
+
+  return TRUE;
+}
+
+/* Supplies the current time as the selection. */
+static void selection_handle( GtkWidget        *widget, 
+                              GtkSelectionData *selection_data,
+                              guint             info,
+                              guint             time_stamp,
+                              gpointer          data )
+{
+  gchar *timestr;
+  time_t current_time;
+
+  current_time = time (NULL);
+  timestr = asctime (localtime (&#38;current_time)); 
+  /* When we return a single string, it should not be null terminated.
+     That will be done for us */
+
+  gtk_selection_data_set (selection_data, GDK_SELECTION_TYPE_STRING,
+			  8, timestr, strlen (timestr));
+}
+
+int main( int   argc,
+          char *argv[] )
+{
+  GtkWidget *window;
+
+  static int have_selection = FALSE;
+  
+  gtk_init (&#38;argc, &#38;argv);
+
+  /* Create the toplevel window */
+
+  window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_title (GTK_WINDOW (window), "Event Box");
+  gtk_container_set_border_width (GTK_CONTAINER (window), 10);
+
+  g_signal_connect (window, "destroy",
+		    G_CALLBACK (exit), NULL);
+
+  /* Create a toggle button to act as the selection */
+
+  selection_widget = gtk_invisible_new ();
+  selection_button = gtk_toggle_button_new_with_label ("Claim Selection");
+  gtk_container_add (GTK_CONTAINER (window), selection_button);
+  gtk_widget_show (selection_button);
+
+  g_signal_connect (selection_button, "toggled",
+		    G_CALLBACK (selection_toggled), (gpointer) &#38;have_selection);
+  g_signal_connect (selection_widget, "selection_clear_event",
+		    G_CALLBACK (selection_clear), (gpointer) &#38;have_selection);
+
+  gtk_selection_add_target (selection_widget,
+			    GDK_SELECTION_PRIMARY,
+			    GDK_SELECTION_TYPE_STRING,
+		            1);
+  g_signal_connect (selection_widget, "selection_get",
+		    G_CALLBACK (selection_handle), (gpointer) &#38;have_selection);
+
+  gtk_widget_show (selection_button);
+  gtk_widget_show (window);
+  
+  gtk_main ();
+  
+  return 0;
+}</PRE
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x1850.html"
+ACCESSKEY="P"
+>&#60;&#60;&#60; Previous</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c1899.html"
+ACCESSKEY="N"
+>Next &#62;&#62;&#62;</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Retrieving the selection</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c1834.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Drag-and-drop (DND)</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

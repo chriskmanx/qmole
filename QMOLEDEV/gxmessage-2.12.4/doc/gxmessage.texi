@@ -1,0 +1,547 @@
+\input texinfo  @c -*-texinfo-*-
+@c %**start of header
+@setfilename gxmessage.info
+@settitle Gxmessage Manual
+@c %**end of header
+
+@copying
+This manual documents version 2.12.1 of gxmessage.
+
+Copyright @copyright{} 2009 Timothy Richard Musson
+
+@quotation
+  Permission is granted to copy, distribute and/or modify this document
+  under the terms of the GNU Free Documentation License, Version 1.3
+  or any later version published by the Free Software Foundation;
+  with no Invariant Sections, no Front-Cover Texts, and no Back-Cover
+  Texts.  A copy of the license is included in the section entitled ``GNU
+  Free Documentation License''.
+@end quotation
+@end copying
+
+@dircategory Frontends
+@direntry
+* Gxmessage: (gxmessage).       Scriptable pop-up dialogs.
+@end direntry
+
+@titlepage
+@title Gxmessage Manual
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top Gxmessage Manual
+
+@insertcopying
+@end ifnottex
+
+@menu
+* Overview::                     A short description of the program.
+* Invoking gxmessage::           How to run @command{gxmessage}.
+* Compatibility::                Notes on @command{xmessage} compatibility.
+* Example Usage::                Some examples of @command{gxmessage} in action.
+* GTK Stock Items::              A list of GTK's stock buttons.
+* GTK Resource Files::           Tweaking the default appearance.
+* Reporting Bugs::               How to report bugs and get help.
+* GNU Free Documentation License::  Copying and sharing this manual.
+@end menu
+
+
+@node Overview
+@chapter Overview
+Gxmessage is a GTK-based clone of xmessage.
+
+Gxmessage pops up a dialog window, displays a given message or question, then
+waits for the user's response. That response is returned as the program's exit
+code. Because gxmessage is a drop-in alternative to xmessage, gxmessage accepts
+any option xmessage would, and returns the same exit codes.
+
+
+@node Invoking gxmessage
+@chapter Invoking gxmessage
+
+@majorheading Invocation
+
+The simplest use of gxmessage requires only a message to display. The message
+can be obtained from the command line, from a file, or from @file{stdin}. The
+basic syntax is:
+
+@example
+gxmessage [OPTION] @var{message}@dots{}
+gxmessage [OPTION] -file @var{FILENAME}
+gxmessage [OPTION] -file -
+@end example
+
+The @command{gxmessage} command accepts any option @command{xmessage} would,
+although some (such as @option{-bw} and @option{-xrm}) are silently ignored.
+Options supported by gxmessage are as follows:
+
+@table @option
+@item -bg @var{COLOR}
+Sets the background color of the message to @var{COLOR}.
+Examples: @code{red}, @code{"#c90"}, @code{"#446a7e"}.
+
+@item -borderless
+Opens the gxmessage window without the usual window frame. This option is not
+backwards compatible with xmessage.
+
+@item -buttons @var{BUTTONLIST}
+Defines the buttons to be created. @var{BUTTONLIST} is a comma-separated list
+of @var{LABEL:VALUE} pairs, one for each button. The @var{LABEL} is the text
+that appears on the button. The @var{VALUE} (0..255) is the  code the program
+will exit with if that button is pressed. Commas and colons can be escaped
+using backslashes (\). As  well as  ordinary  text,  the @var{LABEL} can
+specify a GTK "stock" button, like @code{GTK_STOCK_CANCEL}, or it can include
+an underscore (@code{_}) to specify  a  keyboard  accelerator. If @var{VALUE}s
+are omitted, they default to 101, 102, 103, etc., in order. If no
+@option{-buttons} option is given, @var{BUTTONLIST} defaults to the string
+@code{okay:0}. As the following examples show, it's not as tricky as it sounds!
+
+@example
+gxmessage -buttons Foo:42,Bar:63 Example
+echo $?
+
+gxmessage -buttons _Foo,_Bar Example
+echo $?
+
+gxmessage Example
+echo $?
+
+gxmessage -buttons GTK_STOCK_OK:0 Example
+echo $?
+
+gxmessage -buttons "Hello\, world" Example
+@end example
+
+@item -center
+Opens the gxmessage window in the middle of the screen.
+
+@item -default @var{LABEL}
+Opens the gxmessage window with input focused on the specified button.
+@var{LABEL} is one of the @var{LABEL}s in @var{BUTTONLIST} (see
+@option{-buttons}, above).
+
+@item -display @var{DISPLAY}
+Specifies the X display to use.
+
+@item -encoding @var{CHARSET}
+Specifies the encoding of the message text. By default, the message text is
+assumed to match the encoding of the current locale. This option is not
+backwards compatible with xmessage.
+
+@item -entry
+Adds a text entry box to the gxmessage window. When the window closes, any text
+in the entry box will be copied to @file{stdout}. This option  is not
+compatible with xmessage and cannot be used at the same time as the
+@option{-print} option.
+
+@item -entrytext @var{TEXT}
+Same as @option{-entry}, but sets the default entry box contents to @var{TEXT}.
+This option is not backwards compatible with xmessage.
+
+@item -fg @var{COLOR}
+Sets the message text color to @var{COLOR}.
+
+@item -file @var{FILENAME}
+Causes the named  file  to be used as the message source. If a dash (-) is used
+in place of @var{FILENAME}, the message will be read from @file{stdin}.
+
+@item -fn | -font @var{FONT}
+Specifies the message font, using GTK2's font specification system. For
+example, @option{-font "serif italic 14"}. (GTK's font system is not compatible
+with xmessage. See the Compatibility section of this manual for a workaround.)
+
+@item -geometry @var{GEOMETRY}
+Sets the window's size. The position component of the geometry string is
+ignored by gxmessage due to limitations in GTK. Example: @option{-geometry
+400x200}
+
+@item -help
+Displays basic usage information then exits.
+
+@item -iconic
+Opens the gxmessage window in its iconized (minimized) state.
+
+@item -name @var{NAME}
+Sets the gxmessage window's name to @var{NAME}.
+
+@item -nearmouse
+Opens the gxmessage window near the mouse pointer.
+
+@item -nofocus
+Prevents the gxmessage window from receiving focus when it opens. This option
+is not backwards compatible with xmessage.
+
+@item -print
+Writes the @var{LABEL} of the selected button to @file{stdout}.
+
+@item -timeout @var{SECONDS}
+Automatically closes the gxmessage window with an exit code of 0 if no button
+is pressed within @var{SECONDS} seconds. (The @option{-entry} and
+@option{-entrytext} options cause @option{-timeout} to be ignored.)
+
+@item -title @var{TITLE}
+Sets the gxmessage window's title to @var{TITLE}.
+
+@item -version
+Displays the program's version number and Copyright details, then exits. This
+option is not backwards compatible with xmessage.
+
+@item -wrap
+Causes lines to wrap rather than exceed the width of the window.  This option
+is not backwards compatible with xmessage.
+
+@end table
+
+@majorheading Exit Codes
+
+If a button is pressed, the program returns the @var{VALUE} assigned to that
+button. The default "okay" button returns 0.
+
+If a timeout event occurs, the program returns 0.
+
+If an error occurs, or if the window is closed without a button-press or
+timeout event, the program exits with code 1.
+
+Pressing the @key{ESC} key also causes the program to exit with code 1.
+
+
+@node Compatibility
+@chapter Compatibility
+
+@majorheading Compatibility with @command{xmessage}
+
+This section contains notes about writing shell scripts that work with both
+gxmessage and xmessage.
+
+The following bash snippet shows how to fall back to @command{xmessage} if
+@command{gxmessage} is not available:
+
+@example
+XMESSAGE=$(which gxmessage) || XMESSAGE=xmessage
+$XMESSAGE "hello, world"
+@end example
+
+Gxmessage and xmessage use a different system for specifying fonts. If you need
+to specify a font, check which program you're using:
+
+@example
+font="monospace 14"
+[ "$XMESSAGE" = xmessage ] && font="fixed"
+$XMESSAGE $@{font:+-fn "$font"@} "hello, world"
+@end example
+
+Like most GTK programs, gxmessage allows double-dashed options---for example,
+@option{--help}. For compatibility with xmessage, however, options must use
+single dashes.
+
+The following options are specific to gxmessage and will not work with
+xmessage:
+@option{-borderless},
+@option{-encoding},
+@option{-entry},
+@option{-entrytext},
+@option{-nofocus},
+@option{-version},
+@option{-wrap},
+@option{-h},
+and
+@option{-?}.
+
+@majorheading Compatibility with @command{gxmessage}
+
+Debian based distributions incorrectly package gxmessage under the title
+"gmessage", and make @file{/usr/bin/gmessage} a link to @command{gxmessage}.
+Please use @command{gxmessage} and not @command{gmessage} in your shell
+scripts, otherwise your scripts will be needlessly Debian specific.
+
+
+@node Example Usage
+@chapter Example Usage
+
+The following example is a Nautilus script. If you're using GNOME, this file
+adds a word-count option to your desktop's right-click menu. Note how this
+example falls back to @command{xmessage} if @command{gxmessage} is not
+available.
+
+@example
+#! /bin/bash
+# Filename: ~/.gnome2/nautilus-scripts/word-count
+
+PROG=$(basename $0)
+
+if [ "$1" = '-h' ]; then
+  echo "Usage: $PROG FILE..."
+  exit 0
+fi
+
+XMESSAGE=$(which gxmessage) || XMESSAGE=xmessage
+
+font=monospace
+[ "$XMESSAGE" = xmessage ] && font=fixed
+
+[ "$#" -ge 1 ] &&
+  wc "$@@" 2>&1 | $XMESSAGE $@{font:+-fn "$font"@}     \
+                         -title "$PROG"             \
+                         -nearmouse                 \
+                         -buttons GTK_STOCK_CLOSE:0 \
+                         -default GTK_STOCK_CLOSE   \
+                         -file -
+@end example
+
+Here's a bash script named @command{gxview} that uses gxmessage as a fast
+desktop text viewer (especially nice for my ancient slow computer!). If using
+GNOME, you can make @command{gxview} the default text viewer by right-clicking
+on any text file, selecting @samp{Properties}, then @samp{Open With}.
+
+@example
+#! /bin/bash
+# Filename: /usr/local/bin/gxview
+
+## 
+## Usage: %PROG% [OPTIONS] [FILE]
+## 
+##   Uses gxmessage to view a file, with options to edit or print
+## 
+## Options:
+##   -c          Center
+##   -f COLOR    Foreground color
+##   -b COLOR    Background color
+##   -s FONT     Message font or style (e.g. 'serif 14')
+##   -w          Wrap long lines
+##   -h          Help
+## 
+
+PROG=$(basename $0)
+EX_USAGE=64
+XMESSAGE=$@{XMESSAGE:-$(which gxmessage)@} || XMESSAGE=xmessage
+GEDIT=gedit
+
+MSG_TITLE=$PROG
+MSG_FG=
+MSG_BG=
+MSG_GEOM=800x600
+MSG_FONT=monospace
+
+[ "$XMESSAGE" = xmessage ] && MSG_FONT=
+
+invocationError ()
+@{
+  echo "Try '$PROG -h'" >&2
+  exit $EX_USAGE
+@}
+
+showUsage ()
+@{
+  sed -n '/^##/s/^## //p' $0 | sed -e "s#%PROG%#$@{PROG@}#g"
+  exit
+@}
+
+while getopts 'chf:b:s:w' Option
+do
+  case $Option in
+  c) center=1 ;;
+  f) MSG_FG=$OPTARG ;;
+  b) MSG_BG=$OPTARG ;;
+  s) MSG_FONT=$OPTARG ;;
+  w) wrap=1 ;;
+  h) showUsage ;;
+  *) invocationError ;;
+  esac
+done
+shift $(($OPTIND - 1))
+[ "$#" -gt 1 ] && invocationError
+
+filename=$@{1:--@}
+
+if [ "$filename" = '-' ]; then
+  buttons=GTK_STOCK_CLOSE:103
+else
+  MSG_TITLE="$MSG_TITLE: $filename"
+  buttons=GTK_STOCK_EDIT:101,GTK_STOCK_PRINT:102,GTK_STOCK_CLOSE:103
+fi
+
+$XMESSAGE -title "$MSG_TITLE"                \
+          $@{MSG_GEOM:+-geometry "$MSG_GEOM"@} \
+          $@{center:+-center@}                 \
+          $@{MSG_FONT:+-font "$MSG_FONT"@}     \
+          $@{MSG_FG:+-fg "$MSG_FG"@}           \
+          $@{MSG_BG:+-bg "$MSG_BG"@}           \
+          $@{wrap:+-wrap@}                     \
+          -buttons "$buttons"                \
+          -default GTK_STOCK_CLOSE           \
+          -file "$filename"
+
+action=$?
+if [ "$action" -eq 101 ]; then
+  $GEDIT "$filename"
+elif [ "$action" -eq 102 ]; then
+  enscript -G "$filename" | lpr
+fi
+
+exit 0
+@end example
+
+More examples can be found in the @file{examples} directory shipped with the
+gxmessage source code.
+
+
+@node GTK Stock Items
+@chapter GTK Stock Items
+The following GTK stock items can be used with gxmessage's @option{-buttons}
+option:
+
+@example
+GTK_STOCK_ABOUT
+GTK_STOCK_ADD
+GTK_STOCK_APPLY
+GTK_STOCK_BOLD
+GTK_STOCK_CANCEL
+GTK_STOCK_CAPS_LOCK_WARNING
+GTK_STOCK_CDROM
+GTK_STOCK_CLEAR
+GTK_STOCK_CLOSE
+GTK_STOCK_COLOR_PICKER
+GTK_STOCK_CONVERT
+GTK_STOCK_CONNECT
+GTK_STOCK_COPY
+GTK_STOCK_CUT
+GTK_STOCK_DELETE
+GTK_STOCK_DIALOG_AUTHENTICATION
+GTK_STOCK_DIALOG_ERROR
+GTK_STOCK_DIALOG_INFO
+GTK_STOCK_DIALOG_QUESTION
+GTK_STOCK_DIALOG_WARNING
+GTK_STOCK_DIRECTORY
+GTK_STOCK_DISCARD
+GTK_STOCK_DISCONNECT
+GTK_STOCK_DND
+GTK_STOCK_DND_MULTIPLE
+GTK_STOCK_EDIT
+GTK_STOCK_EXECUTE
+GTK_STOCK_FILE
+GTK_STOCK_FIND
+GTK_STOCK_FIND_AND_REPLACE
+GTK_STOCK_FLOPPY
+GTK_STOCK_FULLSCREEN
+GTK_STOCK_GOTO_BOTTOM
+GTK_STOCK_GOTO_FIRST
+GTK_STOCK_GOTO_LAST
+GTK_STOCK_GOTO_TOP
+GTK_STOCK_GO_BACK
+GTK_STOCK_GO_DOWN
+GTK_STOCK_GO_FORWARD
+GTK_STOCK_GO_UP
+GTK_STOCK_HARDDISK
+GTK_STOCK_HELP
+GTK_STOCK_HOME
+GTK_STOCK_INDENT
+GTK_STOCK_INDEX
+GTK_STOCK_INFO
+GTK_STOCK_ITALIC
+GTK_STOCK_JUMP_TO
+GTK_STOCK_JUSTIFY_CENTER
+GTK_STOCK_JUSTIFY_FILL
+GTK_STOCK_JUSTIFY_LEFT
+GTK_STOCK_JUSTIFY_RIGHT
+GTK_STOCK_LEAVE_FULLSCREEN
+GTK_STOCK_MEDIA_FORWARD
+GTK_STOCK_MEDIA_NEXT
+GTK_STOCK_MEDIA_PAUSE
+GTK_STOCK_MEDIA_PLAY
+GTK_STOCK_MEDIA_PREVIOUS
+GTK_STOCK_MEDIA_RECORD
+GTK_STOCK_MEDIA_REWIND
+GTK_STOCK_MEDIA_STOP
+GTK_STOCK_MISSING_IMAGE
+GTK_STOCK_NETWORK
+GTK_STOCK_NEW
+GTK_STOCK_NO
+GTK_STOCK_OK
+GTK_STOCK_OPEN
+GTK_STOCK_ORIENTATION_LANDSCAPE
+GTK_STOCK_ORIENTATION_PORTRAIT
+GTK_STOCK_ORIENTATION_REVERSE_LANDSCAPE
+GTK_STOCK_ORIENTATION_REVERSE_PORTRAIT
+GTK_STOCK_PAGE_SETUP
+GTK_STOCK_PASTE
+GTK_STOCK_PREFERENCES
+GTK_STOCK_PRINT
+GTK_STOCK_PRINT_ERROR
+GTK_STOCK_PRINT_PAUSED
+GTK_STOCK_PRINT_PREVIEW
+GTK_STOCK_PRINT_REPORT
+GTK_STOCK_PRINT_WARNING
+GTK_STOCK_PROPERTIES
+GTK_STOCK_QUIT
+GTK_STOCK_REDO
+GTK_STOCK_REFRESH
+GTK_STOCK_REMOVE
+GTK_STOCK_REVERT_TO_SAVED
+GTK_STOCK_SAVE
+GTK_STOCK_SAVE_AS
+GTK_STOCK_SELECT_ALL
+GTK_STOCK_SELECT_COLOR
+GTK_STOCK_SELECT_FONT
+GTK_STOCK_SORT_ASCENDING
+GTK_STOCK_SORT_DESCENDING
+GTK_STOCK_SPELL_CHECK
+GTK_STOCK_STOP
+GTK_STOCK_STRIKETHROUGH
+GTK_STOCK_UNDELETE
+GTK_STOCK_UNDERLINE
+GTK_STOCK_UNDO
+GTK_STOCK_UNINDENT
+GTK_STOCK_YES
+GTK_STOCK_ZOOM_100
+GTK_STOCK_ZOOM_FIT
+GTK_STOCK_ZOOM_IN
+GTK_STOCK_ZOOM_OUT
+@end example
+
+
+@node GTK Resource Files
+@chapter GTK Resource Files
+The program's default appearance can be adjusted using GTK resource files. The
+main text display widget is named @code{gxmessage-textview}. The text entry
+widget is named @code{gxmessage-entry}.
+
+@example
+# This file's name is ~/.gtkrc-2.0
+
+style "gxmsg" @{
+    text[NORMAL]   = "#cc9900"
+    base[NORMAL]   = "#660000"
+    text[SELECTED] = "#660000"
+    base[SELECTED] = "#cc9900"
+    font_name      = "monospace"
+@}
+widget "*.gxmessage-textview" style  "gxmsg"
+widget "*.gxmessage-entry"    style  "gxmsg"
+@end example
+
+
+@node Reporting Bugs
+@chapter Reporting Bugs
+
+If you have a problem or discover a bug, please send an email to Tim Musson,
+@email{trmusson@@gmail.com}.
+
+The most recent version of gxmessage can be found at:
+
+@uref{http://homepages.ihug.co.nz/~trmusson/programs.html}
+
+
+@node GNU Free Documentation License
+@appendix GNU Free Documentation License
+
+@include fdl.texi
+
+
+@bye
+

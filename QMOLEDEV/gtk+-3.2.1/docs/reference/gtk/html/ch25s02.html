@@ -1,0 +1,1406 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Changes that need to be done at the time of the switch</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.76.1">
+<link rel="home" href="index.html" title="GTK+ 3 Reference Manual">
+<link rel="up" href="gtk-migrating-2-to-3.html" title="Migrating from GTK+ 2.x to GTK+ 3">
+<link rel="prev" href="gtk-migrating-2-to-3.html" title="Migrating from GTK+ 2.x to GTK+ 3">
+<link rel="next" href="gtk-migrating-GtkStyleContext.html" title="Theming changes">
+<meta name="generator" content="GTK-Doc V1.18.1 (XML mode)">
+<link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<table class="navigation" id="top" width="100%" summary="Navigation header" cellpadding="2" cellspacing="2"><tr valign="middle">
+<td><a accesskey="p" href="gtk-migrating-2-to-3.html"><img src="left.png" width="24" height="24" border="0" alt="Prev"></a></td>
+<td><a accesskey="u" href="gtk-migrating-2-to-3.html"><img src="up.png" width="24" height="24" border="0" alt="Up"></a></td>
+<td><a accesskey="h" href="index.html"><img src="home.png" width="24" height="24" border="0" alt="Home"></a></td>
+<th width="100%" align="center">GTK+ 3 Reference Manual</th>
+<td><a accesskey="n" href="gtk-migrating-GtkStyleContext.html"><img src="right.png" width="24" height="24" border="0" alt="Next"></a></td>
+</tr></table>
+<div class="section">
+<div class="titlepage"><div><div><h2 class="title" style="clear: both">
+<a name="id1536417"></a>Changes that need to be done at the time of the switch</h2></div></div></div>
+<p>
+    This section outlines porting tasks that you need to tackle when
+    you get to the point that you actually build your application against
+    GTK+ 3. Making it possible to prepare for these in GTK+ 2.24 would
+    have been either impossible or impractical.
+  </p>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1536409"></a>Replace size_request by get_preferred_width/height</h3></div></div></div>
+<p>
+      The request-phase of the traditional GTK+ geometry management
+      has been replaced by a more flexible height-for-width system,
+      which is described in detail in the API documentation
+      (see <a class="xref" href="GtkWidget.html#geometry-management" title="Height-for-width Geometry Management">the section called “Height-for-width Geometry Management”</a>). As a consequence,
+      the ::size-request signal and vfunc has been removed from
+      <a class="link" href="GtkWidget.html#GtkWidgetClass" title="struct GtkWidgetClass"><span class="type">GtkWidgetClass</span></a>. The replacement for <code class="function">size_request()</code> can
+      take several levels of sophistication:
+      </p>
+<div class="itemizedlist"><ul class="itemizedlist" type="disc">
+<li class="listitem">
+<p>
+        As a minimal replacement to keep current functionality,
+        you can simply implement the <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-width"><code class="function">GtkWidgetClass.get_preferred_width()</code></a> and
+        <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-height"><code class="function">GtkWidgetClass.get_preferred_height()</code></a> vfuncs by calling your existing
+        <code class="function">size_request()</code> function. So you go from
+        </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">my_widget_class_init</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">MyWidgetClass</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">class</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkWidgetClass</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget_class </span><span class="symbol">=</span><span class="normal"> </span><span class="function">GTK_WIDGET_CLASS</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">class</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="comment">/* ... */</span>
+
+<span class="normal">  widget_class</span><span class="symbol">-&gt;</span><span class="normal">size_request </span><span class="symbol">=</span><span class="normal"> my_widget_size_request</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="comment">/* ... */</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+        </p>
+<p>
+        to something that looks more like this:
+        </p>
+<p>
+        </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">my_widget_get_preferred_width</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                               </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">minimal_width</span><span class="symbol">,</span>
+<span class="normal">                               </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">natural_width</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkRequisition</span><span class="normal"> requisition</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="function">my_widget_size_request</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">requisition</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="symbol">*</span><span class="normal">minimal_width </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">natural_width </span><span class="symbol">=</span><span class="normal"> requisition</span><span class="symbol">.</span><span class="normal">width</span><span class="symbol">;</span>
+<span class="cbracket">}</span>
+
+<span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">my_widget_get_preferred_height</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                                </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">minimal_height</span><span class="symbol">,</span>
+<span class="normal">                                </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">natural_height</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkRequisition</span><span class="normal"> requisition</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="function">my_widget_size_request</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">requisition</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="symbol">*</span><span class="normal">minimal_height </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">natural_height </span><span class="symbol">=</span><span class="normal"> requisition</span><span class="symbol">.</span><span class="normal">height</span><span class="symbol">;</span>
+<span class="cbracket">}</span>
+
+<span class="normal"> </span><span class="comment">/* ... */</span>
+
+<span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">my_widget_class_init</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">MyWidgetClass</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">class</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkWidgetClass</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget_class </span><span class="symbol">=</span><span class="normal"> </span><span class="function">GTK_WIDGET_CLASS</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">class</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="comment">/* ... */</span>
+
+<span class="normal">  widget_class</span><span class="symbol">-&gt;</span><span class="normal">get_preferred_width </span><span class="symbol">=</span><span class="normal"> my_widget_get_preferred_width</span><span class="symbol">;</span>
+<span class="normal">  widget_class</span><span class="symbol">-&gt;</span><span class="normal">get_preferred_height </span><span class="symbol">=</span><span class="normal"> my_widget_get_preferred_height</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="comment">/* ... */</span>
+
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          </p>
+<p>
+          Sometimes you can make things a little more streamlined
+          by replacing your existing <code class="function">size_request()</code> implementation by
+          one that takes an orientation parameter:
+          </p>
+<p>
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">my_widget_get_preferred_size</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                              </span><span class="usertype">GtkOrientation</span><span class="normal">  orientation</span><span class="symbol">,</span>
+<span class="normal">                               </span><span class="usertype">gint</span><span class="normal">          </span><span class="symbol">*</span><span class="normal">minimal_size</span><span class="symbol">,</span>
+<span class="normal">                               </span><span class="usertype">gint</span><span class="normal">          </span><span class="symbol">*</span><span class="normal">natural_size</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+
+<span class="normal">  </span><span class="comment">/* do things that are common for both orientations ... */</span>
+
+<span class="normal">  </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">orientation </span><span class="symbol">==</span><span class="normal"> <a href="gtk3-Standard-Enumerations.html#GTK-ORIENTATION-HORIZONTAL:CAPS">GTK_ORIENTATION_HORIZONTAL</a></span><span class="symbol">)</span>
+<span class="normal">    </span><span class="cbracket">{</span>
+<span class="normal">      </span><span class="comment">/* do stuff that only applies to width... */</span>
+
+<span class="normal">      </span><span class="symbol">*</span><span class="normal">minimal_size </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">natural_size </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">...</span>
+<span class="normal">    </span><span class="cbracket">}</span>
+<span class="normal">  </span><span class="keyword">else</span>
+<span class="normal">   </span><span class="cbracket">{</span>
+<span class="normal">      </span><span class="comment">/* do stuff that only applies to height... */</span>
+
+<span class="normal">      </span><span class="symbol">*</span><span class="normal">minimal_size </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">natural_size </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">...</span>
+<span class="normal">   </span><span class="cbracket">}</span>
+<span class="cbracket">}</span>
+
+<span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">my_widget_get_preferred_width</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                               </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">minimal_width</span><span class="symbol">,</span>
+<span class="normal">                               </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">natural_width</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="function">my_widget_get_preferred_size</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                                <a href="gtk3-Standard-Enumerations.html#GTK-ORIENTATION-HORIZONTAL:CAPS">GTK_ORIENTATION_HORIZONTAL</a></span><span class="symbol">,</span>
+<span class="normal">                                minimal_width</span><span class="symbol">,</span>
+<span class="normal">                                natural_width</span><span class="symbol">);</span>
+<span class="cbracket">}</span>
+
+<span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">my_widget_get_preferred_height</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                                </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">minimal_height</span><span class="symbol">,</span>
+<span class="normal">                                </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">natural_height</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="function">my_widget_get_preferred_size</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                                <a href="gtk3-Standard-Enumerations.html#GTK-ORIENTATION-VERTICAL:CAPS">GTK_ORIENTATION_VERTICAL</a></span><span class="symbol">,</span>
+<span class="normal">                                minimal_height</span><span class="symbol">,</span>
+<span class="normal">                                natural_height</span><span class="symbol">);</span>
+<span class="cbracket">}</span>
+
+<span class="normal"> </span><span class="comment">/* ... */</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          </p>
+</li>
+<li class="listitem">
+<p>If your widget can cope with a small size,
+          but would appreciate getting some more space (a common
+          example would be that it contains ellipsizable labels),
+          you can do that by making your <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-width"><code class="function">GtkWidgetClass.get_preferred_width()</code></a> /
+          <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-height"><code class="function">GtkWidgetClass.get_preferred_height()</code></a>
+          functions return a smaller value for <em class="parameter"><code>minimal</code></em> than for <em class="parameter"><code>natural</code></em>.
+          For <em class="parameter"><code>minimal</code></em>, you probably want to return the same value
+          that your <code class="function">size_request()</code> function returned before (since
+          <code class="function">size_request()</code> was defined as returning the minimal size
+          a widget can work with). A simple way to obtain good
+          values for <em class="parameter"><code>natural</code></em>, in the case of containers, is to use
+          <a class="link" href="GtkWidget.html#gtk-widget-get-preferred-width" title="gtk_widget_get_preferred_width ()"><code class="function">gtk_widget_get_preferred_width()</code></a> and
+          <a class="link" href="GtkWidget.html#gtk-widget-get-preferred-height" title="gtk_widget_get_preferred_height ()"><code class="function">gtk_widget_get_preferred_height()</code></a> on the children of the
+          container, as in the following example:
+          </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">gtk_fixed_get_preferred_height</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                                </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">minimum</span><span class="symbol">,</span>
+<span class="normal">                                </span><span class="usertype">gint</span><span class="normal">      </span><span class="symbol">*</span><span class="normal">natural</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkFixed</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">fixed </span><span class="symbol">=</span><span class="normal"> </span><span class="function">GTK_FIXED</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">);</span>
+<span class="normal">  </span><span class="usertype">GtkFixedPrivate</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">priv </span><span class="symbol">=</span><span class="normal"> fixed</span><span class="symbol">-&gt;</span><span class="normal">priv</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="usertype">GtkFixedChild</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">child</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="usertype">GList</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">children</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="usertype">gint</span><span class="normal"> child_min</span><span class="symbol">,</span><span class="normal"> child_nat</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="symbol">*</span><span class="normal">minimum </span><span class="symbol">=</span><span class="normal"> </span><span class="number">0</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="symbol">*</span><span class="normal">natural </span><span class="symbol">=</span><span class="normal"> </span><span class="number">0</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="keyword">for</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">children </span><span class="symbol">=</span><span class="normal"> priv</span><span class="symbol">-&gt;</span><span class="normal">children</span><span class="symbol">;</span><span class="normal"> children</span><span class="symbol">;</span><span class="normal"> children </span><span class="symbol">=</span><span class="normal"> children</span><span class="symbol">-&gt;</span><span class="normal">next</span><span class="symbol">)</span>
+<span class="normal">    </span><span class="cbracket">{</span>
+<span class="normal">      child </span><span class="symbol">=</span><span class="normal"> children</span><span class="symbol">-&gt;</span><span class="normal">data</span><span class="symbol">;</span>
+
+<span class="normal">      </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(!</span><span class="function"><a href="GtkWidget.html#gtk-widget-get-visible">gtk_widget_get_visible</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">child</span><span class="symbol">-&gt;</span><span class="normal">widget</span><span class="symbol">))</span>
+<span class="normal">        </span><span class="keyword">continue</span><span class="symbol">;</span>
+
+<span class="normal">      </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-preferred-height">gtk_widget_get_preferred_height</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">child</span><span class="symbol">-&gt;</span><span class="normal">widget</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">child_min</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">child_nat</span><span class="symbol">);</span>
+
+<span class="normal">      </span><span class="symbol">*</span><span class="normal">minimum </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#MAX:CAPS">MAX</a></span><span class="normal"> </span><span class="symbol">(*</span><span class="normal">minimum</span><span class="symbol">,</span><span class="normal"> child</span><span class="symbol">-&gt;</span><span class="normal">y </span><span class="symbol">+</span><span class="normal"> child_min</span><span class="symbol">);</span>
+<span class="normal">      </span><span class="symbol">*</span><span class="normal">natural </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#MAX:CAPS">MAX</a></span><span class="normal"> </span><span class="symbol">(*</span><span class="normal">natural</span><span class="symbol">,</span><span class="normal"> child</span><span class="symbol">-&gt;</span><span class="normal">y </span><span class="symbol">+</span><span class="normal"> child_nat</span><span class="symbol">);</span>
+<span class="normal">    </span><span class="cbracket">}</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+          </p>
+</li>
+<li class="listitem"><p>
+          Note that the <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-width"><code class="function">GtkWidgetClass.get_preferred_width()</code></a> /
+          <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-height"><code class="function">GtkWidgetClass.get_preferred_height()</code></a> functions
+          only allow you to deal with one dimension at a time. If your
+          <code class="function">size_request()</code> handler is doing things that involve both
+          width and height at the same time (e.g. limiting the aspect
+          ratio), you will have to implement
+          <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-height-for-width"><code class="function">GtkWidgetClass.get_preferred_height_for_width()</code></a>
+          and <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-width-for-height"><code class="function">GtkWidgetClass.get_preferred_width_for_height()</code></a>.
+          </p></li>
+<li class="listitem"><p>
+          To make full use of the new capabilities of the
+          height-for-width geometry management, you need to additionally
+          implement the <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-height-for-width"><code class="function">GtkWidgetClass.get_preferred_height_for_width()</code></a> and
+          <a class="link" href="GtkWidget.html#GtkWidgetClass.get-preferred-width-for-height"><code class="function">GtkWidgetClass.get_preferred_width_for_height()</code></a>. For details on
+          these functions, see <a class="xref" href="GtkWidget.html#geometry-management" title="Height-for-width Geometry Management">the section called “Height-for-width Geometry Management”</a>.
+          </p></li>
+</ul></div>
+<p>
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1398674"></a>Replace GdkRegion by cairo_region_t</h3></div></div></div>
+<p>
+      Starting with version 1.10, cairo provides a region API that is
+      equivalent to the GDK region API (which was itself copied from
+      the X server). Therefore, the region API has been removed in GTK+ 3.
+    </p>
+<p>
+      Porting your application to the cairo region API should be a straight
+      find-and-replace task. Please refer to the following table:
+      </p>
+<div class="table">
+<a name="id1367318"></a><p class="title"><b>Table 1. </b></p>
+<div class="table-contents"><table border="1">
+<colgroup>
+<col>
+<col>
+</colgroup>
+<thead><tr>
+<th>GDK</th>
+<th>cairo</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#GdkRegion"><span class="type">GdkRegion</span></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-t"><span class="type">cairo_region_t</span></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk/gdk3-Points-Rectangles-and-Regions.html#GdkRectangle"><span class="type">GdkRectangle</span></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Types.html#cairo-rectangle-int-t"><span class="type">cairo_rectangle_int_t</span></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk/gdk3-Points-Rectangles-and-Regions.html#gdk-rectangle-intersect"><code class="function">gdk_rectangle_intersect()</code></a></td>
+<td>this function is still there</td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk/gdk3-Points-Rectangles-and-Regions.html#gdk-rectangle-union"><code class="function">gdk_rectangle_union()</code></a></td>
+<td>this function is still there</td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-new"><code class="function">gdk_region_new()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-create"><code class="function">cairo_region_create()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-copy"><code class="function">gdk_region_copy()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-copy"><code class="function">cairo_region_copy()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-destroy"><code class="function">gdk_region_destroy()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-destroy"><code class="function">cairo_region_destroy()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-rectangle"><code class="function">gdk_region_rectangle()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-create-rectangle"><code class="function">cairo_region_create_rectangle()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-get-clipbox"><code class="function">gdk_region_get_clipbox()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-get-extents"><code class="function">cairo_region_get_extents()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-get-rectangles"><code class="function">gdk_region_get_rectangles()</code></a></td>
+<td>
+<a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-num-rectangles"><code class="function">cairo_region_num_rectangles()</code></a> and
+                                <a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-get-rectangle"><code class="function">cairo_region_get_rectangle()</code></a>
+</td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-empty"><code class="function">gdk_region_empty()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-is-empty"><code class="function">cairo_region_is_empty()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-equal"><code class="function">gdk_region_equal()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-equal"><code class="function">cairo_region_equal()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-point-in"><code class="function">gdk_region_point_in()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-contains-point"><code class="function">cairo_region_contains_point()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-rect-in"><code class="function">gdk_region_rect_in()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-contains-rectangle"><code class="function">cairo_region_contains_rectangle()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-offset"><code class="function">gdk_region_offset()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-translate"><code class="function">cairo_region_translate()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-union-with-rect"><code class="function">gdk_region_union_with_rect()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-union-rectangle"><code class="function">cairo_region_union_rectangle()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-intersect"><code class="function">gdk_region_intersect()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-intersect"><code class="function">cairo_region_intersect()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-union"><code class="function">gdk_region_union()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-union"><code class="function">cairo_region_union()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-subtract"><code class="function">gdk_region_subtract()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-subtract"><code class="function">cairo_region_subtract()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-xor"><code class="function">gdk_region_xor()</code></a></td>
+<td><a href="/usr/share/gtk-doc/html/cairo/cairo-Regions.html#cairo-region-xor"><code class="function">cairo_region_xor()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-shrink"><code class="function">gdk_region_shrink()</code></a></td>
+<td>no replacement</td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Points-Rectangles-and-Regions.html#gdk-region-polygon"><code class="function">gdk_region_polygon()</code></a></td>
+<td>no replacement, use cairo paths instead</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+<p><br class="table-break">
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1399674"></a>Replace GdkPixmap by cairo surfaces</h3></div></div></div>
+<p>
+      The <a href="http://library.gnome.org/devel/gdk3/gdk-Bitmaps-and-Pixmaps.html#GdkPixmap"><span class="type">GdkPixmap</span></a> object and related functions have been removed.
+      In the cairo-centric world of GTK+ 3, cairo surfaces take over
+      the role of pixmaps.
+    </p>
+<div class="example">
+<a name="id1389438"></a><p class="title"><b>Example 114. Creating custom cursors</b></p>
+<div class="example-contents">
+<p>
+        One place where pixmaps were commonly used is to create custom
+        cursors:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GdkCursor</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cursor</span><span class="symbol">;</span>
+<span class="usertype">GdkPixmap</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">pixmap</span><span class="symbol">;</span>
+<span class="usertype">cairo_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cr</span><span class="symbol">;</span>
+<span class="usertype">GdkColor</span><span class="normal"> fg </span><span class="symbol">=</span><span class="normal"> </span><span class="cbracket">{</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="normal"> </span><span class="cbracket">}</span><span class="symbol">;</span>
+
+<span class="normal">pixmap </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Bitmaps-and-Pixmaps.html#gdk-pixmap-new">gdk_pixmap_new</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal"><a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">,</span><span class="normal"> </span><span class="number">1</span><span class="symbol">,</span><span class="normal"> </span><span class="number">1</span><span class="symbol">,</span><span class="normal"> </span><span class="number">1</span><span class="symbol">);</span>
+
+<span class="normal">cr </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cairo-Interaction.html#gdk-cairo-create">gdk_cairo_create</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pixmap</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-Paths.html#cairo-rectangle">cairo_rectangle</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">1</span><span class="symbol">,</span><span class="normal"> </span><span class="number">1</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-fill">cairo_fill</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-destroy">cairo_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+
+<span class="normal">cursor </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk3/gdk-Cursors.html#gdk-cursor-new-from-pixmap">gdk_cursor_new_from_pixmap</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pixmap</span><span class="symbol">,</span><span class="normal"> pixmap</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">fg</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">&amp;</span><span class="normal">fg</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">);</span>
+
+<span class="function"><a href="http://library.gnome.org/devel/gobject/unstable/gobject-The-Base-Object-Type.html#g-object-unref">g_object_unref</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pixmap</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      The same can be achieved without pixmaps, by drawing onto
+      an image surface:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GdkCursor</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cursor</span><span class="symbol">;</span>
+<span class="usertype">cairo_surface_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">s</span><span class="symbol">;</span>
+<span class="usertype">cairo_t</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">cr</span><span class="symbol">;</span>
+<span class="usertype">GdkPixbuf</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">pixbuf</span><span class="symbol">;</span>
+
+<span class="normal">s </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-Image-Surfaces.html#cairo-image-surface-create">cairo_image_surface_create</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal"><a href="/usr/share/gtk-doc/html/cairo/cairo-Image-Surfaces.html#CAIRO-FORMAT-A1:CAPS">CAIRO_FORMAT_A1</a></span><span class="symbol">,</span><span class="normal"> </span><span class="number">3</span><span class="symbol">,</span><span class="normal"> </span><span class="number">3</span><span class="symbol">);</span>
+<span class="normal">cr </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-create">cairo_create</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">s</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-Paths.html#cairo-arc">cairo_arc</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> </span><span class="number">1.5</span><span class="symbol">,</span><span class="normal"> </span><span class="number">1.5</span><span class="symbol">,</span><span class="normal"> </span><span class="number">1.5</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">2</span><span class="normal"> </span><span class="symbol">*</span><span class="normal"> M_PI</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-fill">cairo_fill</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-destroy">cairo_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">);</span>
+
+<span class="normal">pixbuf </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Pixbufs.html#gdk-pixbuf-get-from-surface">gdk_pixbuf_get_from_surface</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">s</span><span class="symbol">,</span>
+<span class="normal">                                      </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span>
+<span class="normal">                                      </span><span class="number">3</span><span class="symbol">,</span><span class="normal"> </span><span class="number">3</span><span class="symbol">);</span>
+
+<span class="function"><a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-surface-t.html#cairo-surface-destroy">cairo_surface_destroy</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">s</span><span class="symbol">);</span>
+
+<span class="normal">cursor </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Cursors.html#gdk-cursor-new-from-pixbuf">gdk_cursor_new_from_pixbuf</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">display</span><span class="symbol">,</span><span class="normal"> pixbuf</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">,</span><span class="normal"> </span><span class="number">0</span><span class="symbol">);</span>
+
+<span class="function"><a href="http://library.gnome.org/devel/gobject/unstable/gobject-The-Base-Object-Type.html#g-object-unref">g_object_unref</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">pixbuf</span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      </p>
+</div>
+</div>
+<br class="example-break">
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1411213"></a>Replace GdkColormap by GdkVisual</h3></div></div></div>
+<p>
+      For drawing with cairo, it is not necessary to allocate colors, and
+      a <a href="http://library.gnome.org/devel/gdk/gdk3-Visuals.html#GdkVisual"><span class="type">GdkVisual</span></a> provides enough information for cairo to handle colors
+      in 'native' surfaces. Therefore, <a href="http://library.gnome.org/devel/gdk3/gdk-Colormaps-and-Colors.html#GdkColormap"><span class="type">GdkColormap</span></a> and related functions
+      have been removed in GTK+ 3, and visuals are used instead. The
+      colormap-handling functions of <a class="link" href="GtkWidget.html" title="GtkWidget"><span class="type">GtkWidget</span></a> (<a href="http://library.gnome.org/devel/gtk3/GtkWidget.html#gtk-widget-set-colormap"><code class="function">gtk_widget_set_colormap()</code></a>,
+      etc) have been removed and <a class="link" href="GtkWidget.html#gtk-widget-set-visual" title="gtk_widget_set_visual ()"><code class="function">gtk_widget_set_visual()</code></a> has been added.
+    </p>
+<div class="example">
+<a name="id1358886"></a><p class="title"><b>Example 115. Setting up a translucent window</b></p>
+<div class="example-contents">
+<p>You might have a screen-changed handler like the following
+     to set up a translucent window with an alpha-channel:
+    </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">on_alpha_screen_changed</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                         </span><span class="usertype">GdkScreen</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">old_screen</span><span class="symbol">,</span>
+<span class="normal">                         </span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">label</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GdkScreen</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">screen </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-screen">gtk_widget_get_screen</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">);</span>
+<span class="normal">  </span><span class="usertype">GdkColormap</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">colormap </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk3/GdkScreen.html#gdk-screen-get-rgba-colormap">gdk_screen_get_rgba_colormap</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">screen</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">colormap </span><span class="symbol">==</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">)</span>
+<span class="normal">    colormap </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk3/GdkScreen.html#gdk-screen-get-default-colormap">gdk_screen_get_default_colormap</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">screen</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="function"><a href="http://library.gnome.org/devel/gtk3/GtkWidget.html#gtk-widget-set-colormap">gtk_widget_set_colormap</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">,</span><span class="normal"> colormap</span><span class="symbol">);</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+    With visuals instead of colormaps, this will look as follows:
+    </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> </span><span class="type">void</span>
+<span class="function">on_alpha_screen_changed</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWindow</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">window</span><span class="symbol">,</span>
+<span class="normal">                         </span><span class="usertype">GdkScreen</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">old_screen</span><span class="symbol">,</span>
+<span class="normal">                         </span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">label</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GdkScreen</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">screen </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-screen">gtk_widget_get_screen</a></span><span class="normal"> </span><span class="symbol">(</span><span class="function">GTK_WIDGET</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">window</span><span class="symbol">));</span>
+<span class="normal">  </span><span class="usertype">GdkVisual</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">visual </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/GdkScreen.html#gdk-screen-get-rgba-visual">gdk_screen_get_rgba_visual</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">screen</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">visual </span><span class="symbol">==</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">)</span>
+<span class="normal">    visual </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/GdkScreen.html#gdk-screen-get-system-visual">gdk_screen_get_system_visual</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">screen</span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="function"><a href="GtkWidget.html#gtk-widget-set-visual">gtk_widget_set_visual</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">window</span><span class="symbol">,</span><span class="normal"> visual</span><span class="symbol">);</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+</div>
+<br class="example-break">
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1478923"></a>GdkDrawable is gone</h3></div></div></div>
+<p>
+      <a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#GdkDrawable"><span class="type">GdkDrawable</span></a> has been removed in GTK+ 3, together with <a href="http://library.gnome.org/devel/gdk3/gdk-Bitmaps-and-Pixmaps.html#GdkPixmap"><span class="type">GdkPixmap</span></a>
+      and <a href="http://library.gnome.org/devel/gdk3/gdk-Images.html#GdkImage"><span class="type">GdkImage</span></a>. The only remaining drawable class is <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#GdkWindow"><span class="type">GdkWindow</span></a>.
+      For dealing with image data, you should use a <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-surface-t.html#cairo-surface-t"><span class="type">cairo_surface_t</span></a> or
+      a <a href="http://library.gnome.org/devel/gdk-pixbuf/unstable/gdk-pixbuf-The-GdkPixbuf-Structure.html#GdkPixbuf"><span class="type">GdkPixbuf</span></a>.
+    </p>
+<p>
+      GdkDrawable functions that are useful with windows have been replaced
+      by corresponding GdkWindow functions:
+      </p>
+<div class="table">
+<a name="id1536692"></a><p class="title"><b>Table 2. GdkDrawable to GdkWindow</b></p>
+<div class="table-contents"><table summary="GdkDrawable to GdkWindow" border="1">
+<colgroup>
+<col>
+<col>
+</colgroup>
+<thead><tr>
+<th>GDK 2.x</th>
+<th>GDK 3</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-drawable-get-visual"><code class="function">gdk_drawable_get_visual()</code></a></td>
+<td><a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-get-visual"><code class="function">gdk_window_get_visual()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-drawable-get-size"><code class="function">gdk_drawable_get_size()</code></a></td>
+<td>
+<a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-get-width"><code class="function">gdk_window_get_width()</code></a>
+                                                              <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-get-height"><code class="function">gdk_window_get_height()</code></a>
+</td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Pixbufs.html#gdk-pixbuf-get-from-drawable"><code class="function">gdk_pixbuf_get_from_drawable()</code></a></td>
+<td><a href="http://library.gnome.org/devel/gdk/gdk3-Pixbufs.html#gdk-pixbuf-get-from-window"><code class="function">gdk_pixbuf_get_from_window()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-drawable-get-clip-region"><code class="function">gdk_drawable_get_clip_region()</code></a></td>
+<td><a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-get-clip-region"><code class="function">gdk_window_get_clip_region()</code></a></td>
+</tr>
+<tr>
+<td><a href="http://library.gnome.org/devel/gdk3/gdk-Drawing-Primitives.html#gdk-drawable-get-visible-region"><code class="function">gdk_drawable_get_visible_region()</code></a></td>
+<td><a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-get-visible-region"><code class="function">gdk_window_get_visible_region()</code></a></td>
+</tr>
+</tbody>
+</table></div>
+</div>
+<p><br class="table-break">
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1477304"></a>Event filtering</h3></div></div></div>
+<p>
+      If your application uses the low-level event filtering facilities in GDK,
+      there are some changes you need to be aware of.
+    </p>
+<p>
+      The special-purpose GdkEventClient events and the <a href="http://library.gnome.org/devel/gdk3/gdk-Events.html#gdk-add-client-message-filter"><code class="function">gdk_add_client_message_filter()</code></a> and <a href="http://library.gnome.org/devel/gdk3/GdkDisplay.html#gdk-display-add-client-message-filter"><code class="function">gdk_display_add_client_message_filter()</code></a> functions have been
+      removed. Receiving X11 ClientMessage events is still possible, using
+      the general <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-add-filter"><code class="function">gdk_window_add_filter()</code></a> API. A client message filter like
+</p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#GdkFilterReturn">GdkFilterReturn</a></span>
+<span class="function">message_filter</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GdkXEvent</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">xevent</span><span class="symbol">,</span><span class="normal"> </span><span class="usertype">GdkEvent</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">event</span><span class="symbol">,</span><span class="normal"> </span><span class="usertype">gpointer</span><span class="normal"> data</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">XClientMessageEvent</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">evt </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">XClientMessageEvent </span><span class="symbol">*)</span><span class="normal">xevent</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="comment">/* do something with evt ... */</span>
+<span class="cbracket">}</span>
+
+<span class="normal"> </span><span class="symbol">...</span>
+
+<span class="normal">message_type </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Properties-and-Atoms.html#gdk-atom-intern">gdk_atom_intern</a></span><span class="normal"> </span><span class="symbol">(</span><span class="string">"MANAGER"</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#FALSE:CAPS">FALSE</a></span><span class="symbol">);</span>
+<span class="function"><a href="http://library.gnome.org/devel/gdk3/GdkDisplay.html#gdk-display-add-client-message-filter">gdk_display_add_client_message_filter</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">display</span><span class="symbol">,</span><span class="normal"> message_type</span><span class="symbol">,</span><span class="normal"> message_filter</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+    then looks like this:
+    </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">static</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#GdkFilterReturn">GdkFilterReturn</a></span>
+<span class="function">event_filter</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GdkXEvent</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">xevent</span><span class="symbol">,</span><span class="normal"> </span><span class="usertype">GdkEvent</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">event</span><span class="symbol">,</span><span class="normal"> </span><span class="usertype">gpointer</span><span class="normal"> data</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">XClientMessageEvent</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">evt</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="usertype">GdkAtom</span><span class="normal"> message_type</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(((</span><span class="normal">XEvent </span><span class="symbol">*)</span><span class="normal">xevent</span><span class="symbol">)-&gt;</span><span class="normal">type </span><span class="symbol">!=</span><span class="normal"> ClientMessage</span><span class="symbol">)</span>
+<span class="normal">    </span><span class="keyword">return</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#GDK-FILTER-CONTINUE:CAPS">GDK_FILTER_CONTINUE</a></span><span class="symbol">;</span>
+
+<span class="normal">  evt </span><span class="symbol">=</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">XClientMessageEvent </span><span class="symbol">*)</span><span class="normal">xevent</span><span class="symbol">;</span>
+<span class="normal">  message_type </span><span class="symbol">=</span><span class="normal"> </span><span class="function">XInternAtom</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">evt</span><span class="symbol">-&gt;</span><span class="normal">display</span><span class="symbol">,</span><span class="normal"> </span><span class="string">"MANAGER"</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#FALSE:CAPS">FALSE</a></span><span class="symbol">);</span>
+
+<span class="normal">  </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">evt</span><span class="symbol">-&gt;</span><span class="normal">message_type </span><span class="symbol">!=</span><span class="normal"> message_type</span><span class="symbol">)</span>
+<span class="normal">    </span><span class="keyword">return</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#GDK-FILTER-CONTINUE:CAPS">GDK_FILTER_CONTINUE</a></span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="comment">/* do something with evt ... */</span>
+<span class="cbracket">}</span>
+
+<span class="normal"> </span><span class="symbol">...</span>
+
+<span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-add-filter">gdk_window_add_filter</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal"><a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">,</span><span class="normal"> message_filter</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#NULL:CAPS">NULL</a></span><span class="symbol">);</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      One advantage of using an event filter is that you can actually
+      remove the filter when you don't need it anymore, using
+      <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#gdk-window-remove-filter"><code class="function">gdk_window_remove_filter()</code></a>.
+    </p>
+<p>
+      The other difference to be aware of when working with event filters
+      in GTK+ 3 is that GDK now uses XI2 by default when available. That
+      means that your application does not receive core X11 key or button
+      events. Instead, all input events are delivered as XIDeviceEvents.
+      As a short-term workaround for this, you can force your application
+      to not use XI2, with <a href="http://library.gnome.org/devel/gdk/GdkDeviceManager.html#gdk-disable-multidevice"><code class="function">gdk_disable_multidevice()</code></a>. In the long term,
+      you probably want to rewrite your event filter to deal with
+      XIDeviceEvents.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1536978"></a>Backend-specific code</h3></div></div></div>
+<p>
+      In GTK+ 2.x, GDK could only be compiled for one backend at a time,
+      and the <a href="http://library.gnome.org/devel/gdk/gdk3-General.html#GDK-WINDOWING-X11:CAPS"><code class="literal">GDK_WINDOWING_X11</code></a> or <a href="http://library.gnome.org/devel/gdk/gdk3-General.html#GDK-WINDOWING-WIN32:CAPS"><code class="literal">GDK_WINDOWING_WIN32</code></a> macros could
+      be used to find out which one you are dealing with:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="preproc">#ifdef</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-General.html#GDK-WINDOWING-X11:CAPS">GDK_WINDOWING_X11</a></span>
+<span class="normal">      </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">timestamp </span><span class="symbol">!=</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-Events.html#GDK-CURRENT-TIME:CAPS">GDK_CURRENT_TIME</a></span><span class="symbol">)</span>
+<span class="normal">        </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-X-Window-System-Interaction.html#gdk-x11-window-set-user-time">gdk_x11_window_set_user_time</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gdk_window</span><span class="symbol">,</span><span class="normal"> timestamp</span><span class="symbol">);</span>
+<span class="preproc">#endif</span>
+<span class="preproc">#ifdef</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-General.html#GDK-WINDOWING-WIN32:CAPS">GDK_WINDOWING_WIN32</a></span>
+<span class="normal">        </span><span class="comment">/* ... win32 specific code ... */</span>
+<span class="preproc">#endif</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      In GTK+ 3, GDK can be built with multiple backends, and currently
+      used backend has to be determined at runtime, typically using
+      type-check macros on a <a href="http://library.gnome.org/devel/gdk/GdkDisplay.html"><span class="type">GdkDisplay</span></a> or <a href="http://library.gnome.org/devel/gdk/gdk3-Windows.html#GdkWindow"><span class="type">GdkWindow</span></a>. You still need
+      to use the <span class="type">GDK_WINDOWING</span> macros to only compile code referring
+      to supported backends:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="preproc">#ifdef</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-General.html#GDK-WINDOWING-X11:CAPS">GDK_WINDOWING_X11</a></span>
+<span class="normal">      </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="function">GDK_IS_X11_DISPLAY</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">display</span><span class="symbol">))</span>
+<span class="normal">        </span><span class="cbracket">{</span>
+<span class="normal">          </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">timestamp </span><span class="symbol">!=</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-Events.html#GDK-CURRENT-TIME:CAPS">GDK_CURRENT_TIME</a></span><span class="symbol">)</span>
+<span class="normal">            </span><span class="function"><a href="http://library.gnome.org/devel/gdk/gdk3-X-Window-System-Interaction.html#gdk-x11-window-set-user-time">gdk_x11_window_set_user_time</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">gdk_window</span><span class="symbol">,</span><span class="normal"> timestamp</span><span class="symbol">);</span>
+<span class="normal">        </span><span class="cbracket">}</span>
+<span class="normal">      </span><span class="keyword">else</span>
+<span class="preproc">#endif</span>
+<span class="preproc">#ifdef</span><span class="normal"> <a href="http://library.gnome.org/devel/gdk/gdk3-General.html#GDK-WINDOWING-WIN32:CAPS">GDK_WINDOWING_WIN32</a></span>
+<span class="normal">      </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="function">GDK_IS_WIN32_DISPLAY</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">display</span><span class="symbol">))</span>
+<span class="normal">        </span><span class="cbracket">{</span>
+<span class="normal">          </span><span class="comment">/* ... win32 specific code ... */</span>
+<span class="normal">        </span><span class="cbracket">}</span>
+<span class="normal">      </span><span class="keyword">else</span>
+<span class="preproc">#endif</span>
+<span class="normal">       </span><span class="cbracket">{</span>
+<span class="normal">         </span><span class="function"><a href="http://library.gnome.org/devel/glib/unstable/glib-Message-Logging.html#g-warning">g_warning</a></span><span class="normal"> </span><span class="symbol">(</span><span class="string">"Unsupported GDK backend"</span><span class="symbol">);</span>
+<span class="normal">       </span><span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+    </p>
+<p>
+      If you used the pkg-config variable <code class="varname">target</code> to
+      conditionally build part of your project depending on the GDK backend,
+      for instance like this:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="function">AM_CONDITIONAL</span><span class="symbol">(</span><span class="normal">BUILD_X11</span><span class="symbol">,</span><span class="normal"> test `$PKG_CONFIG </span><span class="symbol">--</span><span class="normal">variable</span><span class="symbol">=</span><span class="usertype">target</span><span class="normal"> gtk</span><span class="symbol">+-</span><span class="number">2.0</span><span class="normal">` </span><span class="symbol">=</span><span class="normal"> </span><span class="string">"x11"</span><span class="symbol">)</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      then you should now use the M4 macro provided by GTK+ itself:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="function">GTK_CHECK_BACKEND</span><span class="symbol">([</span><span class="normal">x11</span><span class="symbol">],</span><span class="normal"> </span><span class="symbol">[</span><span class="number">3.0</span><span class="symbol">.</span><span class="number">2</span><span class="symbol">],</span><span class="normal"> </span><span class="symbol">[</span><span class="normal">have_x11</span><span class="symbol">=</span><span class="normal">yes</span><span class="symbol">],</span><span class="normal"> </span><span class="symbol">[</span><span class="normal">have_x11</span><span class="symbol">=</span><span class="normal">no</span><span class="symbol">])</span>
+<span class="function">AM_CONDITIONAL</span><span class="symbol">(</span><span class="normal">BUILD_x11</span><span class="symbol">,</span><span class="normal"> </span><span class="symbol">[</span><span class="normal">test </span><span class="string">"x$have_x11"</span><span class="normal"> </span><span class="symbol">=</span><span class="normal"> </span><span class="string">"xyes"</span><span class="symbol">])</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1522136"></a>GtkPlug and GtkSocket</h3></div></div></div>
+<p>
+      The <a class="link" href="GtkPlug.html" title="GtkPlug"><span class="type">GtkPlug</span></a> and <a class="link" href="GtkSocket.html" title="GtkSocket"><span class="type">GtkSocket</span></a> widgets are now X11-specific, and you
+      have to include the <code class="filename">&lt;gtk/gtkx.h&gt;</code> header
+      to use them. The previous section about proper handling of
+      backend-specific code applies, if you care about other backends.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1477278"></a>The GtkWidget::draw signal</h3></div></div></div>
+<p>
+      The GtkWidget <a href="http://library.gnome.org/devel/gtk3/GtkWidget.html#GtkWidget-expose-event"><span class="type">"expose-event"</span></a> signal has been replaced by
+      a new <a class="link" href="GtkWidget.html#GtkWidget-draw" title='The "draw" signal'><span class="type">"draw"</span></a> signal, which takes a <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-t"><span class="type">cairo_t</span></a> instead of
+      an expose event. The cairo context is being set up so that the origin
+      at (0, 0) coincides with the upper left corner of the widget, and
+      is properly clipped.
+    </p>
+<div class="note" style="margin-left: 0.5in; margin-right: 0.5in;">
+<h3 class="title">Note</h3>
+<p>In other words, the cairo context of the draw signal is set
+      up in 'widget coordinates', which is different from traditional expose
+      event handlers, which always assume 'window coordinates'.
+    </p>
+</div>
+<p>
+      The widget is expected to draw itself with its allocated size, which
+      is available via the new <a class="link" href="GtkWidget.html#gtk-widget-get-allocated-width" title="gtk_widget_get_allocated_width ()"><code class="function">gtk_widget_get_allocated_width()</code></a> and
+      <a class="link" href="GtkWidget.html#gtk-widget-get-allocated-height" title="gtk_widget_get_allocated_height ()"><code class="function">gtk_widget_get_allocated_height()</code></a> functions. It is not necessary to
+      check for <code class="function">GTK_WIDGET_IS_DRAWABLE()</code>, since GTK+ already does this check
+      before emitting the <a class="link" href="GtkWidget.html#GtkWidget-draw" title='The "draw" signal'><span class="type">"draw"</span></a> signal.
+    </p>
+<p>
+      There are some special considerations for widgets with multiple windows.
+      Expose events are window-specific, and widgets with multiple windows
+      could expect to get an expose event for each window that needs to be
+      redrawn. Therefore, multi-window expose event handlers typically look
+      like this:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">event</span><span class="symbol">-&gt;</span><span class="normal">window </span><span class="symbol">==</span><span class="normal"> widget</span><span class="symbol">-&gt;</span><span class="normal">window1</span><span class="symbol">)</span>
+<span class="normal">  </span><span class="cbracket">{</span>
+<span class="normal">     </span><span class="comment">/* ... draw window1 ... */</span>
+<span class="normal">  </span><span class="cbracket">}</span>
+<span class="keyword">else</span><span class="normal"> </span><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">event</span><span class="symbol">-&gt;</span><span class="normal">window </span><span class="symbol">==</span><span class="normal"> widget</span><span class="symbol">-&gt;</span><span class="normal">window2</span><span class="symbol">)</span>
+<span class="normal">  </span><span class="cbracket">{</span>
+<span class="normal">     </span><span class="comment">/* ... draw window2 ... */</span>
+<span class="normal">  </span><span class="cbracket">}</span>
+<span class="symbol">...</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      In contrast, the <a class="link" href="GtkWidget.html#GtkWidget-draw" title='The "draw" signal'><span class="type">"draw"</span></a> signal handler may have to draw multiple
+      windows in one call. GTK+ has a convenience function
+      <a class="link" href="GtkWidget.html#gtk-cairo-should-draw-window" title="gtk_cairo_should_draw_window ()"><code class="function">gtk_cairo_should_draw_window()</code></a> that can be used to find out if
+      a window needs to be drawn. With that, the example above would look
+      like this (note that the 'else' is gone):
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="function"><a href="GtkWidget.html#gtk-cairo-should-draw-window">gtk_cairo_should_draw_window</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> widget</span><span class="symbol">-&gt;</span><span class="normal">window1</span><span class="symbol">)</span>
+<span class="normal">  </span><span class="cbracket">{</span>
+<span class="normal">     </span><span class="comment">/* ... draw window1 ... */</span>
+<span class="normal">  </span><span class="cbracket">}</span>
+<span class="keyword">if</span><span class="normal"> </span><span class="symbol">(</span><span class="function"><a href="GtkWidget.html#gtk-cairo-should-draw-window">gtk_cairo_should_draw_window</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">cr</span><span class="symbol">,</span><span class="normal"> widget</span><span class="symbol">-&gt;</span><span class="normal">window2</span><span class="symbol">)</span>
+<span class="normal">  </span><span class="cbracket">{</span>
+<span class="normal">     </span><span class="comment">/* ... draw window2 ... */</span>
+<span class="normal">  </span><span class="cbracket">}</span>
+<span class="symbol">...</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      Another convenience function that can help when implementing
+      ::draw for multi-window widgets is <a class="link" href="GtkWidget.html#gtk-cairo-transform-to-window" title="gtk_cairo_transform_to_window ()"><code class="function">gtk_cairo_transform_to_window()</code></a>,
+      which transforms a cairo context from widget-relative coordinates
+      to window-relative coordinates.
+    </p>
+<p>
+      All GtkStyle drawing functions (<a class="link" href="GtkStyle.html#gtk-paint-box" title="gtk_paint_box ()"><code class="function">gtk_paint_box()</code></a>, etc) have been changed
+      to take a <a href="/usr/share/gtk-doc/html/cairo/cairo-cairo-t.html#cairo-t"><span class="type">cairo_t</span></a> instead of a window and a clip area. ::draw
+      implementations will usually just use the cairo context that has been
+      passed in for this.
+    </p>
+<div class="example">
+<a name="id1526759"></a><p class="title"><b>Example 116. A simple ::draw function</b></p>
+<div class="example-contents">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="normal"><a href="http://library.gnome.org/devel/glib/unstable/glib-Basic-Types.html#gboolean">gboolean</a></span>
+<span class="function">gtk_arrow_draw</span><span class="normal"> </span><span class="symbol">(</span><span class="usertype">GtkWidget</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget</span><span class="symbol">,</span>
+<span class="normal">                </span><span class="usertype">cairo_t</span><span class="normal">   </span><span class="symbol">*</span><span class="normal">cr</span><span class="symbol">)</span>
+<span class="cbracket">{</span>
+<span class="normal">  </span><span class="usertype">GtkStyleContext</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">context</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="usertype">gint</span><span class="normal"> x</span><span class="symbol">,</span><span class="normal"> y</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="usertype">gint</span><span class="normal"> width</span><span class="symbol">,</span><span class="normal"> height</span><span class="symbol">;</span>
+<span class="normal">  </span><span class="usertype">gint</span><span class="normal"> extent</span><span class="symbol">;</span>
+
+<span class="normal">  context </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-style-context">gtk_widget_get_style_context</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">);</span>
+
+<span class="normal">  width </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-allocated-width">gtk_widget_get_allocated_width</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">);</span>
+<span class="normal">  height </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="GtkWidget.html#gtk-widget-get-allocated-height">gtk_widget_get_allocated_height</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">widget</span><span class="symbol">);</span>
+
+<span class="normal">  extent </span><span class="symbol">=</span><span class="normal"> </span><span class="function"><a href="http://library.gnome.org/devel/glib/unstable/glib-Standard-Macros.html#MIN:CAPS">MIN</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">width </span><span class="symbol">-</span><span class="normal"> </span><span class="number">2</span><span class="normal"> </span><span class="symbol">*</span><span class="normal"> PAD</span><span class="symbol">,</span><span class="normal"> height </span><span class="symbol">-</span><span class="normal"> </span><span class="number">2</span><span class="normal"> </span><span class="symbol">*</span><span class="normal"> PAD</span><span class="symbol">);</span>
+<span class="normal">  x </span><span class="symbol">=</span><span class="normal"> PAD</span><span class="symbol">;</span>
+<span class="normal">  y </span><span class="symbol">=</span><span class="normal"> PAD</span><span class="symbol">;</span>
+
+<span class="normal">  </span><span class="function"><a href="GtkStyleContext.html#gtk-render-arrow">gtk_render_arrow</a></span><span class="normal"> </span><span class="symbol">(</span><span class="normal">context</span><span class="symbol">,</span><span class="normal"> rc</span><span class="symbol">,</span><span class="normal"> <a href="http://library.gnome.org/devel/glib/unstable/glib-Numerical-Definitions.html#G-PI:CAPS">G_PI</a> </span><span class="symbol">/</span><span class="normal"> </span><span class="number">2</span><span class="symbol">,</span><span class="normal"> x</span><span class="symbol">,</span><span class="normal"> y</span><span class="symbol">,</span><span class="normal"> extent</span><span class="symbol">);</span>
+<span class="cbracket">}</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<br class="example-break">
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1500462"></a>GtkProgressBar orientation</h3></div></div></div>
+<p>
+      In GTK+ 2.x, <a class="link" href="GtkProgressBar.html" title="GtkProgressBar"><span class="type">GtkProgressBar</span></a> and <a class="link" href="GtkCellRendererProgress.html" title="GtkCellRendererProgress"><span class="type">GtkCellRendererProgress</span></a> were using the
+      GtkProgressBarOrientation enumeration to specify their orientation and
+      direction. In GTK+ 3, both the widget and the cell renderer implement
+      <a class="link" href="gtk3-Orientable.html#GtkOrientable"><span class="type">GtkOrientable</span></a>, and have an additional 'inverted' property to determine
+      their direction. Therefore, a call to <a href="http://library.gnome.org/devel/gtk3/GtkProgressBar.html#gtk-progress-bar-set-orientation"><code class="function">gtk_progress_bar_set_orientation()</code></a>
+      needs to be replaced by a pair of calls to
+      <a class="link" href="gtk3-Orientable.html#gtk-orientable-set-orientation" title="gtk_orientable_set_orientation ()"><code class="function">gtk_orientable_set_orientation()</code></a> and <a class="link" href="GtkProgressBar.html#gtk-progress-bar-set-inverted" title="gtk_progress_bar_set_inverted ()"><code class="function">gtk_progress_bar_set_inverted()</code></a>.
+      The following values correspond:
+      </p>
+<div class="table">
+<a name="id1510298"></a><p class="title"><b>Table 3. </b></p>
+<div class="table-contents"><table border="1">
+<colgroup>
+<col class="1">
+<col class="2">
+<col class="3">
+</colgroup>
+<thead>
+<tr>
+<th>GTK+ 2.x</th>
+<th colspan="2">GTK+ 3</th>
+</tr>
+<tr>
+<th>GtkProgressBarOrientation</th>
+<th>GtkOrientation</th>
+<th>inverted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GTK_PROGRESS_LEFT_TO_RIGHT</td>
+<td>GTK_ORIENTATION_HORIZONTAL</td>
+<td>FALSE</td>
+</tr>
+<tr>
+<td>GTK_PROGRESS_RIGHT_TO_LEFT</td>
+<td>GTK_ORIENTATION_HORIZONTAL</td>
+<td>TRUE</td>
+</tr>
+<tr>
+<td>GTK_PROGRESS_TOP_TO_BOTTOM</td>
+<td>GTK_ORIENTATION_VERTICAL</td>
+<td>FALSE</td>
+</tr>
+<tr>
+<td>GTK_PROGRESS_BOTTOM_TO_TOP</td>
+<td>GTK_ORIENTATION_VERTICAL</td>
+<td>TRUE</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+<p><br class="table-break">
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1519360"></a>Check your expand and fill flags</h3></div></div></div>
+<p>
+      The behaviour of expanding widgets has changed slightly in GTK+ 3,
+      compared to GTK+ 2.x. It is now 'inherited', i.e. a container that
+      has an expanding child is considered expanding itself. This is often
+      the desired behaviour. In places where you don't want this to happen,
+      setting the container explicity as not expanding will stop the
+      expand flag of the child from being inherited. See
+      <a class="link" href="GtkWidget.html#gtk-widget-set-hexpand" title="gtk_widget_set_hexpand ()"><code class="function">gtk_widget_set_hexpand()</code></a> and <a class="link" href="GtkWidget.html#gtk-widget-set-vexpand" title="gtk_widget_set_vexpand ()"><code class="function">gtk_widget_set_vexpand()</code></a>.
+    </p>
+<p>
+      If you experience sizing problems with widgets in ported code,
+      carefully check the <span class="type">"expand"</span> and <span class="type">"fill"</span> flags of your
+      boxes.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1515896"></a>Scrolling changes</h3></div></div></div>
+<p>
+      The default values for the <a class="link" href="GtkScrolledWindow.html#GtkScrolledWindow--hscrollbar-policy" title='The "hscrollbar-policy" property'><span class="type">"hscrollbar-policy"</span></a> and
+      <a class="link" href="GtkScrolledWindow.html#GtkScrolledWindow--vscrollbar-policy" title='The "vscrollbar-policy" property'><span class="type">"vscrollbar-policy"</span></a> properties have been changed from
+      'never' to 'automatic'. If your application was relying on the default
+      value, you will have explicitly set it explicitly.
+    </p>
+<p>
+      The ::set-scroll-adjustments signal on GtkWidget has been replaced
+      by the <a class="link" href="GtkScrollable.html" title="GtkScrollable"><span class="type">GtkScrollable</span></a> interface which must be implemented by a widget
+      that wants to be placed in a <a class="link" href="GtkScrolledWindow.html" title="GtkScrolledWindow"><span class="type">GtkScrolledWindow</span></a>. Instead of emitting
+      ::set-scroll-adjustments, the scrolled window simply sets the
+      <span class="type">"hadjustment"</span> and <span class="type">"vadjustment"</span> properties.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1525420"></a>GtkObject is gone</h3></div></div></div>
+<p>
+      GtkObject has been removed in GTK+ 3. Its remaining functionality,
+      the ::destroy signal, has been moved to GtkWidget. If you have non-widget
+      classes that are directly derived from GtkObject, you have to make
+      them derive from <a href="http://library.gnome.org/devel/gobject/unstable/gobject-The-Base-Object-Type.html#GInitiallyUnowned"><span class="type">GInitiallyUnowned</span></a> (or, if you don't need the floating
+      functionality, <a href="http://library.gnome.org/devel/gobject/unstable/gobject-The-Base-Object-Type.html#GObject"><span class="type">GObject</span></a>). If you have widgets that override the
+      destroy class handler, you have to adjust your class_init function,
+      since destroy is now a member of GtkWidgetClass:
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GtkObjectClass</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">object_class </span><span class="symbol">=</span><span class="normal"> </span><span class="function">GTK_OBJECT_CLASS</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">class</span><span class="symbol">);</span>
+
+<span class="normal">object_class</span><span class="symbol">-&gt;</span><span class="normal">destroy </span><span class="symbol">=</span><span class="normal"> my_destroy</span><span class="symbol">;</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      becomes
+      </p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3</pre></td>
+        <td class="listing_code"><pre class="programlisting"><span class="usertype">GtkWidgetClass</span><span class="normal"> </span><span class="symbol">*</span><span class="normal">widget_class </span><span class="symbol">=</span><span class="normal"> </span><span class="function">GTK_WIDGET_CLASS</span><span class="normal"> </span><span class="symbol">(</span><span class="normal">class</span><span class="symbol">);</span>
+
+<span class="normal">widget_class</span><span class="symbol">-&gt;</span><span class="normal">destroy </span><span class="symbol">=</span><span class="normal"> my_destroy</span><span class="symbol">;</span></pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+      In the unlikely case that you have a non-widget class that is derived
+      from GtkObject and makes use of the destroy functionality, you have
+      to implement ::destroy yourself.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1527846"></a>GtkEntryCompletion signal parameters</h3></div></div></div>
+<p>
+      The <a class="link" href="GtkEntryCompletion.html#GtkEntryCompletion-match-selected" title='The "match-selected" signal'><span class="type">"match-selected"</span></a> and
+      <a class="link" href="GtkEntryCompletion.html#GtkEntryCompletion-cursor-on-match" title='The "cursor-on-match" signal'><span class="type">"cursor-on-match"</span></a> signals were erroneously
+      given the internal filter model instead of the users model.
+      This oversight has been fixed in GTK+ 3; if you have handlers
+      for these signals, they will likely need slight adjustments.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1505157"></a>Resize grips</h3></div></div></div>
+<p>
+     The resize grip functionality has been moved from <a class="link" href="GtkStatusbar.html" title="GtkStatusbar"><span class="type">GtkStatusbar</span></a>
+     to <a class="link" href="GtkWindow.html" title="GtkWindow"><span class="type">GtkWindow</span></a>. Any window can now have resize grips, regardless whether
+     it has a statusbar or not. The functions
+     <a href="http://library.gnome.org/devel/gtk3/GtkStatusbar.html#gtk-statusbar-set-has-resize-grip"><code class="function">gtk_statusbar_set_has_resize_grip()</code></a> and <a href="http://library.gnome.org/devel/gtk3/GtkStatusbar.html#gtk-statusbar-get-has-resize-grip"><code class="function">gtk_statusbar_get_has_resize_grip()</code></a>
+     have disappeared, and instead there are now
+     <a class="link" href="GtkWindow.html#gtk-window-set-has-resize-grip" title="gtk_window_set_has_resize_grip ()"><code class="function">gtk_window_set_has_resize_grip()</code></a> and <a class="link" href="GtkWindow.html#gtk-window-get-has-resize-grip" title="gtk_window_get_has_resize_grip ()"><code class="function">gtk_window_get_has_resize_grip()</code></a>.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1523070"></a>Prevent mixed linkage</h3></div></div></div>
+<p>
+      Linking against GTK+ 2.x and GTK+ 3 in the same process is problematic
+      and can lead to hard-to-diagnose crashes. The <a class="link" href="gtk3-General.html#gtk-init" title="gtk_init ()"><code class="function">gtk_init()</code></a> function in
+      both GTK+ 2.22 and in GTK+ 3 tries to detect this situation and abort
+      with a diagnostic message, but this check is not 100% reliable (e.g. if
+      the problematic linking happens only in loadable modules).
+    </p>
+<p>
+      Direct linking of your application against both versions of GTK+ is
+      easy to avoid; the problem gets harder when your application is using
+      libraries that are themselves linked against some version of GTK+.
+      In that case, you have to verify that you are using a version of the
+      library that is linked against GTK+ 3.
+    </p>
+<p>
+      If you are using packages provided by a distributor, it is likely that
+      parallel installable versions of the library exist for GTK+ 2.x and
+      GTK+ 3, e.g for vte, check for vte3; for webkitgtk look for webkitgtk3,
+      and so on.
+    </p>
+</div>
+<div class="section">
+<div class="titlepage"><div><div><h3 class="title">
+<a name="id1523328"></a>Install GTK+ modules in the right place</h3></div></div></div>
+<p>
+    Some software packages install loadable GTK+ modules such as theme engines,
+    gdk-pixbuf loaders or input methods. Since GTK+ 3 is parallel-installable
+    with GTK+ 2.x, the two GTK+ versions have separate locations for their
+    loadable modules. The location for GTK+ 2.x is
+    <code class="filename"><em class="replaceable"><code>libdir</code></em>/gtk-2.0</code>
+    (and its subdirectories), for GTK+ 3 the location is
+    <code class="filename"><em class="replaceable"><code>libdir</code></em>/gtk-3.0</code>
+    (and its subdirectories).
+  </p>
+<p>
+    For some kinds of modules, namely input methods and pixbuf loaders,
+    GTK+ keeps a cache file with extra information about the modules.
+    For GTK+ 2.x, these cache files are located in
+    <code class="filename"><em class="replaceable"><code>sysconfdir</code></em>/gtk-2.0</code>.
+    For GTK+ 3, they have been moved to
+    <code class="filename"><em class="replaceable"><code>libdir</code></em>/gtk-3.0/3.0.0/</code>.
+    The commands that create these cache files have been renamed with a -3
+    suffix to make them parallel-installable.
+  </p>
+<p>
+    Note that GTK+ modules often link against libgtk, libgdk-pixbuf, etc.
+    If that is the case for your module, you have to be careful to link the
+    GTK+ 2.x version of your module against the 2.x version of the libraries,
+    and the GTK+ 3 version against hte 3.x versions. Loading a module linked
+    against libgtk 2.x into an application using GTK+ 3 will lead to
+    unhappiness and must be avoided.
+  </p>
+</div>
+</div>
+<div class="footer">
+<hr>
+          Generated by GTK-Doc V1.18.1</div>
+</body>
+</html>

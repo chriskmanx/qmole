@@ -1,0 +1,74 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2003, 2004, 2005 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Author: Lars Wirzenius <liw@iki.fi>
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: Queues
+;; 
+;; The functions in this section implement simple functional queues.  
+;; A queue is a data structure that can contain elements so that the 
+;; first element added to the queue is the first element removed from 
+;; the queue. First in, first out, that is. A functional queue is one 
+;; that works without changing a data structure (it is impossible in 
+;; Hedgehog, anyway). The queue, as implemented here, is O(1) for 
+;; adding elements, and O(1) or O(n) for removing elements. In a 
+;; sequence of operations, the O(n) is amortized so that the average 
+;; operation is O(1), even if there is an occasional O(n).
+
+; A queue is implemented as a pair of two lists. The first list contains
+; items so that the most recently added item is the first item in the list.
+; The second list contains items so that the least recently item is the
+; first item in the list.
+;
+; This way, when we add an item to the queue, we can add it to the 
+; beginning of the first list. When we remove an item from the queue,
+; we can remove the first item in the second list. When the second
+; list becomes empty, we reverse the first list and make it the new
+; second list.
+
+
+;; Create a new, empty queue.
+
+(def (queue-make)
+    (cons nil nil))
+
+;; Is a queue empty?
+
+(def (queue-empty? queue)
+    (and (nil? (car queue)) (nil? (cdr queue))))
+
+(fail-unless (queue-empty? (queue-make)))
+
+;; How many items are there in the queue?
+
+(def (queue-length queue)
+    (+ (len (car queue)) (len (cdr queue))))
+
+;; Add an item to a queue. Return the new queue.
+
+(def (queue-add queue item)
+    (cons (cons item (car queue))
+    	  (cdr queue)))
+
+(fail-unless (not (queue-empty? (queue-add (queue-make) 'a))))
+
+;; Remove the oldest item from a queue. Return a pair (item, new queue).
+
+(def (queue-remove queue)
+
+    (def (juggle-lists queue)
+    	(cons nil (reverse (car queue))))
+
+    (cond
+    	(queue-empty? queue)
+	    (cons nil queue)
+	(nil? (cdr queue))
+    	    (tailcall (queue-remove (juggle-lists queue)))
+    	(cons (car (cdr queue))
+	      (cons (car queue) (cdr (cdr queue))))))
+
+(fail-unless-equal (car (queue-remove (queue-add (queue-make) 'a))) 'a)
+(fail-unless (queue-empty? (cdr (queue-remove (queue-add (queue-make) 'a)))))

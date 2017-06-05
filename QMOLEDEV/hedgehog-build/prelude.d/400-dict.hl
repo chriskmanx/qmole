@@ -1,0 +1,141 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2003, 2004, 2005 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Author: Kenneth Oksanen <cessu@iki.fi>
+;;         Lars Wirzenius <liw@iki.fi>
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: A Python-like dictionary
+;;
+;; In Python, a dictionary maps a key (of some suitable type) to a value
+;; (of any type). In other languages, it might be called a hash table,
+;; hash map.
+;;
+;; The functions in this section implement a fairly efficient dictionary
+;; using AVL tree routines (but this implementation detail is invisible
+;; to the caller). The key MUST be an integer, a symbol, or a string.
+
+;; Add a new value to the dictionary, replacing any old one for KEY.
+;; Return a new dict.
+
+(def (dict-set dict key value)
+    (default-avl-put dict key value))
+
+; Let's define a macro version as well, to avoid the function call overhead.
+; Tests show that this has a small, but significant effect, when there
+; would be a lot of function calls otherwise.
+
+(def-syntax (dict-set ?dict ?key ?value)
+    (default-avl-put ?dict ?key ?value))
+
+;; Get the value corresponding to a key in a dictionary.
+;; Return nil if the key had no value.
+
+(def (dict-get dict key)
+    (default-avl-get dict key nil))
+
+(def-syntax (dict-get ?dict ?key)
+    (default-avl-get ?dict ?key nil))
+
+;; Remove a value corresponding to a key. Return new dictionary.
+
+(def (dict-remove dict key)
+    (dict-set dict key nil))
+
+(def-syntax (dict-remove ?dict ?key)
+    (dict-set ?dict ?key nil))
+
+;; Set many key-value pairs in a dictionary at once. The pairs are given
+;; as a list.
+
+(def (dict-set-from-list dict pairs)
+    (if (nil? pairs)
+        dict
+        (tailcall (dict-set-from-list (dict-set dict 
+						(car (car pairs)) 
+						(cdr (car pairs)))
+				      (cdr pairs)))))
+
+;; Set many key-value pairs in a dictionary at once. The pairs are given
+;; as separate arguments. This function is useful for initializing a 
+;; dictionary with default values for many keys.
+
+(def (dict-set-many dict ... pairs)
+    (dict-set-from-list dict pairs))
+
+;; Create a new dictionary. If the variable argument list is empty, the
+;; new dictionary will also be empty. Otherwise the argument list shall
+;; contain pairs (cons cells) where the first element is a key and the
+;; second element is the value. The new dictionary will then contain
+;; these key-value pairs.
+;;
+;; You can also use a plain nil value for an empty dictionary.
+
+(def (dict-create ... pairs)
+    (dict-set-from-list nil pairs))
+
+;; This is similar to dict-set, but the value to be set is done by calling
+;; '(fun old-value)'.  Returns a new dict.
+
+(def (dict-update dict key fun)
+    (set x (dict-get dict key))
+    (dict-set dict key (fun x)))
+
+;; If the dictionary empty?
+
+(def (dict-empty? dict)
+    (nil? dict))
+
+;; Return the smallest key in the dict, or nil if the dict is empty.
+
+(def (dict-smallest-key dict)
+    (if dict
+	(if (avl-left dict)
+	    (tailcall (dict-smallest-key (avl-left dict)))
+	    (avl-key dict))
+	nil))
+
+;; Return the largest key in the dict, or nil if the dict is empty.
+
+(def (dict-largest-key dict)
+    (if dict
+	(if (avl-right dict)
+	    (tailcall (dict-largest-key (avl-right dict)))
+	    (avl-key dict))
+	nil))
+
+;; Get a value from a dictionary within a dictionary. That is,
+;; 'dict1' at key 'key1' is a dictionary, and that one is indexed with
+;; 'key2'.
+
+(def (dict-get2 dict1 key1 key2)
+    (let
+    	dict2 (dict-get dict1 key1)
+	(if (nil? dict2)
+	    nil
+	    (dict-get dict2 key2))))
+
+;; Set a value in a dictionary within a dictionary. See dict-get2.
+
+(def (dict-set2 dict1 key1 key2 value)
+    (let
+    	dict2 (dict-get dict1 key1)
+	dict2 (dict-set dict2 key2 value)
+	(dict-set dict1 key1 dict2)))
+
+; Unit tests for dict.
+
+(fail-unless-equal (dict-create) nil)
+(fail-unless (not (nil? (dict-create (cons 'a 1) (cons 'b 2)))))
+
+(fail-unless-equal (dict-get (dict-create) 'a) nil)
+(fail-unless-equal (dict-get (dict-create (cons 'a 'b)) 'a) 'b)
+(fail-unless-equal (dict-get (dict-set (dict-create) 'a 'b) 'a) 'b)
+(fail-unless-equal (dict-get (dict-set (dict-create) 'a 'b) 'b) nil)
+
+(fail-unless-equal (dict-get (dict-set (dict-create (cons 'a 'b)) 'a 'c) 'a) 'c)
+(fail-unless-equal (dict-get (dict-set (dict-create (cons 'a 'b)) 'b 'c) 'a) 'b)
+(fail-unless-equal (dict-get (dict-set (dict-create (cons 'a 'b)) 'b 'c) 'b) 'c)
+(fail-unless-equal (dict-get (dict-remove (dict-create (cons 'a 'b)) 'a) 'a) nil)

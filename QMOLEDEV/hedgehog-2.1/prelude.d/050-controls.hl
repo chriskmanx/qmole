@@ -1,0 +1,74 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2003, 2004, 2005 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Author: Lars Wirzenius <liw@iki.fi>
+;;         Kenneth Oksanen <cessu@iki.fi>
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: Control structures
+;;
+;; The following control structures are implemented at the Lisp level,
+;; using macros.
+
+;; (cond predicate_1 expr_1 predicate_2 expr_2 ... default_expr) is a
+;; replacement for multiple 'if' expressiones within each other.
+
+(def-syntax (cond ?c ?t ... ?r)
+  (if ?c ?t (cond ... ?r)))
+(def-syntax (cond ?c ?t)
+  (if ?c ?t))
+(def-syntax (cond ?e)
+  ?e)
+
+;; (let symbol_1 expr_1 symbol_2 expr_2 ... expr) is a replacement for
+;; multiple (set foo bar) sequences. expr_i are evaluated and bound to
+;; symbol_i in sequence, and the bindings are not visible outside the let.
+;; Note that there are fewer parentheses than in most Lisp dialects.
+;;
+;; Example: (let foo 1 bar 2 (pr (+ foo bar))) prints out 3.
+
+(def-syntax (let ?name ?value ... ?rest)
+    (do (set ?name ?value)
+        (let ... ?rest)))
+ 
+(def-syntax (let ?name ?value ?expr)
+    (do (set ?name ?value)
+        ?expr))
+
+;; (def-record record_name field_1 value_1 ...) defines a set of
+;; macros for accessing and updating fields mnemonically in a tuple.
+;; For example (def-record abc a 1 b 2 c 3) creates a record called abc
+;; containing three fields a, b, and c with default values of 1, 2, and 3,
+;; respectively.  The record definition expands into three macros abc-a,
+;; abc-b, and abc-c for reading the fields of the record, and abc-with-a,
+;; abc-with-b etc. for copying the given record with the respective field
+;; bound to a new value.  Furthermore a new value abc-default containing
+;; the default bindings of abc is generated.
+
+(def-syntax (def-record ?name ... ?fields)
+  (def-record-accessors ?name ?fields 0)
+  (def-record-withs ?name ?fields 0)
+  (set (## ?name - default)
+       (tuple-make-from-list (def-record-values ?fields))))
+
+(def-syntax (def-record-accessors ?name () ?n)
+  ())
+(def-syntax (def-record-accessors ?name (?field ?value ... ?fields) ?n)
+  (def-syntax ((## ?name - ?field) (#' ?record))
+    (tuple-index (#' ?record) ?n))
+  (def-record-accessors ?name ?fields (+ ?n 1)))
+
+(def-syntax (def-record-withs ?name () ?n)
+  ())
+(def-syntax (def-record-withs ?name (?field ?value ... ?fields) ?n)
+  (def-syntax ((## ?name -with- ?field) (#' ?record) (#' ?value))
+    (tuple-with (#' ?record) ?n (#' ?value)))
+  (def-record-withs ?name ?fields (+ ?n 1)))
+
+(def-syntax (def-record-values ())
+  ())
+(def-syntax (def-record-values (?field ?value ... ?fields))
+  (cons ?value (def-record-values ?fields)))
+

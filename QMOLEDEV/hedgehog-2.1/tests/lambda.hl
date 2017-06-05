@@ -1,0 +1,68 @@
+;; Some tests for the lambda lifting pass in the compiler.
+
+;; This demonstrates how the compiler works internally when it creates
+;; and uses environments.
+
+(def (f1 y)
+     (+ y (.get_env 0)))
+(def (mkf1 x)
+     (.make_new_env 2)
+     (.put_new_env 0 x)
+     (.bind_env f1))
+(print ((mkf1 1) 2) "\n")
+
+
+;; Let's try the same with automatic lambdas.
+
+(def (mkf2 x)
+     (fn (y) (+ y x)))
+(print ((mkf2 1) 2) "\n")
+
+
+;; Check that the local `set' or `fn' argument shadows the variable
+;; otherwise in closure.
+
+(def (mkf3 x)
+     (fn (y) (+ y x (do (set x 3) x))))
+(print ((mkf3 1) 2) "\n")
+(def (mkf4 x)
+     (fn (y) (+ y x ((fn (x) x) 3))))
+(print ((mkf4 1) 2) "\n")
+
+
+;; This tests mutually recursive local functions.  Note the rebinding
+;; of `x' in before `pong'.
+
+(def (pingpong x)
+     (def (ping y)
+	  (print "ping" x y "\n")
+	  (if (< y 10)
+	      (pong (+ y 1))))
+     (set x " ? ")
+     (def (pong y)
+	  (print "pong" x y "\n")
+	  (ping (+ y 1)))
+
+     (ping 0))
+
+(pingpong " = ")
+
+;; Although not demonstrated above, note also, that calling a function
+;; before it has been demonstrated may result in run-time errors.  For
+;; example if you would move `(ping 0)' before `(def (ping ..) ..)',
+;; the program would probably crash.  Similarly, since `ping' calls
+;; `pong', the call `(ping 0)' must be after the definition of `pong'.
+
+
+;; Finally a little test to ensure environments are saved properly by
+;; lifted functions.  Should print three lines, first and last one
+;; having "FOO", and middlemost having "BAR".
+
+(def (sv x)
+     (fn (f)
+	  (print x "\n")
+	  (f)
+	  (print x "\n")))
+(do (set x "BAR")
+    ((sv "FOO")
+     (fn () (print x "\n"))))

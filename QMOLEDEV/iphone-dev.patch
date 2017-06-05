@@ -1,0 +1,213 @@
+diff -Naur iphone-dev~/llvm-gcc-4.0-iphone/gcc/Makefile.in iphone-dev/llvm-gcc-4.0-iphone/gcc/Makefile.in
+--- iphone-dev~/llvm-gcc-4.0-iphone/gcc/Makefile.in	2008-01-03 20:21:25.000000000 +0200
++++ iphone-dev/llvm-gcc-4.0-iphone/gcc/Makefile.in	2008-03-21 03:30:30.000000000 +0200
+@@ -888,7 +888,7 @@
+ endif
+ 
+ .cpp.o:
+-	$(CXX) -c $(ALL_CXXFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $< $(OUTPUT_OPTION)
++	$(CXX) -c $(ALL_CXXFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) -fno-inline $< $(OUTPUT_OPTION)
+ # APPLE LOCAL end LLVM
+ 
+ #
+@@ -1065,7 +1065,7 @@
+ # If in BUILD_LLVM_INTO_A_DYLIB mode, always link in the x86/ppc backends.
+ # See below for more details.
+ ifdef BUILD_LLVM_INTO_A_DYLIB
+-LLVMTARGETOBJ := $(sort $(LLVMTARGETOBJ) x86 powerpc)
++LLVMTARGETOBJ := $(sort $(LLVMTARGETOBJ))
+ endif
+ 
+ # We use llvm-config to determine the libraries that we need to link in our
+@@ -1389,6 +1389,11 @@
+ ifdef BUILD_LLVM_INTO_A_DYLIB
+ cc1-exported-symbol-list.txt:
+ 	echo "_main" > $@
++	echo "_NXArgc" >> $@
++	echo "_NXArgv" >> $@
++	echo "___progname" >> $@
++	echo "_environ" >> $@
++	echo "__mh_execute_header" >> $@
+ LIBDEPS += cc1-exported-symbol-list.txt
+ LINKCC += -dead_strip -exported_symbols_list cc1-exported-symbol-list.txt
+ endif
+@@ -3188,8 +3193,7 @@
+ macro_list: s-macro_list; @true
+ s-macro_list : $(GCC_PASSES) 
+ 	echo | $(GCC_FOR_TARGET) -E -dM - | \
+-	  sed -n 's/^#define \([^_][a-zA-Z0-9_]*\).*/\1/p ; \
+-		s/^#define \(_[^_A-Z][a-zA-Z0-9_]*\).*/\1/p' | \
++	  sed -n 's/^#define \([^_][a-zA-Z0-9_]*\).*/\1/p ; s/^#define \(_[^_A-Z][a-zA-Z0-9_]*\).*/\1/p' | \
+ 	  sort -u > tmp-macro_list
+ 	$(SHELL) $(srcdir)/../move-if-change tmp-macro_list macro_list
+ 	$(STAMP) s-macro_list
+diff -Naur iphone-dev~/llvm-gcc-4.0-iphone/gcc/config/arm/darwin.h iphone-dev/llvm-gcc-4.0-iphone/gcc/config/arm/darwin.h
+--- iphone-dev~/llvm-gcc-4.0-iphone/gcc/config/arm/darwin.h	2008-01-03 20:19:43.000000000 +0200
++++ iphone-dev/llvm-gcc-4.0-iphone/gcc/config/arm/darwin.h	2008-03-21 19:58:56.000000000 +0200
+@@ -397,8 +397,8 @@
+ /* iPhone binutils local: don't use built-in setjmp and longjmp, as they're
+  * broken under LLVM and they're our method of exception handling. */
+ #define DONT_USE_BUILTIN_SETJMP
+-#define JMP_BUF_SIZE    27 
+-#define OBJC_JBLEN      27
++#define JMP_BUF_SIZE    28 
++#define OBJC_JBLEN      28
+ 
+ #undef FPUTYPE_DEFAULT
+ #define FPUTYPE_DEFAULT FPUTYPE_VFP
+diff -Naur iphone-dev~/llvm-gcc-4.0-iphone/gcc/config/host-darwin.c iphone-dev/llvm-gcc-4.0-iphone/gcc/config/host-darwin.c
+--- iphone-dev~/llvm-gcc-4.0-iphone/gcc/config/host-darwin.c	2008-01-03 20:20:52.000000000 +0200
++++ iphone-dev/llvm-gcc-4.0-iphone/gcc/config/host-darwin.c	2008-03-21 03:30:30.000000000 +0200
+@@ -27,57 +27,81 @@
+ #include "config/host-darwin.h"
+ 
+ /* Yes, this is really supposed to work.  */
+-static char pch_address_space[1024*1024*1024] __attribute__((aligned (4096)));
++/*static char pch_address_space[1024*1024*1024] __attribute__((aligned (4096)));*/
++# define TRY_EMPTY_VM_SPACE	0
+ 
+ /* Return the address of the PCH address space, if the PCH will fit in it.  */
+ 
+ void *
+-darwin_gt_pch_get_address (size_t sz, int fd ATTRIBUTE_UNUSED)
++darwin_gt_pch_get_address (size_t size, int fd)
+ {
+-  if (sz <= sizeof (pch_address_space))
+-    return pch_address_space;
+-  else
++  void *addr;
++
++  addr = mmap ((void *)TRY_EMPTY_VM_SPACE, size, PROT_READ | PROT_WRITE,
++	       MAP_PRIVATE, fd, 0);
++
++  /* If we failed the map, that means there's *no* free space.  */
++  if (addr == (void *) MAP_FAILED)
+     return NULL;
++  /* Unmap the area before returning.  */
++  munmap (addr, size);
++
++  return addr;
+ }
+ 
+ /* Check ADDR and SZ for validity, and deallocate (using munmap) that part of
+    pch_address_space beyond SZ.  */
+ 
+ int
+-darwin_gt_pch_use_address (void *addr, size_t sz, int fd, size_t off)
++darwin_gt_pch_use_address (void *base, size_t size, int fd, size_t offset)
+ {
+-  const size_t pagesize = getpagesize();
+-  void *mmap_result;
+-  int ret;
+-
+-  if ((size_t)pch_address_space % pagesize != 0
+-      || sizeof (pch_address_space) % pagesize != 0)
+-    abort ();
+-  
+-  ret = (addr == pch_address_space && sz <= sizeof (pch_address_space));
+-  if (! ret)
+-    sz = 0;
++  void *addr;
++
++  /* We're called with size == 0 if we're not planning to load a PCH
++     file at all.  This allows the hook to free any static space that
++     we might have allocated at link time.  */
++  if (size == 0)
++    return -1;
++
++  /* Try to map the file with MAP_PRIVATE.  */
++  addr = mmap (base, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, offset);
++
++  if (addr == base)
++    return 1;
+ 
+-  /* Round the size to a whole page size.  Normally this is a no-op.  */
+-  sz = (sz + pagesize - 1) / pagesize * pagesize;
++  if (addr != (void *) MAP_FAILED)
++    munmap (addr, size);
+ 
+-  if (munmap (pch_address_space + sz, sizeof (pch_address_space) - sz) != 0)
+-    fatal_error ("couldn't unmap pch_address_space: %m\n");
++  /* Try to make an anonymous private mmap at the desired location.  */
++  addr = mmap (base, size, PROT_READ | PROT_WRITE,
++	       MAP_PRIVATE | MAP_ANON, -1, 0);
+ 
+-  if (ret)
++  if (addr != base)
+     {
+-      mmap_result = mmap (addr, sz,
+-			  PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED,
+-			  fd, off);
+-
+-      /* The file might not be mmap-able.  */
+-      ret = mmap_result != (void *) MAP_FAILED;
+-
+-      /* Sanity check for broken MAP_FIXED.  */
+-      if (ret && mmap_result != addr)
+-	abort ();
++      if (addr != (void *) MAP_FAILED)
++        munmap (addr, size);
++      return -1;
+     }
+ 
+-  return ret;
++  if (lseek (fd, offset, SEEK_SET) == (off_t)-1)
++    return -1;
++
++  while (size)
++    {
++      ssize_t nbytes;
++
++      nbytes = read (fd, base, MIN (size, LONG_MAX));
++      if (nbytes <= 0)
++        return -1;
++      base = (char *) base + nbytes;
++      size -= nbytes;
++    }
++
++  return 1;
+ }
+ /* APPLE LOCAL end mainline 2005-04-06 4071679 */
++
++
++#include "hosthooks.h"
++#include "hosthooks-def.h"
++const struct host_hooks host_hooks = HOST_HOOKS_INITIALIZER;
+diff -Naur iphone-dev~/llvm-gcc-4.0-iphone/gcc/configure iphone-dev/llvm-gcc-4.0-iphone/gcc/configure
+--- iphone-dev~/llvm-gcc-4.0-iphone/gcc/configure	2008-01-03 20:21:25.000000000 +0200
++++ iphone-dev/llvm-gcc-4.0-iphone/gcc/configure	2008-03-21 03:30:30.000000000 +0200
+@@ -15652,7 +15652,7 @@
+     ;;
+ esac
+ 
+-if test x$with_sysroot = x && test x$host = x$target \
++if test x$with_sysroot = x && test x$host = x$target && test "x$prefix" != "xNONE" \
+    && test "$prefix" != "/usr" && test "x$prefix" != "x$local_prefix" ; then
+ 
+ cat >>confdefs.h <<_ACEOF
+diff -Naur iphone-dev~/llvm-gcc-4.0-iphone/gcc/llvm-symbol-stubs.cpp iphone-dev/llvm-gcc-4.0-iphone/gcc/llvm-symbol-stubs.cpp
+--- iphone-dev~/llvm-gcc-4.0-iphone/gcc/llvm-symbol-stubs.cpp	2008-01-03 20:21:25.000000000 +0200
++++ iphone-dev/llvm-gcc-4.0-iphone/gcc/llvm-symbol-stubs.cpp	2008-03-21 03:30:30.000000000 +0200
+@@ -59,3 +59,10 @@
+ SYMBOL(get_attr_type)
+ SYMBOL(get_attr_unit)
+ 
++// insn-attr-tab.o (arm)
++SYMBOL(get_attr_cirrus )
++SYMBOL(get_attr_far_jump)
++SYMBOL(get_attr_neg_pool_range)
++SYMBOL(get_attr_pool_range)
++SYMBOL(get_attr_shift)
++
+diff -Naur iphone-dev~/llvm-gcc-4.0-iphone/gcc/objc/objc-act.c iphone-dev/llvm-gcc-4.0-iphone/gcc/objc/objc-act.c
+--- iphone-dev~/llvm-gcc-4.0-iphone/gcc/objc/objc-act.c	2008-01-03 20:13:45.000000000 +0200
++++ iphone-dev/llvm-gcc-4.0-iphone/gcc/objc/objc-act.c	2008-03-21 20:00:36.000000000 +0200
+@@ -8274,7 +8274,7 @@
+ /* APPLE LOCAL radar 4404766 */
+ #define JBLEN ((TARGET_64BIT) ? (26*2 + 18*2 + 129 + 1) : (26 + 18*2 + 129 + 1))
+ #elif TARGET_ARM
+-#define JBLEN 27
++#define JBLEN 28
+ #elif TARGET_I386
+ /* snarfed from /usr/include/i386/{setjmp,signal}.h */
+ #define JBLEN ((TARGET_64BIT) ? ((9 * 2) + 3 + 16) : (18))

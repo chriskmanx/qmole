@@ -1,0 +1,170 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2005 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Author: Kenneth Oksanen <cessu@iki.fi>
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: Manipulating byte orders and integers in C structs as Lisp strings.
+;;
+
+ ;; These are mostly auxiliary routines for the automatically generated
+ ;; file 300-unix.hl
+
+;; Swap the byte order of a 16-bit integer x.
+
+(def (c-swap-short x)
+     (bitwise-or (>> x 8)
+		 (<< (bitwise-and x 0xFF) 8)))
+
+;; Swap the byte order of a 32-bit integer x.
+
+(def (c-swap-int x)
+     (bitwise-or (>> x 24)
+		 (<< x 24)
+		 (bitwise-and (>> x 8) 0xFF00)
+		 (<< (bitwise-and x 0xFF00) 8)))
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Convert a 32-bit integer into a 4-character Lisp string in the host
+;; byte order.
+
+(def (c-int-to-string4 v)
+     (strcat (chr (>> v 24))
+	     (chr (bitwise-and (>> v 16) 0xFF))
+	     (chr (bitwise-and (>> v 8) 0xFF))
+	     (chr (bitwise-and v 0xFF))))
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def (c-int-to-string4 v)
+     (strcat (chr (bitwise-and v 0xFF))
+	     (chr (bitwise-and (>> v 8) 0xFF))
+	     (chr (bitwise-and (>> v 16) 0xFF))
+	     (chr (>> v 24))))
+#endif
+
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Convert a 16-bit integer into a 2-character Lisp string in the host
+;; byte order.
+
+(def (c-short-to-string2 v)
+     (strcat (chr (bitwise-and (>> v 8) 0xFF))
+	     (chr (bitwise-and v 0xFF))))
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def (c-short-to-string2 v)
+     (strcat (chr (bitwise-and v 0xFF))
+	     (chr (bitwise-and (>> v 8) 0xFF))))
+#endif
+
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Read a 32-bit integer from a 4-byte (or longer) Lisp string in the
+;; host byte order.
+
+(def (c-string4-to-int s)
+     (bitwise-or (ord (substr s 3 1))
+		 (<< (ord (substr s 2 1)) 8)
+		 (<< (ord (substr s 1 1)) 16)
+		 (<< (ord (substr s 0 1)) 24)))
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def (c-string4-to-int s)
+     (bitwise-or (ord (substr s 0 1))
+		 (<< (ord (substr s 1 1)) 8)
+		 (<< (ord (substr s 2 1)) 16)
+		 (<< (ord (substr s 3 1)) 24)))
+#endif
+     
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Read a 16-bit integer from a 4-byte (or longer) Lisp string in
+;; big-endian, or network byte order.
+
+(def (c-string2-to-short s)
+     (bitwise-or (ord (substr s 1 1))
+		 (<< (ord (substr s 0 1)) 8)))
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def (c-string2-to-short s)
+     (bitwise-or (ord (substr s 0 1))
+		 (<< (ord (substr s 1 1)) 8)))
+#endif
+
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Equivalent of the C library function htons.
+
+(def-syntax (c-htons ?x)
+  ?x)
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def-syntax (c-htons ?x)
+  (c-swap-short ?x))
+#endif
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Equivalent of the C library function ntohs.
+
+(def-syntax (c-ntohs ?x)
+  ?x)
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def-syntax (c-ntohs ?x)
+  (c-swap-short ?x))
+#endif
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Equivalent of the C library function htonl.
+
+(def-syntax (c-htonl ?x)
+  ?x)
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def-syntax (c-htonl ?x)
+  (c-swap-int ?x))
+#endif
+
+#ifdef HH_MOST_SIGNIFICANT_BYTE_FIRST
+;; Equivalent of the C library function ntohl.
+
+(def-syntax (c-ntohl ?x)
+  ?x)
+#endif
+#ifdef HH_LEAST_SIGNIFICANT_BYTE_FIRST
+(def-syntax (c-ntohl ?x)
+  (c-swap-int ?x))
+#endif
+
+
+;; Read a 32-bit integer from the given offset in the string.
+
+(def-syntax (c-get-int ?string ?offset)
+	    (c-string4-to-int (substr ?string ?offset 4)))
+
+;; Read a 16-bit integer from the given offset in the string.
+
+(def-syntax (c-get-short ?string ?offset)
+	    (c-string2-to-short (substr ?string ?offset 2)))
+
+;; Return a new string, identical to the given one, where the given
+;; 32-bit integer value has been placed in the given offset.
+
+(def (c-set-int string offset value)
+     (let hd (substr string 0 offset)
+	  tl (substr string (+ offset 4) -1)
+	  (strcat hd
+		  (c-int-to-string4 value)
+		  tl)))
+
+;; Return a new string, identical to the given one, where the given
+;; 16-bit integer value has been placed in the given offset.
+
+(def (c-set-short string offset value)
+     (let hd (substr string 0 offset)
+	  tl (substr string (+ offset 2) -1)
+	  (strcat hd
+		  (c-short-to-string2 value)
+		  tl)))

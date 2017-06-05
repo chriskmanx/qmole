@@ -1,0 +1,310 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2003, 2004 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Authors: Lars Wirzenius <liw@iki.fi>
+;;          Kenneth Oksanen <cessu@iki.fi>
+;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: List processing library functions
+;;
+;; The functions in this section do things with lists. Lists are assumed
+;; to be constructed from cons cells in the usual manner.
+
+;; Return a list that contains all the values given as arguments.
+
+(def (list ... args)
+     args)
+
+;; Return item number `n' in a list or nil if item `n' is outside the list.
+;; Counting starts at zero.
+;;
+;; Arguments:
+;; `list'   the list of items
+;; `n'	    index into the list
+
+(def (nth list n)
+    (cond
+        (or (< n 0) (not list))
+            nil
+        (= n 0)
+            (car list)
+        (tailcall (nth (cdr list) (- n 1)))))
+
+(fail-unless-equal (nth nil -1) nil)
+(fail-unless-equal (nth nil 0) nil)
+(fail-unless-equal (nth nil 1) nil)
+                                                                                
+(fail-unless-equal (nth '(0) -1) nil)
+(fail-unless-equal (nth '(0 1) -1) nil)
+(fail-unless-equal (nth '(0 1 2) -1) nil)
+ 
+(fail-unless-equal (nth '(0) 0) 0)
+(fail-unless-equal (nth '(0 1) 0) 0)
+(fail-unless-equal (nth '(0 1 2) 0) 0)
+ 
+(fail-unless-equal (nth '(0) 1) nil)
+(fail-unless-equal (nth '(0 1) 1) 1)
+(fail-unless-equal (nth '(0 1 2) 1) 1)
+ 
+(fail-unless-equal (nth '(0) 2) nil)
+(fail-unless-equal (nth '(0 1) 2) nil)
+(fail-unless-equal (nth '(0 1 2) 2) 2)
+
+
+;; Is `list' equal to nil?
+
+(def (nil? list)
+    (eq? list nil))
+
+; Macro to make things faster, when possible.
+
+(def-syntax (nil? ?list)
+  (eq? ?list nil))
+
+(fail-unless (nil? nil))
+(fail-unless (not (nil? t)))
+(fail-unless (not (nil? 0)))
+
+
+;; Accumulate a value by calling `op' on each item in `items'. The first call
+;; to `op' gets `so-far' and the first item as its arguments, successive calls 
+;; get the previous call's return value and next item. The return value of the
+;; last call to `op' is the return value of the function. If `items' is empty,
+;; `op' is never called and `so-far' is returned.
+
+(def (accumulate op so-far items)
+    (cond
+    	(not items)
+	    so-far
+    	(tailcall (accumulate op 
+	    	              (op so-far (car items)) 
+		              (cdr items)))))
+
+;;(fail-unless-equal (accumulate + 0 '()) 0)
+;;(fail-unless-equal (accumulate + 0 '(1 2 3)) 6)
+
+
+;; Reverse items in a list.
+
+(def (reverse items)
+    (accumulate
+    	(fn (so-far item)
+	    (cons item so-far))
+	nil
+	items))
+
+(fail-unless-equal (reverse '(1 2 3)) '(3 2 1))
+
+
+;; Return list containing elements of `a' and then those of `b'.
+
+(def (append a b)
+    (cond
+    	(nil? a) b
+	(nil? b) a
+	(accumulate
+	    (fn (so-far item)
+		(cons item so-far))
+	    b
+	    (reverse a))))
+
+(fail-unless-equal (append '(a b c) '(d e f)) '(a b c d e f))
+
+
+
+;; Call `func' on each item, return list of return values.
+
+(def (map func items)
+     (reverse (accumulate (fn (so-far item)
+			      (cons (func item) so-far))
+			  nil
+			  items)))
+
+(fail-unless-equal (map (fn (x) x) '()) '())
+(fail-unless-equal (map (fn (x) (+ x 1)) '(1 2 3)) '(2 3 4))
+(fail-unless-equal (map (fn (x) (* x x)) '(1 2 3)) '(1 4 9))
+
+
+;; Return items for which `pred?' returns true.
+
+(def (filter pred? items)
+     (reverse (accumulate (fn (so-far item)
+			      (cond (pred? item) 
+				    (cons item so-far)
+				    so-far))
+			  nil
+			  items)))
+
+(fail-unless-equal (filter (fn (x) (% x 2)) '(1 2 3 4)) '(1 3))
+(fail-unless-equal (filter (fn (x) (% x 2)) '(1 2 3 4)) '(1 3))
+
+
+;; Call `func' for each item. Return value of last call.
+
+(def (for-each func items)
+    (accumulate (fn (so-far item) (func item)) nil items))
+
+(fail-unless-equal (for-each (fn (x) x) '(1 2 3)) 3)
+
+
+;; Return number of items in `list'.
+
+(def (len list)
+    (accumulate (fn (so-far item) (+ so-far 1)) 0 list))
+
+(fail-unless-equal (len '()) 0)
+(fail-unless-equal (len '(1 2 3)) 3)
+
+
+;; Return the 'count' first items in a list.
+
+(def (head items count)
+    (def (helper so-far items count)
+	(if (or (nil? items) (<= count 0))
+	    so-far
+	    (tailcall (helper (cons (car items) so-far)
+	    	              (cdr items)
+		              (- count 1)))))
+    (reverse (helper nil items count)))
+
+(fail-unless-equal (head nil 0) nil)
+(fail-unless-equal (head nil 1) nil)
+(fail-unless-equal (head '(1 2 3) 1) '(1))
+(fail-unless-equal (head '(1 2 3) 2) '(1 2))
+(fail-unless-equal (head '(1 2 3) 3) '(1 2 3))
+(fail-unless-equal (head '(1 2 3) 4) '(1 2 3))
+
+
+;; Skip 'n' items from the beginning of a list and return the tail.
+;; For example, (nth-cdr '(1 2 3) 2) would return (3).
+
+(def (nth-cdr items n)
+    (if (or (nil? items) (<= n 0))
+    	items
+	(tailcall (nth-cdr (cdr items) (- n 1)))))
+
+(fail-unless-equal (nth-cdr nil -1) nil)
+(fail-unless-equal (nth-cdr nil 0) nil)
+(fail-unless-equal (nth-cdr nil 1) nil)
+(fail-unless-equal (nth-cdr '(1 2 3) 0) '(1 2 3))
+(fail-unless-equal (nth-cdr '(1 2 3) 1) '(2 3))
+(fail-unless-equal (nth-cdr '(1 2 3) 2) '(3))
+(fail-unless-equal (nth-cdr '(1 2 3) 3) nil)
+(fail-unless-equal (nth-cdr '(1 2 3) 4) nil)
+
+
+;; Split a list into two: one with the items for which 'pred?' returns true,
+;; one with the rest. Return a pair containing the two lists.
+
+(def (split pred? items)
+    (def (helper true false items)
+    	(cond
+	    (nil? items)
+	    	(cons (reverse true) (reverse false))
+	    (pred? (car items))
+	    	(tailcall (helper (cons (car items) true) false (cdr items)))
+	    (tailcall (helper true (cons (car items) false) (cdr items)))))
+    (helper nil nil items))
+
+(fail-unless-equal
+    (split int? '(1 a 2 b))
+    (cons '(1 2) '(a b)))
+
+
+;; Rotate items in a list. For example, (rotate '(1 2 3) 1) would
+;; return (2 3 1).
+
+(def (rotate items steps)
+    (let
+    	items-len (len items)
+	num-items (if (eq? items-len 0) 1 items-len)
+	steps2 (% steps num-items)
+    	a (head items steps2)
+	b (nth-cdr items steps2)
+	(append b a)))
+
+(fail-unless-equal (rotate nil 0) nil)
+(fail-unless-equal (rotate nil 1) nil)
+(fail-unless-equal (rotate '(1 2 3) 1) '(2 3 1))
+(fail-unless-equal (rotate '(1 2 3) 2) '(3 1 2))
+(fail-unless-equal (rotate '(1 2 3) 3) '(1 2 3))
+(fail-unless-equal (rotate '(1 2 3) 4) '(2 3 1))
+
+
+;; Return the first item in list for which `pred' returns true, nil if none.
+
+(def (list-search pred items)
+    (cond
+    	(not items)
+	    nil
+	(pred (car items))
+	    (car items)
+	(tailcall (list-search pred (cdr items)))))
+
+(fail-unless-equal (list-search (fn (x) (= x 2)) '(1 2 3)) 2)
+(fail-unless-equal (list-search (fn (x) (= x 4)) '(1 2 3)) nil)
+
+
+;; Mergesort a list. `less-than' is called to compare to elements in
+;; the list.
+
+(def (sort items less-than)
+
+    (def (split items)
+	(def (helper head tail p)
+	    (if (or (nil? p) (nil? (cdr p)))
+		(cons head tail)
+		(tailcall (helper (cons (car tail) head)
+			          (cdr tail)
+			          (cdr (cdr p))))))
+	(helper nil items items))
+
+    (def (reverse-and-append unreversed tail)
+    	(if (nil? unreversed)
+	    tail
+	    (tailcall (reverse-and-append (cdr unreversed) 
+	    	    	              	  (cons (car unreversed) tail)))))
+
+    (def (merge so-far x y)
+    	(cond
+    	    (and (nil? x) (nil? y))
+	    	(reverse so-far)
+	    (nil? x)
+		(reverse-and-append so-far y)
+	    (nil? y)
+		(reverse-and-append so-far x)
+	    (less-than (car x) (car y))
+	    	(merge (cons (car x) so-far)
+		    	(cdr x)
+			y)
+	    (tailcall (merge (cons (car y) so-far)
+		             x
+		             (cdr y)))))
+
+    (if (or (nil? items) (nil? (cdr items)))
+	items
+	(let
+	    pair (split items)
+	    dummy (fail-unless (<= (len (car pair)) (len (cdr pair))))
+	    head (sort (car pair) less-than)
+	    tail (sort (cdr pair) less-than)
+	    (merge nil head tail))))
+
+
+(fail-unless-equal (sort nil <) nil)
+
+(fail-unless-equal (sort '(1) <) '(1))
+
+(fail-unless-equal (sort '(1 1) <) '(1 1))
+
+(fail-unless-equal (sort '(1 2) <) '(1 2))
+(fail-unless-equal (sort '(2 1) <) '(1 2))
+
+(fail-unless-equal (sort '(1 1 1) <) '(1 1 1))
+
+(fail-unless-equal (sort '(1 1 2) <) '(1 1 2))
+(fail-unless-equal (sort '(1 2 1) <) '(1 1 2))
+(fail-unless-equal (sort '(2 1 1) <) '(1 1 2))

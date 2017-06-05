@@ -1,0 +1,497 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2003, 2004 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Author: Lars Wirzenius <liw@iki.fi>
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: String operations
+
+;; Return the `n'th byte of `int' as a string. The least significant byte 
+;; (bitmask 0xff) is 0, the next (0xff00) is 1, etc. Thus, 
+;; (int-byte 0x12345678 0) will return (chr 0x78), and 
+;; (int-byte 0x12345678 3) will return (chr 0x34).
+
+(def (int-byte int n)
+    (chr (& (>> int (* n 8)) 255)))
+
+(fail-unless-equal (int-byte 0x12345678 0) "\x78")
+(fail-unless-equal (int-byte 0x12345678 1) "\x56")
+(fail-unless-equal (int-byte 0x12345678 2) "\x34")
+(fail-unless-equal (int-byte 0x12345678 3) "\x12")
+
+
+;; Convert an integer `i' into an `nbytes' long string, in most significant
+;; byte first order. For example, (itob 0x1 2) returns "\0\2" and
+;; (itob 0x12345678 3) returns "\x34\x56\x78".
+
+(def (itob i nbytes)
+    (def (helper so-far index)
+    	(cond
+	    (>= index nbytes)
+	    	so-far
+	    (tailcall (helper (strcat (int-byte i index) so-far)
+                              (+ index 1)))))
+    (helper "" 0))
+
+(fail-unless-equal (itob 0x12345678 1) "\x78")
+(fail-unless-equal (itob 0x12345678 2) "\x56\x78")
+(fail-unless-equal (itob 0x12345678 3) "\x34\x56\x78")
+(fail-unless-equal (itob 0x12345678 4) "\x12\x34\x56\x78")
+(fail-unless-equal (itob (strlen "\7") 2) "\x00\x01")
+
+
+;; Convert a binary string to an integer. For example, (btoi "\x12\x34" 2)
+;; return s the value 0x1234. Note that the binary string is assumed to
+;; be in most-significant-byte first order.
+
+(def (btoi str bytes)
+
+    (def (helper2 value str bytes)
+	(cond
+	    (<= bytes 0)
+		value
+    	    (eq? str "")
+	    	value
+    	    (tailcall (helper2 (| (<< value 8) (ord str))
+                               (substr str 1 -1)
+		               (- bytes 1)))))
+
+    (helper2 0 str bytes))
+
+(fail-unless-equal (btoi "\x00" 2) 0)
+(fail-unless-equal (btoi "\x00\x00" 2) 0)
+(fail-unless-equal (btoi "\x00\x01" 2) 1)
+(fail-unless-equal (btoi "\x00\x20" 2) 0x20)
+(fail-unless-equal (btoi "\x03\x20" 2) 0x320)
+(fail-unless-equal (btoi "\x12\x34" 2) 0x1234)
+(fail-unless-equal (btoi "\x12\x34\x56\x78" 2) 0x1234)
+(fail-unless-equal (btoi "\x12\x34\x56\x78" 4) 0x12345678)
+
+
+;; Convert part of a binary string to an integer, least significant
+;; byte first. See 'btoi' for most significant byte first. Return
+;; the integer value.
+
+(def (lsb-btoi str pos num-bytes)
+    (def (helper result factor str)
+    	(if (eq? str "")
+	    result
+	    (let
+	    	byte (ord str)
+		(helper (+ result (* byte factor))
+		    	(* factor 256)
+		    	(substr str 1 -1)))))
+    (helper 0 1 (substr str pos num-bytes)))
+
+(fail-unless-equal (lsb-btoi "" 0 1) 0)
+(fail-unless-equal (lsb-btoi "\x0" 0 1) 0)
+(fail-unless-equal (lsb-btoi "\x1" 0 1) 1)
+(fail-unless-equal (lsb-btoi "\xff" 0 1) 0xff)
+(fail-unless-equal (lsb-btoi "\xff\x42" 0 1) 0xff)
+(fail-unless-equal (lsb-btoi "\xff\x42" 0 2) 0x42ff)
+(fail-unless-equal (lsb-btoi "\x0a\x00" 0 2) 0x0a)
+(fail-unless-equal (lsb-btoi "\x0a\x00" 2 1) 0x00)
+
+
+;; Decode a binary coded decimal (where every 4 bits is used to 
+;; encode a decimal digit) from part of a string. Return the integer.
+
+(def (bcd-decode str pos num-bytes)
+    (def (helper so-far pos end-pos)
+    	(if (>= pos end-pos)
+	    so-far
+	    (let
+	    	byte (ord (substr str pos 1))
+		digit1 (& (>> byte 4) 0xf)
+		digit2 (& byte 0xf)
+		(helper (+ (* so-far 100) (* digit1 10) digit2)
+		    	(+ pos 1)
+			end-pos))))
+
+    (helper 0 pos (min (strlen str) (+ pos num-bytes))))
+
+(fail-unless-equal (bcd-decode "" 0 0) 0)
+(fail-unless-equal (bcd-decode "x" 0 0) 0)
+(fail-unless-equal (bcd-decode "\x12" 0 0) 0)
+(fail-unless-equal (bcd-decode "\x12" 0 1) 12)
+(fail-unless-equal (bcd-decode "\x12\x34" 0 1) 12)
+(fail-unless-equal (bcd-decode "\x12\x34" 0 2) 1234)
+		    
+
+;; Split a string into parts at separators. For example, 
+;; (strsplit "foo,bar,baz" ",") returns the list ("foo" "bar" "baz").
+;; Note that the separator is searched from the end of the string towards
+;; the beginning. This matters for some patterns. For example,
+;; (strsplit "yaddafoofoofooyeehaa" "foofoo") results in
+;; the list ("yaddafoo" "yeehaa") and not the list 
+;; ("yadda" "fooyeehaa").
+
+(def (strsplit str sep)
+    (def (helper str parts)
+        (set x (strsplit-last str sep))
+        (cond
+            (nil? x)
+                (cons str parts)
+            (tailcall (helper (car x) (cons (cdr x) parts)))))
+    (helper str nil))
+
+(fail-unless-equal (strsplit "foo,bar,baz" ",") '("foo" "bar" "baz"))
+
+
+;; Is `c' a white space character (space, tab, CR, LF)?
+
+(def (space? c)
+    (or (eq? c " ") (eq? c "\t") (eq? c "\r") (eq? c "\n")))
+
+(fail-unless (space? " "))
+(fail-unless (space? "\t"))
+(fail-unless (space? "\r"))
+(fail-unless (space? "\n"))
+(fail-unless (not (space? "")))
+(fail-unless (not (space? "x")))
+(fail-unless (not (space? " x")))
+
+
+;; Count the number of leading white space characters in `str'.
+
+(def (leading-spaces str)
+    (def (helper i)
+    	(if (space? (substr str i 1))
+	    (tailcall (helper (+ i 1)))
+	    i))
+    (helper 0))
+
+(fail-unless-equal (leading-spaces "") 0)
+(fail-unless-equal (leading-spaces "x") 0)
+(fail-unless-equal (leading-spaces " x") 1)
+(fail-unless-equal (leading-spaces "  x") 2)
+(fail-unless-equal (leading-spaces " x\n") 1)
+(fail-unless-equal (leading-spaces " \n") 2)
+
+;; Count the number of trailing white space characters in `str'.
+
+(def (trailing-spaces str)
+    (def (helper i)
+    	(let
+	    i2 (- i 1)
+	    (if (space? (substr str i2 1))
+		(tailcall (helper i2))
+		i)))
+    (let
+    	len (strlen str)
+	(- len (helper len))))
+
+(fail-unless-equal (trailing-spaces "") 0)
+(fail-unless-equal (trailing-spaces "x") 0)
+(fail-unless-equal (trailing-spaces " x") 0)
+(fail-unless-equal (trailing-spaces "  x") 0)
+(fail-unless-equal (trailing-spaces " x\n") 1)
+(fail-unless-equal (trailing-spaces " \n") 2)
+
+;; Remove all leading white space characters in `str'.
+
+(def (lstrip str)
+    (let
+    	n (leading-spaces str)
+	(if (eq? n 0)
+	    str
+	    (substr str n -1))))
+
+(fail-unless-equal (lstrip "") "")
+(fail-unless-equal (lstrip "x") "x")
+(fail-unless-equal (lstrip " x") "x")
+(fail-unless-equal (lstrip " x ") "x ")
+(fail-unless-equal (lstrip " \t\nx") "x")
+
+;; Remove all trailing white space characters in `str'.
+
+(def (rstrip str)
+    (let
+    	n (trailing-spaces str)
+	(if (eq? n 0)
+	    str
+	    (substr str 0 (- (strlen str) n)))))
+
+(fail-unless-equal (rstrip "") "")
+(fail-unless-equal (rstrip "x") "x")
+(fail-unless-equal (rstrip " x") " x")
+(fail-unless-equal (rstrip " x ") " x")
+(fail-unless-equal (rstrip "x \t\n") "x")
+
+;; Remove all leading and trailing white space characters in `str'.
+
+(def (strip str)
+    (let
+    	n1 (leading-spaces str)
+    	n2 (trailing-spaces str)
+	(if (and (eq? n1 0) (eq? n2 0))
+	    str
+	    (substr str n1 (- (strlen str) n1 n2)))))
+
+(fail-unless-equal (strip "") "")
+(fail-unless-equal (strip "x") "x")
+(fail-unless-equal (strip " x") "x")
+(fail-unless-equal (strip " x ") "x")
+
+
+
+
+;; Split off the buffer into the first line, and everything but the first
+;; line. Return these as a pair. If there is no complete first line,
+;; return an empty string as the first line. The line terminator ("\n")
+;; is included in the first line, so that the caller may distinguish
+;; between an empty first line and no first line.
+
+(def (split-line1 buffer)
+    (set i (strstr buffer "\n"))
+    (if (eq? i -1)
+    	(cons "" buffer)
+	(cons (substr buffer 0 (+ i 1))
+	      (substr buffer (+ i 1) -1))))
+
+(fail-unless-equal (split-line1 "") (cons "" ""))
+(fail-unless-equal (split-line1 "foo") (cons "" "foo"))
+(fail-unless-equal (split-line1 "foo\n") (cons "foo\n" ""))
+(fail-unless-equal (split-line1 "foo\r\n") (cons "foo\r\n" ""))
+(fail-unless-equal (split-line1 "foo\r\nbar") (cons "foo\r\n" "bar"))
+
+
+;; Does a string begin with a patter (another string)?
+
+(def (begins-with? str pat)
+    (eq? (substr str 0 (strlen pat)) pat))
+
+(fail-unless-equal (begins-with? "" "foo") nil)
+(fail-unless-equal (begins-with? "f" "foo") nil)
+(fail-unless-equal (begins-with? "fo" "foo") nil)
+(fail-unless-equal (begins-with? "foo" "foo") t)
+(fail-unless-equal (begins-with? "foobar" "foo") t)
+(fail-unless-equal (begins-with? "barfoo" "foo") nil)
+
+
+;; Call 'func' for each byte in a string, return a list containing the
+;; return values of the calls.
+
+(def (map-byte func str)
+    (def (helper so-far pos)
+	(let
+	    c (substr str pos 1)
+	    (if (eq? c "")
+		so-far
+		(tailcall (helper (cons (func c) so-far) (+ pos 1))))))
+    (reverse (helper nil 0)))
+
+(fail-unless-equal (map-byte ord "") nil)
+(fail-unless-equal (map-byte ord "0") '(48))
+(fail-unless-equal (map-byte ord "01") '(48 49))
+(fail-unless-equal (map-byte ord "012") '(48 49 50))
+
+;; Convert a string to a list of integers giving the values of the bytes
+;; in the string.
+	    
+(def (split-bytes str)
+    (map-byte ord str))
+    
+(fail-unless-equal (split-bytes "") nil)
+(fail-unless-equal (split-bytes "0") '(48))
+(fail-unless-equal (split-bytes "01") '(48 49))
+(fail-unless-equal (split-bytes "012") '(48 49 50))
+
+    
+;; Join a list of strings into one string, putting 'sep' between them.
+
+(def (strjoin strings sep)
+    (if (nil? strings)
+    	""
+	(accumulate
+	    (fn (so-far str)
+	    	(strcat so-far sep str))
+	    (car strings)
+	    (cdr strings))))
+
+(fail-unless-equal (strjoin nil ".") "")
+(fail-unless-equal (strjoin '("a") ".") "a")
+(fail-unless-equal (strjoin '("a" "b") ".") "a.b")
+(fail-unless-equal (strjoin '("a" "b" "c") ".") "a.b.c")
+(fail-unless-equal (strjoin '("a" "b" "c" "d") ".") "a.b.c.d")
+
+
+;; Convert a hexadecimal string (e.g., the output of 'hex') back to
+;; binary form. Non-hexadecimal digits in the string is silently 
+;; discarded. A trailing single hexadecimal digit is also silently discarded.
+
+(def (dehex str)
+
+    (def (char-to-value str pos)
+    	(let
+	    char (substr str pos 1)
+	    index (strstr "0123456789abcdefABCDEF" char)
+	    (cond
+	    	(or (eq? char "") (eq? index -1))
+		    -1
+		(>= index 16)
+		    (- index 6)
+		index)))
+
+    (def (find-nybble pos)
+    	(if (>= pos (strlen str))
+	    (cons -1 -1)
+	    (let
+		value (char-to-value str pos)
+		(if (eq? value -1)
+		    (tailcall (find-nybble (+ pos 1)))
+		    (cons value pos)))))
+
+    (def (helper so-far pos)
+    	(let
+	    pair (find-nybble pos)
+	    value1 (car pair)
+	    pos1 (cdr pair)
+	    (if (eq? pos1 -1)
+	    	so-far
+		(let
+		    pair (find-nybble (+ pos1 1))
+		    value2 (car pair)
+		    pos2 (cdr pair)
+		    (if (eq? pos2 -1)
+		    	so-far
+			(let
+			    byte (+ (* value1 16) value2)
+			    (tailcall (helper (strcat so-far (chr byte))
+			    	              (+ pos2 1)))))))))
+
+    (helper "" 0))
+
+(fail-unless-equal (dehex "") "")
+(fail-unless-equal (dehex "a") "")
+(fail-unless-equal (dehex "0 1") "\x01")
+(fail-unless-equal (dehex "0 1 2") "\x01")
+(fail-unless-equal (dehex "0 1 2 a") "\x01\x2a")
+(fail-unless-equal (dehex "0 1 2 a xxx") "\x01\x2a")
+(fail-unless-equal (dehex (hex "hello")) "hello")
+
+
+;; Decode a hexadecimal string. Skip whitespace and other characters that
+;; are not hexadecimal digits. If the string is incomplete, i.e., contains
+;; an odd number of hexadecimal digits, the remaining part is returned.
+;; The return value is (cons decoded remaining).
+
+(def (dehex-parse str)
+
+    (def (char-to-value str pos)
+    	(let
+	    char (substr str pos 1)
+	    index (strstr "0123456789abcdefABCDEF" char)
+	    (cond
+	    	(or (eq? char "") (eq? index -1))
+		    -1
+		(>= index 16)
+		    (- index 6)
+		index)))
+
+    (def (find-nybble pos)
+    	(if (>= pos (strlen str))
+	    (cons -1 -1)
+	    (let
+		value (char-to-value str pos)
+		(if (eq? value -1)
+		    (tailcall (find-nybble (+ pos 1)))
+		    (cons value pos)))))
+
+    (def (helper so-far pos)
+    	(let
+	    pair (find-nybble pos)
+	    value1 (car pair)
+	    pos1 (cdr pair)
+	    (if (eq? pos1 -1)
+	    	(cons so-far "")
+		(let
+		    pair (find-nybble (+ pos1 1))
+		    value2 (car pair)
+		    pos2 (cdr pair)
+		    (if (eq? pos2 -1)
+		    	(cons so-far (substr str pos1 -1))
+			(let
+			    byte (+ (* value1 16) value2)
+			    (tailcall (helper (strcat so-far (chr byte))
+			    	              (+ pos2 1)))))))))
+
+    (helper "" 0))
+
+(fail-unless-equal 
+    (dehex-parse "")
+    (cons "" ""))
+
+(fail-unless-equal 
+    (dehex-parse "a")
+    (cons "" "a"))
+
+(fail-unless-equal 
+    (dehex-parse "a ")
+    (cons "" "a "))
+
+(fail-unless-equal 
+    (dehex-parse "ab")
+    (cons "\xab" ""))
+
+(fail-unless-equal 
+    (dehex-parse "ab ")
+    (cons "\xab" ""))
+
+(fail-unless-equal 
+    (dehex-parse "ab c")
+    (cons "\xab" "c"))
+
+(fail-unless-equal 
+    (dehex-parse "01 02 03")
+    (cons "\x01\x02\x03" ""))
+
+;; Split a string into chunks that are of the same size, except possibly for
+;; the last one. Return a list containing the chunks.
+
+(def (split-string-into-chunks str chunk-size)
+    (def (helper so-far pos remaining-len)
+        (cond
+            (< remaining-len 0)
+                so-far
+            (<= remaining-len chunk-size)
+                (cons (substr str pos -1) so-far)
+            (helper (cons (substr str pos chunk-size) so-far)
+                    (+ pos chunk-size)
+                    (- remaining-len chunk-size))))
+
+    (reverse (helper nil 0 (strlen str))))
+    
+(fail-unless-equal 
+    (split-string-into-chunks "" 3)
+    (list ""))
+
+(fail-unless-equal 
+    (split-string-into-chunks "a" 3)
+    (list "a"))
+
+(fail-unless-equal 
+    (split-string-into-chunks "ab" 3)
+    (list "ab"))
+
+(fail-unless-equal 
+    (split-string-into-chunks "abc" 3)
+    (list "abc"))
+
+(fail-unless-equal 
+    (split-string-into-chunks "abcd" 3)
+    (list "abc" "d"))
+
+(fail-unless-equal 
+    (split-string-into-chunks "abcde" 3)
+    (list "abc" "de"))
+
+(fail-unless-equal 
+    (split-string-into-chunks "abcdef" 3)
+    (list "abc" "def"))
+
+(fail-unless-equal 
+    (split-string-into-chunks "abcdefg" 3)
+    (list "abc" "def" "g"))

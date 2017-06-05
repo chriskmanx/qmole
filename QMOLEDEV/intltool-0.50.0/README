@@ -1,0 +1,267 @@
+intltool README
+===============
+
+If you have problems understanding this README file, then please report 
+these at http://bugs.launchpad.net/intltool on Launchpad. Patches are
+also very welcome. See HACKING for more information on submitting patches.
+
+The intltool collection can be used to do these things:
+
+ o Extract translatable strings from various source files (.xml.in,
+   .glade, .desktop.in, .server.in, .oaf.in).
+
+ o Collect the extracted strings together with messages from traditional
+   source files (.c, .h) in po/$(PACKAGE).pot.
+
+ o Merge back the translations from .po files into .xml, .desktop and
+   .oaf files.  This merge step will happen at build resp. installation
+   time.
+
+The intltool package has a script, intltoolize, which copies the various
+scripts and does the other magic to your module. So users building
+from tarballs don't need intltool, only folks building from cvs.
+(This is modelled on gettextize.)
+
+
+How to Use with autoconf/automake
+---------------------------------
+(There is a section for non-auto* configurations below)
+
+To use intltool in your module, do the following:
+
+ o Install intltool, and make sure that the macro it installs is
+   in aclocal's path, or do:
+
+	export ACLOCAL_FLAGS='-I /usr/local/share/aclocal' 
+
+ o Add these lines to autogen.sh, after the call to gettextize:
+
+	echo "Running intltoolize"
+	intltoolize --copy --force --automake
+
+ o Add this line to configure.in near the top
+
+	IT_PROG_INTLTOOL([minimum required version], [no-xml])
+
+ o Add intltool-extract, intltool-merge, and intltool-update to
+   DISTCLEANFILES in your top-level Makefile.am.
+
+ o Remove po/desk.pl and po/update.* scripts.  intltool-update will take
+   over their functionality.
+
+At this point, translatable strings will be automatically extracted to
+the .po files, if you make use of the following recommendations.
+
+The intltool-prepare script will help you to prepare the package. It will
+try to extract translations from existing .desktop files which will
+become obsolete after intltoolization has taken place.
+
+Examples of packages that use intltool are many of the GNOME components:
+find them at http://git.gnome.org/.
+
+Details of the IT_PROG_INTLTOOL macro
+-------------------------------------------
+
+The first parameter indicates the minimum required version. The
+configure script will halt if the version is older than the first
+parameter.
+
+The second parameter is to tell intltool that we don't need the
+extended xml parsing abilities provided by the XML::Parser perl
+module. If it is not provided, or is any value other than "no-xml",
+then XML::Parser will be checked for by the configure script. This
+feature is only available in intltool 0.31 or newer.
+
+Extra Steps for DESKTOP Files
+..............................
+
+This step also applies for similar files (.directory, .soundlist).
+
+ o Try to run intltool-prepare.
+
+ o Make sure intltool-prepare did find existing translations in the old
+   .desktop files and did correctly merge them into the various po/*.po
+   files.  Don't forget to commit the changed .po files; otherwise
+   exiting translations will get lost!
+
+ o Remove old .desktop files and add new .desktop.in files.
+
+ o Adjust .cvsignore, .gitignore, .bzrignore or similar.
+
+ o Adjust Makefile.am, e.g.:
+
+	--- start ----
+
+        utilsdir = $(datadir)/gnome/apps/Utilities
+        utils_in_files = bug-buddy.desktop.in
+        utils_DATA = $(utils_in_files:.desktop.in=.desktop)
+        @INTLTOOL_DESKTOP_RULE@
+
+	--- end ----
+
+ o Add .desktop.in files to po/POTFILES.in
+
+Here's a .desktop.in example:
+
+	--- start ----
+
+        [Desktop Entry]
+        _Name=Bug Report Tool
+        _Comment=Report a bug in GNOME
+        Exec=bug-buddy
+        Icon=bug-buddy
+        Terminal=false
+        Type=Application
+
+	--- end ----
+
+
+Extra Steps for GLADE Files
+...........................
+
+ o Add the .glade files you want translated to POTFILES.in
+
+ o Remove the intermediate *-glade.h or strings-glade.c files and drop
+   them from POTFILES.in
+
+
+Extra Steps for SERVER Files (formerly .server)
+.............................
+
+To get server translation extraction and merging requires a few more steps:
+
+ o Rename your .server files to .server.in and put an
+   underscore before every value property for string attributes that should
+   be localized.
+
+ o Add the new .server.in or .server.in files to POTFILES.in.
+
+ o Put lines like these in every Makefile.am that installs oaf files:
+ 
+	--- start ----
+ 
+	serverdir = $(libdir)/bonobo/servers
+ 
+	server_in_files = My_Server_file.server.in
+	server_DATA = $(server_in_files:.server.in=.server)
+ 
+	@INTLTOOL_SERVER_RULE@
+ 
+	EXTRA_DIST=$(server_in_files) $(server_DATA)
+ 
+	--- end ----
+
+At this point, your server translations will be extracted and merged.
+
+Extra Steps for XML Files (Files with .xml Extension)
+.....................................................
+
+To get xml (files with .xml extension) translation extraction 
+and merging requires these steps:
+
+ o Rename your .xml files to .xml.in and put an underscore before 
+   every element that should be localized.
+
+ o Add the .xml.in files to POTFILES.in.
+
+ o Put lines like these in every Makefile.am that installs xml files:
+
+        --- start ----
+
+        xmldir = $(datadir)/xml
+
+        xml_in_files = My_xml_file.xml.in
+        xml_DATA = $(xml_in_files:.xml.in=.xml)
+
+        @INTLTOOL_XML_RULE@
+
+        EXTRA_DIST=$(xml_in_files) $(xml_DATA)
+
+        --- end ----
+
+At this point, your xml translations will be extracted and
+merged. All .po files will be converted on the fly to UTF-8, and the
+resulting XML file will have a UTF-8 effective encoding (you should
+make sure that the encoding="..." declaration in the .xml.in file is
+either absent or actually specifies UTF-8).
+
+Previous versions of intltool generated XML files whose contents
+were made of the contents of the .po files, without paying attention
+to the encodings used. A single "XML" file could thus have strings in
+different encodings. This broken behavior can be requested only by
+using the old xml-i18n-tools API instead of the intltool one. See old
+versions of xml-i18n-tools for documentation on how the old API worked.
+
+---
+
+XXX: add section for KEYS files. Works almost like XML files .
+
+How to use without autoconf/automake
+------------------------------------
+
+intltool can also be used without the auto* tools. For instance in order 
+to translate a somename.desktop.in file, you can do the following.
+
+ o Create a po/ dir.
+ o Add a po/POTFILES.in file, including the path to the 
+   somename.desktop.in  file
+
+Then to create the somename.desktop file all you do is:
+
+$ intltool-merge po/ -d -u -c po/.intltool-merge-cache somename.desktop.in
+somename.desktop
+
+You can also type intltool-merge --help for a bit more info.
+
+To specify parameters for intltool-update (such as keywords or gettext
+domain), you can use Makevars syntax as used in recent GNU gettext, by
+putting something like the following in po/Makevars file:
+
+  DOMAIN = mydomain
+  XGETTEXT_OPTIONS = --keyword --keyword=blah
+
+This will make "intltool-update -p" produce mydomain.pot, passing
+parameters "--keyword --keyword=blah" to xgettext when extracting
+strings.
+
+Passing special parameters to xgettext via environment
+......................................................
+
+If you need to add parameters passed to xgettext on a case-by-case
+basis, you can do so using environment variable XGETTEXT_ARGS.
+
+If you would run it as follows:
+
+	XGETTEXT_ARGS=--no-location intltool-update -p
+
+You would create a PO Template file without lines which indicate
+location of messages in the source code.
+
+
+Changing keywords used in xgettext invocation
+.............................................
+
+If you need to change default keywords used to extract messages from 
+source code, you need to add variable XGETTEXT_KEYWORDS to 
+Makefile.in.in file inside directory where intltool-update is run
+from, eg.
+
+        --- start ----
+
+        XGETTEXT_KEYWORDS = --keyword --keyword=P_
+
+        --- end ----
+
+Default keywords xgettext looks for if no XGETTEXT_KEYWORDS is defined
+are _, N_ and U_. 
+
+
+Translators' comments in XML and .schemas files
+...............................................
+
+To provide comments to translators in free-form XML or .schema files, 
+you need to precede the string to be translated with the plain XML 
+comment.
+
+In .schemas files, comments need to be inside <default>, <short> or 
+<long> elements (i.e. they cannot be before the opening tag).

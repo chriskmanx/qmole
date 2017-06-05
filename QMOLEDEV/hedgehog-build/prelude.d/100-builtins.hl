@@ -1,0 +1,429 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2003, 2004, 2005 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Author: Kenneth Oksanen <cessu@iki.fi>
+;;         Lars Wirzenius <liw@iki.fi>
+
+ ;; (Commented indented by one so that it wouldn't be included in the
+ ;; automatically generated documentation.)
+ ;; This file also defines higher-order counterparts to all primitives
+ ;; which are recognized by the compiler only if they appear with their
+ ;; real symbol in the head of an s-expression.  See hh_builtins.def for
+ ;; documentation.
+
+(def (and ... args)
+  (or (nil? args) (builtin-and args)))
+(def (builtin-and args)
+   (if (nil? (cdr args))
+       (car args)
+     (and (car args) (builtin-and (cdr args)))))
+
+(def (or ... args)
+     (or (nil? args) (builtin-or args)))
+(def (builtin-or args)
+     (if (nil? (cdr args))
+	 (car args)
+       (or (car args) (builtin-or (cdr args)))))
+
+(def (not arg)
+     (not arg))
+
+(def (cons a d)
+     (cons a d))
+
+(def (car o)
+     (car o))
+
+(def (cdr o)
+     (cdr o))
+
+(def (tuple-arity x)
+     (tuple-arity x))
+
+(def (tuple-make ... x)
+     (tuple-make-from-list x))
+
+(def (tuple-make-from-list l)	
+     (tuple-make-from-list l))
+
+(def (tuple-index x i)
+     (tuple-index x i))
+
+(def (tuple-with x i v)
+     (tuple-with x i v))
+
+(def (avl-make-node k v l r)
+     (avl-make-node k v l r))
+
+(def (avl-height n)
+     (avl-height n))
+
+(def (avl-key n)
+     (avl-key n))
+
+(def (avl-value n)
+     (avl-value n))
+
+(def (avl-left n)
+     (avl-left n))
+
+(def (avl-right n)
+     (avl-right n))
+
+(def (default-cmpfun x y)
+     (default-cmpfun x y))
+
+(def (default-avl-get t k d)
+     (default-avl-get t k d))
+
+(def (default-avl-put t k v)
+     (default-avl-put t k v))
+
+(def (int? x)
+     (int? x))
+
+(def (string? x)
+     (string? x))
+
+(def (symbol? x)
+     (symbol? x))
+
+(def (fn? x)
+     (fn? x))
+
+(def (cons? x)
+     (cons? x))
+
+(def (eq? x y)
+     (eq? x y))
+
+;; Are two values equal?
+;;
+;; The builtin eq? doesn't deal with lists, for example.  This
+;; function returns true of eq? returns true for its arguments, or if
+;; both arguments are cons and equal? is true for both element pairs,
+;; or if the two arguments are structurally identical AVL-trees with
+;; equal? keys and values.
+
+(def (equal? a b)
+    (cond
+    	(eq? a b) 
+	    t
+    	(and (cons? a) (cons? b))
+	    (and (equal? (car a) (car b))
+	    	 (tailcall (equal? (cdr a) (cdr b))))
+    	(and (> (avl-height a) 0) (> (avl-height b) 0))
+	    (and (equal? (avl-key a) (avl-key b))
+		 (equal? (avl-value a) (avl-value b))
+		 (equal? (avl-left a) (avl-left b))
+		 (tailcall (equal? (avl-right a) (avl-right b))))
+	nil))
+
+(def (< ... args)
+     (builtin-< args))
+(def (builtin-< args)
+     (if (and args (cdr args))
+	 (if (< (car args) (car (cdr args)))
+	     (tailcall (builtin-< (cdr args)))
+	     nil)
+	 t))
+
+(def (<= ... args)
+     (builtin-<= args))
+(def (builtin-<= args)
+     (if (and args (cdr args))
+	 (if (<= (car args) (car (cdr args)))
+	     (tailcall (builtin-<= (cdr args)))
+	     nil)
+	 t))
+
+(def (> ... args)
+     (builtin-> args))
+(def (builtin-> args)
+     (if (and args (cdr args))
+	 (if (> (car args) (car (cdr args)))
+	     (tailcall (builtin-> (cdr args)))
+	     nil)
+	 t))
+
+(def (>= ... args)
+     (builtin->= args))
+(def (builtin->= args)
+     (if (and args (cdr args))
+	 (if (>= (car args) (car (cdr args)))
+	     (tailcall (builtin->= (cdr args)))
+	     nil)
+	 t))
+
+(def (= ... args)
+     (builtin-= args))
+(def (builtin-= args)
+     (if (and args (cdr args))
+	 (if (= (car args) (car (cdr args)))
+	     (tailcall (builtin-= (cdr args)))
+	     nil)
+	 t))
+
+(def (!= ... args)
+     (builtin-!= args))
+(def (builtin-!= args)
+     (if (and args (cdr args))
+	 (if (!= (car args) (car (cdr args)))
+	     (tailcall (builtin-!= (cdr args)))
+	     nil)
+	 t))
+
+(def (+ ... args)
+     (builtin-+ args 0))
+(def (builtin-+ args sum)
+     (if args
+	 (tailcall (builtin-+ (cdr args) (+ (car args) sum)))
+	 sum))
+
+(def (- arg ... args)
+     (if args
+	 (- arg (builtin-+ args))
+	 (- arg)))
+
+(def (* ... args)
+     (builtin-* args 1))
+(def (builtin-* args product)
+     (if args
+	 (tailcall (builtin-* (cdr args) (* (car args) product)))
+	 product))
+
+(def (/ arg ... args)
+     (if args
+	 (/ arg (builtin-* args))
+	 arg))
+
+(def (% a b)
+     (% a b))
+
+(def (& arg ... args)
+     (builtin-& arg args))
+(def (builtin-& arg args)
+     (if args
+	 (tailcall (builtin-& (& arg (car args)) (cdr args)))
+	 arg))
+
+(def (| arg ... args)
+     (builtin-| arg args))
+(def (builtin-| arg args)
+     (if args
+	 (tailcall (builtin-| (| arg (car args)) (cdr args)))
+	 arg))
+
+(def (~ x)
+     (~ x))
+
+(def (^ arg ... args)
+     (builtin-^ arg args))
+(def (builtin-^ arg args)
+     (if args
+	 (tailcall (builtin-^ (^ arg (car args)) (cdr args)))
+	 arg))
+
+ ;; Alternative syntaxes for bit operations - some prefer not to use
+ ;; characters which mess emacs modes, for example...
+
+(def-syntax bitwise-and &)
+(def-syntax bitwise-or |)
+(def-syntax bitwise-xor ^)
+(def-syntax bitwise-not ~)
+
+
+(def (<< value n)
+     (<< value n))
+
+(def (>> value n)
+     (>> value n))
+
+(def (strlen s)
+     (strlen s))
+
+(def (substr str pos len)
+     (substr str pos len))
+
+(def (strcmp str1 str2)
+     (strcmp str1 str2))
+
+(def (ord s)
+     (ord s))
+
+(def (chr s)
+     (chr s))
+
+(def (strcat arg ... args)
+     (builtin-strcat arg args))
+(def (builtin-strcat arg args)
+     (if args
+	 (tailcall (builtin-strcat (strcat arg (car args)) (cdr args)))
+	 arg))
+
+(def (atoi str base)
+     (atoi str base))
+
+(def (itoa value base)
+     (itoa value base))
+
+(def (symboltostring x)
+     (symboltostring x))
+
+(def (strstr string pattern)
+     (strstr string pattern))
+
+(def (strrstr string pattern)
+     (strrstr string pattern))
+
+(def (strsplit-last string sep)
+     (strsplit-last string sep))
+
+(def (hex string)
+     (hex string))
+
+(def (print ... x)
+     (builtin-print x))
+(def (builtin-print x)
+     (if x
+	 (do (print (car x))
+	     (tailcall (builtin-print (cdr x))))))
+
+(def (snprint l a val)
+     (snprint l a val))
+
+(def (panic ... x)
+     (builtin-panic x))
+(def (builtin-panic x)
+     (if x
+	 (do (print (car x))
+	     (tailcall (builtin-panic (cdr x))))
+       (panic)))
+
+(def (available-mem)
+     (available-mem))
+
+(def (gc)
+     (gc))
+
+#ifdef HH_UNIX
+
+(def (unix-gettimeofday)
+     (unix-gettimeofday))
+
+(def (unix-fork)
+     (unix-fork))
+
+(def (unix-exec filename argv envp)
+     (unix-exec filename argv envp))
+
+(def (unix-dup2 from_fd to_fd)
+     (unix-dup2 from_fd to_fd))
+
+(def (unix-close fd)
+     (unix-close fd))
+
+(def (unix-select secs msecs)
+     (unix-select secs msecs))
+
+(def (unix-add-to-read-fds fd)
+     (unix-add-to-read-fds fd))
+
+(def (unix-add-to-write-fds fd)
+     (unix-add-to-write-fds fd))
+
+(def (unix-fd-is-readable fd)
+     (unix-fd-is-readable fd))
+
+(def (unix-fd-is-writable fd)
+     (unix-fd-is-writable fd))
+
+(def (unix-clr-fdsets)
+     (unix-clr-fdsets))
+
+(def (unix-dir-list dirname)
+     (unix-dir-list dirname))
+
+(def (unix-unlink filename)
+     (unix-unlink filename))
+
+(def (unix-open filename flags)
+     (unix-open filename flags))
+
+(def (unix-socket domain type proto)
+     (unix-socket domain type proto))
+
+(def (unix-setsockopt sock lev optname optval)
+     (unix-setsockopt sock lev optname optval))
+
+(def (unix-fcntl fd cmd data)
+     (unix-fcntl fd cmd data))
+
+(def (unix-connect sock addr)
+     (unix-connect sock addr))
+
+(def (unix-bind sock addr)
+     (unix-bind sock addr))
+
+(def (unix-listen sock backlog)
+     (unix-listen sock backlog))
+
+(def (unix-accept sock)
+     (unix-accept sock))
+
+(def (unix-read fd nbytes)
+     (unix-read fd nbytes))
+
+(def (unix-write fd data)
+     (unix-write fd data))
+
+(def (unix-recvfrom sock nbytes flags)
+     (unix-recvfrom sock nbytes flags))
+
+(def (unix-sendto sock data flags addr)
+     (unix-sendto sock data flags addr))
+
+(def (unix-mount source target fstype flags data)
+     (unix-mount source target fstype flags data))
+
+(def (unix-umount target)
+     (unix-umount target))
+
+(def (unix-usleep usecs)
+     (unix-usleep usecs))
+
+(def (unix-errno)
+     (unix-errno))
+
+(def (unix-tcgetattr fd)
+     (unix-tcgetattr fd))
+
+(def (unix-tcsetattr fd acts termios)
+     (unix-tcsetattr fd acts termios))
+
+(def (unix-tcdrain fd)
+     (unix-tcdrain fd))
+
+(def (unix-tcflush fd queue)
+     (unix-tcflush fd queue))
+
+(def (unix-tcflow fd action)
+     (unix-tcflow fd action))
+
+(def (unix-cfmakeraw termios)
+     (unix-cfmakeraw termios))
+
+(def (unix-cfgetispeed termios)
+     (unix-cfgetispeed termios))
+
+(def (unix-cfgetospeed termios)
+     (unix-cfgetospeed termios))
+
+(def (unix-cfsetispeed termios speed)
+     (unix-cfsetispeed termios speed))
+
+(def (unix-cfsetospeed termios speed)
+     (unix-cfsetospeed termios speed))
+
+#endif

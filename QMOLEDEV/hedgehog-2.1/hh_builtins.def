@@ -1,0 +1,1271 @@
+/* This file is part of Hedgehog LISP.
+ * Copyright (C) 2003, 2004, 2005, 2006 Oliotalo Ltd.
+ * See file LICENSE.LGPL for pertinent licensing conditions.
+ *
+ * Authors: Kenneth Oksanen <cessu@iki.fi>
+ *          Lars Wirzenius <liw@iki.fi>
+ */
+
+/* This file defines all of Hedgehog LISP's builtin functions and
+   special forms, such as `if', `+', `strrstr', etc.
+   Only macros and `def' and `fn' are treated elsewhere.
+
+   Syntax: BUILTIN(lisp_name, c_name, doc_string, args, code_gen)
+ */
+
+
+MODULE("Special forms")
+
+BUILTIN("set", set,
+        "Create and bind a local variable.  May appear only in an expression "
+	"sequence, such as `do' or in the body of `def', `fn', or the "
+	"top-level.  The variable is valid only during the rest of "
+	"the sequence, not before the `set', or outside the surrounding "
+	"expression sequence.",
+        ARG(variable, SYMBOL_CELL, "Variable name.")
+        ARG(value, EMPTY_CELL, "Bound value."),
+        {
+	  /* If we are in a sequence, then this has already been
+	     handled in `hh_gen_list'.  Otherwise it is an error. */
+	  hh_fatal(expr, "`set' can only appear in an expression sequence "
+		   "after `do', `def' or `fn'");
+	})
+
+BUILTIN("quote", quote,
+        "Quote, i.e. prevent the given form from being evaluated.",
+        ARG(form, EMPTY_CELL, "Form."),
+        {
+          if (expr->arity != 2)
+            hh_fatal(expr, "`quote' expects exactly one argument");
+          code = hh_alloc_code(expr);
+          code->kind = HH_IMM;
+          code->u.imm.insn = HH_IMM_load;
+          code->u.imm.value = hh_gen_quote(expr->u.ast[1]);
+        })
+
+BUILTIN("if", if,
+        "Evaluate either branch depending on the condition.",
+        ARG(cond, EMPTY_CELL, "Condition.")
+        ARG(then, EMPTY_CELL, "Evaluated if condition true.")
+        ARG(else, EMPTY_CELL, "Evaluated if condition false (optional)."),
+        {
+          /* Evaluate condition, leaving the truth value into `accu'. */
+          hh_gen(expr->u.ast[1], 0);
+          
+          code = hh_alloc_code(expr);
+          code->kind = HH_BRANCH;
+          code->u.branch.insn = HH_IMM_branch_if_false;
+          
+          hh_gen(expr->u.ast[2], is_tail);
+          if (expr->arity == 3) {
+            /* There is no else-branch.  Make a label here and have
+               `code' branch here. */
+            code2 = hh_alloc_code(expr);
+            code2->kind = HH_LABEL;
+            code->u.branch.target = code2;
+          } else {
+            HH_ASSERT(expr->arity == 4); /* Should be already checked. */
+            /* There is an else-branch.  Make here an unconditional
+               branch to the end of this expression and a label for
+               `code'. */
+            code2 = hh_alloc_code(expr);
+            code2->kind = HH_BRANCH;
+            code2->u.branch.insn = HH_IMM_branch;
+            
+            code3 = hh_alloc_code(expr);
+            code3->kind = HH_LABEL;
+            code->u.branch.target = code3;
+            
+            hh_gen(expr->u.ast[3], is_tail);
+            
+            code3 = hh_alloc_code(expr);
+            code3->kind = HH_LABEL;
+            code2->u.branch.target = code3;
+          }
+        })
+
+BUILTIN("do", do,
+        "Execute all expressions in a sequence, return last value.",
+        REMAINING_ARGS(bodies, EMPTY_CELL, "Expressions to evaluate."),
+        {
+          /* Note that the AST reader makes this into a list. */
+          HH_ASSERT(expr->arity == 2);
+          hh_gen_list(expr->u.ast[1], is_tail, 0);
+        })
+
+BUILTIN("catch", catch,
+        "Catch an exception.",
+        ARG(body, EMPTY_CELL, "Protected body.")
+        ARG(tag, SYMBOL_CELL, "Catch tag.")
+        ARG(catcher, EMPTY_CELL, "Exception handler."),
+        {
+          if (expr->arity != 4)
+            hh_fatal(expr, "`catch' expects exactly three arguments: "
+                     "protected body, a symbol that represents the catch tag, "
+                     "and the catching body");
+          if (expr->u.ast[2]->arity != HH_AST_SYMBOL)
+            hh_fatal(expr->u.ast[2], "Expected a symbol that represents "
+                     "the catch tag");
+          if (expr->u.ast[2]->u.symbol->catch_tag == 0)
+            expr->u.ast[2]->u.symbol->catch_tag = ++hh_n_catch_tags;
+          
+          /* Push to stack the three-word catch cell. */
+          code = hh_alloc_code(expr);
+          code->kind = HH_IMM;
+          code->u.imm.insn = HH_IMM_load;
+          code->u.imm.value =
+            HH_SHORT_TO_WORD(expr->u.ast[2]->u.symbol->catch_tag);
+          code = hh_alloc_code(expr);
+          code->kind = HH_BRANCH;
+          code->u.branch.insn = HH_IMM_catch;
+          hh_sp += 3;
+          
+          /* Generate code for the protected body. */
+          hh_gen(expr->u.ast[1], 0);
+          
+          /* Not thrown, drop the catch cell, and branch to after this
+             `expr'. */
+          code2 = hh_alloc_code(expr->u.ast[2]);
+          code2->kind = HH_IMM;
+          code2->u.imm.insn = HH_IMM_drop;
+          code2->u.imm.value = 3;
+          hh_sp -= 3;
+          code2 = hh_alloc_code(expr->u.ast[2]);
+          code2->kind = HH_BRANCH;
+          code2->u.branch.insn = HH_IMM_branch;
+          
+          /* Make a label representing the `pc' of a thrown catch. */
+          code3 = hh_alloc_code(expr->u.ast[2]);
+          code3->kind = HH_LABEL;
+          code->u.branch.target = code3;
+          
+          /* Generate code for the catching body. */
+          hh_gen(expr->u.ast[3], is_tail);
+          
+          /* Finally make a label where to jump after a protected body. */
+          code = hh_alloc_code(expr->u.ast[2]);
+          code->kind = HH_LABEL;
+          code2->u.branch.target = code;
+        })
+
+BUILTIN("throw", throw,
+        "Throw an exception.",
+        ARG(tag, SYMBOL_CELL, "Catch tag."),
+        {
+          if (expr->arity != 2)
+            hh_fatal(expr, "`throw' expects exactly one argument, "
+                     "the catch tag symbol");
+          if (expr->u.ast[1]->arity != HH_AST_SYMBOL)
+            hh_fatal(expr->u.ast[1], "`throw' expects the catch tag "
+                     "to be a symbol");
+          if (expr->u.ast[1]->u.symbol->catch_tag == 0)
+            expr->u.ast[1]->u.symbol->catch_tag = ++hh_n_catch_tags;
+          
+          code = hh_alloc_code(expr->u.ast[1]);
+          code->kind = HH_IMM;
+          code->u.imm.insn = HH_IMM_throw;
+          code->u.imm.value =
+            HH_SHORT_TO_WORD(expr->u.ast[1]->u.symbol->catch_tag);
+        })
+
+BUILTIN("apply", apply,
+	"Call the given function with the given argument list.  Note that "
+	"even if the apply would be in a tail-recursive position, the call "
+	"to the given function is not a tail-call.",
+	ARG(function, EMPTY_CELL, "Function to call.")
+	ARG(arguments, CONS_CELL, "Argument list."),
+	GEN_INSN(apply, 2))
+
+BUILTIN("tailcall", tailcall,
+	"Cause compile-time error if this is not a tail-recursive position.",
+	ARG(expr, EMPTY_CELL, "Any expression."),
+	{
+	  if (!is_tail)
+	    hh_fatal(expr, "`tailcall' in a non-tail-recursive position");
+	  if (expr->arity != 2)
+	    hh_fatal(expr, "`tailcall' expects exactly one argument");
+	  hh_gen(expr->u.ast[1], 1);
+	})
+
+MODULE_END
+
+
+
+MODULE("Boolean arithmetic")
+
+BUILTIN("and", and,
+        "Boolean and.",
+        REMAINING_ARGS(values, EMPTY_CELL, "Values interpreted as booleans."),
+        {
+          if (expr->arity == 1) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_TRUE;
+          } else {
+            codes = malloc((expr->arity - 2) * sizeof(hh_code_t *));
+            if (codes == NULL)
+              hh_fatal(expr, "Malloc failed");
+            for (i = 0; i < expr->arity - 2; i++) {
+              hh_gen(expr->u.ast[i + 1], 0);
+              codes[i] = hh_alloc_code(expr);
+              codes[i]->kind = HH_BRANCH;
+              codes[i]->u.branch.insn = HH_IMM_branch_if_false;
+            }
+            hh_gen(expr->u.ast[expr->arity - 1], is_tail);
+            code = hh_alloc_code(expr);
+            code->kind = HH_LABEL;
+            for (i = 0; i < expr->arity - 2; i++)
+              codes[i]->u.branch.target = code;
+            free(codes);
+          }
+        })
+
+BUILTIN("or", or,
+        "Boolean or.",
+        REMAINING_ARGS(values, EMPTY_CELL, "Values interpreted as booleans."),
+        {
+          if (expr->arity == 1) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_FALSE;
+          } else {
+            codes = malloc((expr->arity - 2) * sizeof(hh_code_t *));
+            if (codes == NULL)
+              hh_fatal(expr, "Malloc failed");
+            for (i = 0; i < expr->arity - 2; i++) {
+              hh_gen(expr->u.ast[i + 1], 0);
+              codes[i] = hh_alloc_code(expr);
+              codes[i]->kind = HH_BRANCH;
+              codes[i]->u.branch.insn = HH_IMM_branch_if_true;
+            }
+            hh_gen(expr->u.ast[expr->arity - 1], is_tail);
+            code = hh_alloc_code(expr);
+            code->kind = HH_LABEL;
+            for (i = 0; i < expr->arity - 2; i++)
+              codes[i]->u.branch.target = code;
+            free(codes);
+          }
+        })
+
+BUILTIN("not", not,
+        "Boolean not.",
+        ARG(value, EMPTY_CELL, "Value interpreted as boolean."),
+        GEN_INSN(not, 1))
+
+MODULE_END
+
+
+MODULE("List processing")
+
+BUILTIN("cons", cons,
+        "Create a new cons cell.",
+        ARG(left, EMPTY_CELL, "Value for left slot in cons cell.")
+        ARG(right, EMPTY_CELL, "Value for right slot in cons cell."),
+        GEN_INSN(cons, 2))
+
+BUILTIN("car", car,
+        "Return left slot of the cons cell argument.",
+        ARG(cell, CONS_CELL, "Cons cell."),
+        GEN_INSN(car, 1))
+
+BUILTIN("cdr", cdr,
+        "Return right slot of the cons cell argument.",
+        ARG(cell, CONS_CELL, "Cons cell."),
+        GEN_INSN(cdr, 1))
+
+BUILTIN("tuple-arity", tuple_arity,
+        "Return the number of fields in the tuple, or 0 if not a tuple.",
+        ARG(x, EMPTY_CELL, "Value"),
+        GEN_INSN(tuple_arity, 1))
+
+BUILTIN("tuple-make", tuple_make,
+        "Create a tuple of the given values.",
+        REMAINING_ARGS(values, EMPTY_CELL, "Values."),
+        {
+          if (expr->arity <= 2 || expr->arity >= 16)
+            hh_fatal(expr, "`tuple-arity' expects from 2 to 15 arguments");
+          for (i = 1; i < expr->arity - 1; i++) {
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_push;
+            hh_sp++;
+          }
+          hh_gen(expr->u.ast[expr->arity - 1], 0);
+          code = hh_alloc_code(expr);
+          code->kind = HH_IMM;
+          code->u.imm.insn = HH_IMM_tuple_make;
+          code->u.imm.value = expr->arity - 1;
+          hh_sp -= expr->arity - 2;
+        })
+
+BUILTIN("tuple-make-from-list", tuple_make_from_list,
+        "Create a tuple of the given list of values.",
+        ARG(list, CONS_CELL, "List of tuple field values."),
+        GEN_INSN(tuple_make_from_list, 1))
+
+BUILTIN("tuple-index", tuple_ref,
+        "Read the contents of the given field in the given tuple.",
+        ARG(tuple, EMPTY_CELL, "A sufficiently wide tuple")
+        ARG(i, INTEGER_CELL, "Field number, starting from zero"),
+        GEN_INSN(tuple_index, 2))
+
+BUILTIN("tuple-with", tuple_with,
+        "Copy the tuple with a new value in the specified slot.",
+        ARG(tuple, EMPTY_CELL, "A sufficiently wide tuple")
+        ARG(i, INTEGER_CELL, "Field number, starting from zero")
+        ARG(value, EMPTY_CELL, "The new value"),
+        GEN_INSN(tuple_with, 3))
+
+MODULE_END
+
+
+MODULE("AVL-trees")
+
+BUILTIN("avl-make-node", avl_make_node,
+	"Make a new AVL-tree node with the given key, value and subtrees. "
+	"If the height difference of the subtrees is two, the routine "
+	"performs necessary rotations to bring the new node into balance. "
+	"No rotations are made if the heights differ less, and a fatal error "
+	"is raised if the heights differ by three or more.",
+	ARG(key, EMPTY_CELL, "Key")
+	ARG(value, EMPTY_CELL, "Value")
+	ARG(left, AVL_CELL, "Left subtree")
+	ARG(right, AVL_CELL, "Right subtree"),
+	GEN_INSN(avl_make_node, 4))
+
+BUILTIN("avl-height", avl_height,
+	"Get the height of the given AVL-tree node, zero for nil or for "
+	"something not an AVL-tree node.",
+	ARG(node, AVL_CELL, "AVL-tree node"),
+	GEN_INSN(avl_height, 1))
+
+BUILTIN("avl-key", avl_key,
+	"Get the key in the given AVL-tree node.",
+	ARG(node, AVL_CELL, "AVL-tree node"),
+	GEN_INSN(avl_key, 1))
+
+BUILTIN("avl-value", avl_value,
+	"Get the value in the given AVL-tree node.",
+	ARG(node, AVL_CELL, "AVL-tree node"),
+	GEN_INSN(avl_value, 1))
+
+BUILTIN("avl-left", avl_left,
+	"Get the left subtree of the given AVL-tree node.",
+	ARG(node, AVL_CELL, "AVL-tree node"),
+	GEN_INSN(avl_left, 1))
+
+BUILTIN("avl-right", avl_right,
+	"Get the right subtree of the given AVL-tree node.",
+	ARG(node, AVL_CELL, "AVL-tree node"),
+	GEN_INSN(avl_right, 1))
+
+BUILTIN("default-cmpfun", default_cmpfun,
+	"A simple default comparison function for symbols, integers, and "
+	"strings.  Returns -1, 0, or 1 if `a' is considered to be less than, "
+	"equal to, or greater than `b', respectively.  Integers are "
+	"considered less than all symbols, which in turn are considered "
+	"less than strings.",
+	ARG(a, EMPTY_CELL, "First comparand")
+	ARG(b, EMPTY_CELL, "Second comparand"),
+	GEN_INSN(default_cmpfun, 2))
+
+BUILTIN("default-avl-get", default_avl_get,
+	"A more efficient implementation of AVL tree searching "
+	"assuming the default key comparison function.",
+	ARG(tree, AVL_CELL, "AVL-tree")
+	ARG(key, EMPTY_CELL, "Key to be searched")
+	ARG(default_value, EMPTY_CELL, "Value returned when key not found"),
+	GEN_INSN(default_avl_get, 3))
+
+BUILTIN("default-avl-put", default_avl_put,
+	"A more efficient implementation of AVL tree insertion/replacement "
+	"assuming the default key comparison function.",
+	ARG(tree, AVL_CELL, "AVL-tree")
+	ARG(key, EMPTY_CELL, "Key to be searched")
+	ARG(value, EMPTY_CELL, "Value to be inserted/replaced"),
+	GEN_INSN(default_avl_put, 3))
+
+MODULE_END
+
+
+
+MODULE("Predicates")
+
+BUILTIN("int?", int_p,
+        "Is argument an integer?",
+        ARG(value, EMPTY_CELL, "Value of any type."),
+        GEN_INSN(intp, 1))
+
+BUILTIN("string?", string_p,
+        "Is argument a string?",
+        ARG(value, EMPTY_CELL, "Value of any type."),
+        GEN_INSN(stringp, 1))
+
+BUILTIN("symbol?", symbol_p,
+        "Is argument a symbol?",
+        ARG(value, EMPTY_CELL, "Value of any type."),
+        GEN_INSN(symbolp, 1))
+
+BUILTIN("fn?", fn_p,
+        "Is argument a function?",
+        ARG(value, EMPTY_CELL, "Value of any type."),
+        GEN_INSN(fnp, 1))
+
+BUILTIN("cons?", cons_p,
+        "Is argument a cons cell?",
+        ARG(value, EMPTY_CELL, "Value of any type."),
+        GEN_INSN(consp, 1))
+
+BUILTIN("eq?", eq_p,
+        "Are two values, of any type, equal?",
+        ARG(a, EMPTY_CELL, "First value.")
+        ARG(b, EMPTY_CELL, "Second value."),
+        GEN_INSN(eqp, 2))
+
+MODULE_END
+
+
+
+MODULE("Comparison functions")
+
+BUILTIN("<", lt,
+        "Is each argument less than the following one?",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integers."),
+        {
+          cmp_insn = HH_INSN_lt;
+          cmp_branch_insn = HH_IMM_branch_if_ge;
+        cmp_gen:
+          if (expr->arity == 1) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_TRUE;
+          } else if (expr->arity == 2) {
+            /* Generate code for the subtree in case it has side effects. */
+            hh_gen(expr->u.ast[1], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_TRUE;
+          } else {
+            hh_gen(expr->u.ast[1], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_push;
+            hh_sp++;
+            if (expr->arity > 3) {
+              codes = malloc((expr->arity - 3) * sizeof(hh_code_t *));
+              if (codes == NULL)
+                hh_fatal(expr, "Malloc failed");
+            } else
+              codes = NULL;
+            for (i = 0; i < expr->arity - 3; i++) {
+              hh_gen(expr->u.ast[i + 2], 0);
+              codes[i] = hh_alloc_code(expr);
+              codes[i]->kind = HH_BRANCH;
+              codes[i]->u.branch.insn = cmp_branch_insn;
+            }
+            hh_gen(expr->u.ast[expr->arity - 1], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = cmp_insn;
+            hh_sp--;
+            if (codes != NULL) {
+              code = hh_alloc_code(expr);
+              code->kind = HH_LABEL;
+              for (i = 0; i < expr->arity - 3; i++)
+                codes[i]->u.branch.target = code;
+              free(codes);
+            }
+          }
+        })
+
+BUILTIN("<=", le,
+        "Is each argument less than or equal to the following one?",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integers."),
+        {
+          cmp_insn = HH_INSN_le;
+          cmp_branch_insn = HH_IMM_branch_if_gt;
+          goto cmp_gen;
+        })
+
+BUILTIN("=", eq,
+        "Is each argument equal to the following one?",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integers."),
+        {
+          cmp_insn = HH_INSN_eq;
+          cmp_branch_insn = HH_IMM_branch_if_ne;
+          goto cmp_gen;
+        })
+
+BUILTIN(">=", ge,
+        "Is each argument greater than or equal to the following one?",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integers."),
+        {
+          cmp_insn = HH_INSN_ge;
+          cmp_branch_insn = HH_IMM_branch_if_lt;
+          goto cmp_gen;
+        })
+
+BUILTIN(">", gt,
+        "Is each argument greater than the following one?",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integers."),
+        {
+          cmp_insn = HH_INSN_gt;
+          cmp_branch_insn = HH_IMM_branch_if_le;
+          goto cmp_gen;
+        })
+
+BUILTIN("!=", ne,
+        "Do the two arguments have different values?",
+        ARG(a, INTEGER_CELL, "First value.")
+        ARG(b, INTEGER_CELL, "Second value."),
+        GEN_INSN(ne, 2))
+
+MODULE_END
+
+
+
+MODULE("Arithmetic")
+
+BUILTIN("+", add,
+        "Add arguments together.",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integer arguments."),
+        {
+          if (expr->arity == 1) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_SHORT_TO_WORD(0);
+          } else {
+            hh_gen(expr->u.ast[1], 0);
+            for (i = 2; i < expr->arity; i++) {
+              code = hh_alloc_code(expr);
+              code->kind = HH_INSN;
+              code->u.insn = HH_INSN_push;
+              hh_sp++;
+              hh_gen(expr->u.ast[i], 0);
+              code = hh_alloc_code(expr);
+              code->kind = HH_INSN;
+              code->u.insn = HH_INSN_add;
+              hh_sp--;
+            }
+          }
+        })
+
+BUILTIN("-", subtract,
+        "Subtract other arguments from first one, or negate if only one.",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integer arguments"),
+        {
+          if (expr->arity == 1)
+            hh_fatal(expr, "`-' must have at least one argument");
+          if (expr->arity == 2) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_SHORT_TO_WORD(0);
+            i = 1;
+          } else {
+            hh_gen(expr->u.ast[1], 0);
+            i = 2;
+          }
+          while (i < expr->arity) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_push;
+            hh_sp++;
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_sub;
+            hh_sp--;
+            i++;
+          }
+        })
+
+BUILTIN("*", mult,
+        "Multiply arguments together.",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integer arguments."),
+        {
+          if (expr->arity == 1) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_SHORT_TO_WORD(1);
+          } else {
+            hh_gen(expr->u.ast[1], 0);
+            for (i = 2; i < expr->arity; i++) {
+              code = hh_alloc_code(expr);
+              code->kind = HH_INSN;
+              code->u.insn = HH_INSN_push;
+              hh_sp++;
+              hh_gen(expr->u.ast[i], 0);
+              code = hh_alloc_code(expr);
+              code->kind = HH_INSN;
+              code->u.insn = HH_INSN_mult;
+              hh_sp--;
+            }
+          }
+        })
+
+BUILTIN("/", div,
+        "Divide arguments with each other.",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integer arguments."),
+        {
+          if (expr->arity == 1)
+            hh_fatal(expr, "`/' must have at least one argument");
+          if (expr->arity == 2) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_IMM;
+            code->u.imm.insn = HH_IMM_load;
+            code->u.imm.value = HH_SHORT_TO_WORD(1);
+            i = 1;
+          } else {
+            hh_gen(expr->u.ast[1], 0);
+            i = 2;
+          }
+          while (i < expr->arity) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_push;
+            hh_sp++;
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_div;
+            hh_sp--;
+            i++;
+          }
+        })
+
+BUILTIN("%", remainder,
+        "Return remainder (a modulo b).",
+        ARG(a, INTEGER_CELL, "The numerator.")
+        ARG(b, INTEGER_CELL, "The denominator."),
+        GEN_INSN(remainder, 2))
+
+BUILTIN("&", bit_and,
+        "Bitwise and arguments together.",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integer arguments."),
+        {
+          if (expr->arity == 1)
+            hh_fatal(expr, "`&' expects at least one argument");
+          hh_gen(expr->u.ast[1], 0);
+          for (i = 2; i < expr->arity; i++) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_push;
+            hh_sp++;
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_bitand;
+            hh_sp--;
+          }
+        })
+
+BUILTIN("|", bit_or,
+        "Bitwise or arguments together.",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integer arguments."),
+        {
+          if (expr->arity == 1)
+            hh_fatal(expr, "`|' expects at least one argument");
+          hh_gen(expr->u.ast[1], 0);
+          for (i = 2; i < expr->arity; i++) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_push;
+            hh_sp++;
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_bitor;
+            hh_sp--;
+          }
+        })
+
+BUILTIN("~", bit_not,
+        "Bitwise not.",
+        ARG(value, INTEGER_CELL, "Value to be inverted."),
+        GEN_INSN(bitnot, 1))
+
+BUILTIN("^", bit_xor,
+        "Bitwise XOR.",
+        REMAINING_ARGS(ints, INTEGER_CELL, "Integer arguments."),
+        {
+          if (expr->arity == 1)
+            hh_fatal(expr, "`^' expects at least one argument");
+          hh_gen(expr->u.ast[1], 0);
+          for (i = 2; i < expr->arity; i++) {
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_push;
+            hh_sp++;
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_bitxor;
+            hh_sp--;
+          }
+        })
+
+BUILTIN("<<", bit_lshift,
+        "Bitwise left shift.",
+        ARG(value, INTEGER_CELL, "Value to be shifted.")
+        ARG(n, INTEGER_CELL, "Number of bits to shift."),
+        GEN_INSN(bitlshift, 2))
+
+BUILTIN(">>", bit_rshift,
+        "Bitwise right shift.",
+        ARG(value, INTEGER_CELL, "Value to be shifted.")
+        ARG(n, INTEGER_CELL, "Number of bits to shift."),
+        GEN_INSN(bitrshift, 2))
+
+MODULE_END
+
+
+
+MODULE("String processing")
+
+BUILTIN("strlen", strlen,
+        "Return length of string argument.",
+        ARG(str, STRING_CELL, "The string."),
+        GEN_INSN(strlen, 1))
+
+BUILTIN("substr", substr,
+        "Copy part of existing string into new string.",
+        ARG(str, STRING_CELL, "Original string.")
+        ARG(pos, INTEGER_CELL, "Substring position in STR.")
+        ARG(len, INTEGER_CELL, "Substring length, -1 means to end of STR."),
+        GEN_INSN(substr, 3))
+
+BUILTIN("strcmp", strcmp,
+        "Compare two strings: return negative if first is less than second, "
+        "positive if greater, zero if equal.",
+        ARG(str1, STRING_CELL, "First string.")
+        ARG(str2, STRING_CELL, "Second string."),
+        GEN_INSN(strcmp, 2))
+
+BUILTIN("ord", ord,
+        "Return character code of first character in argument.",
+        ARG(ch, STRING_CELL, "The character (non-empty string)."),
+        GEN_INSN(ord, 1))
+
+BUILTIN("chr", chr,
+        "Return string containing character whose code is argument.",
+        ARG(code, INTEGER_CELL, "The character code."),
+        GEN_INSN(chr, 1))
+
+BUILTIN("strcat", strcat,
+        "Catenate strings.",
+        REMAINING_ARGS(strings, STRING_CELL, "Strings to be catenated."),
+        {
+          if (expr->arity == 1) {
+            /* A `strcat' without arguments was defined to return the
+               empty string.  Modify `expr' to be a reference to the
+               empty string, and apply the code generation for that. */
+            expr->arity = HH_AST_STRING;
+            expr->u.string = hh_ast_string("", 0);
+            hh_gen(expr, is_tail);
+          } else {
+            hh_gen(expr->u.ast[1], is_tail && expr->arity == 2);
+            for (i = 2; i < expr->arity; i++) {
+              code = hh_alloc_code(expr);
+              code->kind = HH_INSN;
+              code->u.insn = HH_INSN_push;
+              hh_sp++;
+              hh_gen(expr->u.ast[i], 0);
+              code = hh_alloc_code(expr);
+              code->kind = HH_INSN;
+              code->u.insn = HH_INSN_strcat;
+              hh_sp--;
+            }
+          }
+        })
+
+BUILTIN("atoi", atoi,
+        "Convert a string to an integer.",
+        ARG(str, STRING_CELL, "The string to convert.")
+        ARG(base, INTEGER_CELL, "Base for the number in STR."),
+        GEN_INSN(atoi, 2))
+
+BUILTIN("itoa", itoa,
+        "Convert an integer to a string.",
+        ARG(value, INTEGER_CELL, "Integer to convert to string.")
+        ARG(base, INTEGER_CELL, "Base for the conversion."),
+        GEN_INSN(itoa, 2))
+
+BUILTIN("symboltostring", symboltostring,
+        "Convert the name of a symbol to its string representation.",
+        ARG(symbol, SYMBOL_CELL, "The symbol to convert."),
+        GEN_INSN(symboltostring, 1))
+
+BUILTIN("strstr", strstr,
+        "Return position of pattern inside string, or -1 for not found.",
+        ARG(string, STRING_CELL, "String to search inside.")
+        ARG(pattern, STRING_CELL, "String to search for."),
+        GEN_INSN(strstr, 2))
+
+BUILTIN("strrstr", strrstr,
+        "Return last position of pattern inside string, or -1 for not found.",
+        ARG(string, STRING_CELL, "String to search inside.")
+        ARG(pattern, STRING_CELL, "String to search for."),
+        GEN_INSN(strrstr, 2))
+
+BUILTIN("strsplit-last", strsplit_last,
+        "If SEP occurs in STRING, return a cons where car and cdr are strings "
+        "split at the last occurence of SEP (as if searched by strrstr)."
+        "Otherwise return nil.",
+        ARG(string, STRING_CELL, "String to be split.")
+        ARG(sep, STRING_CELL, "Separator."),
+	GEN_INSN(strsplit_last, 2))
+
+BUILTIN("hex", hex,
+        "Encode bytes in a string with hexadecimals.",
+        ARG(string, STRING_CELL, "String to convert."),
+        GEN_INSN(hex, 1))
+
+MODULE_END
+
+
+
+MODULE("Miscellaneous")
+
+BUILTIN("print", print,
+        "Write arguments to the default destination (stdout, serial, log).",
+        REMAINING_ARGS(values, EMPTY_CELL, "Values to print."),
+        {
+          for (i = 1; i < expr->arity; i++) {
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr->u.ast[i]);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_print;
+          }
+        })
+
+BUILTIN("snprint", snprint,
+        "Write last argument to a string of specified length and "
+	"given accuracy.",
+        ARG(max_length, INTEGER_CELL,
+	    "Maximum string length, use -1 for unlimited.")
+        ARG(accuracy, INTEGER_CELL, "Depth or accuracy of the print.")
+        ARG(value, EMPTY_CELL, "Value to print."),
+	GEN_INSN(snprint, 3))
+
+BUILTIN("panic", panic,
+        "Write panic message to log and terminate program.",
+        REMAINING_ARGS(strings, STRING_CELL, "Values to output."),
+        {
+          for (i = 1; i < expr->arity; i++) {
+            hh_gen(expr->u.ast[i], 0);
+            code = hh_alloc_code(expr->u.ast[i]);
+            code->kind = HH_INSN;
+            code->u.insn = HH_INSN_print;
+          }
+          code = hh_alloc_code(expr);
+          code->kind = HH_INSN;
+          code->u.insn = HH_INSN_panic;
+        })
+
+BUILTIN("available-mem", available_mem,
+        "Return the number of free bytes (not including garbage).",
+        ,
+        GEN_INSN(available_mem, 0))
+
+BUILTIN("gc", gc,
+        "Do a hard garbage collection. Collect all garbage. This may "
+        "take a some time, so you should call this only when "
+        "you know the program has nothing interesting to do. The Hedgehog "
+        "Lisp implementation collects garbage as necessary, so it is never "
+        "necessary to call this function. If you want to clear out large "
+        "amounts of garbage at once, and have nothing better to do, then "
+        "do call this function.",
+        ,
+        GEN_INSN(gc, 0))
+
+BUILTIN("hedgehog-version", hedgehog_version,
+    	"Return a string giving the version of the Hedgehog LISP "
+	"implementation. The version consists of three decimal integers "
+	"separated by dots. In CVS versions, the integers may be negative.",
+	,
+	GEN_INSN(hedgehog_version, 0))
+
+MODULE_END
+
+
+MODULE("Crypto")
+
+BUILTIN("shared-secret", shared_secret,
+        "Return a 32-byte string containing the shared secret (or rather its "
+	"256-bit cryptographic hash).",
+        ,
+        GEN_INSN(shared_secret, 0))
+
+BUILTIN("crypto-hash", crypto_hash,
+        "Return a 32-byte string containing the SHA-256 digest of the "
+	"argument string.",
+        ARG(data, STRING_CELL, "String to hash"),
+        GEN_INSN(crypto_hash, 1))
+
+BUILTIN("crypto-cipher", crypto_chipher,
+        "Encrypt/decrypt the given string with the given password (with a "
+	"slightly beefed up variant of XXTEA).",
+        ARG(data, STRING_CELL, "String to en/decrypt")
+        ARG(encrypt, EMPTY_CELL, "True if encrypt, otherwise decrypt")
+        ARG(passwd, STRING_CELL, "Password, at least 16 bytes long"),
+        GEN_INSN(crypto_cipher, 3))
+
+MODULE_END
+
+
+#ifdef HH_UNIX
+
+MODULE("UNIX")
+
+BUILTIN("unix-gettimeofday", unix_gettimeofday,
+        "Return the current time, as a cons of seconds and microseconds since "
+        "the beginning of an unspecified epoch.  See gettimeofday(2).",
+        ,
+        GEN_INSN(unix_gettimeofday, 0))
+
+BUILTIN("unix-fork", unix_fork,
+    	"Perform UNIX fork.",
+	,
+	GEN_INSN(unix_fork, 0))
+
+BUILTIN("unix-wait", unix_wait,
+    	"Perform a non-blocking wait, return t if a child process has exited.",
+	,
+	GEN_INSN(unix_wait, 0))
+
+BUILTIN("unix-exec", unix_exec,
+    	"Perform UNIX execve.  The first and second argument have "
+	"identical meaning to execve (except we expect list of strings). "
+	"The third argument must currently be an empty list, but may "
+	"in future designate changes in the environment.",
+	ARG(filename, STRING_CELL, "Program to execute")
+	ARG(argv, CONS_CELL, "List of strings passed to the program as argv")
+	ARG(envp, CONS_CELL, "Environment, but nil for now"),
+	GEN_INSN(unix_exec, 3))
+
+BUILTIN("unix-dup2", unix_dup2,
+        "Call the Unix dup2 system call. Return -1 for error.",
+        ARG(from_fd, INTEGER_CELL, "Original file descriptor.")
+        ARG(to_fd, INTEGER_CELL, "New file descriptor."),
+        GEN_INSN(unix_dup2, 2))
+
+BUILTIN("unix-close", unix_close,
+        "Close an open file descriptor on Unix.",
+        ARG(fd, INTEGER_CELL, "The file descriptor."),
+        GEN_INSN(unix_close, 1))
+
+BUILTIN("unix-select", unix_select,
+    	"Perform UNIX select.",
+	ARG(secs, INTEGER_CELL, "Max wait time seconds,")
+	ARG(usecs, INTEGER_CELL, "and milliseconds."),
+	GEN_INSN(unix_select, 2))
+
+BUILTIN("unix-add-to-read-fds", unix_add_to_read_fds,
+    	"Add the given fd to the next select(2)'s read fd set.",
+	ARG(fd, INTEGER_CELL, "File descriptor."),
+	GEN_INSN(unix_add_to_read_fds, 1))
+
+BUILTIN("unix-add-to-write-fds", unix_add_to_write_fds,
+    	"Add the given fd to the next select(2)'s write fd set.",
+	ARG(fd, INTEGER_CELL, "File descriptor."),
+	GEN_INSN(unix_add_to_write_fds, 1))
+
+BUILTIN("unix-fd-is-readable", unix_fd_is_readable,
+    	"Is the given fd readable according to the latest select(2).",
+	ARG(fd, INTEGER_CELL, "File descriptor."),
+	GEN_INSN(unix_fd_is_readable, 1))
+
+BUILTIN("unix-fd-is-writable", unix_fd_is_writable,
+    	"Is the given fd writable according to the latest select(2).",
+	ARG(fd, INTEGER_CELL, "File descriptor."),
+	GEN_INSN(unix_fd_is_writable, 1))
+
+BUILTIN("unix-clr-fdsets", unix_clr_fdsets,
+    	"Clear the fd sets in preparation for the next select(2).",
+	,
+	GEN_INSN(unix_clr_fdsets, 0))
+
+BUILTIN("unix-dir-list", unix_dir_list,
+    	"Return a list of file names in the given directory.",
+	ARG(dirname, STRING_CELL, "Directory name."),
+	GEN_INSN(unix_dir_list, 1))
+
+BUILTIN("unix-unlink", unix_unlink,
+    	"Delete the given file, return true on success.",
+	ARG(filename, STRING_CELL, "File name."),
+	GEN_INSN(unix_unlink, 1))
+
+BUILTIN("unix-open", unix_open,
+    	"See open(2).",
+	ARG(filename, STRING_CELL, "Name of file to open.")
+	ARG(flags, INTEGER_CELL, "Bitwise-or'ed mode flags."),
+	GEN_INSN(unix_open, 2))
+
+BUILTIN("unix-socket", unix_socket,
+    	"See socket(2).",
+	ARG(domain, INTEGER_CELL, "Communication domain.")
+	ARG(type, INTEGER_CELL, "Communication type.")
+	ARG(protocol, INTEGER_CELL, "Communication protocol."),
+	GEN_INSN(unix_socket, 3))
+
+BUILTIN("unix-setsockopt", unix_setsockopt,
+    	"See setsockopt(2).",
+	ARG(socket, INTEGER_CELL, "File descriptor.")
+	ARG(level, INTEGER_CELL, "level, see setsockopt(2).")
+	ARG(optname, INTEGER_CELL, "optname, see setsockopt(2).")
+	ARG(optval, STRING_CELL, "optval, see setsockopt(2)."),
+	GEN_INSN(unix_setsockopt, 4))
+
+BUILTIN("unix-fcntl", unix_fcntl,
+    	"See fcntl(2).",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(cmd, INTEGER_CELL, "Command, see setsockopt(2).")
+	ARG(data, EMPTY_CELL, "nil or an integer or string argument."),
+	GEN_INSN(unix_fcntl, 3))
+
+BUILTIN("unix-ioctl", unix_ioctl,
+	"See ioctl(2).  Returns ioctl's return value when the third argument "
+	"is integer, or a cons of ioctl return value and the possibly altered "
+	"third argument string.",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(cmd, INTEGER_CELL, "Command, see ioctl(2).")
+	ARG(data, EMPTY_CELL, "Integer or string argument."),
+	GEN_INSN(unix_ioctl, 3))
+
+BUILTIN("unix-connect", unix_connect,
+    	"See connect(2).",
+	ARG(fd, INTEGER_CELL, "Socket.")
+	ARG(sockaddr, STRING_CELL, "Address to connect."),
+	GEN_INSN(unix_connect, 2))
+
+BUILTIN("unix-bind", unix_bind,
+    	"See bind(2).",
+	ARG(fd, INTEGER_CELL, "Socket.")
+	ARG(sockaddr, STRING_CELL, "Address to bind to."),
+	GEN_INSN(unix_bind, 2))
+
+BUILTIN("unix-listen", unix_listen,
+    	"See listen(2).",
+	ARG(fd, INTEGER_CELL, "Socket.")
+	ARG(backlog, INTEGER_CELL, "Length of queue for pending connections."),
+	GEN_INSN(unix_listen, 2))
+
+BUILTIN("unix-accept", unix_accept,
+    	"See accept(2).  Returns either nil in case of failure, or a cons of "
+	"the accepted file descriptor socket and possibly its sockaddr.",
+	ARG(fd, INTEGER_CELL, "Listening socket."),
+	GEN_INSN(unix_accept, 1))
+
+BUILTIN("unix-read", unix_read,
+    	"Read the given number of bytes from the given file descriptor.",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(nbytes, INTEGER_CELL, "Number of bytes to read."),
+	GEN_INSN(unix_read, 2))
+
+BUILTIN("unix-write", unix_write,
+    	"Write the string to the given file descriptor.",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(data, STRING_CELL, "String to write."),
+	GEN_INSN(unix_write, 2))
+
+BUILTIN("unix-recvfrom", unix_recvfrom,
+    	"Read at most the given number of bytes from the given socket. "
+	"On failure returns nil, on success a tuple containing the read "
+	"data and its source address.  See recvfrom(2).",
+	ARG(socket, INTEGER_CELL, "File descriptor.")
+	ARG(nbytes, INTEGER_CELL, "Number of bytes to read.")
+	ARG(flags, INTEGER_CELL, "Flags, see recvfrom(2)."),
+	GEN_INSN(unix_recvfrom, 3))
+
+BUILTIN("unix-sendto", unix_sendto,
+    	"Write the given bytes to the given socket. "
+	"See sendto(2).",
+	ARG(socket, INTEGER_CELL, "File descriptor.")
+	ARG(data, STRING_CELL, "Data to send.")
+	ARG(flags, INTEGER_CELL, "Flags, see sendto(2).")
+	ARG(sockaddr, STRING_CELL, "Sockaddr, see sendto(2)."),
+	GEN_INSN(unix_sendto, 4))
+
+BUILTIN("unix-lseek", unix_lseek,
+    	"Reposition read/write file offset.  See lseek(2).",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(offset, INTEGER_CELL, "Offset.")
+	ARG(whence, INTEGER_CELL, "SEEK_SET, SEEK_CUR or SEEK_END."),
+	GEN_INSN(unix_lseek, 3))
+
+#if defined(HH_LINUX) || defined(HH_BSD) || defined(HH_SUNOS)
+/* The unix_mount instruction has been ported only to Linux, FreeBSD
+   (possibly coincidentally other BSDs), and Solaris. */
+BUILTIN("unix-mount", unix_mount,
+    	"See mount(2).",
+	ARG(source, STRING_CELL, "Source (e.g. device).")
+	ARG(target, STRING_CELL, "Target (mount point).")
+	ARG(fstype, STRING_CELL, "File system type, e.g. vfat.")
+	ARG(flags, INTEGER_CELL, "Flags.")
+	ARG(data, STRING_CELL, "Addition fstype-dependent data, or nil."),
+	GEN_INSN(unix_mount, 5))
+#endif
+
+BUILTIN("unix-umount", unix_umount,
+    	"See umount(2).",
+	ARG(target, STRING_CELL, "Target (mount point)."),
+	GEN_INSN(unix_umount, 1))
+
+BUILTIN("unix-usleep", unix_usleep,
+    	"Sleep for the specified number of microseconds.  Note that this "
+	"issues UNIX usleep, which suspends the whole lisp program for the "
+	"corresponding duration.  Therefore, use only for very short sleeps!",
+	ARG(usecs, INTEGER_CELL, "Number of microseconds to sleep."),
+	GEN_INSN(unix_usleep, 1))
+
+BUILTIN("unix-errno", unix_errno,
+    	"Return the value of UNIX errno.",
+	,
+	GEN_INSN(unix_errno, 0))
+
+BUILTIN("unix-tcgetattr", unix_tcgetattr,
+    	"See tcgetattr(3).  Returns the termios struct as a Lisp string.",
+	ARG(fd, INTEGER_CELL, "File descriptor."),
+	GEN_INSN(unix_tcgetattr, 1))
+
+BUILTIN("unix-tcsetattr", unix_tcsetattr,
+    	"See tcsetattr(3).",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(optional_actions, INTEGER_CELL, "See tcsetattr(3).")
+	ARG(termios, STRING_CELL, "Termios struct as a Lisp string."),
+	GEN_INSN(unix_tcsetattr, 3))
+
+BUILTIN("unix-tcsendbreak", unix_tcsendbreak,
+    	"See tcsendbreak(3).",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(duration, INTEGER_CELL, "See tcsendbreak(3)."),
+	GEN_INSN(unix_tcsendbreak, 2))
+
+BUILTIN("unix-tcdrain", unix_tcdrain,
+    	"See tcdrain(3).",
+	ARG(fd, INTEGER_CELL, "File descriptor."),
+	GEN_INSN(unix_tcdrain, 1))
+
+BUILTIN("unix-tcflush", unix_tcflush,
+    	"See tcflush(3).",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(queue_selector, INTEGER_CELL, "See tcflush(3)."),
+	GEN_INSN(unix_tcflush, 2))
+
+BUILTIN("unix-tcflow", unix_tcflow,
+    	"See tcflow(3).",
+	ARG(fd, INTEGER_CELL, "File descriptor.")
+	ARG(action, INTEGER_CELL, "See tcaction(3)."),
+	GEN_INSN(unix_tcflow, 2))
+
+#ifndef HH_SUNOS
+
+BUILTIN("unix-cfmakeraw", unix_cfmakeraw,
+    	"See cfmakeraw(3).  Returns the raw's termios struct as a Lisp "
+	"string.",
+	ARG(termios, STRING_CELL, "Unraw'd termios struct as a Lisp string."),
+	GEN_INSN(unix_cfmakeraw, 1))
+
+#endif
+
+BUILTIN("unix-cfgetispeed", unix_getispeed,
+    	"See cfgetispeed(3).",
+	ARG(termios, STRING_CELL, "Termios struct as a Lisp string."),
+	GEN_INSN(unix_cfgetispeed, 1))
+
+BUILTIN("unix-cfgetospeed", unix_getospeed,
+    	"See cfgetospeed(3).",
+	ARG(termios, STRING_CELL, "Termios struct as a Lisp string."),
+	GEN_INSN(unix_cfgetospeed, 1))
+
+BUILTIN("unix-cfsetispeed", unix_cfsetispeed,
+    	"See cfsetispeed(3).  Returns a new termios struct with the given "
+	"speed.",
+	ARG(termios, STRING_CELL, "Termios struct as a Lisp string.")
+	ARG(speed, INTEGER_CELL, "See cfsetispeed(3)."),
+	GEN_INSN(unix_cfsetispeed, 2))
+
+BUILTIN("unix-cfsetospeed", unix_cfsetospeed,
+    	"See cfsetospeed(3).  Returns a new termios struct with the given "
+	"speed.",
+	ARG(termios, STRING_CELL, "Termios struct as a Lisp string.")
+	ARG(speed, INTEGER_CELL, "See cfsetospeed(3)."),
+	GEN_INSN(unix_cfsetospeed, 2))
+
+MODULE_END
+
+#endif
+
+
+MODULE("Internal stuff")
+
+BUILTIN(".make_new_env", make_new_env,
+        "Make new env of given size.",
+        ARG(n, INTEGER_CELL, "Number of values in the environment"),
+        {
+          if (expr->arity != 2)
+            hh_fatal(expr, "`.make_new_env' requires exactly one argument");
+          if (expr->u.ast[1]->arity != HH_AST_INTEGER)
+            hh_fatal(expr, "`.make_new_env' expects a constant integer");
+          code = hh_alloc_code(expr);
+          code->kind = HH_IMM;
+          code->u.imm.insn = HH_IMM_make_new_env;
+          code->u.imm.value = expr->u.ast[1]->u.integer;
+        })
+
+BUILTIN(".put_new_env", put_new_env,
+        "Store the value into the new env.",
+        ARG(i, INTEGER_CELL, "Place in the environment")
+        ARG(value, EMPTY_CELL, "Value to store"),
+        {
+          if (expr->arity != 3)
+            hh_fatal(expr, "`.put_new_env' requires exactly two arguments");
+          if (expr->u.ast[1]->arity != HH_AST_INTEGER)
+            hh_fatal(expr, "`.put_new_env' expects a constant integer");
+          hh_gen(expr->u.ast[2], is_tail);
+          code = hh_alloc_code(expr);
+          code->kind = HH_IMM;
+          code->u.imm.insn = HH_IMM_put_new_env;
+          code->u.imm.value = expr->u.ast[1]->u.integer;
+        })
+
+BUILTIN(".bind_env", bind_env,
+        "Bind a function to the new environment.",
+        ARG(fn, EMPTY_CELL, "Function to bind"),
+	GEN_INSN(bind_env, 1))
+
+BUILTIN(".change_env", change_env,
+        "Change the environment of the given function to the new environment.",
+        ARG(fn, EMPTY_CELL, "Function to rebind"),
+	GEN_INSN(change_env, 1))
+
+BUILTIN(".get_env", get_env,
+        "Read a value from the current env.",
+        ARG(i, INTEGER_CELL, "Place in the current environment"),
+        {
+          if (expr->arity != 2)
+            hh_fatal(expr, "`.get_env' requires exactly one argument");
+          if (expr->u.ast[1]->arity != HH_AST_INTEGER)
+            hh_fatal(expr, "`.get_env' expects a constant integer");
+          code = hh_alloc_code(expr);
+          code->kind = HH_IMM;
+          code->u.imm.insn = HH_IMM_get_env;
+          code->u.imm.value = expr->u.ast[1]->u.integer;
+        })
+
+MODULE_END
+
+
+#undef MODULE
+#undef BUILTIN
+#undef MODULE_END
+#undef ARG
+#undef REMAINING_ARGS

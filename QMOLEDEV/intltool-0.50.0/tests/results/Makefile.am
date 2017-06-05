@@ -1,0 +1,42 @@
+NULL = 
+
+EXTRA_DIST =					\
+	context.xml				\
+	context.xml.in.h			\
+	extract-comments.xml.h			\
+	extract1.desktop.h			\
+	extract10.templates_.h			\
+	extract13.desktop			\
+	extract13.desktop.in.h			\
+	extract3.xml.in.h			\
+	extract6.glade.h			\
+	extract7.xml.h				\
+	extract8.glade.h			\
+	extract9.xml				\
+	extract9.xml.in.h			\
+	extract12.xml.in.h			\
+	extract14.xml.in.h			\
+	extract-gtkbuilder.ui.h			\
+	gsettings.gschema.xml.h			\
+	iso88591text.xml.in.h			\
+	merge-cdata.xml				\
+	merge-deepattr.xml			\
+	merge1.xml				\
+	merge10.templates			\
+	merge11.xml				\
+	merge12.xml				\
+	merge4.xml				\
+	merge5p.sheet				\
+	merge5u.sheet				\
+	merge6.xml				\
+	merge7.xml				\
+	merge8.keys				\
+	multi.merge6.xml			\
+	multi.test-quoted.dtd			\
+	space-preserve.xml			\
+	space-preserve.xml.in.h			\
+	test-quoted.dtd.h			\
+	test.schemas				\
+	test.schemas.in.h			\
+	unicodetext.xml.in.h			\
+	$(NULL)

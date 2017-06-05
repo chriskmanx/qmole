@@ -1,0 +1,117 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2003, 2004, 2005 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Author: Kenneth Oksanen <cessu@iki.fi>
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: AVL-trees
+;;
+;; AVL-trees are an efficient balanced binary tree.
+;;
+;; You probably want to use the dict routines instead. They wrap around
+;; the AVL routines to provide a nicer interface.
+
+(def (avl-make-node key value left right)
+     (avl-make-node key value left right))
+
+(def (avl-height node)
+     (avl-height node))
+
+(def (avl-key node)
+     (avl-key node))
+
+(def (avl-value node)
+     (avl-value node))
+
+(def (avl-left node)
+     (avl-left node))
+
+(def (avl-right node)
+     (avl-right node))
+
+;; Perform a search in the given tree using the given comparison
+;; function.  Return the value stored for the given key, or
+;; `default-value' if not found.  Prefer the built-in
+;; `default-avl-get' for performance reasons if the default comparison
+;; function suffices.
+
+(def (avl-get tree cmpfun key default-value)
+     (if tree
+	 (do (set cmp (cmpfun key (avl-key tree)))
+	     (if (< cmp 0)
+		 (tailcall (avl-get (avl-left tree) cmpfun key default-value))
+	       (if (> cmp 0)
+		   (tailcall (avl-get (avl-right tree) cmpfun key
+				      default-value))
+		 (avl-value tree))))
+       default-value))
+
+;; Perform insertion/replacement in the given tree using the default
+;; comparison function.  Return the new tree.  Prefer the built-in
+;; `default-avl-put' for performance reasons if the default comparison
+;; function suffices.
+
+(def (avl-put tree cmpfun key value)
+     (if tree
+	 (do (set cmp (cmpfun key (avl-key tree)))
+	     (if (< cmp 0)
+		 (avl-make-node (avl-key tree)
+				(avl-value tree)
+				(avl-put (avl-left tree) cmpfun key value)
+				(avl-right tree))
+	       (if (> cmp 0)
+		   (avl-make-node (avl-key tree)
+				  (avl-value tree)
+				  (avl-left tree)
+				  (avl-put (avl-right tree) cmpfun key value))
+		 (avl-make-node key
+				value
+				(avl-left tree)
+				(avl-right tree)))))
+       (avl-make-node key
+		      value
+		      nil
+		      nil)))
+
+;; Fold the given operation over all key-value pairs in the AVL-tree.
+;; The operation takes three arguments: the key and value found in the
+;; AVL-tree and the previously returned value of the operation.
+
+(def (avl-fold tree operation zero)
+     (if tree
+	 (avl-fold (avl-right tree)
+		   operation
+		   (operation (avl-key tree)
+			      (avl-value tree)
+			      (avl-fold (avl-left tree) operation zero)))
+       zero))
+
+;; Similar to avl-fold, but the operation can update the values in the
+;; tree.  The operation returns a cons cell whose car is the new value
+;; and cdr is the return value of the operation.  The entire
+;; fold-update returns a cons whose car is the tree with updated
+;; values and cdr the value of the last operation.
+
+(def (avl-fold-update tree operation zero)
+     (if tree
+	 (let left (avl-fold-update (avl-left tree) operation zero)
+	      mid (operation (avl-key tree) (avl-value tree) (cdr left))
+	      right (avl-fold-update (avl-right tree) operation (cdr mid))
+	      (cons (avl-make-node (avl-key tree)
+				   (car mid)
+				   (car left)
+				   (car right))
+		    (cdr right)))
+       (cons tree zero)))
+
+
+(def (default-cmpfun a b)
+     (default-cmpfun a b))
+
+(def (default-avl-get tree key default-value)
+     (default-avl-get tree key default-value))
+
+(def (default-avl-put tree key default-value)
+     (default-avl-put tree key default-value))

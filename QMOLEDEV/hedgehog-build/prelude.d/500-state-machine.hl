@@ -1,0 +1,242 @@
+;; This file is part of Hedgehog LISP standard library.
+;; Copyright (C) 2005 Oliotalo Ltd.
+;; See file LICENSE.BSD for pertinent licensing conditions.
+;;
+;; Authors: Kenneth Oksanen <cessu@iki.fi>
+;; 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Section: State machines
+;;
+;; Many applications can be written in terms of one or more finite
+;; state machines. This library provides a framework for implementing
+;; them.
+;;
+;; Each state is a function that takes two arguments: the state
+;; machine's private data item (typically a dict, but could be
+;; anything) and either a message received by the machine, or nil if
+;; no message was received.  The function has to be written as a
+;; sequence of variable bindings, goto "statements" indicating state
+;; change, wait "statements" indicating suspension of execution until
+;; the machine receives more input (or messages), send "statements"
+;; which send messages to other machines, and when "statements" to
+;; expression conditional "statement" sequences.  The goto and wait
+;; statements do not allow the execution to preceed to the next
+;; statement, but send does.
+;;
+;; The machine may be woken up at any time before the desired timeout
+;; expires with the 'timeout message.  When a state machine enters a
+;; new state (either from system start or after a goto), the machine
+;; receives an 'enter message.  Readable and writable file descriptors
+;; are indicated with a message like '(readable ...) and '(writable ...)
+;; respectively.
+;;
+;; The framework takes care of running the state machines, calling the
+;; proper functions and keeping track of the message passing between
+;; individual machines.
+
+ ;;
+
+(def-record sm-msg
+  to nil
+  data nil)
+
+(def-syntax (sm-msg ?to ?data)
+  (tuple-make ?to ?data))
+
+(def-record sm-machine
+  name nil
+  state nil
+  data nil
+  readables nil writables nil timeout nil)
+
+;; Create a state machine record instance.  The arguments indicate the
+;; name of the state machine (an integer, symbol, or string), the
+;; (initial) state, the state machine's private data, lists of file
+;; descriptors the machine would like to read and write, and a maximum
+;; timeout before the framework sends a 'timeout message.
+
+(def-syntax (sm-machine ?name ?state ?data ?readables ?writables ?timeout)
+  (tuple-make ?name ?state ?data ?readables ?writables ?timeout))
+
+(def-syntax (sm-wait ?new-data ?readables ?writables ?timeout)
+  (sm-machine nil nil ?new-data ?readables ?writables ?timeout))
+
+(def-syntax (sm-goto ?new-state ?new-data)
+  (sm-machine nil ?new-state ?new-data nil nil nil))
+
+
+;; The maximum timeout.  Timeouts given to sm-machine larger than this
+;; value are silently capped to this value.
+;;
+;; This value is arbitrary, used mainly to prevent integer overflow
+;; should some machine wish to wait for more than 3 minutes.  Use 15
+;; seconds for now - it also forces programmers to test that 'timeout
+;; messages are handled properly (perhaps just ignored).
+
+(def-syntax sm-max-timeout 15000000)
+
+ ;; We send the machine a 'timeout message even if the entire time has
+ ;; not passed, but instead if the duration is less than this value.
+ ;; This prevents a little excess computation because most unix
+ ;; select's don't consume the entire timeout.
+
+(def-syntax sm-timeout-slop 1000)
+
+
+(def (sm-pre-select name machine timeout)
+     (map unix-add-to-read-fds (sm-machine-readables machine))
+     (map unix-add-to-write-fds (sm-machine-writables machine))
+     (let machine-timeout (sm-machine-timeout machine)
+	  (if (or (nil? machine-timeout) (> machine-timeout timeout))
+	      timeout
+	    machine-timeout)))
+
+(def (sm-post-select machine msgs duration select-retval)
+;     (print "sm-post-select: machine = " machine "\n")
+     (let timeout (sm-machine-timeout machine)
+	  timeout-left (max 0 (- timeout duration))
+	  machine (if timeout
+		      (sm-machine-with-timeout machine timeout-left)
+		    machine)
+	  n (sm-machine-name machine)
+	  (cons machine
+		(if (= 0 select-retval)
+		    (if (< timeout-left sm-timeout-slop)
+			(queue-add msgs (sm-msg n 'timeout))
+		      msgs)
+		  (let fds (filter unix-fd-is-readable
+				   (sm-machine-readables machine))
+		       (if fds
+			   (queue-add msgs (sm-msg n (cons 'readable fds)))
+			 (let fds (filter unix-fd-is-writable
+					  (sm-machine-writables machine))
+			      (if fds
+				  (queue-add msgs 
+					     (sm-msg n (cons 'writable fds)))
+				msgs))))))))
+
+;; Run the machines forever.  The argument machines contains a dict of
+;; sm-machine records keyed by the name of the machine.  The argument
+;; msgs is a queue of messages to be delivered.
+
+(def (sm-run-machines machines msgs)
+     (if (queue-empty? msgs)
+	 ;; No messages to deliver, no machines to run, go to unix-select.
+	 (let _ (unix-clr-fdsets)
+	      start (unix-gettimeofday)
+	      timeout (avl-fold machines sm-pre-select sm-max-timeout)
+;	      ; _ (print "unix-select: timeout = " timeout "\n")
+;	      This provokes out more errors: timeout (/ timeout 1000)
+	      select-retval (unix-select (/ timeout 1000000) 
+					 (% timeout 1000000))
+	      duration (unix-gettimeofday-subtract (unix-gettimeofday) start)
+;	      _ (print "unix-select: select-retval = " select-retval
+;		       ", duration = " duration "\n")
+	      ;; Send the message '(readable fd ...) or 
+	      ;; '(writable fd ...) to machines which now have a
+	      ;; readable or writable fd, respectively.  Decrement all
+	      ;; timeouts with `duration', but not to negative.  Send
+	      ;; all machines with zero timeouts the 'timeout message.
+	      x (avl-fold-update machines 
+				 (fn (name machine msgs)
+				     (sm-post-select machine msgs
+						     duration select-retval))
+				 msgs)
+	      (tailcall (sm-run-machines (car x) (cdr x))))
+	(let ; _ (print "msgs = " msgs "\n")
+	     x (queue-remove msgs)
+	     msg (car x)
+	     msgs (cdr x)
+	     to (dict-get machines (sm-msg-to msg))
+	     msg (sm-msg-data msg)
+	     (if to
+		 (tailcall (sm-handle-actions to
+					      ((sm-machine-state to)
+					       (sm-machine-data to)
+					       msg)
+					      machines msgs))
+	       ;; The recipient of the message does not exist.
+	       (tailcall (sm-run-machines machines msgs))))))
+
+(def (sm-handle-actions machine actions machines msgs)
+
+     (def (enqueue to-list data queue)
+	  (if (nil? to-list)
+	      queue
+	    (enqueue (cdr to-list)
+		     data
+		     (queue-add queue (sm-msg (car to-list) data)))))
+
+     (if (cons? actions)
+	 ;; A send action, containing an sm-msg record.
+	 (tailcall
+	  (sm-handle-actions machine (cdr actions) machines
+			     (let to (sm-msg-to (car actions))
+				  data (sm-msg-data (car actions))
+				  (if (cons? to)
+				      (enqueue to data msgs)
+				    (queue-add msgs (car actions))))))
+       (let s (sm-machine-state actions)
+	    (if s
+		;; A goto action.
+		(tailcall 
+		 (sm-handle-actions 
+		  ;; Copy name from old machine
+		  (sm-machine-with-name actions (sm-machine-name machine))
+		  (s (sm-machine-data actions) 'enter)
+		  machines msgs))
+	      ;; A wait action.
+	      (let new-machine 
+		     (sm-machine-with-state actions (sm-machine-state machine))
+		   n (sm-machine-name machine)
+		   new-machine (sm-machine-with-name new-machine n)
+		   (tailcall (sm-run-machines (dict-set machines n new-machine)
+					      msgs)))))))
+
+
+(def-syntax (def-state-body ?name ?value ... ?stmts)
+  (do (set ?name ?value)
+      (def-state-body ... ?stmts)))
+
+(def-syntax (def-state-body (send ?list-of-machines ?data)
+	                    ... ?stmts)
+  (set ?t (def-state-body ... ?stmts))
+  (set ?lom ?list-of-machines)
+  (if ?lom
+      (cons (sm-msg ?lom ?data) ?t)
+      ?t))
+
+(def-syntax (def-state-body (wait ?new-data ?readables ?writables ?timeout))
+  (sm-wait ?new-data ?readables ?writables ?timeout))
+
+(def-syntax (def-state-body (goto ?new-state ?new-data))
+  (sm-goto ?new-state ?new-data))
+
+(def-syntax (def-state-body (when ?cond ... ?then-stmts) ... ?stmts)
+  (if ?cond
+      (do (def-state-body ... ?then-stmts))
+      (do (def-state-body ... ?stmts))))
+
+(def-syntax (def-state-body)
+  (panic "\nNo state transfer defined.\n"))
+
+;; A macro used to create the state function.  The function takes two
+;; arguments, the private data which is associated to this particular
+;; instance of the machine and passed from state to state by
+;; sm-run-machines.  The second argument, msg, is a message delivered
+;; by the framework to this state function.  The body of the function
+;; is a sequence of either variable bindings as in let-statements,
+;; (send list-of-machines msg) -statements to send the given msgs to
+;; the given list of machines (nil if none, a single machine name is
+;; also ok), (goto new-state cond new-data) -statements to make a
+;; conditional transition to the a new state with a corresponding new
+;; version of the private data, and (wait cond new-data readables
+;; writables timeout) to stay in the same state until either one of
+;; the file descriptors in the readables-list has become readable, one
+;; of the file descriptors in the writables-list has become writable,
+;; or until a specified timeout has occurred.
+
+(def-syntax (def-state (?state-name ?private-data ?msg) ... ?body)
+  (def (?state-name ?private-data ?msg)
+       (def-state-body ... ?body)))

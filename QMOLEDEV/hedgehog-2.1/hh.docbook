@@ -1,0 +1,886 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<!DOCTYPE article PUBLIC "-//Norman Walsh//DTD DocBk XML V3.1//EN"
+     "file:///usr/share/sgml/docbook/dtd/xml/3.1.7/docbookx.dtd" [
+<!ENTITY builtins SYSTEM "hh_builtins.incl">
+<!ENTITY lib SYSTEM "prelude.incl">
+]>
+
+<article>
+
+<artheader>
+    <title>Hedgehog Lisp</title>
+    <date>3 January 2004</date>
+    <author>
+	<firstname>Lars</firstname>
+	<surname>Wirzenius</surname>
+	<affiliation>
+	    <address>
+		<email>liw@iki.fi</email>
+	    </address>
+	</affiliation>
+    </author>
+    <author>
+	<firstname>Kenneth</firstname>
+	<surname>Oksanen</surname>
+	<affiliation>
+	    <address>
+		<email>cessu@iki.fi</email>
+	    </address>
+	</affiliation>
+    </author>
+    <abstract>
+	<title>Abstract</title>
+
+        <para>Hedgehog is a very concise implementation of a Lisp-like
+        language for low-end and embedded devices. It consists of a
+        compiler to byte code and a corresponding interpreter. The byte
+        code interpreter is written in standard conforming C, is
+        efficient and easily portable, and can be compiled to a very
+        small executable of only some 20 kilobytes (smallest
+        configuration for Intel x86 architecture).</para>
+        
+        <para>The Hedgehog Lisp dialect has proper support for local and
+        lambda functions, lexical scoping, variable argument functions,
+        garbage collection, exceptions, macros, and over a hundred
+        predefined functions or special forms. The built-in types are
+        lists, symbols, strings, 32-bit integers, AVL-trees, and tuples
+        up to 16 elements wide. Proper 32-bit wide integers are
+        necessary for various bit-level operations in embedded
+        systems.</para>
+
+        <para>This manual describes the Hedgehog Lisp language. It
+        consists of a tutorial and a reference with all the functions
+        the application programmer's may use.</para>
+
+    </abstract>
+</artheader>
+
+<sect1 id="intro">
+<title>Introduction</title>
+
+    <para>Hedgehog Lisp is the in-house development tool Oliotalo uses for
+    embedded development. It is meant to be customizable to various
+    embedded hardware platforms and to allow us to develop applications
+    rapidly.  The intention is that the Hedgeghog Lisp interpreter,
+    written in C, is ported to each target hardware platform, and
+    applications are then written on top of this. This manual briefly
+    teaches the language and an appendix provides a reference manual
+    for the library. The reader is expected to know programming
+    already.</para>
+    
+    <para>An earlier generation of the Hedgehog platform consisted of
+    a C library linked to application code. The library abstracted away
+    most hardware dependencies. However, application programming in C is
+    less productive and more error prone than in a high level language,
+    as long as the high level language is capable of the task. </para>
+    
+    <para>Additionally, Oliotalo has the need to update the applications
+    over the air, which in some environments is difficult if the
+    application is written in C. In these environments, not just the
+    Hedgehog C library, but the whole operating system is linked to
+    the application to form a single monolithic block. Updating the
+    application would require loading whole block, which is more expensive
+    to do and harder to implement.</para>
+    
+    <para>Thus, Oliotalo decided to implement a simple, but powerful
+    language and write its applications in this language. We chose to
+    implement our own dialect of the Lisp language, since it is small
+    and powerful as a language, and simple to implement.</para>
+    
+    <para>Lisp is a one of the three oldest programming languages still
+    in use. It was invented by John McCarthy in the late 1950s and has
+    been in constant use since then. There have, through the years,
+    been many versions of Lisp. At the moment the major versions are
+    Common Lisp (standardized internationally), Scheme, and Elisp (used
+    inside the Emacs editor). They are all similar, but different,
+    and mostly share the same philosophy, even if they implement it
+    differently. Hedgehog Lisp is its own dialect, and does not try to
+    implement any existing dialect. This is so that we can concentrate
+    on optimizing both the language and its implementation for our own
+    purposes. However, all Lisp-like languages are similar enough that
+    it is easy to pick up a new one; much easier than, say, picking up
+    Java if you C, or vice versa.</para>
+    
+    <para>Hedgehog Lisp is functional: no functions may have any side
+    effects, except for the builtin I/O operations. The language was
+    originally designed by Lars Wirzenius. The current implementation
+    and some of the design is by Kenneth Oksanen.</para>
+    
+</sect1>    
+
+<sect1 id="gettingstarted">
+<title>Getting Started</title>
+
+    <para>It is easiest to install Hedgehog Lisp on a
+    Debian GNU/Linux i386 system using the binary package
+    (<filename>hedgehog.deb</filename>) provided by Oliotalo. On
+    other platforms, you need to get the source package and compile
+    it yourself.</para>
+    
+    <para>The Hedgehog Lisp implementation consists of a compiler
+    and interpreter. The compiler, <command>hhc</command>, generates
+    bytecode, which the interpreter, <command>hhi</command>, then runs.
+    To compile a Hedgehog Lisp program to byte code, you write the source
+    code to a file and run the following command:</para>
+    
+<screen>hhc <replaceable>foo.hl</replaceable></screen>
+        
+    <para>where <replaceable>foo.hl</replaceable> is the name of your file.
+    Try out for example <filename>fib.hl</filename> for the
+    ubiquitous Fibonacci-test. You can find it in the source package
+    or in <filename>/usr/share/doc/hedgehog/examples</filename> if you
+    installed the binary package.</para>
+
+    <para>The compiler writes out two output files,
+    <filename>fib.hlo</filename> for the byte code program and
+    <filename>fib.hls</filename> for the byte code assembler.  The
+    latter one is useful only for debugging, and we shall return to
+    that later.</para>
+
+   <para>To run the byte code program, run the command:</para>
+
+<screen>hhi</screen>
+
+    <para>The Hedgehog Lisp interpreter is not suitable for using
+    interactively: it reads in the whole input file before
+    interpreting it, so there is no read-eval-output loop as in
+    traditional Lisp interpreters.</para>
+    
+    <example>
+        <title>Simple expression.</title>
+    
+<programlisting>(print (+ 1 2 3) "\n")</programlisting>
+<screen>hhc <replaceable>foo.hoglisp</replaceable>
+hhi
+6
+</screen>
+
+    </example>
+
+    <para>Pass <command>hhc</command> and <command>hhi</command> the flag
+    <option>--help</option> or <option>-h</option> to see their full
+    command line interface.  Note that the sizes of the heap and stack
+    sizes are fixed during each execution, but are adjustable from the
+    command line.</para>
+
+<!--
+    <para>The <filename>prelude.lisp</filename> file contains the
+    Hedgehog Lisp library, which is by default included into all
+    compilations and documented in the Appedix.  If you choose to
+    install <command>hhc</command> to system-wide use, you should
+    first copy <filename>prelude.lisp</filename> to some system
+    directory (such as
+    <filename>/usr/local/share/hh/prelude.lisp</filename>), edit the
+    macro <literal>DEFAULT_PRELUDE</literal> in
+    <filename>hh_compiler.c</filename> correspondigly, and remake.
+    Note that some language constructs are allowed only in the
+    prelude.  For example built-in symbols can be defined only in the
+    predule.</para>
+-->
+
+</sect1>    
+
+<sect1 id="basics">
+<title>Lisp basics</title>
+
+    <para>A Hedgehog Lisp program consists of a sequence of
+    expressions.  Some expressions compute things, others define
+    functions, which later expressions can call. An expression can be
+    an <emphasis>atom</emphasis>, i.e., an atomic piece of data, such
+    as an integer. An expression can also be a list, i.e., a sequence
+    of expressions inside parentheses. The example above is one list
+    expression, which contains four atomic expressions: the symbol
+    <literal>+</literal> and the integers 1, 2, and 3.</para>
+    
+    <para>Atoms can be symbols, integers, or strings. We will return
+    to strings later in this tutorial, and concentrate on symbols and
+    integers for now.</para>
+    
+    <para>A symbol name may not contain whitespace or parentheses, but
+    may otherwise contain anything. For example, a plus sign is quite
+    a valid name; it is not being treated specially. A symbol name may
+    be <emphasis>bound to</emphasis> a value, such as an atom, a list,
+    or a function.</para>
+    
+    <para>When a list expression is evaluated, it is treated as a function
+    call. The first value in the list identifies the function to be
+    called, the remaining values are its arguments. Typically, as in
+    the example above, the first value in the list is a symbol that is
+    bound to a function value. In the example, the <literal>+</literal>
+    symbol is bound to a <emphasis>built-in function</emphasis> that
+    computes the sum of its arguments (which must all be integers).</para>
+    
+    <para>Before the function is called, its arguments are evaluated. In
+    the example, each argument is an integer, and its value is itself,
+    so there is not much to compute. In the general case, however,
+    the argument might itself be a call to a function, as in the next
+    example.</para>
+    
+    <example>
+        <title>Nested expression.</title>
+    
+        <programlisting>(+ 1 (+ 2 3))</programlisting>
+        
+        <para>This example contains two list expressions. The inner one
+        <literal>(+ 2 3)</literal> is evaluated first, and returns 5. This
+        is then passed as the second argument to the outer one; in effect,
+        the outer call becomes <literal>(+ 1 5)</literal>.</para>
+
+    </example>
+
+</sect1>    
+
+<sect1 id="lists">
+<title>Memory management and list processing</title>
+
+    <para>Data is stored by the Hedgehog Lisp interpreter in
+    <emphasis>cells</emphasis> of different types. A cell can
+    contain an atom: a symbol, an integer, a string, or a built-in
+    function. Lists are constructed using a special cell called
+    a <emphasis>cons</emphasis> containing references to two other
+    cells. A simple linked list consists of a sequence of cons cells,
+    where the first reference points at the value at the node in the list,
+    and the second one points at the next node in the list.</para>
+    
+        <figure>
+            <title>Simple linked list</title>
+	    <graphic fileref="linked-list"/>
+        </figure>
+
+    <para>A new cons cell is constructed with the built-in function
+    cons:</para>
+    
+        <programlisting>(cons 1 (cons 2 (cons 3 nil))</programlisting>
+        
+    <para>This constructs a list of the numbers 1, 2, and 3, such as the
+    one in figure. <literal>nil</literal> is an atom bound to an empty
+    reference, corresponding to null pointer in C.</para>
+    
+    <para>Constructing lists with cons quickly becomes tedious. It would be
+    easier to be able to write the list out directly:</para>
+    
+        <programlisting>(1 2 3)</programlisting>
+        
+    <para>However, this is evaluated as if it were a function call (and
+    thus resulting in an error). To avoid this, use the special
+    <literal>quote</literal> function, which prevents evaluation of
+    its arguments:</para>
+    
+        <programlisting>(quote (1 2 3))</programlisting>
+
+    <para>This results in a value of <literal>(1 2 3)</literal>. Note that if
+    <literal>quote</literal> were a normal function, its argument would
+    be evaluated before it is called.</para>
+    
+    <para>Because <literal>quote</literal> is used so often, it can be
+    abbreviated with an apostrophe:</para>
+    
+        <programlisting>'(1 2 3)</programlisting>
+
+    <para>Alternatively, if you want to construct a list
+    from computed values rather than constants, you can use
+    <literal>list</literal>:</para>
+
+        <programlisting>(list (+ 1 2) 3)</programlisting>
+
+    <para><literal>list</literal> returns its arguments (the values of
+    its argument expressions) in a list, in this case the return value
+    would be <literal>(3 3)</literal>.  </para>
+
+    <para>Once we have a list value (as opposed to a list expression),
+    we can operate on it using the built-in <literal>car</literal> and
+    <literal>cdr</literal> functions. A list is represented by its leading
+    cons cell, and <literal>car</literal> and <literal>cdr</literal>
+    return the first and second reference, respectively. Thus, to extract
+    the second element of the list <literal>(1 2 3)</literal>, you would
+    write the following:</para>
+    
+        <programlisting>(car (cdr '(1 2 3)))</programlisting>
+
+    <para>It is instructive to see how this is evaluated. First,
+    the list <literal>(1 2 3)</literal> is constructed and passed
+    to <literal>cdr</literal>, which returns the second reference
+    in the leading cons cell.  This means that the value of the
+    <literal>cdr</literal> call is a reference to the second cons
+    cell in the list; in effect, <literal>cdr</literal> returns
+    the list <literal>(2 3)</literal>. This is then passed to
+    <literal>car</literal>, which returns the first reference in the
+    leading cons cell, i.e., a reference to the integer 2. This is then
+    the result of the whole expression.</para>
+    
+    <para>The <literal>cons</literal> function allocates a cell
+    explicitly. There is no explicit memory de-allocation. Instead,
+    Hedgehog Lisp relies on garbage collection: cells that are no longer
+    referred to by anyone are destroyed and re-used invisibly to the
+    programmer.</para>
+
+</sect1>    
+    
+<sect1 id="functions">
+<title>User defined functions</title>
+
+    <para>Hedgehog Lisp provides two ways for the programmer to define a
+    new function: <literal>def</literal> and <literal>fn</literal>.</para>
+    
+    <example>
+        <title>Simple function.</title>
+
+<programlisting>(def (addone x)
+    (+ x 1))</programlisting>
+
+        <para>Here, we define a new function, called addone, that takes
+        one argument (x) and returns as its value the value of the
+        argument plus one.</para>
+
+    </example>
+    
+    <example>
+        <title>Compute absolute value of a number.</title>
+    
+<programlisting>(def (abs x)
+    (cond
+        (&lt; x 0) (- 0 x)
+        x))</programlisting>
+
+    </example>
+
+    <para>In the second example, we also introduce the special function
+    <literal>cond</literal>, which implements conditionals. There are
+    two forms of <literal>cond</literal>:</para>
+    
+    	<simplelist>
+	    <member><literal>(cond p1 e1 ... pn en edefault)</literal></member>
+	    <member><literal>(cond p1 e1 ... pn en)</literal></member>
+	</simplelist>
+
+    <para>In the first form, <literal>cond</literal> gets an odd number
+    of expressions, and evaluates each <literal>pi</literal> in order,
+    until it finds one that is true. It then evaluates the corresponding
+    <literal>ei</literal>, and returns that as its value.  The remaining
+    expressions are not evaluated. If no <literal>pi</literal> is true,
+    <literal>cond</literal> evaluates <literal>edefault</literal> as
+    its value. In the second form, where no default value is given,
+    <literal>cond</literal> returns <literal>nil</literal>.</para>
+    
+    <para>A value is considered to be false, if it is
+    <literal>nil</literal>, or the integer zero, or the empty
+    string. Otherwise it is considered to be true.</para>
+    
+    <example>
+    	<title>Compute length of a list.</title>
+    
+<programlisting>(def (list-length x)
+    (cond
+	x (+ 1 (list-length (cdr x)))
+	0))</programlisting>
+
+	<para>This function returns the length of its
+	argument, which must be a list.  It uses recursion and
+	<function>cdr</function> to traverse the list, and counts the
+	number of elements. Unfortunately, it also uses function call
+	stack space proportional to the length of the list. If the list
+	is very long, it will result in much space being used. This is
+	not necessary. A more space efficient way to write the function
+	is to write it so that it only tail recursion, i.e., the result of
+	the recursive call is directly the result of the function.</para>
+	
+<!-- XXX how does tailcall work? -->
+    
+    </example>
+
+    <example>
+    	<title>Tail recursion.</title>
+    
+<programlisting>(def (list-length-helper remaining n)
+    (cond
+	remaining (list-length-helper (cdr remaining) (+ 1 n))
+	n))
+
+(def (list-length x)
+    (list-length-helper x 0))</programlisting>
+
+	<para>The <literal>list-length-helper</literal> function only
+	uses tail recursion. This is important, because Hedgehog Lisp
+	carefully optimizes tail recursion calls (indeed, all tail
+	calls) so that they don't use extra stack space. In other
+	words, when you traverse a list with tail recursion, it
+	doesn't take any extra space.  Tail recursion is the
+	equivalent of iteration in imperative programming languages.
+	Since this is such an important concept, there is a special
+	form, <function>tailcall</function>, which does not affect the
+	computation in any way, but causes a compile-time error if it
+	is used in a non-tailrecursive position in the program
+	code.</para>
+
+<programlisting>(def (list-length-helper remaining n)
+    (cond
+	remaining 
+            (tailcall (list-length-helper (cdr remaining) (+ 1 n)))
+	n))</programlisting>
+
+
+    </example>
+    
+    <example>
+    	<title>Local functions.</title>
+
+<programlisting>(def (list-length x)
+
+    (def (helper remaining n)
+	(cond
+	    remaining (helper (cdr remaining) (+ 1 n))
+	    n))
+
+    (helper x 0))</programlisting>
+
+	<para>Here we have defined the helper function as a local function
+	inside <literal>list-length</literal> itself. This makes it
+	obvious to others reading the code that the helper function is
+	used only by the <literal>list-length</literal> function, and
+	is not meant to be used by others. It also reduces the amount
+	of name space clutter by helper functions, of which there are
+	going to be many.</para>
+
+    </example>
+    
+    <example>
+    	<title>Functions as arguments.</title>
+    
+<programlisting>(def (find-item items is-this-it)
+
+    (cond
+        (not items) nil
+        (is-this-it (car items)) (car items)
+        (find-item (cdr items) is-this-it)))</programlisting>
+
+	<para>This function is used to find an item in a list. Since
+	the algorithm for traversing a list and finding an item
+	is not dependent on how the desired item is identified,
+	<literal>find-item</literal> gets a function to make the
+	decision as its second argument. This way, regardless of how
+	we want to choose an item, we can always use the same find-item
+	function.</para>
+
+    </example>
+
+    <example>
+    	<title>Searching in a list.</title>
+    
+<programlisting>(def (is-arthur person)
+    (= (car person) 12))
+
+(find-item '((12 "Arthur Dent") (42 "Ford Prefect")) is-arthur)</programlisting>
+
+	<para>Here we use <literal>find-item</literal> to find in a
+	list of lists one where the first element is 12. Each sublist
+	represents a person, with the first element of the list giving
+	the person's unique code number.</para>
+
+    </example>
+    
+    <para>It would be useful to have a generic function for finding
+    a particular person, of course. To do this, we must construct a
+    function at run time that matches our desired person. This can be
+    done with local functions and lexical scoping rules.</para>
+    
+    <example>
+    	<title>Finding anyone in a list.</title>
+    
+<programlisting>(def (find-person persons id)
+    (def (is-person person)
+	(= (car person) id))
+    (find-item persons is-person))</programlisting>
+
+	<para>The local function <literal>is-person</literal> inside
+	<literal>find-person</literal> is defined at new for each call
+	of <literal>find-person</literal>. Hedgehog Lisp uses lexical
+	scoping, which means that <literal>is-person</literal> can refer
+	to the value of <literal>find-person</literal>'s arguments (and
+	other local function names), in addition to globally defined
+	function names. That is, when <literal>is-person</literal>
+	is called, and refers to the value of <literal>id</literal>,
+	the value it gets is the value of <literal>id</literal>
+	for the <literal>find-person</literal> call that defined that
+	particular instance of <literal>is-person</literal>. Therefore,
+	<literal>is-person</literal> returns true for exactly the desired
+	person.</para>
+    
+    </example>
+
+    <para>It is not necessary to use a local <literal>def</literal>
+    to define a function such as <literal>is-helper</literal>. Often
+    it is not necessary for the helper function to have a name, and it
+    would be more convenient not to have to first define the function and
+    then to refer to it by name. Lisp languages thus can define nameless
+    functions with an operation typically called lambda, which Hedgehog
+    Lisp calls <literal>fn</literal> (for no good reason, except that it
+    is shorter; this idea was picked up from Paul Graham's description
+    of the Arc language).</para>
+    
+    <example>
+    	<title>Lambda function.</title>
+    
+<programlisting>(def (find-person persons id)
+    (find-item persons 
+	       (fn (person) 
+		   (= (car person) id))))</programlisting>
+
+	<para>This example is arguably clearer than the previous one,
+	and does the same thing.</para>
+
+    </example>
+    
+    <example>
+    	<title>Variable argument functions.</title>
+    
+<programlisting>(def (list ... args)
+    args)
+
+(list 1 2 3 4 5 6)</programlisting>
+
+	<para>The function <literal>list</literal> gets some number of
+	expressions as its argument.  It returns a list with the
+	values of those expressions. When a function is defined so
+	that its last argument is preceeded with ellipsis
+	<literal>...</literal>, it gets its arguments packaged in a
+	list. If it has more than one formal argument, those are
+	assigned values from the actual arguments at call time, and
+	the remaining ones are put into a list and that is assigned to
+	the last argument.</para>
+	
+    </example>
+
+</sect1>    
+
+<sect1 id="exceptions">
+<title>Exception handling</title>
+
+    <para>The builtin function <function>throw</function> throws an
+    exception. Exceptions are represented by symbols (not the values
+    the symbols are bound to). The function <function>catch</function>
+    catches an exception. If an exception is not caught, the interpreter
+    terminates the program.</para>
+    
+    <example>
+    	<title>Exception handling</title>
+	
+<programlisting>(def (divide a b)
+    (cond
+    	(= b 0)
+	    (throw divide-by-zero)
+	(/ a b)))
+
+(catch 
+    (divide 10 0)
+    divide-by-zero 0)
+</programlisting>
+
+    	<para>In this example we throw an exception if the caller tries
+	to divide by zero, and then in the caller we catch the exception.
+	</para>
+	
+    </example>
+
+    <para>When memory is about to exhaust, the interpreter
+    automatically throws a <literal>out-of-memory-exception</literal>.
+    If it is caught, it collects garbage again and tries to continue.
+    Otherwise the interpreter exits with a special error code.</para>
+
+</sect1>
+
+<sect1 id="integers">
+<title>Integers</title>
+
+    <para>Integers are 32 bits large and signed. All integer constants are
+    decimal, unless prefixed by <literal>0x</literal>, in which case they
+    are hexadeciaml. Basic mathematical operations (<literal>+</literal>,
+    <literal>-</literal>, <literal>*</literal>, <literal>/</literal>)
+    are available, as are remainder (<literal>%</literal>) and power
+    (<literal>pow</literal>). Comparisons (<literal>&lt;</literal>,
+    <literal>&lt;=</literal>, <literal>=</literal>, <literal>!=</literal>,
+    <literal>&gt;</literal>, <literal>&gt;=</literal>) are also available,
+    of course.</para>
+
+    <para>Bitwise integer operations (<literal>|</literal>,
+    <literal>&amp;</literal>, <literal>^</literal>,
+    <literal>&lt;&lt;</literal> and <literal>&gt;&gt;</literal>),
+    however, treat their argument as an unsigned value.</para>
+
+</sect1>    
+
+<sect1 id="strings">
+<title>Strings</title>
+
+    <para>Strings are immutable: once created, they can't be changed. They
+    are thus similar in this regard to all other data structures in
+    Hedgehog Lisp, none of which are mutable.</para>
+    
+    <para>String literals use a C-like syntax: they are surrounded
+    by double quotes and backslash is used as an escape character.
+    The escape sequences are listed in the following table.</para>
+    
+    	<table>
+	<title>Escape sequences in string literals.</title>
+	<tgroup>
+	<row>
+	    <entry><literal>\\</literal></entry>
+	    <entry>backslash (<literal>\</literal>)</entry>
+	</row>
+	<row>
+	    <entry><literal>\"</literal></entry>
+	    <entry>double quote (<literal>"</literal>)</entry>
+	</row>
+	<row>
+	    <entry><literal>\a</literal></entry>
+	    <entry>audible bell</entry>
+	</row>
+	<row>
+	    <entry><literal>\b</literal></entry>
+	    <entry>backspace</entry>
+	</row>
+	<row>
+	    <entry><literal>\f</literal></entry>
+	    <entry>form feed</entry>
+	</row>
+	<row>
+	    <entry><literal>\n</literal></entry>
+	    <entry>newline</entry>
+	</row>
+	<row>
+	    <entry><literal>\r</literal></entry>
+	    <entry>carriage return</entry>
+	</row>
+	<row>
+	    <entry><literal>\t</literal></entry>
+	    <entry>tab</entry>
+	</row>
+	<row>
+	    <entry><literal>\v</literal></entry>
+	    <entry>vertical tab</entry>
+	</row>
+	<row>
+	    <entry><literal>\x</literal><replaceable>nn</replaceable></entry>
+	    <entry>character whose hexadecimal code is 
+	    	   <replaceable>nn</replaceable></entry>
+	</row>
+	<row>
+	    <entry><literal>\</literal><replaceable>nn</replaceable></entry>
+	    <entry>character whose octal code is 
+	    	   <replaceable>nn</replaceable></entry>
+	</row>
+	</tgroup>
+	</table>
+    
+    <para>Strings can be manipulated with functions listed in the
+    library reference.</para>
+    
+</sect1>
+
+
+<sect1 id="ifdefs">
+<title>Conditional Compilation</title>
+
+    <para>Conditional compilation makes it possible to have alternate
+    implementations for some functionality and choose the
+    implementation for example from the compilers's command
+    line with the flag <option>-D</option>.</para>
+
+    <para>The facility is very similar to the C preprocessor's
+    <literal>#ifdef</literal>, <literal>#ifndef</literal>,
+    <literal>#else</literal>, and <literal>#endif</literal>.  Note,
+    however, that macros have no value except whether they are defined
+    or not.  Therefore there is no <literal>#if</literal>, and
+    <literal>#define</literal> is followed by the macro name, but
+    nothing more.</para>
+
+    <example>
+        <title>Conditional Compilation.</title>
+
+<programlisting>#define QUIET
+...
+#ifndef QUIET
+  (def (print-to-console s)
+     (print s))
+#else
+  (def (print-to-console s)
+     nil)
+#endif
+...
+</programlisting>
+     </example>
+
+    <para><literal>#ifdef</literal>s can be nested.  Some symbols,
+    such as <literal>HH_UNIX</literal> may be predefined by the
+    compiler.</para>
+
+</sect1>
+
+
+<sect1 id="macros">
+<title>Macros</title>
+
+    <para>Since user-defined functions always evaluate their arguments
+    before issuing the call, they have limits in their capabilities of
+    extending the syntax of the language.  Macros, on the other hand,
+    are always expanded during compilation time, without evaluating
+    their arguments.</para>
+
+    <para><emphasis>Note</emphasis>: Like in many other languages,
+    macros are a brittle and possibly difficult concept, and best be
+    avoided by the novice programmer.</para>
+
+    <para>Macros are essentially rewrite rules defined by the special
+    form <literal>def-syntax</literal>.  The first argument is a
+    <emphasis>pattern</emphasis>, which is matched agains all
+    expressions in the program code after the definition of the macro.
+    The pattern may be an arbitrary syntactic construct containing for
+    atoms, lists, pattern variables and ellipsis
+    (<literal>...</literal>).  Pattern variables are special symbols
+    that begin with a question mark.  They match any expression, but a
+    pattern variable may appears only once in the pattern.  Ellipsis
+    followed by a pattern variable means that the rest of the list is
+    stored in the pattern variable, just like in variable argument
+    function definitions.</para>
+
+    <para>The second argument of <literal>def-syntax</literal> is the
+    <emphasis>replacement</emphasis>.  Any pattern variable that was
+    bound during the matching, will be substituted with that value.
+    Unbound pattern variables are bound to globally unique symbols,
+    thereby providing a mechanism for generating temporary
+    variables.</para>
+
+    <example>
+        <title>Simple macros.</title>
+    
+<programlisting>(def-syntax (assert ?x)
+  (if (not ?x)
+      (panic "Failed assertion `" (quote ?x) "'.\nExiting.\n")))
+</programlisting>
+
+	<para>Note that the pattern variable is instantiated also
+	inside of <literal>quote</literal>.  This would not be the
+	case if <literal>assert</literal> were a normal
+	function.</para>
+
+    </example>
+
+    <para>If the macro body contains expressions starting with
+    <literal>##</literal>, the remaining arguments are concatenated
+    together into a new symbol.  For example, <literal>(## make-
+    ?thing)</literal>, where <literal>?thing</literal> is bound to
+    <literal>love</literal>, would be rewritten to the symbol
+    <literal>make-love</literal>.</para>
+
+    <para>Another special symbol, <literal>#'</literal>, is used to
+    prevent the macro expansion of its argument.  This is useful when
+    the macro body expands into new macro definitions to prevent a
+    premature expansion of the new macro variables.</para>
+
+    <para>If the macro is expanded on the top-level, in a function
+    body or do-expression, then the rewrite may contain several
+    expressions, all of which are expanded to the same level as the
+    macro was used.</para>
+
+    <para>The macro facility is still improving.  In addition to
+    bugfixes and improved error messages, one requested feature is the
+    extraction of source code location of macro arguments, etc.</para>
+
+</sect1>
+
+
+<sect1 id="debugging">
+<title>Debugging</title>
+
+    <para>Since <command>hhi</command> is intended to be as small as
+    possible, it does not contain a featureful debugger.  It does
+    print information on why and in which instruction the byte code
+    program failed.</para>
+
+    <example>
+        <title>Debugging.</title>
+    
+<screen>$ <userinput>cat bar.lisp</userinput>
+(+ 1 "foo")
+$ <userinput>hhc bar.lisp</userinput>
+$ <userinput>hhi</userinput>
+Fatal program error #4: Expected an integer. pc = 000006, sp = 0.
+$ <userinput>grep 000006 hh.asm</userinput>
+000006 ("bar.lisp":1)                                    add
+</screen>
+
+        <para>In other words, the program failed because of a type
+        error in addition on line 1 in file
+        <filename>bar.lisp</filename>.</para>
+
+    </example>
+
+    <para>If the symbol <literal>HH_SMALL</literal> is not defined
+    during compilation, an approximate function call sequence (backtrace)
+    is printed out when the program fails.
+    Here too the return addresses are shown as zero-padded,
+    six digits wide program counter values, which have to be looked up
+    from the corresponding <filename>.hls</filename> file.
+    Tail-recursive calls are naturally not shown in the function call
+    list.</para>
+    
+</sect1>
+
+<sect1 id="profiling">
+<title>Profiling</title>
+
+    <para>If the symbol <literal>HH_TESTING</literal> is defined
+    during compilation, it is possible to use a rudimentary profiling
+    mechanism: <filename>hhi</filename> can be given the flag
+    <option>-p</option>, and after the program exits, it prints out a
+    list of all program counters and the number of times they were
+    executed.
+    </para>
+
+    <example>
+        <title>Profiling.</title>
+    
+<screen>$ <userinput>hhc tests/bench-sm.hl</userinput>
+$ <userinput>hhi -p |&amp; grep '^0' | sort -k 2 -n -r -s | head</userinput>
+001827    13468
+001828    13468
+001830    13468
+001831    13468
+...
+$ <userinput>grep 001827 bench-sm.hls</userinput>
+001827 ("prelude.lisp":263)                              push
+</screen>
+
+        <para>In other words, the most frequently executed
+        instructions were in the function <function>nth</function> in
+        the prelude.</para>
+
+    </example>
+
+</sect1>
+
+
+<sect1 id="reference">
+<title>Function reference</title>
+
+    	<para>The functions in this section are defined inside the
+	compiler.</para>
+
+&builtins;
+
+</sect1>
+
+<sect1 id="lib">
+<title>Library functions</title>
+
+    	<para>The functions in this section are defined in the prelude.
+	From the application programmer's view, there is no difference,
+	but they are separate from the builtin functions in the 
+	manual due to stupid production reasons.</para>
+
+&lib;
+
+</sect1>
+
+
+</article>

@@ -1,0 +1,239 @@
+;; A test for the state machine system.  This starts eight concurrent
+;; state machines, including a small IRC-like socket server and one
+;; which follows a fifo.
+
+;; A one-state machine which simply prints out any message it gets and
+;; sleeps a second (ergo, it prints the symbol 'timeout once every 10
+;; seconds).
+
+(def-state (print-and-sleep _ msg)
+  _ (print "PRINT-AND-SLEEP: msg = " msg "\n")
+  (wait nil nil nil 10000000))
+
+;; A one-state machine which sends 'hello to another machine whenever
+;; it receives a message, i.e. at least every third second when it
+;; gets a 'timeout message.
+(def-state (print-send-and-sleep recipients msg)
+  _ (print "PRINT-SEND-AND-SLEEP: msg = " msg "\n")
+  (send recipients 'hello)
+  (wait recipients nil nil 3000000))
+
+
+;; A little state machine trying to open a fifo (man fifo(4)) in file
+;; /tmp/FIFO, reads whatever some other process writes to that fifo,
+;; and writes those strings with the default print function.  While
+;; running this state machine you could issue e.g.
+;;   > mkfifo /tmp/FIFO
+;;   > echo FOO >> /tmp/FIFO
+;;   > echo BAR >> /tmp/FIFO
+;;   > rm /tmp/FIFO
+;; from the shell command line.
+
+(def-state (open-file _ msg)
+  _ (print "OPEN-FILE: msg = " msg "\n")
+  fd (unix-open "/tmp/FIFO" (bitwise-or unix-O_RDONLY unix-O_NONBLOCK))
+  (when (< fd 0)
+	(wait _ nil nil 5000000))
+  (goto read-fd fd))
+
+(def-state (read-fd fd msg)
+  _ (print "READ-FD: msg = " msg "\n")
+  (when (or (eq? msg 'enter) (eq? msg 'timeout))
+	(wait fd (list fd) nil 5000000))
+  data (unix-read fd 256)
+  _ (print "READ-FD: data = '" data "'\n")
+  (when (or (nil? data) (eq? data ""))
+	(goto close-file fd))
+  (wait fd (list fd) nil 5000000))
+
+(def-state (close-file fd msg)
+  _ (print "CLOSE-FD: msg = " msg "\n")
+  _ (unix-close fd)
+  (goto open-file nil))
+
+
+;; A TCP/IP-based IRC-mockup, with at most four concurrenct
+;; connections each handled by their own state machine and a fifth
+;; machine in accept loop.  Any message seen by one of the hander
+;; machines is sent to all other machines which will attempt to print
+;; the message to their respective connections.
+
+(set irc-slaves '(irc-slave-1 irc-slave-2 irc-slave-3 irc-slave-4))
+
+(def (make-machines machine-names initial-state initial-data machines)
+     (if machine-names
+	 (let name (car machine-names)
+	      machine (sm-machine name initial-state (initial-data name)
+				  nil nil 0)
+	      machines (dict-set machines name machine)
+	      (make-machines (cdr machine-names) initial-state 
+			     initial-data machines))
+       machines))
+
+(def-record slave-data
+  name ""
+  fd 0)
+
+(def-state (irc-slave-idle data msg)
+  ;; Ignore enter and timeout msgs in this state.
+  (when (or (eq? msg 'enter) (eq? msg 'timeout))
+	(wait data nil nil sm-max-timeout))
+  ;; Ignore messages sent by other slaves, i.e. strings written to them.
+  (when (string? msg)
+	(wait data nil nil sm-max-timeout))
+  ;; The msg should now be a file descriptor for a socket, sent to us by
+  ;; the accept thread.
+  fd msg
+  data (slave-data-with-fd data fd)
+  _ (print "IRC-SLAVE-IDLE: " (slave-data-name data) ", fd = " fd "\n")
+  ;; Write a hello string to the new connection.
+  msg (strcat "Hello, I'm " (symboltostring (slave-data-name data))
+	      " and I'm very happy to serve you.\r\n")
+  r (unix-write fd msg)
+  (when (< r 0)
+	(goto irc-slave-close data))
+  (goto irc-slave-loop data))
+
+(def-state (irc-slave-loop data msg)
+  fd (slave-data-fd data)
+  ;; Ignore enter and timeout msgs in this state.
+  (when (or (eq? msg 'enter) (eq? msg 'timeout))
+	(wait data (list fd) nil sm-max-timeout))
+  _ (print "IRC-SLAVE-LOOP: " (slave-data-name data) ", msg = " msg "\n")
+  ;; If the msg is a unix string, then it is something we should write to
+  ;; our socket.  Goto irc-slave-close on failure, loop back on success.
+  (when (and (string? msg) (< (unix-write fd msg) 0))
+	(goto irc-slave-close data))
+  (when (string? msg)
+	(wait data (list fd) nil sm-max-timeout))
+  ;; The msg is a '(readable fd).  Read something from the socket and
+  ;; send it to all other machines, or in case of failure, close the socket.
+  s (unix-read fd 256)
+  (when (nil? s)
+	(goto irc-slave-close data))
+  (send (if (eq? s "")
+	    ;; Don't send an empty string.
+	    nil
+	  ;; Don't send to ourselves.
+	  (cdr (split (fn (name) (eq? name (slave-data-name data)))
+		      irc-slaves)))
+	s)
+  (wait data (list fd) nil sm-max-timeout))
+
+(def-state (irc-slave-close data msg)
+  _ (print "IRC-SLAVE-CLOSE: " (slave-data-name data) ", msg = " msg "\n")
+  _ (unix-close (slave-data-fd data))
+  ;; Inform the accept loop we're free again.
+  (send 'irc-accept (slave-data-name data))
+  ;; Go to the idle state.
+  (goto irc-slave-idle data))
+
+
+;; The accept loop.
+
+(def-syntax irc-port 5555)
+
+(def-record master-data
+  fd -1
+  free-slaves irc-slaves)
+  
+(def-state (irc-master-start data msg)
+  _ (print "IRC-MASTER-STARTing\n")
+  ;; Make a socket, restart if failed.
+  fd (unix-socket unix-AF_INET unix-SOCK_STREAM 0)
+  _ (if (< fd 0) 
+	(print "socket() failed, errno = " (unix-errno) "\n"))
+  (when (< fd 0)
+	(wait data nil nil 1000000))
+  ;; Bind the socket to the port.  Close and restart if failed.
+  sockaddr_in (ip-sockaddr_in irc-port unix-INADDR_ANY)
+  x (unix-bind fd sockaddr_in)
+  _ (if (< x 0)
+	(do (print "bind() failed, errno = " (unix-errno) "\n")
+	    (unix-close fd)))
+  (when (< x 0)
+	(wait data nil nil 1000000))
+  ;; Listen to the socket.  Close and restart if failed.
+  x (unix-listen fd 5)
+  _ (if (< x 0)
+	(do (print "listen() failed, errno = " (unix-errno) "\n")
+	    (unix-close fd)))
+  (when (< x 0)
+	(wait data nil nil 1000000))
+  ;; Just for safety, make the accept non-blocking.
+  x (unix-fcntl fd unix-F_SETFL unix-O_NONBLOCK)
+  _ (if (< x 0)
+	(do (print "fcntl(fd, F_SETFL, O_NONBLOCK) failed, errno = "
+		   (unix-errno) "\n")
+	    (unix-close fd)))
+  (when (< x 0)
+	(wait data nil nil 1000000))
+  ;; Ok, now we're ready to fly!
+  _ (print "IRC-MASTER-STARTed on port " irc-port "\n")
+  (goto irc-master-accept (master-data-with-fd data fd)))
+
+(def-state (irc-master-accept data msg)
+  fd (master-data-fd data)
+  free-slaves (master-data-free-slaves data)
+  ;; Ignore enter and timeout msgs in this state.
+  (when (or (eq? msg 'enter) (eq? msg 'timeout))
+	(wait data (list fd) nil sm-max-timeout))
+  _ (print "IRC-MASTER-ACCEPT: data = " data ", msg = " msg "\n")
+  ;; If the message is a slave name, it is sent to us to indicate that
+  ;; the slave is now free for new clients.
+  (when (symbol? msg)
+	(wait (master-data-with-free-slaves data (cons msg free-slaves))
+	      (list fd) nil sm-max-timeout))
+  ;; If the message was '(readable ...), which we're here a little
+  ;; lazy to check, then we have a new connection.
+  acc (unix-accept fd)
+  _ (print "accept() = " acc "\n")
+  (when (and (nil? acc) (= (unix-errno) unix-EAGAIN))
+	(wait data (list fd) nil sm-max-timeout))
+  (when (nil? acc)
+	(goto irc-master-close data))
+  ;; Send a free slave the accepted file descriptor.
+  (send (if free-slaves (car free-slaves) nil) (car acc))
+  free-slaves (if (nil? free-slaves)
+		  ;; Had no free slaves, so write an apology and close
+		  ;; the socket.
+		  (do (unix-write (car acc) "Too many connections, sorry\r\n")
+		      (unix-close (car acc))
+		      free-slaves)
+		(cdr free-slaves))
+  (wait (master-data-with-free-slaves data free-slaves)
+	(list fd) nil sm-max-timeout))
+
+(def-state (irc-master-close data msg)
+  _ (print "IRC-MASTER-CLOSE\n")
+  _ (unix-close (master-data-fd data))
+  (goto irc-master-start data))
+
+
+(let machines nil
+
+     name 'print-and-sleep-0
+     machine (sm-machine name print-and-sleep nil nil nil 0)
+     machines (dict-set machines name machine)
+
+     name 'print-send-and-sleep-0
+     machine (sm-machine name print-send-and-sleep '(print-and-sleep-0)
+			 nil nil 0)
+     machines (dict-set machines name machine)
+
+     name 'read-file-0
+     machine (sm-machine name open-file nil nil nil 0)
+     machines (dict-set machines name machine)
+
+     machines (make-machines irc-slaves
+			     irc-slave-idle
+			     (fn (machine-name)
+				 (slave-data-with-name slave-data-default
+						       machine-name))
+			     machines)
+
+     name 'irc-accept-0
+     machine (sm-machine name irc-master-start master-data-default nil nil 0)
+     machines (dict-set machines name machine)
+
+     (sm-run-machines machines (queue-make)))

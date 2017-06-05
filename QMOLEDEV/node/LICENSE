@@ -1,0 +1,68 @@
+Node's license follows:
+
+====
+
+Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+
+====
+
+This license applies to all parts of Node that are not externally
+maintained libraries.
+
+The externally maintained libraries used by Node are:
+
+  - v8, located at deps/v8. v8 is copyright Google, Inc, and released
+    under a BSD license.
+
+  - libev, located at deps/libev, and libeio, located at deps/libeio. libev
+    and libeio are copyright Marc Alexander Lehmann, and dual-licensed
+    under the MIT license and GPL2.
+
+  - WAF build system, located at tools/waf. WAF is copyright Thomas Nagy,
+    and released under the MIT license.
+
+  - The SCONS build system, located at tools/scons. SCONS is copyright
+    the SCONS Foundation and released under the MIT license.
+
+  - C-Ares, an asynchronous DNS client, located at deps/c-ares. C-Ares is
+    copyright the Massachusetts Institute of Technology, authored by
+    Greg Hudson, Daniel Stenberg and others, and released under the MIT
+    license.
+
+  - Node, optionally, dynamically links to OpenSSL, cryptographic software
+    written by Eric Young (eay@cryptsoft.com) to provide SSL/TLS encryption.
+    OpenSSL is copyright The OpenSSL Project and released under the OpenSSL
+    license. OpenSSL is not included in the Node distribution.
+    See http://openssl.org/ for more information.
+
+  - tools/doctool/markdown.js is copyright 2009-2010 Dominic Baggott and Ash
+    Berli and released under the MIT license.
+
+  - HTTP Parser, located at deps/http_parser, is a small C library
+    copyright Ryan Lienhart Dahl and released under the MIT license.
+
+  - src/platform_darwin_proctitle.cc, has code taken from the Chromium
+    project copyright Google Inc. and released under a BSD license.
+
+  - tools/closure_linter is copyright The Closure Linter Authors and
+    Google Inc. and released under the Apache License, version 2.0.
+
+  - tools/cpplint.py is copyright Google Inc. and released under a
+    BSD license.

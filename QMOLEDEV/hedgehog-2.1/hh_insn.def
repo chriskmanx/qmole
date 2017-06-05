@@ -1,0 +1,2226 @@
+/* This file is part of Hedgehog LISP.
+ * Copyright (C) 2003, 2004, 2005, 2006 Oliotalo Ltd.
+ * See file LICENSE.LGPL for pertinent licensing conditions.
+ *
+ * Authors: Kenneth Oksanen <cessu@iki.fi>
+ *          Lars Wirzenius <liw@iki.fi>
+ */
+
+/* This file defines the byte code instructions.
+
+   Syntax: {INSN,EXT_INSN,IMM}(mnemonic, flags, code_block)
+
+   INSN defines a normal byte code instruction, IMM an instructions
+   with a one, two or four-byte immediate argument.  The immediate
+   argument is automatically parsed into the variable `imm' of type
+   `hh_signed_word_t' by the byte code interpreter before passing to
+   the code block.  EXT_INSNs are a way to define more than 64 INSNs.
+   `flags' are used for some compiler optimizations, use 0 if in doubt.
+
+   The code blocks are included into huge switch-case statements in
+   function hh_interp_step in file hh_interp.c.  The virtual machine
+   contains a stack and the following "registers":
+
+   accu The value of the most recently evaluated expression.
+        When entering a function, this should contain the last
+        argument, or the rest-of-arguments -list.
+   accu_as_ptr
+        The pointer value of `accu' if it is a pointer.  If accu is
+        not a valid non-NIL pointer, then this variable may contain
+        anything and referring to it is an error.
+   sp	Stack Pointer.  The stack grows upwards, sp[-1] refers to the 
+        topmost value in stack, sp[-2] the next, etc.
+   imm  The immediate value of the last IMM instruction, of type
+        `hh_signed_word_t'.
+   pc   Program Counter.  After executing the insn, this should refer
+        to the next insn to execute.  If the block does nothing, to
+        change pc, the pc refers to the instruction after the
+        currently executed one.
+   prev_pc
+        Program counter when we began to execute this insn.
+   env  Current closure
+   new_env
+        A closure being built.
+   w, sw, p
+        Temporary variables of types `hh_word_t', `hh_signed_word_t'
+        and `hh_word_t *', respectively.  Can be used freely in code
+        blocks.
+
+   Before changing the stack, sp, accu, accu_as_ptr, new_env, or
+   allocating anything from the lisp heap, the instruction must check
+   the types and possible value limitations of its arguments (accu,
+   sp[-1], etc.) with macro
+       HH_CHECK(value, something_that_should_be_true, error_name_if_false);
+   and that there is sufficient heap space and invoke the garbage
+   collector if necessary.   This takes place with the macro
+       HH_RESERVE(n_words_needed_by_the_instruction);
+
+   Note that if the compile-time directive HH_TESTING is not given,
+   then HH_RESERVE does nothing. */
+
+INSN(push,
+     0,
+     {
+       *sp++ = accu; 
+     })
+
+INSN(push_env,
+     0,
+     {
+       *sp++ = env;
+     })
+
+INSN(pop_env,
+     0,
+     {
+       env = *--sp;
+       HH_ASSERT(env == HH_NIL || HH_IS_TUPLE(env));
+     })
+
+INSN(bind_env,
+     0,
+     {
+       /* HH_RESERVE(HH_CONS_N_WORDS); */
+       HH_CHECK(accu, HH_WORD_IS_FN(ctx, accu), HH_ERROR_EXPECT_FN);
+       w = HH_CAR(accu_as_ptr);
+       HH_CONS(ctx, accu_as_ptr, accu, w, new_env);
+       new_env = HH_NIL;
+       goto reserve_for_next;
+     })
+
+INSN(change_env,
+     0,
+     {
+       HH_CHECK(accu, HH_WORD_IS_FN(ctx, accu), HH_ERROR_EXPECT_FN);
+       HH_CDR(accu_as_ptr) = new_env;
+       new_env = HH_NIL;
+     })
+
+INSN(strlen,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+       /* We assume the string length is within the small integer
+          range from -2^30 to 2^30-1 */
+       accu = HH_SHORT_TO_WORD(HH_STRING_LEN(accu_as_ptr));
+     })
+
+INSN(strcmp,
+     0,
+     {
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+       p = HH_WORD_TO_PTR(ctx, w);
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(w, HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+       sp--;
+       accu = HH_SHORT_TO_WORD(hh_strcmp(p, accu_as_ptr));
+     })
+
+INSN(itoa,
+     0,
+     {
+       HH_RESERVE(HH_ITOA_N_WORDS);
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+       sw = HH_WORD_TO_SHORT(accu);
+       HH_CHECK(accu, sw >= 2 && sw <= 36, HH_ERROR_BAD_BASE);
+       sp--;
+       accu = hh_itoa(ctx, HH_WORD_TO_SIGNED(ctx, w), sw);
+       goto reserve_and_accu_to_ptr;
+     })
+
+INSN(atoi,
+     0,
+     {
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING);
+       p = HH_WORD_TO_PTR(ctx, w);
+       HH_CHECK(w, HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+       sw = HH_WORD_TO_SHORT(accu);
+       HH_CHECK(accu, sw >= 2 && sw <= 36, HH_ERROR_BAD_BASE);
+       sp--;
+       /* Can't use `strtol' here, because there's no guarantee the
+          bytes in the string are null-character terminated. */
+       accu = hh_atoi(ctx, p, sw);
+       goto reserve_for_next;
+     })
+
+INSN(ord,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu,
+		HH_STRING_LEN(accu_as_ptr) >= 1,
+		HH_ERROR_EXPECT_NONEMPTY_STRING);
+       accu = HH_SHORT_TO_WORD((unsigned char) HH_STRING_PTR(accu_as_ptr)[0]);
+     })
+
+INSN(chr,
+     HH_PURE,
+     {
+       unsigned char c;
+
+       /* HH_RESERVE(HH_STRING_N_WORDS(1)); */
+       HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+       sw = HH_WORD_TO_SHORT(accu);
+       HH_CHECK(accu, sw >= 0 && sw <= 255, HH_ERROR_BAD_CHAR);
+       c = (unsigned char) sw;
+       accu = hh_box_string(ctx, (char *) &c, 1);
+       goto reserve_and_accu_to_ptr;
+     })
+
+INSN(strcat,
+     0,
+     {
+       hh_word_t *res;
+       long len1; long len2;
+
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING);
+       p = HH_WORD_TO_PTR(ctx, w);
+       HH_CHECK(w, HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+
+       len1 = HH_STRING_LEN(p);
+       len2 = HH_STRING_LEN(accu_as_ptr);
+       w = HH_STRING_N_WORDS(len1 + len2);
+       HH_RESERVE(w);
+       sp--;
+       res = HH_ALLOCATE(ctx, w);
+       res[0] = HH_STRING_HDR(len1 + len2);
+       res[w - 1] = 0;
+       HH_MEMMOVE(HH_STRING_PTR(res), HH_STRING_PTR(p), len1);
+       HH_MEMMOVE(HH_STRING_PTR(res) + len1, HH_STRING_PTR(accu_as_ptr), len2);
+       accu = HH_PTR_TO_WORD(ctx, res, 0x04);
+       accu_as_ptr = res;
+       goto reserve_for_next;
+     })
+
+INSN(strstr,
+     0,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING);
+       p = HH_WORD_TO_PTR(ctx, w);
+       HH_CHECK(w, HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+
+       sp--;
+       {
+         const char *target = HH_STRING_PTR(p);
+         const char *pattern = HH_STRING_PTR(accu_as_ptr);
+         long target_len = HH_STRING_LEN(p);
+         long pattern_len = HH_STRING_LEN(accu_as_ptr);
+	 long i;
+
+         accu = HH_SHORT_TO_WORD(-1);
+         for (i = 0; i <= target_len - pattern_len; i++)
+           if (HH_MEMCMP(target + i, pattern, pattern_len) == 0) {
+             accu = HH_SHORT_TO_WORD(i);
+             break;
+           }
+       }
+     })
+
+INSN(strrstr,
+     0,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING);
+       p = HH_WORD_TO_PTR(ctx, w);
+       HH_CHECK(w, HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+
+       sp--;
+       {
+         const char *target = HH_STRING_PTR(p);
+         const char *pattern = HH_STRING_PTR(accu_as_ptr);
+         long target_len = HH_STRING_LEN(p);
+         long pattern_len = HH_STRING_LEN(accu_as_ptr);
+         long i;
+
+         accu = HH_SHORT_TO_WORD(-1);
+         for (i = target_len - pattern_len; i >= 0; i--)
+           if (HH_MEMCMP(target + i, pattern, pattern_len) == 0) {
+             accu = HH_SHORT_TO_WORD(i);
+             break;
+           }
+       }
+     })
+
+INSN(strsplit_last,
+     0,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING);
+       p = HH_WORD_TO_PTR(ctx, w);
+       HH_CHECK(w, HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+
+       {
+         const char *target = HH_STRING_PTR(p);
+         const char *pattern = HH_STRING_PTR(accu_as_ptr);
+         long target_len = HH_STRING_LEN(p);
+         long pattern_len = HH_STRING_LEN(accu_as_ptr);
+         long i;
+
+         /* Must use temporary variable `w' since the HH_RESERVE may
+	    trigger gc, which assumes `accu' is intact. */
+         w = HH_NIL;
+         for (i = target_len - pattern_len; i >= 0; i--)
+           if (HH_MEMCMP(target + i, pattern, pattern_len) == 0) {
+             HH_RESERVE(HH_STRING_N_WORDS(i)
+                        + HH_STRING_N_WORDS(target_len - i - pattern_len)
+                        + HH_CONS_N_WORDS);
+             HH_CONS(ctx, accu_as_ptr, w,
+                     hh_box_string(ctx, (char *) target, i),
+                     hh_box_string(ctx, (char *) target + i + pattern_len,
+                                   target_len - i - pattern_len));
+             break;
+           }
+         accu = w;
+       }
+       sp--;
+       goto reserve_for_next;
+     })
+
+EXT_INSN(hex,
+     HH_PURE,
+     {
+       unsigned long len;
+
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+       len = HH_STRING_LEN(accu_as_ptr);
+       if (len != 0) {
+         /* There's nothing to do if the string is empty -- it's
+            hex-conversion is identical to itself. */
+         static const char hexdigits[] = "0123456789abcdef";
+         const char *src;
+         char *dest;
+         unsigned long n_bytes = 3 * len - 1;
+         unsigned long n_words = HH_STRING_N_WORDS(n_bytes);
+
+         HH_RESERVE(n_words);
+         p = hh_alloc_string(ctx, n_bytes);
+         dest = HH_STRING_PTR(p);
+         src = HH_STRING_PTR(accu_as_ptr);
+       hex_again:
+	 *dest++ = hexdigits[*(unsigned char *) src >> 4];
+         *dest++ = hexdigits[*(unsigned char *) src++ & 0xF];
+         if (--len > 0) {
+            *dest++ = ' ';
+            goto hex_again;
+         }
+	 HH_ASSERT(dest - HH_STRING_PTR(p) == n_bytes);
+         accu = HH_PTR_TO_WORD(ctx, p, 0x04);
+	 accu_as_ptr = p;
+	 goto reserve_for_next;
+       }
+     })
+
+INSN(substr,
+     0,
+     {
+       hh_signed_word_t start;
+       hh_signed_word_t n;
+
+       w = sp[-2];
+       HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING);
+       p = HH_WORD_TO_PTR(ctx, w);
+       HH_CHECK(w, HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+       HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+       HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+
+       start = HH_WORD_TO_SHORT(sp[-1]);
+       if (start > HH_STRING_LEN(p))
+         /* XXX Should we signal an error? */
+         start = HH_STRING_LEN(p);
+       n = HH_WORD_TO_SHORT(accu);
+       if (n < 0 || start + n > HH_STRING_LEN(p))
+         n = HH_STRING_LEN(p) - start;
+       HH_RESERVE(HH_STRING_N_WORDS(n));
+       sp -= 2;
+       accu = hh_box_string(ctx, HH_STRING_PTR(p) + start, n);
+       goto reserve_and_accu_to_ptr;
+     })
+
+INSN(stringp,
+     HH_PURE,
+     {
+       if (HH_WORD_IS_PTR(accu))
+         accu = HH_IS_STRING(accu_as_ptr) ? HH_TRUE : HH_FALSE;
+       else
+         accu = HH_FALSE;
+     })
+
+INSN(intp,
+     HH_PURE,
+     {
+       accu = HH_WORD_IS_INT(accu) ? HH_TRUE : HH_FALSE;
+     })
+
+EXT_INSN(fnp,
+     HH_PURE,
+     {
+       accu = HH_WORD_IS_FN(ctx, accu) ? HH_TRUE : HH_FALSE;
+     })
+
+EXT_INSN(symbolp,
+     HH_PURE,
+     {
+       if (HH_WORD_IS_PTR(accu))
+         accu = HH_IS_SYMBOL(accu_as_ptr) ? HH_TRUE : HH_FALSE;
+       else
+         accu = HH_FALSE;
+     })
+
+EXT_INSN(symboltostring,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_SYMBOL);
+       HH_CHECK(accu, HH_IS_SYMBOL(accu_as_ptr), HH_ERROR_EXPECT_SYMBOL);
+       accu = HH_SYMBOL_STRING(accu_as_ptr);
+       goto accu_to_ptr;
+     })
+
+INSN(not,
+     HH_PURE,
+     {
+       accu = HH_IS_FALSE(accu) ? HH_TRUE : HH_FALSE;
+     })
+
+INSN(eqp,
+     0,
+     {
+       w = *--sp;
+       if (w == accu)
+         accu = HH_TRUE;
+       else if (HH_WORD_IS_INT(accu)
+                && HH_WORD_IS_INT(w)
+                && HH_WORD_TO_SIGNED(ctx, accu) == HH_WORD_TO_SIGNED(ctx, w))
+         accu = HH_TRUE;
+       else if (HH_WORD_IS_PTR(accu)
+                && HH_WORD_IS_PTR(w)) {
+         p = HH_WORD_TO_PTR(ctx, w);
+         if (HH_IS_STRING(p)
+             && HH_IS_STRING(accu_as_ptr)
+             && hh_strcmp(p, accu_as_ptr) == 0)
+           accu = HH_TRUE;
+         else
+           /* If `p' and `accu_as_ptr' were the same symbol, then the
+              compiler would have, by interning the symbols, ensured
+              that `w == accu'.  But since that did not happen, we
+              know that even if `p' and `accu_as_ptr' are symbols,
+              they must be different symbols. */
+           accu = HH_FALSE;
+       } else
+         accu = HH_FALSE;
+     })
+
+INSN(ne,
+     0,
+     {  
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       if (HH_WORD_TO_SIGNED(ctx, accu) != HH_WORD_TO_SIGNED(ctx, w))
+         accu = HH_TRUE;
+       else
+         accu = HH_FALSE;
+     })
+
+INSN(eq,
+     0,
+     {  
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       if (HH_WORD_TO_SIGNED(ctx, accu) == HH_WORD_TO_SIGNED(ctx, w))
+         accu = HH_TRUE;
+       else
+         accu = HH_FALSE;
+     })
+
+INSN(lt,
+     0,
+     {
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       if (HH_WORD_TO_SIGNED(ctx, w) < HH_WORD_TO_SIGNED(ctx, accu))
+         accu = HH_TRUE;
+       else
+         accu = HH_FALSE;
+     })
+
+INSN(le,
+     0,
+     {  
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       if (HH_WORD_TO_SIGNED(ctx, w) <= HH_WORD_TO_SIGNED(ctx, accu))
+         accu = HH_TRUE;
+       else
+         accu = HH_FALSE;
+     })
+
+INSN(gt,
+     0,
+     {  
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       if (HH_WORD_TO_SIGNED(ctx, w) > HH_WORD_TO_SIGNED(ctx, accu))
+         accu = HH_TRUE;
+       else
+         accu = HH_FALSE;
+     })
+
+INSN(ge,
+     0,
+     {  
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       if (HH_WORD_TO_SIGNED(ctx, w) >= HH_WORD_TO_SIGNED(ctx, accu))
+         accu = HH_TRUE;
+       else
+         accu = HH_FALSE;
+     })
+
+INSN(add,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       sw = HH_WORD_TO_SIGNED(ctx, accu) + HH_WORD_TO_SIGNED(ctx, w);
+     sw_to_accu:
+       accu = HH_SIGNED_TO_WORD(ctx, sw);
+       goto reserve_for_next;
+     })
+
+INSN(sub,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       sw = HH_WORD_TO_SIGNED(ctx, w) - HH_WORD_TO_SIGNED(ctx, accu);
+       goto sw_to_accu;
+     })
+
+INSN(mult,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       sw = HH_WORD_TO_SIGNED(ctx, w) * HH_WORD_TO_SIGNED(ctx, accu);
+       goto sw_to_accu;
+     })
+
+INSN(div,
+     0,
+     {
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       sw = HH_WORD_TO_SIGNED(ctx, w) / HH_WORD_TO_SIGNED(ctx, accu);
+       goto sw_to_accu;
+     })
+
+INSN(remainder,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       sw = HH_WORD_TO_SIGNED(ctx, w) % HH_WORD_TO_SIGNED(ctx, accu);
+       goto sw_to_accu;
+     })
+
+INSN(bitand,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       w = HH_WORD_TO_UNSIGNED(ctx, accu) & HH_WORD_TO_UNSIGNED(ctx, w);
+     w_to_accu:
+       accu = HH_UNSIGNED_TO_WORD(ctx, w);
+       goto reserve_for_next;
+     })
+
+INSN(bitor,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       w = HH_WORD_TO_UNSIGNED(ctx, accu) | HH_WORD_TO_UNSIGNED(ctx, w);
+       goto w_to_accu;
+     })
+
+INSN(bitnot,
+     HH_PURE,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       w = ~HH_WORD_TO_UNSIGNED(ctx, accu);
+       goto w_to_accu;
+     })
+
+INSN(bitxor,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       sp--;
+       w = HH_WORD_TO_UNSIGNED(ctx, accu) ^ HH_WORD_TO_UNSIGNED(ctx, w);
+       goto w_to_accu;
+     })
+
+INSN(bitlshift,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+       sp--;
+       w = HH_WORD_TO_UNSIGNED(ctx, w) << HH_WORD_TO_SHORT(accu);
+       goto w_to_accu;
+     })
+
+INSN(bitrshift,
+     0,
+     {  
+       /* HH_RESERVE(HH_BOX_N_WORDS); */
+       w = sp[-1];
+       HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+       HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+       sp--;
+       w = HH_WORD_TO_UNSIGNED(ctx, w) >> HH_WORD_TO_SHORT(accu);
+       goto w_to_accu;
+     })
+
+
+INSN(cons,
+     0,
+     {
+       /* HH_RESERVE(HH_CONS_N_WORDS); */
+       sp--;
+       HH_CONS(ctx, accu_as_ptr, accu, *sp, accu);
+       goto reserve_for_next;
+     })
+
+INSN(consp,
+     HH_PURE,
+     {
+       accu = HH_IS_CONS(accu) ? HH_TRUE : HH_FALSE;
+     })
+
+INSN(car,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_IS_CONS(accu), HH_ERROR_EXPECT_CONS);
+       accu = HH_CAR(accu_as_ptr);
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(cdr,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_IS_CONS(accu), HH_ERROR_EXPECT_CONS);
+       accu = HH_CDR(accu_as_ptr);
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(tuple_arity,
+     HH_PURE,
+     {
+       accu &= 0x7F;
+       if (accu >= 0x08 && accu <= 0x3C)
+         accu = HH_SHORT_TO_WORD(accu >> 2);
+       else
+         accu = HH_SHORT_TO_WORD(0);
+     })
+
+IMM(tuple_make,
+    0,
+    {
+      /* HH_RESERVE(imm); */
+      accu_as_ptr = HH_ALLOCATE(ctx, imm);
+      w = imm - 1;
+      HH_CHECK(0, w < 16, HH_ERROR_TOO_WIDE_TUPLE);
+      accu_as_ptr[w] = accu;
+      while (w > 0)
+        accu_as_ptr[--w] = *--sp;
+      accu = HH_PTR_TO_WORD(ctx, accu_as_ptr, imm << 2);
+      goto reserve_for_next;
+    })
+
+EXT_INSN(tuple_make_from_list,
+    0,
+    {
+      int n;
+
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_CONS_OR_NIL);
+      n = hh_list_length(ctx, accu);
+      HH_CHECK(accu, n > 0, HH_ERROR_EXPECT_CONS);
+      HH_CHECK(accu, n < 16, HH_ERROR_TOO_WIDE_TUPLE);
+      /* HH_RESERVE(n); */
+      accu_as_ptr = HH_ALLOCATE(ctx, n);
+      n = 0;
+      while (HH_IS_CONS(accu)) {
+	accu_as_ptr[n++] = HH_CAR(HH_WORD_TO_PTR(ctx, accu));
+	accu = HH_CDR(HH_WORD_TO_PTR(ctx, accu));
+      }
+      accu = HH_PTR_TO_WORD(ctx, accu_as_ptr, n << 2);
+      goto reserve_for_next;
+    })
+
+INSN(tuple_index,
+     0,
+     {
+       HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+       accu = HH_WORD_TO_SHORT(accu);
+       /* Now `accu' is the field index, as an unboxed integer. */
+       w = sp[-1];
+       HH_CHECK(w, HH_IS_TUPLE(w), HH_ERROR_EXPECT_TUPLE);
+       p = HH_WORD_TO_PTR(ctx, w);
+       /* Now `p' is the pointer to the tuple. */
+       w = HH_TUPLE_ARITY(w);
+       /* Now `w' is the tuple arity, as an unboxed integer. */
+       HH_CHECK(sp[-1], w > accu, HH_ERROR_EXPECT_TUPLE);
+       sp--;
+       accu = p[accu];
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(tuple_with,
+     0,
+     {
+       int n;
+       int i;
+       int j;
+       w = sp[-2];  /* The original tuple */
+       HH_CHECK(w, HH_IS_TUPLE(w), HH_ERROR_EXPECT_TUPLE);
+       n = HH_TUPLE_ARITY(w);
+       p = HH_WORD_TO_PTR(ctx, w);
+       w = sp[-1]; /* The index to change.  Accu contains its new value. */
+       HH_CHECK(w, HH_WORD_IS_SHORT(w), HH_ERROR_EXPECT_SHORT);
+       i = HH_WORD_TO_SHORT(w);
+       HH_CHECK(w, i < n, HH_ERROR_EXPECT_TUPLE);
+       /* HH_RESERVE(i); */
+       accu_as_ptr = HH_ALLOCATE(ctx, n);
+       for (j = 0; j < n; j++)
+         accu_as_ptr[j] = p[j];
+       accu_as_ptr[i] = accu;
+       accu = HH_PTR_TO_WORD(ctx, accu_as_ptr, n << 2);
+       sp -= 2;
+       goto reserve_for_next;
+     })
+
+
+INSN(avl_make_node,
+     0,
+     {
+       /* HH_RESERVE(HH_AVL_MAKE_NODE_N_WORDS); */
+       accu = hh_avl_make_node(ctx, sp[-3], sp[-2], sp[-1], accu);
+       sp -= 3;
+       goto reserve_and_accu_to_ptr;
+     })
+
+INSN(avl_height,
+     HH_PURE,
+     {
+       if (accu == HH_NIL
+	   || !HH_WORD_IS_PTR(accu)
+	   || !HH_IS_AVL(accu_as_ptr))
+         accu = HH_SHORT_TO_WORD(0);
+       else
+         accu = HH_SHORT_TO_WORD(HH_AVL_HEIGHT(accu_as_ptr));
+     })
+
+INSN(avl_key,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_AVL);
+       HH_CHECK(accu, HH_IS_AVL(accu_as_ptr), HH_ERROR_EXPECT_AVL);
+       accu = HH_AVL_KEY(accu_as_ptr);
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(avl_value,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_AVL);
+       HH_CHECK(accu, HH_IS_AVL(accu_as_ptr), HH_ERROR_EXPECT_AVL);
+       accu = HH_AVL_VALUE(accu_as_ptr);
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(avl_left,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_AVL);
+       HH_CHECK(accu, HH_IS_AVL(accu_as_ptr), HH_ERROR_EXPECT_AVL);
+       accu = HH_AVL_LEFT(accu_as_ptr);
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(avl_right,
+     HH_PURE,
+     {
+       HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_AVL);
+       HH_CHECK(accu, HH_IS_AVL(accu_as_ptr), HH_ERROR_EXPECT_AVL);
+       accu = HH_AVL_RIGHT(accu_as_ptr);
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(default_cmpfun,
+     0,
+     {
+       accu = HH_SHORT_TO_WORD(hh_default_cmpfun(ctx, sp[-1], accu));
+       sp--;
+     })
+
+INSN(default_avl_get,
+     0,
+     {
+       HH_CHECK(sp[-2],
+		sp[-2] == HH_NIL || HH_WORD_IS_PTR(sp[-2]),
+	        HH_ERROR_EXPECT_AVL);
+       HH_CHECK(sp[-2],
+		sp[-2] == HH_NIL || HH_IS_AVL(HH_WORD_TO_PTR(ctx, sp[-2])),
+	        HH_ERROR_EXPECT_AVL);
+       accu = hh_avl_default_get(ctx, sp[-2], sp[-1], accu);
+       sp -= 2;
+       goto maybe_accu_to_ptr;
+     })
+
+INSN(default_avl_put,
+     0,
+     {
+       HH_CHECK(sp[-2],
+		sp[-2] == HH_NIL || HH_WORD_IS_PTR(sp[-2]),
+	        HH_ERROR_EXPECT_AVL);
+       HH_CHECK(sp[-2],
+		sp[-2] == HH_NIL || HH_IS_AVL(HH_WORD_TO_PTR(ctx, sp[-2])),
+	        HH_ERROR_EXPECT_AVL);
+       w = hh_avl_default_put(ctx, sp[-2], sp[-1], accu);
+       if (w == HH_NIL)
+         /* XXX Here's a potential hazard for an endless loop if the
+           collected heap doesn't contain enough memory for the
+           allocation to succeed. */
+         HH_RESERVE(HH_AVL_MAKE_NODE_N_WORDS);
+       accu = w;
+       sp -= 2;
+       goto reserve_and_maybe_accu_to_ptr;
+     })
+
+INSN(list_length,
+     HH_PURE,
+     {
+       accu = HH_SHORT_TO_WORD(hh_list_length(ctx, accu));
+     })
+
+EXT_INSN(panic,
+     0,
+     {
+       ctx->pc = prev_pc;
+       ctx->sp = sp;
+       ctx->accu = accu;
+       ctx->env = env;
+       ctx->new_env = new_env;
+       return HH_ERROR_PANIC;
+     })
+
+EXT_INSN(exit,
+     0,
+     {
+       /* A clean exit.  Reset the program counter `pc' and stack
+          pointer `sp' so that the program could be reran if so
+          desired. */
+       ctx->pc = ctx->program + 12;
+       ctx->sp = &ctx->stack[0];
+       ctx->accu = ctx->env = ctx->new_env = HH_NIL;
+       return HH_ERROR_PROGRAM_EXITED;
+     })
+
+EXT_INSN(gc,
+     0,
+     {
+       if (!just_collected) {
+         just_collected = 1;
+         n_words_reserved = 0;
+         goto garbage_collect;
+       }
+       just_collected = 0;
+     })
+
+EXT_INSN(available_mem,
+     HH_PURE,
+     {
+       /* This can be short because memory can't exceed 2^24 because
+          of addressing limitations... */
+       accu = HH_SHORT_TO_WORD((ctx->heap_ptr - ctx->heap_free)
+                               * sizeof(hh_word_t));
+     })
+
+INSN(print,
+     0,
+     {
+       hh_lisp_print_interpreter(ctx, accu, -1);
+     })
+
+INSN(snprint,
+     0,
+     {
+       hh_lisp_snprint_ctx_t lspx;
+       hh_word_t accu_dereferred = accu;
+
+       HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+       HH_CHECK(sp[-2], HH_WORD_IS_SHORT(sp[-2]), HH_ERROR_EXPECT_SHORT);
+
+       lspx.lpx.ctx = ctx;
+       lspx.lpx.depth = 0;
+       lspx.lpx.max_depth = 
+	 HH_LISP_PRINT_DEPTH_INCR * HH_WORD_TO_SHORT(sp[-1]);
+       lspx.n_chars = 0;
+       lspx.max_n_chars = HH_WORD_TO_SHORT(sp[-2]);
+       hh_lisp_print(hh_lisp_snprint_count_chars_cb, &lspx,
+		     &accu_dereferred);
+       w = HH_STRING_N_WORDS(lspx.n_chars);
+       HH_RESERVE(w);
+       accu_as_ptr = HH_ALLOCATE(ctx, w);
+       accu_as_ptr[0] = HH_STRING_HDR(lspx.n_chars);
+       accu_as_ptr[w - 1] = 0;
+       lspx.s = HH_STRING_PTR(accu_as_ptr);
+       lspx.n_chars = 0;
+       hh_lisp_print(hh_lisp_snprint_write_chars_cb, &lspx,
+		     &accu_dereferred);
+       accu = HH_PTR_TO_WORD(ctx, accu_as_ptr, 0x04);
+       sp -= 2;
+       goto reserve_for_next;
+     })
+
+EXT_INSN(hedgehog_version,
+    0,
+    {
+      char buf[20];
+
+      HH_RESERVE(HH_STRING_N_WORDS(sizeof(buf)));
+      hh_snprintf(buf,
+		  sizeof(buf),
+		  "%d.%d.%d", 
+		  HEDGEHOG_IMPLEMENTATION_VERSION_MAJOR,
+		  HEDGEHOG_IMPLEMENTATION_VERSION_MINOR,
+		  HEDGEHOG_IMPLEMENTATION_VERSION_PATCH);
+      accu = hh_box_string(ctx, buf, strlen(buf));
+      goto reserve_and_accu_to_ptr;
+    })
+
+IMM(push_load,
+    0,
+    {
+      *sp++ = accu;
+      goto load;
+      /* The goto above should become a FALLTHROUGH in the switch. */
+    })
+
+IMM(load,
+    HH_PURE,
+    {
+    load:
+      accu = imm;
+    maybe_accu_to_ptr:
+      if (HH_WORD_IS_PTR(accu)) {
+      accu_to_ptr:
+	accu_as_ptr = HH_WORD_TO_PTR(ctx, accu);
+      }
+    })
+
+IMM(add_imm,
+    0,
+    {
+      /* HH_RESERVE(HH_BOX_N_WORDS); */
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      HH_CHECK(0, HH_WORD_IS_INT(imm), HH_ERROR_EXPECT_INT);
+      sw = HH_WORD_TO_SIGNED(ctx, accu) + HH_WORD_TO_SIGNED(ctx, imm);
+      goto sw_to_accu;
+    })
+
+IMM(branch,
+    0,
+    {
+    branch:
+      pc = prev_pc + imm;
+    })
+
+IMM(branch_if_false,
+    0,
+    {
+      if (HH_IS_FALSE(accu))
+        goto branch;
+    })
+
+IMM(branch_if_true,
+    0,
+    {
+      if (HH_IS_TRUE(accu))
+        goto branch;
+    })
+
+IMM(branch_if_ge,
+    0,
+    {
+      w = *--sp;
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+      w = HH_WORD_TO_SIGNED(ctx, w) >= HH_WORD_TO_SIGNED(ctx, accu);
+    cond_branch:
+      if (w) {
+        accu = HH_FALSE;
+        goto branch;
+      } else
+        *sp++ = accu;
+    })
+
+IMM(branch_if_gt,
+    0,
+    {
+      w = *--sp;
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+      w = HH_WORD_TO_SIGNED(ctx, w) > HH_WORD_TO_SIGNED(ctx, accu);
+      goto cond_branch;
+    })
+
+IMM(branch_if_lt,
+    0,
+    {
+      w = *--sp;
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+      w = HH_WORD_TO_SIGNED(ctx, w) < HH_WORD_TO_SIGNED(ctx, accu);
+      goto cond_branch;
+    })
+
+IMM(branch_if_le,
+    0,
+    {
+      w = *--sp;
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+      w = HH_WORD_TO_SIGNED(ctx, w) <= HH_WORD_TO_SIGNED(ctx, accu);
+      goto cond_branch;
+    })
+
+IMM(branch_if_ne,
+    0,
+    {
+      w = *--sp;
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      HH_CHECK(w, HH_WORD_IS_INT(w), HH_ERROR_EXPECT_INT);
+      w = HH_WORD_TO_SIGNED(ctx, w) != HH_WORD_TO_SIGNED(ctx, accu);
+      goto cond_branch;
+    })
+
+IMM(push_pick_push_pick,
+    0,
+    {
+      *sp++ = accu;
+      accu = sp[(hh_signed_word_t) * (signed char *) pc++];
+      goto push_pick;
+      /* The goto above should become a FALLTHROUGH in the switch. */
+    })
+
+IMM(push_pick,
+    0,
+    {
+    push_pick:
+      *sp++ = accu;
+      goto pick;
+      /* The goto above should become a FALLTHROUGH in the switch. */
+    })
+
+IMM(pick,
+    HH_PURE,
+    {
+    pick:
+      if (imm >= 0)
+        accu = ctx->stack[imm];
+      else
+        accu = sp[imm];
+      goto maybe_accu_to_ptr;
+    })
+
+IMM(drop,
+    0,
+    {
+      sp -= imm;
+    })
+
+IMM(catch,
+    0,
+    {
+      HH_ASSERT(HH_WORD_IS_SHORT(accu));
+      *sp++ = (accu << 8) | 0x12;
+      *sp++ = HH_PC_TO_WORD(ctx, prev_pc + imm);
+      *sp++ = env;              /* XXX Environment. */
+    })
+
+IMM(throw,
+    0,
+    {
+      imm = (imm << 8) | 0x12;
+      for (p = sp - 3; p >= ctx->stack; p--)
+        if (*p == imm)
+          goto caught;
+      HH_CHECK(0, 0, HH_ERROR_UNCAUGHT_EXCEPTION);
+      ctx->pc = prev_pc;
+      ctx->sp = sp;
+      ctx->accu = accu;
+      ctx->env = env;
+      ctx->new_env = new_env;
+      return HH_ERROR_UNCAUGHT_EXCEPTION;
+    caught:
+      pc = HH_WORD_TO_PC(ctx, p[1]);
+      env = p[2];
+      accu = HH_NIL;
+      sp = p;
+    })
+
+INSN(apply,
+     0,
+     {
+       if (accu == HH_NIL) {
+	 imm = 0;
+         accu = *--sp;
+         accu_as_ptr = HH_WORD_TO_PTR(ctx, accu);
+       } else {
+	 HH_CHECK(accu, HH_IS_CONS(accu), HH_ERROR_EXPECT_CONS);
+	 imm = 1;
+	 accu = HH_CAR(accu_as_ptr);
+	 w = HH_CDR(accu_as_ptr);
+
+	 while (w != HH_NIL) {
+	   HH_CHECK(w, HH_IS_CONS(w), HH_ERROR_EXPECT_CONS);
+	   *sp++ = accu;
+	   imm++;
+	   p = HH_WORD_TO_PTR(ctx, w);
+	   accu = HH_CAR(p);
+	   w = HH_CDR(p);
+	 }
+	 if (HH_WORD_IS_PTR(accu))
+	   accu_as_ptr = HH_WORD_TO_PTR(ctx, accu);
+       }
+       goto call;
+     })
+
+IMM(call,
+    0,
+    {
+      unsigned char *new_pc;
+      
+    call:
+      /* `imm' contains the number of arguments in the call.  First
+         dig up the function pointer. */
+      if (imm == 0) {
+        HH_CHECK(accu, HH_WORD_IS_FN(ctx, accu), HH_ERROR_EXPECT_FN);
+	p = accu_as_ptr;
+      } else {
+        HH_CHECK(sp[-imm], HH_WORD_IS_FN(ctx, sp[-imm]), HH_ERROR_EXPECT_FN);
+        p = HH_WORD_TO_PTR(ctx, sp[-imm]);
+      }
+      /* Get the program counter of the callee.  The referred byte
+         contains information on the arity of the callee. */
+      new_pc = HH_WORD_TO_PC(ctx, HH_CAR(p));
+      env = HH_CDR(p);
+      /* Check arity, wrap excess arguments to a list. */
+      if (*new_pc & 0x80) {
+        /* The callee is a variable argument function. */
+        int arity = *new_pc & 0x7F;
+
+        HH_ASSERT(arity > 0);
+        HH_CHECK(0, imm >= arity - 1, HH_ERROR_WRONG_ARGS);
+        if (imm == arity - 1) {
+	  *sp++ = accu;
+          imm++;
+          accu = HH_NIL;
+        } else {
+          HH_RESERVE((imm - arity + 1) * HH_CONS_N_WORDS);
+          HH_CONS(ctx, accu_as_ptr, accu, accu, HH_NIL);
+          while (imm > arity) {
+            HH_CONS(ctx, accu_as_ptr, accu, *--sp, accu);
+            imm--;
+          }
+        }
+        HH_ASSERT(imm == arity);
+      } else
+        /* Not a variable argument function. */
+        HH_CHECK(0, *new_pc == imm, HH_ERROR_WRONG_ARGS);
+      /* Write the return address to the place of function pointer to
+         stack, force to stack if no arguments. */
+      sp[-imm] = HH_PC_TO_WORD(ctx, pc);
+      if (imm == 0)
+        sp++;
+      /* Finally, set `pc' to refer to the first byte code insn in the
+         callee. */
+      pc = new_pc + 1;
+      goto reserve_for_next;
+    })
+
+IMM(tailcall,
+    0,
+    {
+      hh_signed_word_t n_args = *pc++;
+      unsigned char *new_pc;
+      int i;
+
+      /* The beginning of a tail-call is similar to issuing a normal
+         call, except that the number of arguments was taken from the
+         second argument to the insn, not `imm', which contains the
+         number of words to unwind from the stack. */
+      if (n_args == 0) {
+        HH_CHECK(accu, HH_WORD_IS_FN(ctx, accu), HH_ERROR_EXPECT_FN);
+	p = accu_as_ptr;
+      } else {
+        HH_CHECK(sp[-n_args], 
+		 HH_WORD_IS_FN(ctx, sp[-n_args]),
+		 HH_ERROR_EXPECT_FN);
+        p = HH_WORD_TO_PTR(ctx, sp[-n_args]);
+      }
+      new_pc = HH_WORD_TO_PC(ctx, HH_CAR(p));
+      env = HH_CDR(p);
+      if (*new_pc & 0x80) {
+        /* The callee is a variable argument function. */
+        int arity = *new_pc & 0x7F;
+
+        HH_ASSERT(arity > 0);
+        HH_CHECK(0, n_args >= arity - 1, HH_ERROR_WRONG_ARGS);
+        if (n_args == arity - 1) {
+          if (n_args != 0)
+	    *sp++ = accu;
+          n_args++;
+          accu = HH_NIL;
+        } else {
+          HH_RESERVE((n_args - arity + 1) * HH_CONS_N_WORDS);
+          HH_CONS(ctx, accu_as_ptr, accu, accu, HH_NIL);
+          while (n_args > arity) {
+            HH_CONS(ctx, accu_as_ptr, accu, *--sp, accu);
+            n_args--;
+          }
+        }
+        HH_ASSERT(n_args == arity);
+      } else
+        HH_CHECK(0, *new_pc == n_args, HH_ERROR_WRONG_ARGS);
+
+      /* From this point on tail-calls deviate from normal calls.
+         Here normal calls would write the return address to the
+         stack, but tail-calls unwind the stack and retain the
+         caller's return address. */
+      sp -= imm;
+      if (n_args != 0) {
+        for (i = 1 - n_args; i < 0; i++)
+          sp[i] = sp[i + imm];
+      }
+      pc = new_pc + 1;
+      goto reserve_for_next;
+    })
+
+IMM(return,
+    0,
+    {
+      sp -= imm;
+      pc = HH_WORD_TO_PC(ctx, *sp);
+    })
+
+IMM(make_new_env,
+    0,
+    {
+      HH_RESERVE(imm);
+      p = HH_ALLOCATE(ctx, imm);
+      for (w = 0; w < imm; w++)
+        p[w] = HH_NIL;
+      new_env = HH_PTR_TO_WORD(ctx, p, imm << 2);
+      goto reserve_for_next;
+    })
+
+IMM(put_new_env,
+    0,
+    {
+      HH_WORD_TO_PTR(ctx, new_env)[imm] = accu;
+    })
+
+IMM(get_env,
+    HH_PURE,
+    {
+      accu = HH_WORD_TO_PTR(ctx, env)[imm];
+      goto maybe_accu_to_ptr;
+    })
+
+EXT_INSN(shared_secret,
+    HH_PURE,
+    {
+      HH_RESERVE(HH_STRING_N_WORDS(32));
+      accu = hh_box_string(ctx, hh_shared_secret, 32);
+      goto reserve_and_accu_to_ptr;
+    })
+
+EXT_INSN(crypto_hash,
+    HH_PURE,
+    {
+      unsigned char buf[32];
+
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+      /* We assume the string length is within the small integer
+         range from -2^30 to 2^30-1 */
+      HH_RESERVE(HH_STRING_N_WORDS(32));
+      hh_sha256(HH_STRING_PTR(accu_as_ptr),
+		HH_STRING_LEN(accu_as_ptr),
+		buf);
+      accu = hh_box_string(ctx, buf, 32);
+      goto reserve_and_accu_to_ptr;
+    })
+
+EXT_INSN(crypto_cipher,
+    0,
+    {
+      hh_word_t *buf;
+      hh_word_t buf_len;
+
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+      if (HH_STRING_LEN(accu_as_ptr) < 16)
+	goto crypto_cipher_failure;
+
+      HH_CHECK(sp[-2], HH_WORD_IS_PTR(sp[-2]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-2], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-2])),
+	       HH_ERROR_EXPECT_STRING);
+
+      w = HH_STRING_LEN(HH_WORD_TO_PTR(ctx, sp[-2]));
+      HH_RESERVE(HH_STRING_N_WORDS(w + 19));
+      buf = hh_alloc_string(ctx, w + 19);
+
+      if (hh_xxtea(HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-2])), w,
+		   HH_STRING_PTR(buf), &buf_len,
+		   !HH_IS_FALSE(sp[-1]),
+		   HH_STRING_PTR(accu_as_ptr))) {
+	buf[0] = HH_STRING_HDR(buf_len);
+	accu = HH_PTR_TO_WORD(ctx, buf, 0x04);
+      } else {
+      crypto_cipher_failure:
+	accu = HH_NIL;
+      }
+      sp -= 2;
+      goto reserve_and_maybe_accu_to_ptr;
+    })
+
+#ifdef HH_UNIX
+
+EXT_INSN(unix_gettimeofday,
+     HH_PURE,
+     {
+       /* HH_RESERVE(HH_BOX_N_WORDS + HH_CONS_N_WORDS); */
+       {
+	 struct timeval tv;
+	 if (gettimeofday(&tv, NULL) == 0)
+	   HH_CONS(ctx, accu_as_ptr, accu,
+		   HH_UNSIGNED_TO_WORD(ctx, tv.tv_sec),
+		   HH_SHORT_TO_WORD(tv.tv_usec));
+	 else
+	   HH_CONS(ctx, accu_as_ptr, accu,
+		   HH_SHORT_TO_WORD(0), 
+		   HH_SHORT_TO_WORD(0));
+       }
+       goto reserve_for_next;
+     })
+
+EXT_INSN(unix_fork,
+    0,
+    {
+      accu = HH_SHORT_TO_WORD(fork());
+    })
+
+EXT_INSN(unix_wait,
+    0,
+    {
+      if (waitpid(-1, NULL, WNOHANG) > 0)
+	accu = HH_TRUE;
+      else
+	accu = HH_FALSE;
+    })
+
+EXT_INSN(unix_exec,
+    0,
+    {
+      char *program;
+      char **args;
+      char **argsp;
+      hh_word_t *q;
+      int n;
+      extern char **environ;
+
+      HH_CHECK(sp[-2],
+	       HH_WORD_IS_PTR(sp[-2]),
+	       HH_ERROR_EXPECT_NONEMPTY_STRING);
+      q = HH_WORD_TO_PTR(ctx, sp[-2]);
+      HH_CHECK(sp[-2], HH_IS_STRING(q), HH_ERROR_EXPECT_NONEMPTY_STRING);
+      program = HH_STRING_PTR(q);
+
+      w = sp[-1];
+      HH_CHECK(w, HH_WORD_IS_PTR(w), HH_ERROR_EXPECT_STRING_LIST);
+      n = hh_list_length(ctx, w) + 1 /* for terminating NULL */;
+      args = argsp = HH_MALLOC(n * sizeof(char *)); /* XXX Allocate from
+						       Lisp heap? */
+      if (args == NULL) {
+	HH_FREE(program);
+	goto unix_exec_failed;
+      }
+      while (HH_IS_CONS(w)) {
+	HH_CHECK(w,
+		 HH_WORD_IS_PTR(HH_CAR(HH_WORD_TO_PTR(ctx, w))),
+		 HH_ERROR_EXPECT_STRING_LIST);
+	q = HH_WORD_TO_PTR(ctx, HH_CAR(HH_WORD_TO_PTR(ctx, w)));
+	HH_CHECK(w, HH_IS_STRING(q), HH_ERROR_EXPECT_STRING_LIST);
+	*argsp = HH_STRING_PTR(q);
+	w = HH_CDR(HH_WORD_TO_PTR(ctx, w));
+	argsp++;
+      }
+      *argsp = NULL;
+
+      /* TODO: Can't change environ yet.  The third argument is
+	 essentially ignored. */
+      HH_CHECK(accu,
+	       HH_WORD_IS_PTR(accu) || HH_IS_NIL(accu),
+	       HH_ERROR_EXPECT_CONS_OR_NIL);
+
+      execve(program, args, environ);
+
+      /* This line should not be reached unless exec failed. */
+      sp -= 2;
+      HH_FREE(args);
+    unix_exec_failed:
+      accu = HH_SHORT_TO_WORD(-1);
+    })
+
+EXT_INSN(unix_dup2,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      
+      accu = HH_SHORT_TO_WORD(dup2(HH_WORD_TO_SHORT(sp[-1]),
+				   HH_WORD_TO_SHORT(accu)));
+      --sp;
+    })
+
+EXT_INSN(unix_close,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      accu = HH_SHORT_TO_WORD(close(HH_WORD_TO_SHORT(accu)));
+    })
+    
+EXT_INSN(unix_select,
+    0,
+    {
+      if (!ctx->program_wants_to_select) {
+        /* Entering this instruction for the first time. */
+	ctx->program_wants_to_select = 1;
+	HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+	ctx->select_timeout.tv_usec = HH_WORD_TO_SHORT(accu);
+	w = sp[-1];
+	HH_CHECK(w, HH_WORD_IS_SHORT(w), HH_ERROR_EXPECT_SHORT);
+	sp--;
+	ctx->select_timeout.tv_sec = HH_WORD_TO_SHORT(w);
+	pc = prev_pc;		/* So that we re-execute this insn. */
+	goto end_time_slice;
+      }
+      /* Continue here from the select(2) performed by the caller. */
+      accu = HH_SHORT_TO_WORD(ctx->select_retval);
+      ctx->program_wants_to_select = 0;
+    })
+
+EXT_INSN(unix_add_to_read_fds,
+    0,
+    {
+      int fd;
+
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      fd = HH_WORD_TO_SHORT(accu);
+      FD_SET(fd, &ctx->select_read_fds);
+      if (fd > ctx->select_max_fd)
+	ctx->select_max_fd = fd;
+    })
+
+EXT_INSN(unix_add_to_write_fds,
+    0,
+    {
+      int fd;
+
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      fd = HH_WORD_TO_SHORT(accu);
+      FD_SET(fd, &ctx->select_write_fds);
+      if (fd > ctx->select_max_fd)
+	ctx->select_max_fd = fd;
+    })
+
+EXT_INSN(unix_fd_is_readable,
+    0,
+    {
+      int fd;
+
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      fd = HH_WORD_TO_SHORT(accu);
+      if (fd <= ctx->select_max_fd && FD_ISSET(fd, &ctx->select_read_fds))
+	accu = HH_TRUE;
+      else
+	accu = HH_FALSE;
+    })
+
+EXT_INSN(unix_fd_is_writable,
+    0,
+    {
+      int fd;
+
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      fd = HH_WORD_TO_SHORT(accu);
+      if (fd <= ctx->select_max_fd && FD_ISSET(fd, &ctx->select_write_fds))
+	accu = HH_TRUE;
+      else
+	accu = HH_FALSE;
+    })
+
+EXT_INSN(unix_clr_fdsets,
+    0,
+    {
+      FD_ZERO(&ctx->select_read_fds);
+      FD_ZERO(&ctx->select_write_fds);
+    })
+
+EXT_INSN(unix_dir_list,
+    0,
+    {
+      DIR *dir;
+      struct dirent *ent;
+
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      dir = opendir(HH_STRING_PTR(accu_as_ptr));
+      if (dir == NULL) {
+	/* XXX Should we handle errors more informatively? */
+      unix_dir_list_failure:
+	accu = HH_NIL;
+      } else {
+	w = 0;
+	while ((ent = readdir(dir)) != NULL)
+	  w += HH_STRING_N_WORDS(strlen(ent->d_name)) + HH_CONS_N_WORDS;
+	closedir(dir);
+	HH_RESERVE(w);
+	dir = opendir(HH_STRING_PTR(accu_as_ptr));
+	if (dir == NULL)
+	  goto unix_dir_list_failure;
+	accu_as_ptr = NULL;
+	accu = HH_NIL;
+	while ((ent = readdir(dir)) != NULL) {
+	  HH_CONS(ctx, accu_as_ptr, accu,
+		  hh_box_string(ctx, ent->d_name, strlen(ent->d_name)),
+		  accu);
+	}
+	closedir(dir);
+	goto reserve_for_next;
+      }
+    })
+
+EXT_INSN(unix_unlink,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      if (unlink(HH_STRING_PTR(accu_as_ptr)))
+	accu = HH_NIL;
+      else
+	accu = HH_TRUE;
+    })
+
+EXT_INSN(unix_open,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+
+      HH_CHECK(sp[-1], HH_WORD_IS_PTR(sp[-1]), HH_ERROR_EXPECT_STRING);
+      p = HH_WORD_TO_PTR(ctx, sp[-1]);
+      HH_CHECK(sp[-1], HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+
+      sp--;
+      accu = HH_SHORT_TO_WORD(open(HH_STRING_PTR(p),
+				   HH_WORD_TO_UNSIGNED(ctx, accu)));
+    })
+
+EXT_INSN(unix_socket,
+    0,
+    {
+      HH_CHECK(sp[-2], HH_WORD_IS_SHORT(sp[-2]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+
+      accu = HH_SHORT_TO_WORD(socket(HH_WORD_TO_SHORT(sp[-2]),
+				     HH_WORD_TO_SHORT(sp[-1]),
+				     HH_WORD_TO_SHORT(accu)));
+      sp -= 2;
+    })
+
+EXT_INSN(unix_setsockopt,
+    0,
+    {
+      if (accu != HH_NIL) {
+	HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+	HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      }
+      HH_CHECK(sp[-1], HH_WORD_IS_INT(sp[-1]), HH_ERROR_EXPECT_INT);
+      HH_CHECK(sp[-2], HH_WORD_IS_INT(sp[-2]), HH_ERROR_EXPECT_INT);
+      HH_CHECK(sp[-3], HH_WORD_IS_SHORT(sp[-3]), HH_ERROR_EXPECT_SHORT);
+
+      if (accu == HH_NIL)
+	accu = HH_SHORT_TO_WORD(setsockopt(HH_WORD_TO_SHORT(sp[-3]),
+					   HH_WORD_TO_SIGNED(ctx, sp[-2]),
+					   HH_WORD_TO_SIGNED(ctx, sp[-1]),
+					   NULL, 0));
+      else
+	accu = HH_SHORT_TO_WORD(setsockopt(HH_WORD_TO_SHORT(sp[-3]),
+					   HH_WORD_TO_SIGNED(ctx, sp[-2]),
+					   HH_WORD_TO_SIGNED(ctx, sp[-1]),
+					   HH_STRING_PTR(accu_as_ptr),
+					   HH_STRING_LEN(accu_as_ptr)));
+      sp -= 3;
+    })
+
+EXT_INSN(unix_fcntl,
+    0,
+    {
+      HH_CHECK(sp[-2], HH_WORD_IS_SHORT(sp[-2]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(sp[-1], HH_WORD_IS_INT(sp[-1]), HH_ERROR_EXPECT_INT);
+      if (accu == HH_NIL) {
+	sw = fcntl(HH_WORD_TO_SHORT(sp[-2]),
+		   HH_WORD_TO_SIGNED(ctx, sp[-1]));
+      } else if (HH_WORD_IS_INT(accu)) {
+	sw = fcntl(HH_WORD_TO_SHORT(sp[-2]),
+		   HH_WORD_TO_SIGNED(ctx, sp[-1]),
+		   HH_WORD_TO_SIGNED(ctx, accu));
+      } else {
+	HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+	HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+	sw = fcntl(HH_WORD_TO_SHORT(sp[-2]),
+		   HH_WORD_TO_SIGNED(ctx, sp[-1]),
+		   HH_STRING_PTR(accu_as_ptr));
+      }
+      accu = HH_SHORT_TO_WORD(sw);
+      sp -= 2;
+    })
+
+EXT_INSN(unix_ioctl,
+    0,
+    {
+      HH_CHECK(sp[-2], HH_WORD_IS_SHORT(sp[-2]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      if (HH_WORD_IS_INT(accu)) {
+	/* HH_RESERVE(HH_CONS_N_WORDS); */
+	accu = HH_SHORT_TO_WORD(ioctl(HH_WORD_TO_SHORT(sp[-2]),
+				      HH_WORD_TO_SHORT(sp[-1]),
+				      HH_WORD_TO_SHORT(accu)));
+      } else {
+	HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING_OR_INT);
+	HH_CHECK(accu, HH_IS_STRING(accu_as_ptr),
+		 HH_ERROR_EXPECT_STRING_OR_INT);
+	/* Make a copy of the argument string. */
+	w = HH_STRING_LEN(accu_as_ptr);
+	HH_RESERVE(HH_CONS_N_WORDS + HH_STRING_N_WORDS(w));
+	accu = hh_box_string(ctx, HH_STRING_PTR(accu_as_ptr), w);
+	/* Call the ioctl and return the cons of its return value and
+	   the argument string possibly altered by ioctl. */
+	HH_CONS(ctx, accu_as_ptr, accu,
+		HH_SHORT_TO_WORD(ioctl(HH_WORD_TO_SHORT(sp[-2]),
+				       HH_WORD_TO_SHORT(sp[-1]),
+				       HH_STRING_PTR(accu))),
+		accu);
+      }
+      sp -= 2;
+      goto reserve_for_next;
+    })
+
+
+EXT_INSN(unix_connect,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+      accu = HH_SHORT_TO_WORD(connect(HH_WORD_TO_SHORT(sp[-1]),
+				      (const struct sockaddr *)
+				        HH_STRING_PTR(accu_as_ptr),
+				      HH_STRING_LEN(accu_as_ptr)));
+      sp--;
+    })
+
+EXT_INSN(unix_bind,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+      accu = HH_SHORT_TO_WORD(bind(HH_WORD_TO_SHORT(sp[-1]),
+				   (const struct sockaddr *)
+				     HH_STRING_PTR(accu_as_ptr),
+				   HH_STRING_LEN(accu_as_ptr)));
+      sp--;
+    })
+
+EXT_INSN(unix_listen,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+
+      accu = HH_SHORT_TO_WORD(listen(HH_WORD_TO_SHORT(sp[-1]),
+				     HH_WORD_TO_SHORT(accu)));
+      sp--;
+    })
+
+EXT_INSN(unix_accept,
+    0,
+    {
+      {
+	struct sockaddr addr;
+	socklen_t addrlen = sizeof(addr);
+	
+	HH_RESERVE(HH_CONS_N_WORDS + HH_STRING_N_WORDS(sizeof(addr)));
+	HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+
+	sw = accept(HH_WORD_TO_SHORT(accu), &addr, &addrlen);
+	if (sw == -1)
+	  accu = HH_NIL;
+	else {
+	  HH_CONS(ctx, accu_as_ptr, accu,
+		  HH_SHORT_TO_WORD(sw),
+		  hh_box_string(ctx, (char *) &addr, addrlen));
+	  goto reserve_for_next;
+	}
+      }
+    })
+
+EXT_INSN(unix_read,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      sw = HH_WORD_TO_SHORT(accu);
+      HH_CHECK(accu, sw > 0, HH_ERROR_EXPECT_POSITIVE);
+      HH_RESERVE(HH_STRING_N_WORDS(sw));
+      accu_as_ptr = hh_alloc_string(ctx, sw);
+      sw = read(HH_WORD_TO_SHORT(sp[-1]),
+		HH_STRING_PTR(accu_as_ptr),
+		sw);
+      if (sw == -1)
+	accu = HH_NIL;
+      else {
+	accu_as_ptr[0] = HH_STRING_HDR(sw);
+	accu = HH_PTR_TO_WORD(ctx, accu_as_ptr, 0x04);
+      }
+      sp--;
+      goto reserve_for_next;
+    })
+
+EXT_INSN(unix_write,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      accu = HH_SHORT_TO_WORD(write(HH_WORD_TO_SHORT(sp[-1]),
+				    HH_STRING_PTR(accu_as_ptr),
+				    HH_STRING_LEN(accu_as_ptr)));
+      sp--;
+    })
+
+EXT_INSN(unix_recvfrom,
+    0,
+    {
+      {
+	struct sockaddr addr;
+	socklen_t addrlen;
+
+	HH_CHECK(sp[-2],	/* fd */
+		 HH_WORD_IS_SHORT(sp[-2]),
+		 HH_ERROR_EXPECT_SHORT);
+	HH_CHECK(sp[-1],	/* buflen */
+		 HH_WORD_IS_SHORT(sp[-1]),
+		 HH_ERROR_EXPECT_SHORT);
+	HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT); /* flags */
+	sw = HH_WORD_TO_SHORT(sp[-1]);
+	HH_CHECK(sp[-1], sw > 0, HH_ERROR_EXPECT_POSITIVE);
+	HH_RESERVE(HH_STRING_N_WORDS(sw)
+		   + HH_CONS_N_WORDS
+		   + HH_STRING_N_WORDS(sizeof(addr)));
+	p = hh_alloc_string(ctx, sw);
+
+	sw = recvfrom(HH_WORD_TO_SHORT(sp[-2]),
+		      HH_STRING_PTR(p),
+		      sw,
+		      HH_WORD_TO_SIGNED(ctx, accu),
+		      &addr, &addrlen);
+	if (sw == -1)
+	  accu = HH_NIL;
+	else {
+	  p[0] = HH_STRING_HDR(sw);
+	  HH_CONS(ctx, accu_as_ptr, accu,
+		  HH_PTR_TO_WORD(ctx, p, 0x04),
+		  hh_box_string(ctx, (char *) &addr, addrlen));
+	}
+	sp -= 2;
+	goto reserve_for_next;
+      }
+    })
+
+EXT_INSN(unix_sendto,
+    0,
+    {
+      HH_CHECK(sp[-3], HH_WORD_IS_SHORT(sp[-3]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(sp[-2], HH_WORD_IS_PTR(sp[-2]), HH_ERROR_EXPECT_STRING);
+      p = HH_WORD_TO_PTR(ctx, sp[-2]);
+      HH_CHECK(sp[-2], HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-1], HH_WORD_IS_INT(sp[-1]), HH_ERROR_EXPECT_INT);
+      if (accu == HH_NIL)
+	/* Essentially send. */
+	sw = sendto(HH_WORD_TO_SHORT(sp[-3]),
+		    HH_STRING_PTR(p),
+		    HH_STRING_LEN(p),
+		    HH_WORD_TO_SIGNED(ctx, sp[-1]),
+		    NULL, 0);
+      else {
+	HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+	HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+	sw = sendto(HH_WORD_TO_SHORT(sp[-3]),
+		    HH_STRING_PTR(p),
+		    HH_STRING_LEN(p),
+		    HH_WORD_TO_SIGNED(ctx, sp[-1]),
+		    (const struct sockaddr *) HH_STRING_PTR(accu_as_ptr),
+		    HH_STRING_LEN(accu_as_ptr));
+      }
+      accu = HH_SHORT_TO_WORD(sw);
+      sp -= 3;
+    })
+
+EXT_INSN(unix_lseek,
+    0,
+    {
+      HH_CHECK(sp[-2], HH_WORD_IS_SHORT(sp[-2]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      /* We assume SEEK_SET, SEEK_CUR, SEEK_END are small enough to
+	 fit in a 31-bit SHORT. */
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      accu = HH_SHORT_TO_WORD(lseek(HH_WORD_TO_SHORT(sp[-2]),
+				    HH_WORD_TO_SHORT(sp[-1]),
+				    HH_WORD_TO_SHORT(accu)));
+      sp -= 2;
+    })
+
+#ifdef HH_LINUX
+
+EXT_INSN(unix_mount,
+    0,
+    {
+      if (accu != HH_NIL) {
+	HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+	HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      }
+
+      HH_CHECK(sp[-1], HH_WORD_IS_INT(sp[-1]), HH_ERROR_EXPECT_INT);
+
+      HH_CHECK(sp[-2], HH_WORD_IS_PTR(sp[-2]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-2], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-2])),
+	       HH_ERROR_EXPECT_STRING);
+
+      HH_CHECK(sp[-3], HH_WORD_IS_PTR(sp[-3]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-3], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-3])),
+	       HH_ERROR_EXPECT_STRING);
+
+      HH_CHECK(sp[-4], HH_WORD_IS_PTR(sp[-4]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-4], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-4])),
+	       HH_ERROR_EXPECT_STRING);
+
+      if (mount(HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-4])),
+		HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-3])),
+		HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-2])),
+		HH_WORD_TO_UNSIGNED(ctx, sp[-1]),
+		accu == HH_NIL ? NULL : HH_STRING_PTR(accu_as_ptr)) == 0)
+	/* Mount succeeded. */
+	accu = HH_TRUE;
+      else
+	/* Mount failed. */
+	accu = HH_FALSE;
+      sp -= 4;
+    })
+
+#endif
+
+#ifdef HH_BSD
+
+/* FreeBSD mount has argument order 
+	mount(const char *type, const char *dir, int flags, void *data)
+   where dir corresponds to Linux's target and data to source.  
+   I presume that other BSD variants have the same argument order??? */
+
+EXT_INSN(unix_mount,
+    0,
+    {
+      if (accu != HH_NIL) {
+	HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+	HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      }
+
+      HH_CHECK(sp[-1], HH_WORD_IS_INT(sp[-1]), HH_ERROR_EXPECT_INT);
+
+      HH_CHECK(sp[-2], HH_WORD_IS_PTR(sp[-2]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-2], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-2])),
+	       HH_ERROR_EXPECT_STRING);
+
+      HH_CHECK(sp[-3], HH_WORD_IS_PTR(sp[-3]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-3], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-3])),
+	       HH_ERROR_EXPECT_STRING);
+
+      HH_CHECK(sp[-4], HH_WORD_IS_PTR(sp[-4]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-4], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-4])),
+	       HH_ERROR_EXPECT_STRING);
+
+      if (mount(HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-2])),
+		HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-3])),
+		HH_WORD_TO_UNSIGNED(ctx, sp[-1]),
+		HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-4]))) == 0)
+	/* Mount succeeded. */
+	accu = HH_TRUE;
+      else
+	/* Mount failed. */
+	accu = HH_FALSE;
+      sp -= 4;
+    })
+
+#endif
+
+#ifdef HH_SUNOS
+
+/* Solaris' mount has fstype and flags in different order and adds
+   optptr and optlen.  Hide the different argument order and pass
+   NULL/0 as optptr and optlen. */
+
+EXT_INSN(unix_mount,
+    0,
+    {
+      if (accu != HH_NIL) {
+	HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+	HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      }
+
+      HH_CHECK(sp[-1], HH_WORD_IS_INT(sp[-1]), HH_ERROR_EXPECT_INT);
+
+      HH_CHECK(sp[-2], HH_WORD_IS_PTR(sp[-2]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-2], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-2])),
+	       HH_ERROR_EXPECT_STRING);
+
+      HH_CHECK(sp[-3], HH_WORD_IS_PTR(sp[-3]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-3], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-3])),
+	       HH_ERROR_EXPECT_STRING);
+
+      HH_CHECK(sp[-4], HH_WORD_IS_PTR(sp[-4]), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-4], HH_IS_STRING(HH_WORD_TO_PTR(ctx, sp[-4])),
+	       HH_ERROR_EXPECT_STRING);
+
+      if (mount(HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-4])),
+		HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-3])),
+		HH_WORD_TO_UNSIGNED(ctx, sp[-1]),
+		HH_STRING_PTR(HH_WORD_TO_PTR(ctx, sp[-2])),
+		accu == HH_NIL ? NULL : HH_STRING_PTR(accu_as_ptr),
+		NULL, 0) == 0)
+	/* Mount succeeded. */
+	accu = HH_TRUE;
+      else
+	/* Mount failed. */
+	accu = HH_FALSE;
+      sp -= 4;
+    })
+
+#endif
+
+#if defined(HH_LINUX) || defined(HH_SUNOS)
+
+EXT_INSN(unix_umount,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+      if (umount(HH_STRING_PTR(accu_as_ptr)) == 0)
+	accu = HH_TRUE;
+      else
+	accu = HH_FALSE;
+    })
+
+#endif
+
+#ifdef HH_BSD
+
+EXT_INSN(unix_umount,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+
+      if (unmount(HH_STRING_PTR(accu_as_ptr), 0) == 0)
+	accu = HH_TRUE;
+      else
+	accu = HH_FALSE;
+    })
+
+#endif
+
+EXT_INSN(unix_usleep,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      usleep(HH_WORD_TO_SHORT(accu));
+    })
+    
+EXT_INSN(unix_errno,
+    0,
+    {
+      accu = HH_SHORT_TO_WORD(errno);
+      /* if (errno) HH_PRINT("%s\n", strerror(errno)); */
+    })
+
+EXT_INSN(unix_tcgetattr,
+    0,
+    {
+      {
+	struct termios trm;
+	
+	HH_RESERVE(HH_CONS_N_WORDS + HH_STRING_N_WORDS(sizeof(trm)));
+	HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+	sw = tcgetattr(HH_WORD_TO_SHORT(accu), &trm);
+	if (sw == -1)
+	  accu = HH_NIL;
+	else {
+	  HH_CONS(ctx, accu_as_ptr, accu,
+		  HH_SHORT_TO_WORD(sw),
+		  hh_box_string(ctx, (char *) &trm, sizeof(trm)));
+	  goto reserve_for_next;
+	}
+      }
+    })
+
+EXT_INSN(unix_tcsetattr,
+    0,
+    {
+      HH_CHECK(sp[-2], HH_WORD_IS_SHORT(sp[-2]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(sp[-1], HH_WORD_IS_INT(sp[-1]), HH_ERROR_EXPECT_INT);
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu,
+	       HH_STRING_LEN(accu_as_ptr) == sizeof(struct termios),
+	       HH_ERROR_EXPECT_STRING);
+      accu = HH_SHORT_TO_WORD(tcsetattr(HH_WORD_TO_SHORT(sp[-2]),
+					HH_WORD_TO_SIGNED(ctx, sp[-1]),
+					(struct termios *)
+					  HH_STRING_PTR(accu_as_ptr)));
+      sp -= 2;
+    })
+
+EXT_INSN(unix_tcsendbreak,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      accu = HH_SHORT_TO_WORD(tcsendbreak(HH_WORD_TO_SHORT(sp[-1]),
+					  HH_WORD_TO_SHORT(accu)));
+      sp--;
+    })
+
+EXT_INSN(unix_tcdrain,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      accu = HH_SHORT_TO_WORD(tcdrain(HH_WORD_TO_SHORT(accu)));
+    })
+
+EXT_INSN(unix_tcflush,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      accu = HH_SHORT_TO_WORD(tcflush(HH_WORD_TO_SHORT(sp[-1]),
+				      HH_WORD_TO_SIGNED(ctx, accu)));
+      sp--;
+    })
+
+EXT_INSN(unix_tcflow,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_SHORT(sp[-1]), HH_ERROR_EXPECT_SHORT);
+      HH_CHECK(accu, HH_WORD_IS_INT(accu), HH_ERROR_EXPECT_INT);
+      accu = HH_SHORT_TO_WORD(tcflow(HH_WORD_TO_SHORT(sp[-1]),
+				     HH_WORD_TO_SIGNED(ctx, accu)));
+      sp--;
+    })
+
+#ifndef HH_SUNOS
+
+EXT_INSN(unix_cfmakeraw,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu,
+	       HH_STRING_LEN(accu_as_ptr) == sizeof(struct termios),
+	       HH_ERROR_EXPECT_STRING);
+      HH_RESERVE(HH_STRING_N_WORDS(sizeof(struct termios)));
+      accu = hh_box_string(ctx,
+			   HH_STRING_PTR(accu_as_ptr),
+			   HH_STRING_LEN(accu_as_ptr));
+      accu_as_ptr = HH_WORD_TO_PTR(ctx, accu);
+      cfmakeraw((struct termios *) HH_STRING_PTR(accu_as_ptr));
+      goto reserve_for_next;
+    })
+
+#endif
+
+EXT_INSN(unix_cfgetispeed,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu,
+	       HH_STRING_LEN(accu_as_ptr) == sizeof(struct termios),
+	       HH_ERROR_EXPECT_STRING);
+      /* We assume the baudrate values B0, B50, B75, B110, B134, B150,
+	 B200, B300, B600, B1200, B1800, B2400, B4800, B9600, B19200,
+	 B38400, etc. are encoded as relatively small integer values
+	 that fit in a SHORT.  This is the case in the UNIXes I
+	 checked... */
+      accu = HH_SHORT_TO_WORD(cfgetispeed((struct termios *) 
+					    HH_STRING_PTR(accu_as_ptr)));
+    })
+
+EXT_INSN(unix_cfgetospeed,
+    0,
+    {
+      HH_CHECK(accu, HH_WORD_IS_PTR(accu), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_IS_STRING(accu_as_ptr), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu,
+	       HH_STRING_LEN(accu_as_ptr) == sizeof(struct termios),
+	       HH_ERROR_EXPECT_STRING);
+      /* We assume the baudrate values B0, B50, B75, B110, B134, B150,
+	 B200, B300, B600, B1200, B1800, B2400, B4800, B9600, B19200,
+	 B38400, etc. are encoded as relatively small integer values
+	 that fit in a SHORT.  This is the case in the UNIXes I
+	 checked... */
+      accu = HH_SHORT_TO_WORD(cfgetospeed((struct termios *) 
+					    HH_STRING_PTR(accu_as_ptr)));
+    })
+
+EXT_INSN(unix_cfsetispeed,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_PTR(sp[-1]), HH_ERROR_EXPECT_STRING);
+      p = HH_WORD_TO_PTR(ctx, sp[-1]);
+      HH_CHECK(sp[-1], HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-1],
+	       HH_STRING_LEN(p) == sizeof(struct termios),
+	       HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      HH_RESERVE(HH_STRING_N_WORDS(sizeof(struct termios)));
+      sp--;
+      accu = hh_box_string(ctx,
+			   HH_STRING_PTR(p),
+			   HH_STRING_LEN(p));
+      accu_as_ptr = HH_WORD_TO_PTR(ctx, accu);
+      if (cfsetispeed((struct termios *) HH_STRING_PTR(accu_as_ptr),
+		      HH_WORD_TO_SHORT(accu)) == -1)
+	accu = HH_NIL;
+      goto reserve_for_next;
+    })
+
+EXT_INSN(unix_cfsetospeed,
+    0,
+    {
+      HH_CHECK(sp[-1], HH_WORD_IS_PTR(sp[-1]), HH_ERROR_EXPECT_STRING);
+      p = HH_WORD_TO_PTR(ctx, sp[-1]);
+      HH_CHECK(sp[-1], HH_IS_STRING(p), HH_ERROR_EXPECT_STRING);
+      HH_CHECK(sp[-1],
+	       HH_STRING_LEN(p) == sizeof(struct termios),
+	       HH_ERROR_EXPECT_STRING);
+      HH_CHECK(accu, HH_WORD_IS_SHORT(accu), HH_ERROR_EXPECT_SHORT);
+      HH_RESERVE(HH_STRING_N_WORDS(sizeof(struct termios)));
+      sp--;
+      accu = hh_box_string(ctx,
+			   HH_STRING_PTR(p),
+			   HH_STRING_LEN(p));
+      accu_as_ptr = HH_WORD_TO_PTR(ctx, accu);
+      if (cfsetospeed((struct termios *) HH_STRING_PTR(accu_as_ptr),
+		      HH_WORD_TO_SHORT(accu)) == -1)
+	accu = HH_NIL;
+      goto reserve_for_next;
+    })
+
+#endif
+
+#undef INSN
+#undef EXT_INSN
+#undef IMM

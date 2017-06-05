@@ -1,0 +1,535 @@
+-*- indented-text -*-
+
+
+	Introduction
+	============
+
+Hedgehog is a very concise implementation of a LISP-like language for
+low-end and embedded devices, primarily for machine-to-machine
+systems. It consists of a compiler to byte code and a corresponding
+interpreter.  The byte code interpreter is written in standard
+conforming C, is efficient and easily portable, and can be compiled to
+a very small executable or library of only some 20-30 kilobytes.
+
+The Hedgehog LISP dialect has proper support for local and lambda
+functions, lexical scoping, variable argument functions, garbage
+collection, exceptions, macros, and over a hundred predefined functions
+or special forms.  The built-in types are lists, symbols, strings, 32-bit
+integers, AVL-trees, and tuples up to 16 elements wide.  Proper 32-bit
+wide integers are necessary for various bit-level operations in embedded
+systems.
+
+The Hedgehog compiler and byte code interpreter, essentially all code
+written in C, is distributed under the "Lesser" GNU General Public
+License (GPL).  In layman's terms, you have to ship the source code of
+the Hedgehog compiler and interpreter whenever you ship the
+corresponding binary executable.  However, all files written in
+Hedgehog Lisp itself, including the standard library in the prelude.d
+directory, are distributed the revised BSD license, which allows them
+to be included also in programs that are distributed without full
+source code.  See the files LICENSE.LGPL and LICENSE.BSD.
+
+This public version of the lisp compiler is routinely exercised on
+Linux and Cygwin, it has been briefly tested on FreeBSD and SunOS, and
+should be easily portable to any Posix system.  The interpreter part
+has additionally been ported to several embedded operating systems.
+Support, alternative licenses, and ports can be discussed with
+Oliotalo Ltd.  The ports have support for various protocols and
+devices specific for that platform.
+
+For further information or to download, see
+http://hedgehog.oliotalo.fi/ or mail hedgehog@hedgehog.oliotalo.fi.
+
+Authors: Kenneth Oksanen <cessu@iki.fi>
+	 Lars Wirzenius <liw@iki.fi>
+
+
+	Version-specific Note
+	=====================
+
+This series of versions, hedgehog-2.*, has been extracted and cleaned
+up from a significantly more featureful hedgehog-1.6, which is used by
+Oliotalo in several embedded machine-to-machine solutions.  While many
+parts of the code are mature and well-tested, this version undoubtedly
+contains also immature and incorrect pieces of code.  Also some parts
+are missing, such as a few good demo applications and various features
+planned for the state machine library (which hedgehog-1.6 has but we
+wish to improve for 2.0).  Therefore we consider this as an
+beta-quality at best.  But we will gradually improve.
+
+
+	Running HedgeHog
+	================
+
+To compile and install Hedgehog on a typical Linux installation,
+unpack the sources and change to the source directory and then do the
+following:
+    	mkdir o
+	cd o
+	../configure linux /usr/local
+	make
+where `make' refers to GNU make.  This builds to executables the lisp
+compiler `hhc' and the byte code interpreter `hhi', and some lisp
+library files in the directory `prelude.d'.  Hedgehog has been
+compiled and tested on a number of other platforms, including FreeBSD
+and SunOS, but you will need GNU make and in many cases, especially if
+you wish to edit the develop the code further, also the GNU awk and
+lex replacements gawk and flex.
+
+Assuming the above completed successfully, you should now be able to
+compile tests in the `tests'-directory, for example by issuing
+	./hhc -g -p prelude.d ../tests/fib.hl
+in order to compile the ubiquitous Fibonacci-test.  This produces two
+output files, `fib.hlo' and `fib.hls'.  The latter is a symbolic
+assembler file and used mostly for debugging after a possible error
+reported by the interpreter.  It is particularly useful if you didn't
+pass `hhc' the flag `-g' telling it to add a little debugging
+information to the `fib.hlo'.  
+
+The former is the actual byte code program, augmented with a small
+header and the program's constant data.  You should now be able to run
+the compiled Fibonacci-test in `fib.hlo' by by issuing
+	./hhi fib.hlo
+Depending on your machine's speed this will last a few seconds, but
+eventually you should see the result:
+	fib(30) = 1346269
+or
+	fib(22) = 28657
+depending on which distribution you have.
+
+The flag `-p prelude.d' you passed to `hhc' tells it to use the lisp
+library in the subdirectory `prelude.d'.  Conventionally you should 
+	make install
+with sufficient priviledges.  This places `hhc' and `hhi' in
+`/usr/local/bin' and the standard library `/usr/local/lib/hh', as you
+had instructed `configure' to do.  Now that the prelude is in its
+predefined place, you can refrain from passing `-p prelude.d' to `hhc'.
+
+Pass `hhc' and `hhc' the flag `--help' or `-h' to see their full
+command line interface.  Note that the heap and stack sizes are fixed
+during each execution, but are adjustable from the command line.
+
+
+        The prelude
+        ===========
+        
+The Hedgehog standard library, or prelude, consists of all the files
+in the `prelude.d' directory that have a `.hl' suffix. The filenames
+are expected to be sorted according to ASCII character codes (in the
+"C" locale, that is: some other locales have weird rules for sorting,
+e.g., the fi_FI one).  The naming convention is, therefore, to begin
+each filename with three digits and a dash. This will allow ordering
+between the files.
+
+XXX Here comes a little tour of the prelude.
+
+
+	Porting and Adaptation
+	======================
+
+XXX Design and write a guide.
+
+If memcmp performs signed comparison of bytes on your platform, you
+must define HH_MEMCMP to some function which performs unsigned
+comparison.  This is necessary for Lisp-level string comparisons and
+compression to work correctly.
+
+The macros HH_UNIX, HH_SUNOS, HH_BSD, HH_LINUX etc. refer to the
+target platform where we run hhi, but not necessarily to hhc.
+
+But while nothing is written yet, a few words of advice:
+  - In general, the code is supposed to be touched.
+  - Note that the configure script is not GNU autoconf, so you are
+    supposed to add definitions relevant to your target in it.
+  - The interpreter is able to change byte order of the `.hlo'-files
+    automatically as needed, so that you needn't worry about this.
+
+If your target looks like unix:
+  - No or at least small editions in hh_common.h should be sufficient
+    to compile hhi.
+  - By default `make' (cross-)compiles and (cross-)executes a small C
+    program which digs out various flag values and struct layouts of
+    the system call interface into the prelude file `300-unix.hl'.
+    Ensure the cross-execution succeeded.
+
+If your target does not look like unix:
+  - You have to write a new main program file.  You can take
+    `hh_interp_unix.c' as your starting point.
+  - Search for occurrences of HH_UNIX in the code (including the
+    compiler), and adapt the code for your target in similar respects.
+
+
+	Byte Code Interpreter
+	=====================
+
+	Instruction Format
+	------------------
+
+The byte code instruction set is designed to be concise, allow a small
+implementation of the interpreter, but still allow a reasonably
+efficient implementation.
+
+The instructions are of variable instruction length.  The uppermost
+two bits in the first byte of the instruction tell the byte code type.
+Bits 00 indicate an instruction without an immediate field, bits 01
+indicate that the second byte of the instruction is a one-byte signed
+immediate field.  Bits 10 indicate a two-byte immediate value and bits
+11 indicate a four-byte immediate value.  A handful of instructions
+use more than a single immediate field.
+
+The lowermost six bits of the first byte of each instruction indicate
+the mnemonic, such as `push' or `load_imm'.  The byte code
+instructions with an immediate field and the ones without are
+separate.  This means there are at most 64 instructions with an
+immediate field and 64 instructions without.  The latter is often too
+few, and therefore rarely used non-immediate instructions are encoded
+as "ext insns" a special immediate instruction plus an immediate field
+that specifies the instructions.  All instructions are defined in the
+file `hh_insn.def', which with some C macro trickery is included in
+several places for various purposes.
+
+Some instructions, such `load_imm' or `pick', have variants which
+first push the value of accu to stack before actual computation.  This
+both reduces byte code program lengths and improves performance
+because of reduced instruction dispatching.  For some other
+instructions, for example for jumps and many non-atomic expression,
+such variants would be rarely used, and are therefore omitted in order
+to save instruction space.
+
+
+	Virtual Machine
+	---------------
+
+The virtual machine is a stack machine but so that the least recently
+computed value cached in a special "register" `accu'.  The benefit of
+`accu' is twofold: Firstly, if the result is not used, there is no
+need to pop it off the stack.  Secondly, `accu' reduces the traffic to
+and from the stack, thereby somewhat improving the performance.
+
+The stack pointer `sp' points to the position in stack where the next
+pushed value goes to.  The stack grows upward.
+
+A function is a tuple whose first word refers to the beginning of the
+function's byte code and the second word refers to the function's
+environment, or HH_NIL (i.e., the Lisp nil) if there is only the
+global environment.  The first byte code instruction of each function
+is actually not an instruction at all, but a byte of information of
+the arity of the function.  The seven lowermost bits tell the number
+of arguments the function expects, and if the uppermost bit is set,
+then the function is a variable argument function.
+
+The same stack is used to store arguments to both byte code
+instructions, builtin functions and user-defined functions.
+Let's follow through a proper function call.  The caller evaluates all
+subexpressions in the s-expression from left (the called function) to
+right, pushing all but the last one which is left in `accu'.  Now it
+issues the byte code instruction `call' with the immediate value
+giving the number of arguments in the call.  This instruction does all
+of the following:
+  - Find the definition of the function.
+  - Check that the number of arguments of the callee matches the
+    number of passed arguments.
+  - If the callee is a variable argument function, make a list of the
+    excess arguments.  The list is left in `accu'.
+  - Store the caller's next instruction's program counter into the
+    place where the callee function pointer was in stack.
+  - Load the callee's pc and environment pointer from the function
+    tuple.
+And then we're already executing the callee.  Returning occurs with
+`return n' which pops `n' values off the stack to find and resume the
+caller's stored program counter.
+
+Dynamic extent is achieved by creating small tuples, called
+"environments" or "closures", which contain exactly those variables
+which do not by their nature have infinite lifetime (such as global
+variables) and are referred to from local "lambda" functions created
+by `fn's or `def's.  For example 
+	(def (mkf2 x)
+	     (fn (y) (+ y x)))
+is automatically turned into something like
+	(def (mkf1 x)
+	     (.make_new_env 2)
+	     (.put_new_env 0 x)
+	     (.bind_env $.0))
+	(def ($.0 y)
+	     (+ y (.get_env 0)))
+The `$.0' is an automatically generated symbol for the local `fn'
+lifted to the top-level.  `.bind_env' leaves to `accu' the function
+`$.0' bound to the created environment, which contains the value of
+variable `x', which the local function refers to.
+
+A callable function is a cons-cell, whose CAR-slot contains a program
+counter and CDR-slot contains the environment tuple, or nil if the
+function does not refer to local variables defined outside of it.
+Calling a function always reads the environment bound to that
+function, but otherwise environment pointers are pushed and restored
+from the stack on a need -basis.  Since global functions refer only to
+values in their argument list or the global environment, there is no
+need for environment pointer storage/restoration in global functions.
+
+Catch is implemented by pushing onto stack a special header (see
+later) word which indicates the catch tag, the catching program
+counter and current environment pointer.  The throw scans the stack
+downwards looking for a matching catch tag, and if it sees one, then
+it resumes from the program counter and environment after the catch
+header.
+
+
+	Byte Code Program File Format
+	-----------------------------
+
+The program is a sequence of bytes so that
+  - Bytes 0..3 are a magic cookie and contain the values 0x4E, 0xD6,
+    0xE4 and 0x06, respectively.
+  - Bytes 4..7 contain a 32-bit checksum of the rest of the program.
+    This can be used to check that the program has been received
+    correctly, but it is not resilient to malicious attacks.
+  - Byte 8 is reserved for future use, most probably a version number
+    for the format of constant values, debugging information, and this
+    header.  Currently it should be 1.
+  - Bytes 9..11 tell `proglen', the length of the program block, in
+    bytes.
+  - Bytes 12..12+proglen-1 contain the program, the execution starts
+    at the 12th byte.
+  - Bytes 12+proglen..end contain constant data, the "constant pool",
+    most significantly strings and names of quoted symbols for the
+    `symboltostring' primitive.
+
+All values are encoded in the most significant byte first order.
+There is no general assumption of alignment inside the byte code, but
+the first byte of the program must be aligned to a 32-bit word
+boundary.
+
+
+      Garbage Collection
+      ------------------
+
+The current garbage collector is a trivial two-semispace stop&copy,
+which draws no benefit from the fact that objects are never mutated.
+
+Garbage collection may initiate at the beginning of any instruction,
+but not anywhere else.  This means that if the instruction allocates
+memory, it must prior to changing the state of the program, such as
+manipulating `accu', the stack pointer, or the stack, compute how much
+memory it is going to allocate, and issue garbage collection if
+necessary.  The macro `HH_RESERVE' is a convenience macro for the last
+task.
+
+If garbage collection does not free enough memory for the computation
+to proceed, the virtual machine tries to throw an
+"out-of-memory-exception".  If it is caught, a second garbage
+collection is issued and the execution tries to resume after the
+catch.  If the throw is not caught, the virtual machine exits with a
+special error code.
+
+
+	Tagging
+	-------
+
+Various bits of each word is reserved to represent type information.
+The deduction rules for determining the type of any given 32-bit word
+goes as follows:
+
+If the lowest bit is 1, the word is a signed integer in the range from
+-2^30 to 2^30-1 and it is obtained by arithmetically shifting the word
+one right.
+
+If the lowest bits are 00, the word is valid pointer to a
+heap-allocated object.  The next 6 bits give partial type information
+of the referred object:
+  0000 0000  Forward pointer used by the garbage collector.
+  0000 0100  Pointer to an object whose type is in a heap-allocated
+	     header word.
+  00nn nn00  Pointer to an n-tuple, if nnnn=0010, a cons-cell.
+  0100 0x00  Pointer to an integer so that the 32-bit signed integer
+	     value can be reconstructed by exclusive or of the
+	     referred word and the x-bit shifted right by 2.
+  1xxx xx00  Pointer to a cell in the constant pool, `xxxxx' have
+	     the same type meaning as described above.
+Other cases are reserved for future use.
+
+And finally, if the two lowest bits are 10, the word is a header in a
+cell:
+  0000 0010  Some special symbols.  The symbol is identified by the 
+	     upper 24 bits:
+	       0000 0000 0000 0000 0000 0000  Empty list, NIL.
+               0000 0000 0000 0000 0000 0001  Symbol t, true.
+  0000 0110  Reference to somewhere in the byte code program.
+  0000 1010  A heap-allocated string.  The upper 24 bits indicate the
+             length of the string in number of bytes.  The following
+             bytes after the initial word are used as bytes in the
+             string.  Contrary to C-string, these strings may contain
+	     null-characters which do not terminate the string.  But
+	     for convenience, there is also a redundant null-character
+	     after the end of the string so that the string can be
+	     passed to normal C routines and system calls without
+	     copying it out of the heap.
+  0000 1110  A symbol.  The second word contains a pointer to the string.
+  0001 0010  A catch cell.  This can exist only in the stack.  The
+             upper 24 bits tell the catch/throw tag, the next word is
+             catch handler program counter, and the third word is the
+             catcher's environment.
+  0001 0110  AVL-tree node. The bits 8..15 and 16..23 tell the heights
+             of the left and right subtrees, respectively, and bits
+             24..31 the height of the the subtree of the current node.
+  0001 1010  Debugging info header.  If this exists, then it must exist
+             as a second word in the constant pool.  The third word
+             contains the filename list and the fourth word contains a
+             pointer to the pc to filename-linenumber -mapping.
+
+Other cases are reserved for future use.
+
+XXX Debugging information
+
+
+	Byte Code Compiler
+	==================
+
+	Passes and Data Structures
+	--------------------------
+
+The main compiler driver routine is in file `hh_compiler.c'.  It calls
+the function `hh_ast_read_file' in file `hh_ast.c' to read in
+Lisp-files and construct syntac trees of them.  The lexer in
+`hh_lex.l' is implemented with the help of the GNU scanner generator
+flex.
+
+The abstract syntax tree of the program is represented as a directed
+acyclic graph of `hh_ast_t' structs.  For normal s-expressions it
+behaves like a tuple - the i'th element of an s-expression is accessed
+with an array lookup - but for potentially extremely large
+s-expressions, such as function bodies, do-forms, and top-level
+program definitions, the `hh_ast_t's form a NULL-terminated list.
+Each `hh_ast_t' node maintains information of its source location.
+
+All strings and symbols are interned in the compiler, i.e. identical
+symbols and strings are the same object in the compiler's memory.  The
+corresponding types are `hh_string_t' and `hh_symbol_t'.
+
+After reading in the syntax tree of the whole program, it is passed to
+`hh_macroexpand.c' for macro expansion.  The macro expansion returns
+the expanded program without any macro definitions and macro uses.
+
+The lambda-lifting is one of the most complicated parts of the
+compiler.  It "lift" locally defined functions (`fn's and `def's) into
+top-level functions which assume to be bound to suitable environment
+tuples.  Naturally lambda-lifting also augments the site of the
+definition of the local function with code that creates a suitable
+environment for the lifted function, and binds the environment to the
+lifted function (as a program counter).  Furthermore the lifted
+function's references to variables in the environment are replaced
+with expressions that read the variables' values from the environment.
+
+After lambda-lifting we perform algebraic optimization passes
+implemented in `hh_opt.c'.  Currently the only algebraic optimization
+is a simple folding of boolean constants for the primitives `if',
+`and', `or', and `not'.  Note that the pass removes code which becomes
+unreachable by these boolean constant foldings.
+
+Next the compiler passes the whole program through uses-analysis,
+which computes the transitive closure of all functions referred from
+the top-level main program.  Unreferred functions, ofter a huge
+majority if numerous libraries are included, can be discarded from the
+final output based on this analysis.
+
+Next it is time for code generation.  The code is generated by a
+recursive walk-through in the syntax tree into small `hh_code_t'
+structs linked together in a doubly linked list.  Applications of
+built-in primitives are recognized and generated according to
+definitions in `hh_builtins.def'.  The code generation pass keeps
+track of the tail-call position of the currently generated expression
+and automatically uses tailcalls wherever possible.  This pass also
+keeps track of stack positions of variables in the scope, and
+generates corresponding code for the variable references.
+
+Note that code generation uses a "fake" heap (in the fake execution
+context `hh_constant_ctx') where it generates all constant data.  This
+trick makes it possible to use the definitions in files `hh_data.[hc]'
+for both run-time and compile-time data management.
+
+Here I suggest one should add at least a modest peephole optimization,
+but currently nothing to that effect is done.
+
+Finally it is time to output the generated code.  This begins with
+assigning an absolute position for all byte code instructions.  Note
+that immediate fields' width depend on the size of the absolute value
+of the immediate field, and the value of the absolute fields in
+e.g. relative branch instructions may depend on the width and relative
+position of other instructions in the vicinity.  This chicken-and-egg
+problem is solved by an approximate "cooling" process which uses
+increasingly much unnecessarily large immediate field widths if the
+absolute placement of instructions would otherwise seem impossible.
+The actual byte code output is then a rather trivial loop over all
+generated and placed `hh_code_t's.  The same loop generates both the
+actual code file (suffixed `.hlo') and the symbolic assembler file
+(suffix `.hls'), which is necessary for any kind of debugging.  The
+byte code file is prepended by a small header and prepended by the
+contents of the "fake" heap of constant data.
+
+The compiler is admittably somewhat sloppy regarding its memory
+management: symbols, string constants, abstract syntax tree nodes and
+byte code structs are never actively freed.  But since the memory
+consumption and running time of the compiler is negligible in any
+case, this shouldn't matter as long as the host's operating system
+provides proper process cleanup after the compiler is finished.
+
+
+	Files and Conventions
+	=====================
+
+The byte code interpreter has been designed to be usable as a
+stand-alone program as well as a library linked into some larger
+system.  It is, for example, possible to run the byte code program for
+a while (say, 1000 byte code instructions, or until nothing else can
+be done) and then return to do something else in the rest of the
+system.  It is also possible to merge select-based event loops of the
+interpreted lisp programs and the containing system into one.  The
+most essential interface the larger system needs to know is in file
+`hh_interp.h', but routines in `hh_data.h' and the ability implement
+new byte code instructions in `hh_insn.def' and new Lisp primitives in
+`hh_builtins.def' may also be of use when implementing some kind of
+communication between the interpreter and the containing system.
+
+Only the files
+	hh_interp.c
+	hh_data.c
+	hh_error.c
+	hh_printf.c
+	hh_avl.c
+and
+	hh_insn.def
+	hh_error.def
+and the headers
+	hh_common.h
+	hh_interp.h
+	hh_data.h
+	hh_error.h
+	hh_printf.h
+	hh_avl.h
+are used by the byte code interpreter.
+
+The byte code compiler uses the same `hh_data.[hc]' as the interpreter
+in order to construct cells in the identical format to the constant
+pool of the generated byte code program.  But there are some minor
+allocation direction differences, and hence it defines the macro
+`HH_COMPILER'.
+
+All file-, macro and identifier names are prefixed with `hh_' or `HH_'.
+This hopefully helps to port HedgeHog to systems with polluted
+namespaces.
+
+We have tried to put calls to platform-specific or frequently broken
+functions behind macros in the interpreter.  For example, because many
+systems have broken `memmove's, all calls go through the macro
+`HH_MEMMOVE', which may be defined to something platform-specific.
+Other such macros are `HH_ASSERT' and `HH_MEMCMP'.  `malloc' and
+`free' (defined to `HH_MALLOC' and `HH_FREE') are used sparingly.
+
+We also use a private version of the `printf' function family, which
+not only is much smaller than typical `printf's, but also has a few
+useful additional features (and lacks some that are not useful to us).
+The interpreter's main program file (`hh_interp_unix.c' in UNIXes)
+implements the code that writes the `printf'ed characters to stdout,
+system log, serial line, or wherever.  Because `hh_data.c' is used by
+both the compiler and interpreter, all calls to the `printf' are
+hidden behind the macro `HH_PRINT'.

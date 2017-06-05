@@ -1,0 +1,41 @@
+;; Accept an incoming connection, reply to PINGs with PONGs, and
+;; return to accept new connections when the previous connection
+;; breaks.  Note that this is /NOT/ an exemplary way to do this -
+;; better use the state machine abstraction.
+
+(set listen-port 5555)
+
+(set listen-fd (unix-socket unix-AF_INET unix-SOCK_STREAM 0))
+(if (< listen-fd 0)
+    (panic "Failed to open listening socket, errno = " (unix-errno) "\n"))
+(set sockaddr_in (ip-sockaddr_in 5555 unix-INADDR_ANY))
+(if (< (unix-bind listen-fd sockaddr_in) 0)
+    (panic "Failed to bind socket, errno = " (unix-errno) "\n"))
+(if (< (unix-listen listen-fd 5) 0)
+    (panic "Failed to listen to socket, errno = " (unix-errno) "\n"))
+;; This is what we would do if we would if we wanted a non-blocking accept.
+;;(if (< (unix-fcntl listen-fd unix-F_SETFL unix-O_NONBLOCK) 0)
+;;    (panic "Failed to fcntl socket, errno = " (unix-errno) "\n"))
+
+(def (accept-loop)
+     (print "accepting...\n")
+     (let accept-result (unix-accept listen-fd)
+	  (if (nil? accept-result)
+	      (if (= (unix-errno) unix-EAGAIN)
+		  (accept-loop)
+		  (panic "Failed to accept, errno = " (unix-errno) "\n"))
+	      (do (ping-pong-loop (car accept-result))
+		  (accept-loop)))))
+
+(def (ping-pong-loop fd)
+     (let s (unix-read fd 80)
+	  (if (or (nil? s) (eq? s "quit\r\n"))
+	      (do (print "Closed connection.\n")
+		  (unix-close fd))
+	      (do (print "read -> " (list s) "\n")
+		  (unix-write fd "PONG\n")
+		  (ping-pong-loop fd)))))
+
+(accept-loop)
+;; This line is not reached, otherwise we should do also
+;; (unix-close listen-fd)

@@ -1,0 +1,850 @@
+<HTML>
+<HEAD>
+<TITLE>A+ Reference: Calling C Subroutines from A+</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF">
+<A NAME=HEADING929>
+<H1><FONT color="#FF0000">Calling <A NAME=0>C Subroutines from A+</FONT></H1>
+<a name="CONTENTS59">
+<UL>
+<A HREF="#HEADING930">  How to Compile C Functions to Be Called by A+</A><BR>
+<A HREF="#HEADING931">  How to Use C Functions When You Are in A+; Dynamic Loading</A><BR>
+<UL>
+<A HREF="#HEADING932">  Dynamic Loading on Sun Machines</A><BR>
+<A HREF="#HEADING933">  Dynamic Loading under AIX</A><BR>
+<A HREF="#HEADING933A"> Another Way To Call C Routines From A+: Static Link</A><BR>
+</UL>
+<A HREF="#HEADING934">  The Basic A+ Data Types</A><BR>
+<UL>
+<A HREF="#HEADING935">  Reference Counts - a Closer Look</A><BR>
+</UL>
+<A HREF="#HEADING936">  The Argument Vector</A><BR>
+<UL>
+<A HREF="#HEADING937">  Theory</A><BR>
+<A HREF="#HEADING938">Table: C-Function Argument Types</A><BR>
+<A HREF="#HEADING939">  Practice</A><BR>
+</UL>
+<A HREF="#HEADING940">  Returning a Result from a C Function</A><BR>
+<UL>
+<A HREF="#HEADING941">  Creating A+ Objects</A><BR>
+<A HREF="#HEADING942">Table: Creating A+ Objects</A><BR>
+<A HREF="#HEADING943">  Memory Allocation - What to Do and What Not to Do</A><BR>
+</UL>
+<A HREF="#HEADING944">  Modifying and Returning Arguments</A><BR>
+<UL>
+<A HREF="#HEADING945">  Examples of Modifying and Returning Arguments</A><BR>
+</UL>
+<A HREF="#HEADING946">  Signalling Errors</A><BR>
+<UL>
+<A HREF="#HEADING947">Table: Error Codes</A><BR>
+</UL>
+<A HREF="#HEADING948">  Executing A+ Expressions from <font face=Kapl>_dyld</font>ed C Programs</A><BR>
+<A HREF="#HEADING949">  Mapped Files</A><BR>
+<A HREF="#HEADING950">  Memory Allocation in A+ - a Closer Look</A><BR>
+<A HREF="#HEADING951">Table: Macros for Querying Object Type</A><BR>
+<A HREF="#HEADING952">  The Symbol Structure</A><BR>
+<UL>
+<A HREF="#HEADING953">  Symbols in Variables</A><BR>
+<A HREF="#HEADING954">  Using Symbols in Functions</A><BR>
+</UL>
+</UL>
+<HR>
+<blockquote>
+This chapter describes how to write C programs to be called from within A+, and what you
+ have to do within A+ to call those functions.
+</blockquote>
+<A NAME=HEADING930>
+<H1><FONT color="#20B2AA">How to Compile C Functions to Be Called by A+</FONT></H1>
+<blockquote>
+<A NAME=1>Writing functions to be called from A+ is straightforward. You must:<P>
+<OL>
+<LI>Write the C function normally, with<font face=Courier> #include</font>s for the<font
+ face=Courier> .h </font>files described below. Several functions may be included in the
+ file. The file should <i>not</i> have a<font face=Courier> main() </font>function in it!
+<P>It is a good idea to make all functions "static" (by putting the keyword<font
+ face=Courier> static </font>before the function name) unless they are directly called from
+ A+. That is, all subroutines should be made static. This prevents their names from
+ cluttering up the A+ namespace, which might cause a problem if another dynamic load contains
+ a subroutine with the same name. All nonlocal variables <i>must</i> be static.<P>
+<LI>Compile the C source code into an object file (<i>not</i> an executable file). This is
+ done with the<font face=Courier> -c </font>argument to<font face=Courier>
+ cc</font>.<spacer type=horizontal size=8> E.g.,<br >
+<font face=Courier>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cc -c -o foo.o foo.c</font><br >
+compiles the C source file<font face=Courier> foo.c </font>into<font face=Courier>
+ foo.o</font>.<p>
+You may compile your code into several object files. If you do this, remember
+ that static functions can be called only from another function in the same object file.
+ But see "<a href="#HEADING933A">Another Way To Call C Routines From A+:
+ Static Link</a>".<P>
+</OL>
+</blockquote>
+<A NAME=HEADING931>
+<H1><FONT color="#20B2AA">How to <A NAME=3>Use C Functions When You Are in
+ A+; Dynamic Loading</FONT></H1>
+<blockquote>
+Once the functions are written, you must either dynamically load or statically link them
+ into A+ before you can call them. In order to dynamically load them, you must know the
+ names and paths of the object files, and the
+ names of the C functions you want to call (known as the "entry points"). An object file can
+ have several entry points, but you need to know only the names of the entry points you are
+ loading. Static functions cannot be entry points.
+<P>
+<b><font color=red>Warning!</font></b> If the A+ name used in<font face=Kapl>
+ _dyld </font>(in its right argument) begins with an underscore, then the function will be
+ installed in the root context, no matter what the current context, and it will be listed
+ by <font face=Kapl>$sfs</font> but not by <font face=Kapl>$xfs</font>.
+<p>
+The procedures you must follow depend upon the system you are going to use.
+</blockquote>
+<A NAME=HEADING932>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Dynamic <A NAME=5>Loading on Sun
+ Machines</FONT></H2>
+<blockquote>
+When a C program gets compiled, the compiler puts an underscore (<font face=Courier>_</font>)
+ in front of the name of each function. So if you write a routine called<font face=Courier>
+ look()</font>, the entry point will be <font face=Kapl>'_look'</font>.<P>
+Programs are dynamically loaded using the system function <font face=Kapl>_dyld</font>, which takes two
+ arguments. The first (or left) is the name(s) of the object file(s) as a character string.
+ Multiple object files are separated by spaces. All of the subroutines referenced by the
+ entry points must be in one of the object files, or part of A+. You cannot refer to
+ subroutines or entry points already dynamically loaded.<P>
+The second (right) argument is a nested array in the form<br >
+<font face=Kapl>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(entry; name; args)</font><br >
+or, to load more than one function from the same file(s),
+<pre><font face=Kapl>     (entry1; name1; args1;
+      entry2; name2; args2;
+      ...               ;
+      entryN; nameN; argsN)</font></pre>
+where <font face=Kapl>entryI</font> is the entry point name, as a character string, <font face=Kapl>nameI</font> is what
+ you want to call the function in your workspace (the A+ name, also as a character string),
+ and <font face=Kapl>argsI</font> is a numeric vector describing the types of the arguments. (This vector
+ is described below.)<P>
+For example:
+<pre><font face=Kapl>     'test.o' _dyld ('_look'; 'lookat'; 9 0)
+     $xfs
+lookat</font></pre>
+</blockquote>
+<A NAME=HEADING933>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Dynamic<A NAME=7> Loading under
+ AIX</FONT></H2>
+<blockquote>
+The mechanism provided by IBM to support dynamic loading of object code into a running
+ process dictates that three files be provided.<P>
+<OL>
+<LI>A file listing the symbols in the A+ interpreter which are to be accessed by the code to be loaded in. This file is provided for you and can be found in<br>
+<font face=Courier> /usr/local/bin/a+</font><i>x</i><font
+ face=Courier>.</font><i>xx</i><font face=Courier>/lib/liba.exp</font><br>
+where <i>x.xx</i> is the A+ version and release, e.g.,<br >
+<font face=Courier> /usr/local/lib/liba.exp</font>.<P>
+For the current default release, you can use<br >
+<font face=Courier> /usr/local/lib/liba.exp</font>.<P>
+<LI>A file listing the symbols in the code to be loaded that the A+ interpreter needs to
+ know about. You must create this file with an editor.<P>
+<LI>A single object file containing the modules that you wish to load in. This file is
+ produced by the linker as described below and will be referred to as the "shareable
+ object" file. By convention these files should have a <font face=Courier>.so</font>
+ suffix.<P>
+</OL>
+This is best illustrated by an example.<P>
+Below is the file<font face=Courier> ref.c</font>, which returns the reference count of the
+ A+ object passed into it.
+<pre><font face=Courier>/* begin ref.c */
+#include &lt;a/arthur.h&gt;
+I ref(a)   A a; {
+   return a-&gt;c;
+}
+/* end ref.c */</font></pre>
+<P>
+Let's say you want to dynamically load in this function and also the function<font
+ face=Courier> dswap() </font>from
+ the BLAS library. The following procedure should be followed.<P>
+<OL>
+<LI>Create the<font face=Courier> exports </font>file, which enumerates all symbols that you
+ want A+ to know about. The first line of this file contains the full pathname of the<font
+ face=Courier> .so </font>(shareable object) file which will be dynamically loaded.
+ Subsequent lines enumerate symbols to be exported to A+, one per line. In this case we can
+ create the file named<font face=Courier> xmpl-exports</font>:
+<pre><font face=Courier>     #!/u/foobar/src/hodedo/xmpl.so
+     ref
+     dswap</font></pre>
+<LI>Compile all of your C and FORTRAN sources. In this case we only need to compile<font
+ face=Courier> ref.c </font>to produce<font face=Courier> ref.o</font> .
+<pre><font face=Courier>     cc -c ref.c</font></pre>
+<LI>Link together all the object (<font face=Courier>.o</font>) files and libraries that
+ contain modules which you want to load into A+. The link command must specify an entry point
+ (with the<font face=Courier> -e </font>option) for the linked result because the default
+ entry point is<font face=Courier> crt0</font>, which is already the A+ interpreter's entry
+ point. For the entry point, use any function name you wish that is in the code to be loaded.
+ The link command must also specify the two files describing the symbols to be imported or
+ exported. In this case we need to link<font face=Courier> ref.o </font>and <font
+ face=Courier>libblas.a</font>:<p>
+<font face=Courier>cc&nbsp;-e&nbsp;ref&nbsp;-bI:/usr/local/lib/liba.exp&nbsp;-bE:xmpl-exports<br >
+&nbsp;&nbsp;&nbsp;&nbsp;ref.o&nbsp;-o&nbsp;xmpl.so&nbsp;-lblas</font><p>
+<LI>Dynamically load the code into the A+ session. This should occur almost instantaneously.
+<pre><font face=Kapl>   "xmpl.so" _dyld ("ref";"ref";0 9;
+                    "dswap";"dswap";V_,4,FP,4,FP,4)</font></pre>
+</OL><P>
+<b>Notes:</b><P>
+<UL>
+<LI>Do not dynamically load the same<font face=Courier> .so </font>more than once into the
+ same A+ session. This can cause A+ to crash - and sometimes the machine.<P>
+<LI>The left argument to<font face=Kapl> _dyld </font>must be a single<font face=Courier> .so
+ </font>file name.<P>
+<LI>You do not need to put a leading '<font face=Courier>_</font>' on C symbol names.<P>
+<LI>If you are running a version of the A+ interpreter other than<br >
+<font face=Courier>/usr/local/bin/a</font><br >
+then you will need to use an export file other than<br >
+<font face=Courier>/usr/local/lib/a-exports</font><br >
+because the first line of the file has to have the path hardcoded. The file<br >
+<font face=Courier>/usr/local/lib/aX-exports</font><br >
+has been provided for aX users.
+</UL>
+</blockquote>
+<A NAME=HEADING933A>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Another Way To Call C Routines From A+:
+ Static Link</FONT></H2>
+<blockquote>
+A hook that was added allows you to create a new A+ executable file with your C or C++
+ code linked in. The main use for this is in debugging code that will later be dynamically
+ loaded.<P>
+The hook is an empty function called<font face=Courier> uextInstall()</font>. It is invoked
+ in<font face=Courier> /u/aplus/3prod/src/main/aplus_uext.c</font>. To use this facility to
+ load your functions into A+, you need to add<font face=Courier> install()</font> calls
+ to<font face=Courier> uextInstall()</font>.<p >
+Then you compile and link, to create an A+ executable file. If you compile with the debug
+ flag, you can run the new A+ executable file under a debugger and have access to your own
+ code.
+</blockquote>
+<A NAME=HEADING934>
+<H1><FONT color="#20B2AA">The Basic A+ Data Types</FONT></H1>
+<blockquote>
+The include file
+ <font face=Courier>a/arthur.h</font>
+ defines the basic data types which A+ employs. These are: <font face=Courier>I</font> -
+ long; <font face=Courier>F</font> - double; <font face=Courier>C</font> - char.
+ When dealing with A+ objects, these typedefs should be used to refer to integers,
+ floating-point numbers, and characters, respectively.<P>
+An A+ object (a variable in an A+ "workspace") has the following typedef:<br>
+<font face=Courier>typedef struct a{ I c, t, r, n, d[MAXR], i, p[1];};<p>
+c</font><b> - reference count.</b><P>
+How many pointers to this object exist?  This helps determine whether an object can be
+ modified in place, or whether a copy of the object must be created. If this number is 0,
+ the object is a mapped file, and cannot be written to directly.
+ ("<A HREF="#16">Mapped Files</A>" tells how to write to mapped files.)<P>
+An A+ object should be modified only if <font face=Courier>c</font> is 1.<P>
+<font face=Courier>t</font><b> - type.</b><P>
+What are the elements of the object? They should be one of the following values, which
+ are <font face=Courier>#define</font>d in
+ <font face=Courier>a/arthur.h</font>:&nbsp;
+ <font face=Courier>It</font>, <font face=Courier>Ft</font>, <font face=Courier>Ct</font>,
+ <font face=Courier>Et</font>, or <font face=Courier>Xt</font>.
+ <font face=Courier>It</font>, <font face=Courier>Ft</font>, and
+ <font face=Courier>Ct</font> refer to integers, floating-point numbers, and characters
+ (<font face=Courier>I</font>, <font face=Courier>F</font>, <font face=Courier>C</font>).
+ Nested arrays and symbols are type <font face=Courier>Et</font>.
+ <font face=Courier>Xt</font> is used for "executable types" - functions and operators.
+ These are beyond the scope of this chapter.<P>
+<font face=Courier>r</font><b> - rank.</b><P>
+The number of dimensions of the object.<P>
+<font face=Courier>n</font><b> - number of elements.</b><P>
+The number of elements in the data array (<font face=Courier>p</font>). With the type
+ (<font face=Courier>t</font>), it determines the size of the A+ object.<P>
+<font face=Courier>d[]</font><b> - dimensions.</b><P>
+An array of the dimensions (<font face=Kapl>Ò</font>...) of the object.<font face=Kapl>
+ MAXR </font>is the largest rank allowed (currently 9).<P>
+<font face=Courier>i</font><b> - items.</b><P>
+The number of items in the object. It is the number reported by
+ <A HREF="APlusRefV2_14.html#108"><font face=Kapl>_items</font></A>.<P>
+<font face=Courier>p[]</font><b> - data array.</b><P>
+It is defined as having one element of type <font face=Courier>I</font>, but that is just
+ to fool the compiler. In fact, its actual length is determined by
+ <font face=Courier>n</font>, and the actual type is determined by
+ <font face=Courier>t</font>. It is worth noting here that, for objects of type
+ <font face=Courier>Ct</font>, <font face=Courier>p[]</font> is always a null-terminated
+ string, and has <font face=Courier>n+1</font> elements. For all other types,
+ <font face=Courier>p[]</font> has <font face=Courier>n</font> elements.<P>
+Since A+ objects are almost always allocated from dynamic memory, variables are more often
+ than not pointers to A+ structures rather than the structures themselves. The
+ type <font face=Courier>A</font> is defined to be a pointer to an A+ object.<P>
+Nested arrays are A+ objects of type <font face=Courier>Et</font>. For such
+ objects, <font face=Courier>p[]</font> is an array of pointers to the A+ objects which
+ compose the array. Symbols are also represented as objects with type
+ <font face=Courier>Et</font>. For symbols, <font face=Courier>p[]</font>is an array of
+ pointers to another struct (the <font face=Courier>s</font> struct). Symbols are somewhat
+ more complicated than other A+ objects.
+</blockquote>
+<A NAME=HEADING935>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Reference Counts - a Closer Look</FONT></H2>
+<blockquote>
+The <A NAME=8>reference count field is used to save memory and time by eliminating
+ identical copies of variables. When a variable is assigned the value of  another variable,
+ that variable is normally not copied. Instead, the new variable name is set to point at
+ the same A+ object, and the reference count of that object is incremented.<P>
+Objects with reference counts greater than one are pointed to by more than one variable and
+ should not be changed. You must duplicate the object instead (and decrement the reference
+ count for the original object).<P>
+When you "dereference" an object - by expunging a variable, or dropping elements from a
+ linked list - the reference count is decremented. If it becomes zero when decremented, it
+ is destroyed, and the associated memory is freed.<P>
+The function<font face=Courier> ic(aobj) </font>is used to increment a reference count,
+ and<font face=Courier> dc(aobj) </font>is used to decrement it (and possibly erase the
+ object). They work recursively on nested objects.<P>
+<font face=Courier>dc() </font>is rarely used in C subroutines.<font face=Courier> ic()
+ </font>is used primarily when modifying or returning arguments passed to the function. (See
+ below.)
+</blockquote>
+<A NAME=HEADING936>
+<H1><FONT color="#20B2AA">The Argument Vector</FONT></H1>
+<blockquote>
+In A+, all functions must have a fixed number of arguments (a number not exceeding 9). This
+ is also true for C functions called by A+. (This fixed number for a C function to be called
+ from A+ cannot exceed 8.) In addition, C functions often expect only certain kinds of
+ arguments - integers, for example - and behave badly if they receive an argument they do
+ not expect.<P>
+The argument vector describes the number and types of the arguments to the C function, and
+ the result which it returns. Also, A+ provides several different ways to pass data from A+
+ to C, which simplifies the C programs you must write. The argument vector allows you to
+ select among these ways.
+</blockquote>
+<A NAME=HEADING937>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Theory</FONT></H2>
+<blockquote>
+The <A NAME=9>argument vector is composed of numbers between 0 and 15. The first number
+ describes the result of the function, if any. If there is no result, use code 8, as
+ described below. Otherwise use codes 0, 7, or 9.<P>
+The remaining numbers describe the arguments to the function. The length of the vector
+ determines how many arguments there are. The maximum number of arguments allowed is
+ eight.<P>
+The sixteen codes are shown in the table "<A HREF="#10">C-Function Argument Types</A>".<P>
+<A NAME=HEADING938>
+<table border=1 cellspacing=0 cellpadding=8>
+<caption><FONT color="#20B2AA" size=+2><B>
+C-Function <A NAME=10>Argument Types</B></FONT></caption>
+<tr>
+<th>Code</th><th>Meaning (an asterisk means acceptable for a result)</th></tr>
+<tr>
+<td align=center>0</td><td>any A+ object <A HREF="#10A">*</A></td></tr>
+<tr>
+<td align=center>1</td><td>A+ object consisting of integers</td></tr>
+<tr>
+<td align=center>2</td><td>A+ object consisting of floating-point numbers</td></tr>
+<tr>
+<td align=center>3</td><td>A+ object consisting of characters</td></tr>
+<tr>
+<td align=center>4</td><td>data array of any A+ object</td></tr>
+<tr>
+<td align=center>5</td><td>data array of A+ object consisting of integers</td></tr>
+<tr>
+<td align=center>6</td>
+<td>data array of A+ object consisting of floating-point numbers</td></tr>
+<tr>
+<td align=center>7</td><td>data array of A+ object consisting of characters
+ <A HREF="#10A">*</A></td></tr>
+<tr>
+<td align=center>8</td>
+<td>First element of data array (use only for <i>void</i> result)
+ <A HREF="#10A">*</A></td></tr>
+<tr>
+<td align=center>9</td><td>single integer <A HREF="#10A">*</A></td></tr>
+<tr>
+<td align=center>10</td><td>single floating-point number (<i>don't use</i>)</td></tr>
+<tr>
+<td align=center>11</td><td>single character (<i>don't use</i>)</td></tr>
+<tr>
+<td align=center>12</td><td>unique copy of any A+ object</td></tr>
+<tr>
+<td align=center>13</td><td>unique copy of A+ object consisting of integers</td></tr>
+<tr>
+<td align=center>14</td>
+<td>unique copy of A+ object consisting of floating-point numbers</td></tr>
+<tr>
+<td align=center>15</td><td>unique copy of A+ object consisting of characters</td></tr>
+</table><P>
+<A NAME=10A>*  &nbsp; The result must be one of the codes marked with an asterisk.<P>
+Codes 0-3 pass a pointer to the A+ structure. Codes 4-7 pass a pointer to the data array
+ within the A structure (<font face=Courier>aobj-&gt;p</font>). Codes 8-11 pass the value of
+ the first element of the data array of the A+ object (<font
+ face=Courier>*aobj-&gt;p</font>). This does not work correctly for characters and
+ floating-point numbers, which have a different size. Codes 12-15 pass an A+ object whose
+ reference count is guaranteed to be 1. This means that you can modify the object without
+ causing adverse side effects.
+</blockquote>
+<A NAME=HEADING939>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Practice</FONT></H2>
+<blockquote>
+Although all 16 codes are defined, not all of them are useful. In fact, if you need
+ information about the rank and type of your argument, only types 0 and 12 should be
+ used.<P>
+If you need to know anything about the shape of the argument, the entire A+ object must be
+ passed. This limits you to types 0-3, or 12-15, which are used only in special
+ circumstances (see below). Using types 1-3 causes the interface to return a type error if
+ you are passed the wrong kind of data. It also coerces floating-point numbers to integer
+ (provided that <font face=Kapl>1|</font><i>data</i> is 0). You must do any checking for
+ rank or length yourself.<P>
+Since argument types 4-7 and 8-11 do not pass you the entire A+ object, you cannot check
+ rank or the number of elements of the object.<P>
+Argument types 4-6 are problematic. They pass you a pointer to the data array, but you have
+ no way of knowing the size or dimensions of the array. Type 7 (character) is useful, and
+ will pass you a character string, which is null-terminated. You will, however, lose all
+ shape information, so a vector of length 15 will appear identical to a 3 by 5 matrix.<P>
+Argument types 8-11 are designed for single-element arrays. (Anything else generates a rank
+ or length error.)  This is currently defined only for integers, so types 10 and 11 should
+ not be used. When passing or returning a scalar integer, use type 9. When a function does
+ not return a result, use type 8.<P>
+Types 12-15 are used when you want to make an internal modification to the A+ structure
+ passed, and then return the result. An argument passed this way can be safely modified.
+</blockquote>
+<A NAME=HEADING940>
+<H1><FONT color="#20B2AA">Returning a Result from a C Function</FONT></H1>
+<blockquote>
+Most C functions called by A+ return a result. The argument type for the result must be 0
+ (an arbitrary A+ object), 7 (a character string), or 9 (an integer scalar). If your function
+ does not return a result, it should be declared as "void", and the return type should be
+ 8.<P>
+To return a scalar integer (type 9), just use the return command,
+ e.g.,<font face=Courier> return(7)</font>.<P>
+To return a character string, also use the<font face=Courier> return </font>command. Be sure
+ to declare your function as returning a<font face=Courier> char*</font>. E.g.,<font face=Courier> char&nbsp;*hw()&nbsp;{&nbsp;return("Hello,&nbsp;world!");&nbsp;}</font>.<P>
+Note that A+ takes a copy of the string you return, so you are responsible for freeing any
+ strings you create with<font face=Courier> malloc()</font>,<font face=Courier>
+ ma()</font>, or<font face=Courier> strdup()</font>. In general, you can free the string just
+ before returning it, and this will work fine.<font face=Courier> ma() </font>performs atmp
+ memory allocation, where the argument specifies the number of words, and returns
+ <font face=Courier>I*</font>.<P>
+If you are returning an argument as the result, you must use<font face=Courier> ic()</font>.
+ See "<a href="#13">Modifying and Returning Arguments</a>".<p>
+If you are returning an A+ object (arg type 0 and not an argument to the function), you must
+ create the appropriate object. The next section describes how to do this. Declare your
+ function as returning an "A" type - a pointer to an A+ object. For example,<br>
+<font face=Courier>A foo(x,y)</font><P>
+If you are returning an A+ object,<font face=Courier> return(0) </font>causes a null to be
+ returned. Returning 0 can also be used to indicate an error condition.
+</blockquote>
+<A NAME=HEADING941>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Creating A+ Objects</FONT></H1>
+<blockquote>
+A+ provides several functions to create A+ objects. You must know the size and type of an A+
+ object before you create it. There are several functions to make it easier to create common
+ A+ objects, such as vectors, or integer scalars.
+</blockquote>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Initialized object</b>
+<blockquote>
+<pre></font><font face=Courier>A gi(i) I i;            /* </font>make a scalar integer<font face=Courier> */
+A gf(f) F f;            /* </font>make a scalar float<font face=Courier> */
+A gsv(x,s) I x; C *s;   /* </font>make a string; <font face=Courier>x</font> is 0 (<font face=Courier>raw</font>), 1 (<font face=Courier>apl</font>), or 2 (<font face=Courier>c</font>) <font face=Courier>*/
+A gc(t,r,n,d,p)I t,r,n,*d,*p;   /* </font>make an A+ object,<font face=Courier>
+                                   </font>copying data from<font face=Courier> p */</font></pre>
+</blockquote>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Uninitialized object</b>
+<blockquote>
+<A NAME=HEADING942>
+<table border=1 cellspacing=0 cellpadding=8>
+<caption><FONT color="#20B2AA"><B>
+Creating A+ Objects</B></FONT></caption>
+<tr>
+<th>Expression</th><th>Effect</th></tr>
+<tr>
+<td><font face=Courier>A&nbsp;gs(t)&nbsp;I&nbsp;t;</font></td><td>make a scalar</td></tr>
+<tr>
+<td><font face=Courier>A&nbsp;gv(t,n)&nbsp;I&nbsp;t,&nbsp;n;</font></td>
+<td>make a vector</td></tr>
+<tr>
+<td><font face=Courier>A&nbsp;gm(t,d1,d2)&nbsp;I&nbsp;t,d1,d2;</font></td>
+<td>make a matrix (2-dimensional array)</td></tr>
+<tr>
+<td><font face=Courier>A&nbsp;ga(t,r,n,d)&nbsp;I&nbsp;t,r,n,*d;</font></td>
+<td>make an array (<font face=Courier>r </font>dimensions)</td></tr>
+<tr>
+<td><font face=Courier>A&nbsp;gd(t,a)&nbsp;I&nbsp;t;&nbsp;A&nbsp;a;</font></td>
+<td>make an object taking<font face=Courier> r</font>,<font face=Courier>n</font>,<font
+ face=Courier>d </font>from <font face=Courier>a</font>.<br>
+<font face=Courier>gd(t,a)</font>
+ &lt;=&gt; <font face=Courier>ga(t,a-&gt;r,a-&gt;n,a-&gt;d)</font></td></tr>
+</table><P>
+The argument names, in all cases, conform to the A+ structure described above.
+ <font face=Courier>t</font> is type, <font face=Courier>r</font> is rank,
+ <font face=Courier>n</font> is the number of elements, <font face=Courier>d</font> is the
+ array of dimensions. New A+ objects always have reference counts of one.<P>
+Because creating A+ objects involves memory allocation, whenever you create an A+ object
+ you must later either destroy it with <font face=Courier>dc()</font> (see below), or
+ return it, either alone or as part of a nested array.
+</blockquote>
+<A NAME=HEADING943>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Memory <A NAME=11>Allocation - What to Do
+ and What Not to Do</FONT></H1>
+<blockquote>
+<A NAME=12>A+ includes its own memory allocation functions for atmp:<font face=Courier>
+ ma()</font>,<font face=Courier> mab()</font>, and<font face=Courier> mf()</font>.
+ They work pretty much like<font face=Courier> malloc() </font>and<font face=Courier>
+ free()</font>, </b><i>except</i> that<font face=Courier> ma() </font>takes a number of words
+ as an argument rather than a number of bytes (1 word = 4 bytes) and that<font
+ face=Courier> ma() </font>and<font face=Courier> mab() </font>use atmp
+ and<font face=Courier> malloc() </font>uses the heap, and therefore should probably be
+ limited to small allocations, under 1K, say.<P>
+For portability, use<font face=Courier> mab() </font>or<font face=Courier> malloc()</font>,
+ and cover your allocation and deallocation routines, checking for errors such as no more
+ space. If you do use<font face=Courier> ma()</font>, be careful!  Remember it takes an
+ argument in words, not bytes.<P>
+Anything you allocate with<font face=Courier> ma() </font>or<font face=Courier> mab()
+ </font>you must free with<font face=Courier> mf()</font>. Anything that you allocate
+ with<font face=Courier> malloc() </font>or<font face=Courier> strdup() </font>must be freed
+ with<font face=Courier> free()</font>. Don't mix them up. (This is another good reason to
+ stick with<font face=Courier> mab()</font>.)<P>
+To "erase" an A+ object, call<font face=Courier> dc(aobj)</font>, <i>not</i><font
+ face=Courier> mf(aobj)</font>. This should be rare, since you should not erase arguments to
+ your function, so the only A+ objects you erase should be ones that you created earlier in
+ the function. This shouldn't come up too often.
+</blockquote>
+<A NAME=HEADING944>
+<H1><FONT color="#20B2AA">Modifying <A NAME=13>and Returning Arguments</FONT></H1>
+<blockquote>
+In general, C routines called from A+ are expected to behave like A+ routines - all arguments
+ are call by value. This means that the arguments should not be modified, since that would
+ cause unexpected side effects in the A+ workspace.<P>
+However, if you use argument types 12-15, you can safely modify the arguments to the
+ function. These types guarantee that the argument has a reference count of 1.<P>
+When you create your own A+ object, using<font face=Courier> ga() </font>for example, you can
+ simply return the created object when your program exits. This is not true for modified
+ arguments, or arguments returned as part of a nested array. To return a modified argument,
+ or incorporate an argument as part of a nested array, you must run<font face=Courier> ic()
+ </font>on the object.<P>
+The reason is that the function<font face=Courier> dc() </font>is run on all arguments after
+ your program exits. This function causes the arguments to be erased unless you increase the
+ reference count with<font face=Courier> ic()</font>. If you forget to do this, values of
+ variables in the A+ workspace will be changed randomly.<P>
+<A NAME=14>Since<font face=Courier> ic() </font>is defined as returning an integer, you will
+ often want to cast the result to type A. If you don't do this, you will get the compiler
+ warning "illegal combination of pointer and integer".
+</blockquote>
+<A NAME=HEADING945>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Examples of Modifying and Returning
+ Arguments</FONT></H2>
+<blockquote>
+<b>Example 1:</b><font face=Courier> join</font><P>
+Let's say we want to write a function,<font face=Courier> join()</font>, that takes two A+
+ objects and returns a nested array containing the two elements. That is,<font face=Kapl> join{a;b}
+ </font>is the same as<font face=Kapl> (a;b)</font>.<P>
+In C, we would write:
+<pre></font><font face=Courier>A join(obj1, obj2)
+  A obj1, obj2;
+  {
+   A result=gv(Et, 2);      /* </font>create nested vector of length 2<font face=Courier> */
+   result-&gt;p[0]=ic(obj1);   /* </font>load result vector with<font face=Courier> obj</font>s,<font face=Courier>
+                               </font>incrementing reference count<font face=Courier> */
+   result-&gt;p[1]=ic(obj2);
+return(result);             /* </font>return result, not incremented<font face=Courier>
+                               </font>because we created it in this function<font face=Courier> */
+}</font></pre>
+After compiling the function into<font face=Courier> join.o</font>, we would then enter in
+ A+:
+<pre><font face=Kapl>     'join.o' _dyld ('_join';'join';0 0 0)</font></pre>
+We can now use <font face=Kapl>join</font> as a function in the workspace:
+<pre><font face=Kapl>     7 join 'abc'
+&lt;  7
+&lt; abc</font></pre>
+<b>Example 2:</b><font face=Courier> clone</font><P>
+Now we want to write a function that takes an arbitrary A+ object (<font face=Kapl>aobj</font>), and an
+ integer (<font face=Kapl>n</font>), and returns a nested array containing <font face=Kapl>n</font> copies of
+ <font face=Kapl>aobj</font>. That is, <font face=Kapl>clone(aobj, n)</font> is equivalent to <font face=Kapl>n Ò &lt;aobj</font>.
+ Notice that we increment the reference count each time we insert <font face=Kapl>aobj</font> into the
+ nested array.<P>
+In C we would write:
+<pre><font face=Courier>A clone(aobj, n)
+  A aobj;
+  I n;
+{
+    I i;
+    A result=gv(Et, n);
+    for(i=0;i&lt;n;++i) result-&gt;p[i]=ic(aobj);
+    return(result);
+}</font></pre>
+We would load in A+ by entering:
+<pre><font face=Kapl>     'clone.o' _dyld ('_clone';'clone';0 0 9)
+     'abc' clone 2
+&lt; abc
+&lt; abc</font></pre>
+<b>Example 3:</b><font face=Courier> ravel</font><P>
+Now let's write a function that modifies its argument. We will replicate the Ravel function
+ (monadic comma). Whatever we get, we will turn into a vector. We could do this by copying
+ the<font face=Kapl> aobj </font>into a vector:
+<pre></font><font face=Courier>A ravel1(aobj)
+  A aobj;
+{
+    A result;
+    /* </font>make new <font face=Courier>a</font> object<font face=Courier> */
+    result=gc(aobj-&gt;t, 1, aobj-&gt;n, &amp;aobj-&gt;n, aobj-&gt;p);
+    return(result);
+}</font></pre>
+To load in A+:
+<pre><font face=Kapl>     'ravel1.o' _dyld ('_ravel1';'ravel';0 0)</font></pre>
+We can get a somewhat neater and faster function if we modify the argument in place. Thus:
+<pre></font><font face=Courier>A ravel2(aobj)
+  A aobj;
+{
+    aobj-&gt;r = 1;         /* </font>change argument in place<font face=Courier> */
+    aobj-&gt;d[0]=aobj-&gt;n;
+    return(ic(aobj));    /* </font>increment rc of modified argument<font face=Courier> */
+}</font>
+
+<font face=Kapl>     'ravel2.o' _dyld ('_ravel2';'ravel';0 12)</font></pre>
+Note that we must now use argument type 12, and increment the reference count on the result
+ (because it will automatically be decremented upon this function's return). Note also that,
+ since the argument that is being modified is of type 12, it may be either the argument that
+ appears in the A+ expression calling the function or a copy of that object. It will be a
+ copy unless the reference count is 1 for the object.
+</blockquote>
+<A NAME=HEADING946>
+<H1><FONT color="#20B2AA">Signalling Errors</FONT></H1>
+<blockquote>
+If you detect an infelicity in your function, you may want to cause the A+ process to
+ suspend execution and indicate, for example, a length error. This is done using two
+ external variables:<font face=Courier> I q; C *qs;</font><p>
+To report an error, set the value of<font face=Courier> q </font>(and possibly<font
+ face=Courier> qs</font>), and<font face=Courier> return(0)</font>. If your program
+ returns 0, the A+ process will check the value of<font face=Courier> q</font>. A nonzero
+ value indicates an error condition.<P>
+Positive numbers represent different predefined error codes, as shown in the following
+ <A HREF="#15">table</A>. <P>
+<A NAME=HEADING947>
+<table>
+<caption><FONT color="#20B2AA" size=+2><B>
+Error <A NAME=15>Codes</B></FONT></caption>
+<tr valign=top><td>
+ <table border=1 cellspacing=0 cellpadding=8>
+ <tr><th>Code</th><th>Meaning</th></tr>
+ <tr><td align=center>1</td><td>interrupt</td></tr>
+ <tr><td align=center>2</td><td>wsfull</td></tr>
+ <tr><td align=center>3</td><td>stack</td></tr>
+ <tr><td align=center>4</td><td>value</td></tr>
+ <tr><td align=center>5</td><td>valence</td></tr>
+ <tr><td align=center>6</td><td>type</td></tr>
+ <tr><td align=center>7</td><td>rank</td></tr>
+ <tr><td align=center>8</td><td>length</td></tr>
+ <tr><td align=center>9</td><td>domain</td></tr>
+ </table>
+</td><td>
+ <table border=1 cellspacing=0 cellpadding=8>
+ <tr>
+<th>Code</th><th>Meaning</th></tr>
+ <tr><td align=center>10</td><td>index</td></tr>
+ <tr><td align=center>11</td><td>mismatch</td></tr>
+ <tr><td align=center>12</td><td>nonce</td></tr>
+ <tr><td align=center>13</td><td>maxrank</td></tr>
+ <tr><td align=center>14</td><td>nonfunction</td></tr>
+ <tr><td align=center>15</td><td>parse</td></tr>
+ <tr><td align=center>16</td><td>maxitems</td></tr>
+ <tr><td align=center>17</td><td>invalid</td></tr>
+ <tr><td align=center valign=top>18</td><td>nondata (for an argument of any type other than
+ 0, A+ will check for nondata; you must detect and handle wrongly nondata type 0
+ arguments)</td></tr>
+ </table>
+</td></tr></table><P>
+If <font face=Courier>q</font> is -1, the A+ process will report the error in the
+ <font face=Courier>qs</font > string.<P>
+The file <font face=Courier>a/firca.h</font> contains
+ <font face=Courier> #define</font>s for these codes, as well as macros for reporting
+ error conditions. For example:
+<pre></font><font face=Courier>if (a != b) ERROUT(ERR_LENGTH);       /* </font>reports a length error<font face=Courier> */<P>
+if (positive(a)) ERRMSG("polarity");  /* </font>reports a polarity error<font face=Courier> */<P></font></pre>
+Note that these macros exit the function, so be sure to clean up first!
+</blockquote>
+<A NAME=HEADING948>
+<H1><FONT color="#20B2AA">Executing A+ Expressions from Dynamically Loaded C
+ Programs</FONT></H1>
+<blockquote>
+Your C programs that have been dynamically loaded into A+ can execute A+ expressions. This
+ allows you to switch between A+ and C as needed. Note that you must start with an A+
+ process, however, to execute these dynamically loaded programs.<P>
+The entry points <font face=Courier>pex()</font> and <font face=Courier>ex()</font>allow
+ you to do this. <font face=Courier>pex()</font> takes one argument, a pointer to a string
+ containing the A+ expression you wish to execute. <font face=Courier>ex()</font> takes two
+ arguments. The first is a context. The second is the string to execute in that context.
+ The prototypes for these functions are:<p>
+<font face=Courier>I pex(I a);<br>
+I ex(CX c, C *s);</font><p>
+The longs returned by both functions are pointers to A+ objects.
+</blockquote>
+<A NAME=HEADING949>
+<H1><FONT color="#20B2AA">Mapped <A NAME=16>Files</FONT></H1>
+<blockquote>
+Mapped Files look very much like other A+ variables, from the C perspective, and have
+ headers as described in "<A HREF="APlusRefV2_60.html#HEADING934">The Basic A+ Data
+ Types</A>". They have reference counts of 0 to distinguish them, however. That is,
+ <font face=Courier>(0==aobj-&gt;c)</font> means the object is a mapped file.<P>
+There is an entry point called <font face=Courier>wr()</font> which will return 1 for a
+ <i>writable</i> mapped file, and 0 otherwise. So a writable mapped file is indicated
+ by <font face=Courier>(0==aobj-&gt;c&nbsp;&amp;&amp;&nbsp;wr(aobj))</font>.<p>
+If you write to an <font face=Courier>aobj</font> where
+ <font face=Courier>(0==aobj-&gt;c&nbsp;&amp;&amp;&nbsp;!wr(aobj))</font> you will cause a
+ segv.<P>
+<font face=Courier>wr()</font> references a variable called <font face=Courier>wt</font>,
+ which is a list of writable addresses. This code is in <font face=Courier>y.c</font>, in
+ the <font face=Courier>a</font> source directory.
+</blockquote>
+<A NAME=HEADING950>
+<H1><FONT color="#20B2AA">Memory <A NAME=18>Allocation in A+ - a Closer Look</FONT></H1>
+<blockquote>
+A+ uses the function<font face=Courier> ma() </font>to allocate memory. This function is
+ specified to return memory locations that begin on 8-byte boundaries, freeing the last
+ three bits for encoding purposes, which is how they are used.<P>
+A+ consists of several types of entities, all represented as integer-size objects. The last
+ three bits of the object indicate the type of object.<P>
+The most common case (for our purposes) is for those three bits to be 000, which indicates a
+pointer to an A+ object. In this case, the pointer can be used as is.<P>
+Other codes require some manipulation. For example, if the code is 010, the object is a
+ pointer to a symbol, and the last three bits must be cleared before the pointer is used.
+ (As stated above, all pointers in A+ point to 8-byte boundaries, as allocated by<font
+ face=Courier> ma()</font>, so the last three bits must be 000, and it is this
+ fact that allows A+ to use the last three bits for type encoding.)<P>
+Several macros are provided in<font face=Courier>a/arthur.h</font>
+ to query the type of an object.
+ The next <A HREF="#19">table</A> gives a list of the macros, and the types of objects they
+ represent.<P>
+<A NAME=HEADING951>
+<table border=1 cellspacing=0 cellpadding=8>
+<caption><FONT color="#20B2AA" size=+2><B>
+Macros <A NAME=19>for Querying Object Type</B></FONT></caption>
+<tr>
+<th>Code</th><th>Macro</th><th>Object Type</th></tr>
+<tr>
+<td align=center>0</td><td><font face=Courier>QA(a)</font></td><td>pointer to A+ object
+ (struct<font face=Courier> a</font>)</td></tr>
+<tr>
+<td align=center>1</td><td><font face=Courier>QV(a)</font></td><td>global variable
+ (struct<font face=Courier> v</font>)</td></tr>
+<tr>
+<td align=center>2</td><td><font face=Courier>QS(a)</font></td><td>pointer to symbol
+ (struct<font face=Courier> s</font>)</td></tr>
+<tr>
+<td align=center>3</td><td><font face=Courier>QE(a)</font></td><td>pointer to expression
+ (struct<font face=Courier> e</font>)</td></tr>
+<tr>
+<td align=center>4</td><td><font
+ face=Courier>QN(a)</font></td><td>flow-control/operator</td></tr>
+<tr>
+<td align=center>5</td><td><font face=Courier>QL(a)</font></td><td>local variable</td></tr>
+<tr>
+<td align=center>6</td><td><font face=Courier>QP(a)</font></td><td>primitive</td></tr>
+<tr>
+<td align=center>7</td><td><font face=Courier>QX(a)</font></td><td>dynamically loaded
+ function</td></tr>
+</table><P>
+Also defined are macros which clear the last three bits for those entities which serve as
+ pointers. They are:<P>
+<font face=Courier>XS(a) </font>retrieve pointer to struct<font face=Courier> s<BR>
+XV(a) </font>retrieve pointer to struct<font face=Courier> v<BR>
+XE(a) </font>retrieve pointer to struct<font face=Courier> e</font><P>
+These three macros work by zeroing out the last three bits and casting the result to the
+ appropriate pointer type. Notice that there are no macros for A+ objects, although you will
+ occasionally have to cast them.<P>
+Finally, there are macros to add the proper code into the last three bits. They are:<P>
+<font face=Courier>MV(a) </font>global variable (struct<font face=Courier> v</font>)<BR>
+<font face=Courier>MS(a) </font>pointer to symbol (struct<font face=Courier> s</font>)<BR>
+<font face=Courier>ME(a) </font>pointer to expression
+ (struct<font face=Courier> e</font>)<BR>
+<font face=Courier>MN(a) </font>flow-control structure or operator<BR>
+<font face=Courier>ML(a) </font>local variable<BR>
+<font face=Courier>MP(a) </font>primitive function<BR>
+<font face=Courier>MX(a) </font>dynamically loaded function
+</blockquote>
+<A NAME=HEADING952>
+<H1><FONT color="#20B2AA">The Symbol Structure</FONT></H1>
+<blockquote>
+The structure of <A NAME=20>symbols is
+ defined in<font face=Courier>a/arthur.h</font> as:<br>
+<font face=Courier>typedef struct s{struct&nbsp;s&nbsp;*s; C&nbsp;n[4];}&nbsp;*S;</font><p>
+<font face=Courier>s</font>&nbsp;&nbsp; the next symbols. This field is included because
+ all symbols created by A+ are stored in linked lists.<P>
+<font face=Courier>n</font>&nbsp;&nbsp; a character string with the name of the symbol.
+</blockquote>
+<A NAME=HEADING953>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Symbols in Variables</FONT></H2>
+<blockquote>
+Symbols are always contained in A+ objects of type <font face=Courier>Et</font> (nested).
+ In normal nested objects, the elements of<font face=Courier> p[] </font>point to A+ objects
+ (struct<font face=Courier> a</font>). With symbols, they point to symbols
+ (struct<font face=Courier> s</font>).
+</blockquote>
+<A NAME=HEADING954>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Using Symbols in Functions</FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Recognizing symbols.</b>
+<blockquote>
+Whenever you encounter an object of type <font face=Courier>Et</font>, the nested elements
+ may be any type of A+ entity, or several types mixed together. You should always check the
+ contents of<font face=Courier> p[] </font>individually, using the<font face=Courier> Q_()
+ </font>macros described above, when using objects of type <font face=Courier>Et</font>.<P>
+To check if an element of an <font face=Courier>Et</font> object is a symbol, use
+ the<font face=Courier> QS() </font>macro.
+</blockquote>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Getting the name of a symbol.</b>
+<blockquote>
+To get the character string associated with the symbol (its "name"), you must turn the symbol
+ into a pointer to an <font face=Courier>s</font>-struct using the<font face=Courier> XS()
+ </font>macro, and access the<font face=Courier> n </font>field within that structure.<P>
+<b>Example 1: Recognizing a symbol and getting its name.</b><P>
+The following C function examines an A+ object and prints out the symbols it contains.
+<pre><font face=Courier>void printsymbols( aobj)
+  A aobj;
+{
+  int i;
+  S sym;
+  if (Et != aobj-&gt;t ) {
+    printf("object not nested\n");
+    return;
+  }
+  for (i=0 ; i&lt;aobj-&gt;n ; ++i ) {
+    if (QS(aobj-&gt;p[i]) {
+      sym = XS(aobj-&gt;p[i]);
+      printf ("Symbol:%s\n", sym-&gt;n);
+    } else printf("Not a symbol\n");
+  }
+}</font></pre>
+</blockquote>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Creating a symbol</b>
+<blockquote>
+It is an essential property of symbols that, if two symbols have the same name, they are the
+ same symbol (point to the same memory location).<P>
+For this reason, you must always create symbols by using the<font face=Courier> si()
+ </font>function. This function takes a character string as an argument, and returns a
+ pointer to an <font face=Courier>s</font>-struct. If the symbol already exists, you get
+ the current memory location. Otherwise, a new symbol is created and stored in A+, and
+ the address of the new symbol is returned.<P>
+If you intend to insert a symbol into an A+ object, you must encode the last three bits as
+ 010, which is best done with the<font face=Courier> MS() </font>macro. Then load the symbol
+ into the<font face=Courier> p[] </font>field of an A+ object of type
+ <font face=Courier>Et</font>.<P>
+<b>Example 2: Returning a symbol</b><P>
+The following function takes a string and returns a symbol with the string as the name.
+<pre><font face=Courier>A makesymbol(str)
+  char *str;
+{
+  A res=gs(Et);
+  res-&gt;p[0] = MS(si(str));
+  return(res);
+}</font></pre>
+</blockquote>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Comparing symbols</b>
+<blockquote>
+Because symbols with the same name are always in the same memory location, you don't need to
+ use string comparisons to check symbols for identity. The result of<font face=Courier> si()
+ </font>will match for any symbol that you use. Just make sure that the symbols you are
+ comparing either both have the 010 in their last three bits, or both have not.<P>
+<b>Example 3: Comparing symbols.</b><P>
+The following function checks whether the A+ object contains the symbol<font face=Kapl> `qwerty</font>. If
+ so, it returns 1, else 0.
+<pre></font><font face=Courier>queryqwerty( aobj)
+  A aobj;
+{
+  int i;
+  S qwerty = MS(si("qwerty"));    /* </font>get symbol and set 010 code<font face=Courier> */
+  if (Et != aobj-&gt;t ) return(0);
+  for (i=0 ; i&lt;aobj-&gt;n; ++i) {
+      if (qwerty == (S) aobj-&gt;p[i]) return(1);
+    }
+  return(0);
+}</font></pre>
+</blockquote>
+<HR>
+<ADDRESS><table width="100%"><tr><td><font size=2><i><a href="mailto:doc@aplusdev.org">doc@aplusdev.org</a></i></font></td><td align=right><font size=2><i>&#169; Copyright 1995&#150;2008 Morgan Stanley Dean Witter &amp; Co.  All rights reserved.</i></font></td></tr></table></ADDRESS>
+</BODY>
+</HTML>

@@ -1,0 +1,158 @@
+######
+#
+# Frequently Asked Questions:
+#
+######
+
+Q. What is the difference between sorts and extended sorts?
+
+A. The statics of ATS is typed and the types for static terms are called
+   sorts. An extended sort is either a sort or a subset sort. For instance,
+   [int] is a sort and [nat] is a subset sort defined as follows
+
+   sortdef nat = {a:int | a >= 0}
+
+   The only use of extended sorts is to form universally or existentially
+   quantified types. For instance, we can form a type as follows
+
+   {a:t@ype} {n,i:nat | i < n} (array (a, n), int i) -> a
+
+   which is considered a shorthand for the type below:
+
+   {a:t@ype} {n,i:int | n >= 0; i >= 0; i < n} (array (a, n), int i) -> a
+
+   However, the following is a typical erroneous use of subset sorts:
+   
+   datatype list (t@ype+, nat) = ...
+                          ^^^
+   Instead, the sort [int] needs to be chosen to replace the sort [nat].
+   In order to capture the fact that all lists have nonnegative length, one
+   may introduce a type definition as follows:
+   
+   typedef list' (a:t@ype, n:int) = [n >= 0] list (a, n)   
+
+   A definition as such , however, does not seem particularly useful in
+   practice.
+
+------
+
+Q. What is the difference between props and types?
+
+A. In ATS, props are assigned to proofs and types are assigned to
+   programs. While proofs are required to be pure and total, programs can
+   be and often are effectful and partial.
+
+------
+
+Q. What are the differences among [case], [case-] and [case+]?
+
+A. [case+] requires that pattern matching be exhaustive. If pattern
+   matching is not exhaustive, then an *error* message is issued. On the
+   other hand, [case] only requires that a *warning* message be issued if
+   pattern matching is not exhaustive. For [case-], no exhaustiveness test
+   is performed. The use of [case-] is recommended only when the code is
+   generated automatically via some tools (e.g., atsyacc).
+
+   Note that pattern matching must be exhaustive in (valid) proofs.
+
+------
+
+Q. What are the differences among [val], [val+], [val-]?
+
+A. The differences are parallel to those among [case], [case+] and [case-].
+
+------
+
+Q. What do {..} and {...} stand for?
+
+A. In the case where a value is passed whose type begins with universal
+   quantifiers, one may need to instantiate these quantifers first before
+   passing the value. The syntax {..} acts like a marker to inform the
+   type-checker that one instantiation is needed here. In order to
+   eliminate all quantifiers, {...} needs to be used. Note that in most
+   cases such markers can be automatically inferred and thus need not to be
+   supplied explicitly by the programmer.
+
+------
+
+Q. What is the difference between [C] and [C()], where [C] is a value
+   constructor of arity 0 (that is associated with some datatype).
+
+A. [C] and [C()] are really the same when used as expressions. However, as
+   patterns, [C] and [C()] are completely different: the former is treated
+   as a variable pattern while the latter only matches the value [C()]. For
+   instance, the following program is rejected as the second clause is
+   redundant (since [nil] is a variable pattern that matches anything):
+
+   fun isEmpty {a:t@ype}
+     (xs: list (a, n)): bool (n == 0) =
+     case+ xs of nil => true | cons _ => false
+   // end of [isEmpty]
+
+   Instead, the problem, which is quite common for beginners programming in
+   ATS, can be easily fixed as follows:
+
+   fun isEmpty {a:t@ype}
+     (xs: list (a, n)): bool (n == 0) =
+     case xs of
+     | nil () => true // using [nil _] for [nil ()] is fine, too
+     | cons _ => false
+   // end of [isEmpty]
+
+------
+
+Q. What is the difference between the following two forms of type annoation:
+
+   1. let val x : T = e in ... end
+   2. let val x = e : T in ... end
+
+A. In the first case, the type of [e] must be synthesized and this type is
+   then compared with the type T. If type synthesis fails, a type error is
+   reported.
+
+   In the second case, the type of the expression [e : T] is [T], which is
+   immediately assigned to [x], and [e] is then checked against [T].
+
+   If in doublt, please choose the second form of type annotation.
+
+------
+
+Q. What is the symbol for "not equal"?
+
+A. The symbol "<>" is used for "not equal".
+
+------
+
+Q. How to write a single precision float point number in ATS?
+
+A. Each of the following expressions gives a single precision float point
+   number representing 3.1415926:
+
+   3.1415926f
+   (3.1415926: float)
+   float_of_double(3.1415926)
+
+------
+
+Q. What is the difference between the following declarations:
+
+   fun id1 {a:type} (x: a): a = x // [a] is a boxed type
+   fun{a:t@ype} id2 (x: a): a = x // [a] is of unknown size
+
+A. [id1] is a polymorphic function in ATS, and it can be type-checked and
+   compiled. However, [id1] can only be applied to a value of some boxed
+   type.  [id2] is a function template in ATS, and it can be type-checked
+   but not compiled immediately. Just like function templates in C++, only
+   instances of [id2] are compiled. If one defined a polymorphic function
+   as follows:
+
+   fun id3 {a:t@ype} (x:a ): a = x // [a] is of unknown size
+
+   then this function can be type-checked and compiled. However, the C code
+   generated from this function contains a type (ats_abs_type) of unknown size,
+   and it results in some error when further compiled by a C compiler. Thus,
+   [id3] cannot really be used in practice.
+
+------
+
+###### end of [FAQ.txt] ######

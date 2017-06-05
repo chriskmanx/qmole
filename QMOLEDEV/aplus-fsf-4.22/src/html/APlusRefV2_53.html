@@ -1,0 +1,352 @@
+<HTML>
+<HEAD>
+<TITLE>A+ Reference: Workspaces and Scripts</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF">
+<A NAME=HEADING608>
+<H1><FONT color="#FF0000"><A NAME=0>Workspaces and Scripts</FONT></H1>
+<a name="CONTENTS52">
+<UL>
+<A HREF="#HEADING609">  Parsing Rules for A+ Script Files</A><BR>
+<A HREF="#HEADING610">  Workspaces</A><BR>
+<UL>
+<A HREF="#HEADING611">  Expression Continuation in Entry and Function Definition</A><BR>
+<A HREF="#HEADING612">  Expression Groups for Immediate Execution</A><BR>
+<A HREF="#HEADING613">  Immediate Execution Display</A><BR>
+<A HREF="#HEADING614">  Default Display of Arrays</A><BR>
+<A HREF="#HEADING615">  Resuming Execution</A><BR>
+<A HREF="#30">                 The Form of Error and Other Messages</A><BR>
+<A HREF="#HEADING616">  Contexts</A><BR>
+<A HREF="#HEADING617">  Local and Global Names</A><BR>
+<A HREF="#HEADING618">  Visible Use of a Name</A><BR>
+<A HREF="#HEADING619">  Listing Names</A><BR>
+<A HREF="#HEADING620">  Reporting the Environment in the Active Workspace</A><BR>
+</UL>
+</UL>
+<HR>
+<A NAME=HEADING609>
+<H1><FONT color="#20B2AA">Parsing Rules for A+ Script Files</FONT></H1>
+<blockquote>
+A+ script<A NAME=2> files are parsed from top to bottom when loaded, and all unresolved
+ names are assumed to be variables. For example, suppose the following two lines appear in
+ a script, in this order:
+<pre><font face=Kapl>f{x}:g Î x
+g{y}:y,' '</font></pre>
+<A NAME=3>When this script is loaded, the definition of the function
+ <font face=Kapl>f</font> is parsed before that of <font face=Kapl>g</font>, and therefore
+ <font face=Kapl>g</font> is assumed to be a (global) variable in the definition of
+ <font face=Kapl>f</font>, and the symbol <font face=Kapl>Î</font> is taken to be the
+ dyadic primitive. Then the definition of <font face=Kapl>g</font> is parsed and it is
+ determined that <font face=Kapl>g</font> is a function. When <font face=Kapl>f</font> is
+ evaluated, a type error results because the dyadic primitive <font face=Kapl>Î</font> is
+ passed a function as a left argument.
+<pre></font><font face=Kapl>     f`abc
+ Î: type
+*     ©x        ã </font>Inquire about <font face=Kapl>x
+ `sym           ã </font>It's a symbol.<font face=Kapl>
+*     ©{g}
+ `func          ã </font>But <font face=Kapl>g</font> is a function.<font face=Kapl>
+*     ý</font></pre>
+<A NAME=4>This problem could have avoided by defining <font face=Kapl>g</font> before
+ <font face=Kapl>f</font>. In general, however, and certainly in large applications, it is
+ not reasonable (and sometimes not possible) to maintain scripts so that functions are
+ always defined before they used. The problem could also be avoided by using the alternate
+ function-call syntax; in the above example:
+<pre><font face=Kapl>     f{x}:g{Î x}</font></pre>
+Now the A+ process can tell from the syntax that <font face=Kapl>g</font> is a monadic
+ function, whether or not it has been defined. This syntax is unambiguous, whereas that
+ of<font face=Kapl> f </font>in the original definition is ambiguous.
+</blockquote>
+<A NAME=HEADING610>
+<H1><FONT color="#20B2AA">Workspaces</FONT></H1>
+<A NAME=HEADING611>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Expression <A NAME=5>Continuation in
+ Entry and Function Definition</FONT></H2>
+<blockquote>
+<A NAME=16>When an expression, expression group, or function definition is entered on
+ several lines in an A+ session, A+ supplies stars at the left of each line to indicate
+ the depth of punctuation. In general, these stars are used to indicate the total number of
+ open quotation marks (at most one), braces, and parentheses, and an expression or function
+ definition remains open until they are closed. Brackets are not treated in this way,
+ however, and in the absence of an open quote, brace, or parenthesis a line or series of
+ lines with an open bracket elicits an error message. Pressing the <b>Enter</b> key while
+ inside a quotation mark inserts a newline character in the quoted string, but pressing
+ <b>Linefeed</b> causes A+ to ignore all entries on the current line that follow the open
+ quote (including the <b>Linefeed</b> itself).<P>
+If any brackets, braces, or parentheses are open when a function definition is closed, a
+ token error is reported and the definition does not take effect. At the time when such
+ punctuation becomes isolated (e.g., after the closing parenthesis for the bracket
+ in<font face=Kapl> (3 4;bûd[1;3)</font>),&nbsp; a message "Mismatched parentheses" (no
+ matter what the punctuation - brackets, braces, or parentheses!) appears at the bottom of
+ the screen in Emacs.<P>
+The expressions <A NAME=19><font face=Kapl>case(target)</font> and
+ <font face=Kapl>if(condition)</font> and <font face=Kapl>while(condition)</font> are each
+ followed by an expression or expression group in actual usage, but they are considered by
+ the parser to be complete (with a Null as the following expression) when they are followed
+ by the <b>Enter</b>, so don't break a line there unless you have something else holding
+ the expression open, and don't immediately follow an <font face=Kapl>if(condition)</font>
+ with an <font face=Kapl>else</font> with the intention of returning and filling in the
+ <font face=Kapl>if</font> action unless you are very sure you won't forget.<P>
+Function definition has one continuation peculiar to itself: if the <b>Enter</b> key is
+ pressed immediately after the colon following the function header, the function definition
+ remains open, for just one more line (unless that line produces a continuation). If
+ anything, however, even just a space, is entered after the colon, then there is no implied
+ continuation. In particular, if only spaces are entered after the colon, a parse error is
+ reported and the opening of the definition has no effect.
+</blockquote>
+<A NAME=HEADING612>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Expression <A NAME=21>Groups for Immediate
+ Execution</FONT></H2>
+<blockquote>
+In immediate execution, when there is no pending punctuation or function definition,
+ several
+ expressions can be entered on one line, separated by semicolons. They will be treated as
+ an expression group. The next section discusses the implications of this treatment for
+ display.<P>
+One useful aspect of this treatment is that one can bring into the workspace for immediate
+ execution a script line which is only part of an expression group. Putting it another way,
+ an expression group or part thereof can be brought in and executed immediately as long as
+ its punctuation is matching - as long as it contains either both or neither of the group's
+ enclosing braces.<P>
+An expression in braces, with no semicolon, also constitutes an expression group.
+</blockquote>
+<A NAME=HEADING613>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Immediate <A NAME=23>Execution
+ Display</FONT></H2>
+<blockquote>
+When an expression or expression group is entered for execution, by pressing the
+ <b>Enter</b> key, an error message may be displayed. If it is not, then the result is
+ displayed, except that it is not displayed for an expression whose last operation is
+ Assign.<P>
+The display of the Null is indistinguishable from no display, so in effect the displaying
+ of the result can be suppressed for an expression or expression group by appending a
+ semicolon to it, making the expression a courtesy expression group. Likewise, display can
+ be forced for an expression alone on a line, even when it ends with Assign, by preceding
+ the expression with a semicolon. (Preceding such an assignment in immediate execution by a
+ <font face=Kapl>Õ</font>, thus applying Print to it, causes it to be displayed twice, once
+ by Print and once as the default display of an expression whose last function is not
+ Assign.)<P>
+For function and dependency definitions, there is no additional display: the entered
+ definitions, together with the A+ prompts indicating depth of punctuation, are the entire
+ displayed response.
+</blockquote>
+<A NAME=HEADING614>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Default <A NAME=26>Display of Arrays</FONT></H2>
+<blockquote>
+Arrays are listed in ravel order. Simple character arrays start at the left margin. Simple
+ numeric arrays are indented one space. Numbers that are in columns in the display are
+ aligned. Simple vectors are displayed horizontally. Simple arrays of higher rank are
+ displayed with vertical columns, horizontal rows, one skipped line between cells of rank
+ 2, an extra skipped line between cells of rank 3, and so on. For example:
+<pre><font face=Kapl>     É2 2 2 6
+  0  1  2  3  4  5
+  6  7  8  9 10 11
+
+ 12 13 14 15 16 17
+ 18 19 20 21 22 23
+
+
+ 24 25 26 27 28 29
+ 30 31 32 33 34 35
+
+ 36 37 38 39 40 41
+ 42 43 44 45 46 47</font></pre>
+A <font face=Kapl>&lt;</font> is
+ used for a function scalar, since it must always be shown as an enclosed function
+ expression. Furthermore, vectors of function scalars are displayed vertically. For
+ example:
+<pre></font><font face=Kapl>     &lt;{+},&lt;{-},&lt;{=}
+&lt;  +         ã </font>Vector displayed vertically, with <font face=Kapl>&lt;</font> showing enclosure of the<font face=Kapl>
+&lt;  -         ã </font>function expressions, to make simple, depth-0 function scalars.<font face=Kapl>
+&lt;  =</font></pre>
+<p>
+Each nested component of a nested array begins on a new line. A
+ <font face=Kapl>&lt;</font> character is
+ used to indicate the beginning of an enclosed object. It is also used sometimes to
+ indicate
+ a symbol, as shown above, but it is not so used in this manual except for that example.
+ For instance:
+<pre><font face=Kapl>     (1 2 3; 2 2Ò25; (3 4;É2 3;&lt;&lt;100))
+&lt;  1 2 3
+&lt;  25 25
+   25 25
+&lt; &lt;  3 4
+  &lt;  0 1 2
+     3 4 5
+  &lt; &lt; &lt;  100
+</font></pre>
+</blockquote>
+<A NAME=HEADING615>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Resuming <A NAME=28>Execution</FONT></H2>
+<blockquote>
+<A NAME=29>When execution of a expression or function has been suspended because of an
+ error or an interruption, expressions can be entered for immediate execution. (The
+ expressions may include calls of other functions and may lead to suspensions of their
+ own.)  Values, shapes, types, etc. of both global variables and ones local to the
+ suspended function may be examined and changed. The arguments on the stack
+ (<font face=Kapl>&amp;0 &amp;1 ...</font>) can also be examined and changed. (Changing
+ variables which were arguments to the suspended function has no effect on the stacked
+ arguments.)<P>
+To resume execution of the suspended function, with the workspace size increased if
+ necessary, enter<br>
+<font face=Kapl>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;û</font><br>
+alone on a line.<P>
+To <A NAME=31>abandon execution, and execution of any pendent function that is waiting on
+ this suspended function, enter either<br>
+<font face=Kapl>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ý</font><br>
+or<br>
+<font face=Kapl>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$</font><br>
+alone on a line.
+<p>
+To abandon execution of the last <i>n</i> suspended functions, enter<br>
+<font face=Kapl>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$reset&nbsp;</font><i>n</i><br>
+and to abandon execution of all suspended functions, enter just<br>
+<font face=Kapl>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$reset</font><br>
+See the <a href="APlusRefV2_15.html#129">Reset</a> command.
+</blockquote>
+<H2><FONT color="#20B2AA"><A NAME=30>&nbsp;&nbsp;&nbsp;The Form of Error and Other
+ Messages</FONT></H2>
+<blockquote>
+Error reports are prefixed by a comment symbol and the type of report in
+ brackets, to make it more explicit and also to prevent it from spoiling a part of a log
+ that would otherwise be usable as a script:
+<pre><font face=Kapl>     3+0ß5-5
+ã[error]  ß: domain</font></pre>
+<pre><font face=Kapl>ã[error]  segv</font></pre>
+and
+<pre></font><font face=Kapl>ã PKG: 1: Storing .two     ã </font>See the <a href="APlusRefV2_56p.html#HEADINGp69">package example.</a></pre>
+There are, however, some error messages that are not in this form, none of them strictly
+A+ error messages. Among them are
+<pre><font face=Kapl>filename: No such file or directory
+not an `a object</font></pre>
+and a great many messages from adap.
+</blockquote>
+<A NAME=HEADING616>
+<H2><FONT color="#20B2AA"><A NAME=33>&nbsp;&nbsp;&nbsp;Contexts</FONT></H2>
+<blockquote>
+To help in avoiding name conflicts, A+ provides contexts. A context provides a level of
+ qualification for global names. The fully qualified form of any global name is
+ <i>c</i>.<i>x</i>, where <i>x</i> is the unqualified name of the object and <i>c</i> is
+ the context for that name. Every name is accessible from every context by the use of its
+ fully qualified form.<P>
+<A NAME=39>The workspace always has one current context. Initially, at the beginning of an
+ A+ session, it is the <i>root</i> context, whose name is the empty string. So
+ <font face=Kapl>.y</font> is the form that a fully qualified name takes in this context.
+ Such a name always refers to the root context. The current context can be changed
+ by<font face=Kapl>&nbsp; $cx&nbsp;cxt&nbsp; </font>as discussed for the
+ <A HREF="APlusRefV2_15.html#23">Context command</A>; by
+ convention,<font face=Kapl>&nbsp;$cx&nbsp;.&nbsp; </font>is used to change
+ the current context to the root context - i.e., the context name is given as a period. In
+ an expression entered for immediate execution, any unqualified name, no matter what its
+ use - reference, specification, call, definition -, is understood to be implicitly
+ qualified by the current context. Thus unqualified names can be used for objects whose
+ full names are qualified by the current context.<P>
+A <A NAME=44>function also has a context. If a fully qualified name was used for it in its
+ definition, then the context is the one referred to in that name; otherwise, the
+ function's context is the one that was current when it was defined (and indeed, its fully
+ qualified name includes the name of that current context). All unqualified global names
+ within a function are implicitly qualified by the function's context; the context in which
+ the function is executed is irrelevant to their interpretation.  When a function is
+ suspended, the context for immediate execution is the function's context. If the context
+ is changed while a function is suspended, resumption of execution will automatically
+ change the context back. Completion of execution returns the context to what it was when
+ the function was called.
+</blockquote>
+<A NAME=HEADING617>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Local and Global Names</FONT></H2>
+<blockquote>
+<A NAME=46>To avoid clutter in the workspace and to reduce the possibility of name
+ conflict, a name can be local - i.e., have meaning only in the function in which it occurs
+ and disappear when execution of that function is complete. Such a name must be
+ unqualified, and it is made local by an Assignment within the function in which only the
+ name appears to the left of the arrow. All qualified names are global. See
+ "<A HREF="APlusRefV2_16.html#2">Scope of Names</A>".<P>
+A function can see only global names and its own local names. A user can see only global
+ names and the local names of the latest suspended function (and not pendent ones).
+</blockquote>
+<A NAME=HEADING618>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Visible Use of a Name</FONT></H2>
+<blockquote>
+A <A NAME=47>visible use of a name occurs when the name appears in A+ code directly, and
+ not in a character string or a symbol. A use that is not visible is an implicit reference,
+ which occurs through the employment of <A HREF="APlusRefV2_8.html#105">Execute</A>
+ (<font face=Kapl>â</font>) or <A HREF="APlusRefV2_8.html#331">Value</A>
+ (<font face=Kapl>%</font>). This distinction is important for dependencies, which are
+ invalidated only by visible uses of names (cf.
+ "<A HREF="APlusRefV2_57.html#164">Dependencies</A>", especially
+ "<A HREF="APlusRefV2_17.html#8">Evaluation</A>" and
+ "<A HREF="APlusRefV2_17.html#19">Dependencies Defined</A>").
+</blockquote>
+<A NAME=HEADING619>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Listing <A NAME=49>Names</FONT></H2>
+<blockquote>
+System commands and system functions are provided for listing names of various kinds in the
+ workspace:
+<P>
+<ul>
+<li>Commands described in "<A HREF="APlusRefV2_15.html#0">System Commands</A>"
+ include:
+<ul>
+<li><A HREF="APlusRefV2_15.html#20">Commands</A>
+<li><A HREF="APlusRefV2_15.html#23">Context</A> (gives context name)
+<li><A HREF="APlusRefV2_15.html#26">Contexts</A> (all contexts in the workspace)
+<li><A HREF="APlusRefV2_15.html#63">Dependent Object Names</A>
+<li><A HREF="APlusRefV2_15.html#76">External Functions</A>
+<li>(defined) <A HREF="APlusRefV2_15.html#79">Functions</A>
+<li><A HREF="APlusRefV2_15.html#82">Global Objects</A>
+<li>(defined) <A HREF="APlusRefV2_15.html#107">Operators</A>
+<li><A HREF="APlusRefV2_15.html#140">System Functions</A>, and
+<li>(user) <A HREF="APlusRefV2_15.html#148">Variables</A>.
+</ul>
+<p>
+<li>Functions described in "<A HREF="APlusRefV2_14.html#0">System Functions</A>",
+ include:
+<ul>
+<li><A HREF="APlusRefV2_14.html#17">All Dependent Object Names</A>
+<li><A HREF="APlusRefV2_14.html#42">Dependent Object Names</A>, and
+<li><A HREF="APlusRefV2_14.html#133">Name List</A>
+ (user variables, functions and operators, dependencies, external functions,
+ system variables, functions and commands, and contexts,
+ as well as keywords and symbols).
+</ul>
+</ul>
+</blockquote>
+<A NAME=HEADING620>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Reporting the <A NAME=50>Environment in the Active Workspace</FONT></H2>
+<blockquote>
+A number of system functions and commands are available for inquiring about the active
+ workspace:<P>
+<ul>
+<li>"<A HREF="APlusRefV2_15.html#0">System Commands</A>" describes:
+<ul>
+<li><A HREF="APlusRefV2_15.html#11">Callback Flag</A>
+<li>Current <A HREF="APlusRefV2_15.html#23">Context</A>
+<li>All available <A HREF="APlusRefV2_15.html#26">Contexts</A>
+<li><A HREF="APlusRefV2_15.html#31">Debugging State</A>
+<li><A HREF="APlusRefV2_15.html#67">Execution Suspension Flag</A>
+<li><A HREF="APlusRefV2_15.html#86">Input Mode</A>
+<li><A HREF="APlusRefV2_15.html#116">Printing Precision</A>
+<li><A HREF="APlusRefV2_15.html#120">Protected Execute Flag</A>,
+<li><A HREF="APlusRefV2_15.html#131">State Indicator</A>,
+<li><A HREF="APlusRefV2_15.html#136">Stop</A>
+<li><A HREF="APlusRefV2_15.html#144">Terminal Flag</A>
+<li><A HREF="APlusRefV2_15.html#151">Version</A>
+<li><A HREF="APlusRefV2_15.html#154">Workspace Available</A>, and
+<li><A HREF="APlusRefV2_15.html#159">X Events Flag</A>.
+</ul>
+<P>
+<li>"<A HREF="APlusRefV2_14.html#0">System Functions</A>" describes:
+<ul>
+<li><A HREF="APlusRefV2_14.html#99">Get System Variable</A>
+<li><A HREF="APlusRefV2_14.html#102">Hash Table Statistics</A>, and
+<li><A HREF="APlusRefV2_14.html#208">Work Area</A>.
+</ul>
+<P>
+See also "<A HREF="#49">Listing Names</A>", above.
+<P>
+</blockquote>
+<HR>
+<ADDRESS><table width="100%"><tr><td><font size=2><i><a href="mailto:doc@aplusdev.org">doc@aplusdev.org</a></i></font></td><td align=right><font size=2><i>&#169; Copyright 1995&#150;2008 Morgan Stanley Dean Witter &amp; Co.  All rights reserved.</i></font></td></tr></table></ADDRESS>
+</BODY>
+</HTML>
+

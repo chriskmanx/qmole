@@ -1,0 +1,260 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+
+$cx disp
+
+ã	Remove blank columns
+
+slice{x}:(~^/x=' ')/@1 x
+
+ã	Center array x in y positions
+
+center{y;x}:if (y¤#x) x else (-Ä.5«y-#x)÷yÙx
+
+ã	Determine matching initial sub-arrays and elide up to the first non-match
+
+same{x}:
+	{
+	if ((~SAME)©0ÅÒx) û(x;0);
+	(x;z) Ý (#Òx Ý zû0) do if (^/x½@(¢1+#Òx)Û0#x) {xû0#x;zûz+1} else û(x;z)
+	}
+
+ã	,@y / x idiom
+
+encat{y;x}:if (0=ÒÒx) x else <z Ý (iû¢1+#@y x Ý zû>0#@y x) do zûz,@y >(i+1)#@y x
+
+ã	Convert simple character array to character matrix with traditional APL inter-array spacing
+
+rank2{x}:if (0ÅÒx) (((1Ó¢1+#Òx)Ò0),0)Ò' ' else (0Ä2-#Òx)Õzûrank2_{x}
+
+rank2_{x}:
+	{
+	case (#Òx)
+		{
+		0;	1 1Òx;
+		1;	(1,#x)Òx;
+		2;	x;
+			& !@3 x,@2 ' '
+		}
+	}
+
+ã	Optional _fmt{} formatter
+
+quadFmt{x}:
+	{
+	case (©x)
+		{
+		`int;	if (0<#INT) _fmt{INT;x} else 1Õ@1 îx;
+		`float;	if (0<#FLOAT) _fmt{FLOAT;x} else 1Õ@1 îx;
+			x
+		}
+	}
+
+ã	Generate displays for simple character, integer, and float arrays
+
+char{x}:{(a;b)ûsame{x};frame{rank2{a};Òx;'"';b}}
+int{x}:{(a;b)ûsame{x};frame{rank2{if (IOTA) iota{a;''} else quadFmt{a}};Òx;'i';b}}
+float{x}:{(a;b)ûsame{x};frame{rank2{if (IOTA) iota{a;'1.0«'} else quadFmt{a}};Òx;'f';b}}
+
+iota{x;y}:
+	{
+	if ((,0)½nûÒx) y,'0Ò0'
+	else if (0Ån) y,'0'
+	else if (0=#n) y,1Õîx
+	else if (3>#vû,x) y,1Õîv
+	else if (~x½i+(jûv[1]-iûv[0])«ÉnûÒx) y,1Õîv 
+	else y,(if (i=0) '' else (1Õîi),'+'),(if (j=1) '' else (1Õîj),'«'),'É',1Õîn
+	}
+
+ã	Generate display for arrays of type symbol
+
+sym{x}:if (0<½x) box{x} else frame{slice{rank2{if (0=#Òa) '`',@1 Îa else !@2 '`',@1(Îa),@1 ' '}};Òx;'`';b} Ý (a;b)ûsame{x}
+
+ã	Given a matrix of character matrices, produce a character matrix with nice inter-array spacing
+
+plane{x}:
+	{
+	sû>Ò¡x;
+	rû(Òx)Ò(1ÕÒx)/Ó/@1Ûs[;;0];
+	cûô(÷Òx)Ò(#x)/Ó/s[;;1];
+	if (VER) xûcenter¡{r;x} else xûrÙ¡x;
+	if (HOR) xûcenter@1¡{1+c;x} else xû(1+c)Ù@1¡x;
+	<¢1Õ@1>encat{ÒÒx;encat@1{1;x}}
+	}
+
+ã	Generate display for nested array
+
+box{x}:
+	{
+	(a;b)ûsame{x};
+	zûdisp¡{a};
+	zûif (0=#Òz) >z else rank2{>(Ó/>#¡z)Ù¡(Ó/,>1Õ¡Ò¡z)Ù@1¡z} Ý zû,plane @2{z} Ý if (1=#Òz) zû(1,#z)Òz;
+	frame{z;Òx;(`sym `box `funcÉ©x)#'`ÌÇ';b}
+	}
+
+ã	Generate display for null array
+
+null{x}:frame{0 0Ò' ';Òx;'Ê';0}
+
+ã	Generate display for function array
+
+func{x}:if ((0¨#Òx)©0<½x) box{x} else frame{func_header{x};0;'Ç';0}
+
+func_header{x}:if (nÅ_nl{`;`apl} Ý nû_name{x}) În else (Î0#Ön),'.',(zÉ':')Ùzûîx
+
+ã	boxing and annotation
+
+enbox{x}:
+	{
+	xû(¢2Ù1 1,Òx)Òx;
+	xûCHARS[0],x,CHARS[1];
+	xûCHARS[2],@1 x,@1 CHARS[3];
+	x[0;0,¢1+1ÕÒx]ûCHARS[4 5];
+	x[0#¢1+1ÙÒx;0,¢1+1ÕÒx]ûCHARS[6 7];
+	x
+	}
+
+rows{x;r}:x Ý if (r¦1ÙÒx) xû(¢1Õx),((1+r-1ÙÒx)/ô1!(x[0]ÅCHARS[4 5])#' ',CHARS[2]),¢1Ùx
+
+cols{x;c}:x Ý if (c¦1ÕÒx) xû(¢1Õ@1 x),@1 ((1+c-1ÕÒx)/@1 Û 1!(x[;0]ÅCHARS[4 6])#' ',CHARS[0]), @1 Û¢1Ù@1 x
+
+label{x;y;i;j}:
+	{
+	xûrows{x;¢1Ùi};
+	xûcols{x;¢1Ùj};
+	x[i;j]ûy;
+	x
+	}
+
+frame{x;shp;typ;sam}:
+	{
+	zûif (BOX) enbox{x} else x;
+	zûô(1+(1ÕÒz)Ùr-1)/ôz Ý rû1Órnk-1 Ý rnkû#shp;
+	if (BOX) 
+		{
+		aû,1Õ¡î¡shp;
+		(iûrnk-1) do zûlabel{z;t;1+É#tû>i#a;i};
+		if (0<rnk) zûlabel{z;t;0;r+É#tû>(¢1+#a)#a};
+		zûlabel{z;typ;¢1+#z;r};
+		(iûsam) do zûif (i<rnk-1) label{z;'½';1+#>i#a;i} else label{z;'½';0;r+#>i#a}	
+		};
+	z
+	}
+
+ã	Main
+	
+disp{x}:((©x)ØFUNCS)¡x
+
+lay{x}:if (TREE>0) tree{(Leaf1{disp}){,x}} else disp{x}
+
+ã	tree diagrammer
+
+(f Leaf1)r:if (0=½r)f r else f &¡r
+
+tree{x}:if (TREE=2) branch{(Leaf1{leaf}){x}} else top{branch2{(Leaf1{leaf2}){x}}}
+
+top{x}:x Ý if (1Åb Ý bûI=(HOR÷(;0))#x) ((HOR÷(b/ÉHOR#Òx;0))#x)ûHOR#LI,TI
+
+leaf{x}:
+	{
+	xû(¢2Ù1 1,Òx)Òx;
+	xûV,@1(H,x,H),@1 V;
+	x[0;0,¢1+1ÕÒx]û(HOR#TI,LI),TR;
+	x[¢1+#x;0,¢1+1ÕÒx]ûBL,BR;
+	x
+	}
+
+branch{x}:
+	{
+	if (0=½x) x
+	else
+		{
+		if (1Ådû0<Ø½¡xû,x) (d/x)û&¡{d/x};
+		cûHOR;eûc#1 9;fûc#9 1;dûc÷É2;
+		xû((c#¡Ò¡x)Ù@f¡(#x)Ò<cØ(ô1!LI,3ÒH;1!TI,3ÒV)),@e¡x;
+		tû0Øx;t[0;0]ûc#TI,LI;(0#x)û<t;
+		if (1=#x) {t[0;0]ûN;t}
+		else
+			{	
+			tû(¢1+#x)Øx;t[0;0]ûc#BL,TR;((¢1+#x)#x)û<t;
+			xû(Ó/Ø(~c)Ø¡Ò¡x)Ù@e¡x;
+			tûØ(<d)ô¡¢1Õx;
+			(((t[;0]=' ')/É#t;0)#t)ûc#V,H;
+			(dôt),@f 0Ø¢1Ùx
+			}
+		}
+	}
+
+leaf2{x}:
+	{
+	xû(¢2Ù1 1,Òx)Òx;
+	xûV,@1(H,x,H),@1 V;
+	x[0;0,¢1+1ÕÒx]ûTL,TR;
+	x[¢1+#x;0,¢1+1ÕÒx]ûBL,BR;
+	x
+	}
+
+twig2{x}:
+	{
+	xû(dûHOR÷É2)ôx;
+	if (I¨x[iûÄ.5«#x;0]) x[i;0]û((HOR#V,H)Åx[;0])#N,HOR#RI,BI;
+	if (1Åcûb\I=(bûi¨É#x)/x[;0]) x[c/É#c;0]ûHOR#LI,TI;
+	dôx
+	}
+
+branch2{x}:
+	{
+	if (0=½x) x
+	else
+		{
+		if (1Ådû0<Ø½¡x) (d/x)û&¡{d/x};
+		cûHOR;eûc#1 9;fûc#9 1;dûc÷É2;gû(~c)÷É2;
+		bû(<g)ô¡1!¡((#x)Òk,((0Ó(#x)-2)/I),kûc#LI,TI),¡<3Òc#H,V;
+		xû(mÙ@f¡(-1+Ä.5«ØmûcØ¡Ò¡x)Ù@f¡b),@e¡twig2¡{x};
+		tû0Øx;((c÷(Ä.5«c#Òt;0))#t)ûTL;(0#x)û<t;
+		if (1=#x) {((c÷(Ä.5«c#Òt;0))#t)ûN;t}
+		else
+			{	
+			tû(¢1+#x)Øx;((c÷(Ä.5«c#Òt;0))#t)ûc#BL,TR;((¢1+#x)#x)û<t;
+			xû(Ó/Ø(~c)Ø¡Ò¡x)Ù@e¡x;
+			t0û0Øx;
+			tnû(¢1+#x)Øx;
+			tmûØ(<d)ô¡1Õ¢1Õx;
+			((c÷((÷^\÷' '=(c÷(;0))#t0)/Éc#Òt0;0))#t0)ûc#V,H;
+			if (0=#tm) tmû(c÷(0,(~c)#Òt0))Ò'' else ((c÷((' '=(c÷(;0))#tm)/Éc#Òtm;0))#tm)ûc#V,H Ý tmûdôtm;
+			((c÷((^\' '=(c÷(;0))#tn)/Éc#Òtn;0))#tn)ûc#V,H;
+			t0,@f tm,@f tn
+			}
+		}
+	}
+
+ã	Parameters
+	
+BOXû1	
+SAMEû0
+HORû0
+VERû0
+IOTAû0
+TREEû0
+
+LINEû0;
+
+CHARS:LINEØ("--||+++++++++Ê";`char©26 26 25 25 16 18 22 24 20 17 23 19 21 202)
+
+V:CHARS[2]
+H:CHARS[0]
+TL:CHARS[4]
+TR:CHARS[5]
+BL:CHARS[6]
+BR:CHARS[7]
+I:CHARS[8]
+TI:CHARS[9]
+BI:CHARS[10]
+LI:CHARS[11]
+RI:CHARS[12]
+N:CHARS[13]
+
+FLOATû''
+INTû''
+
+FUNCSû(`int `float `null `box `sym `func `char;<@0(int;float;null;box;sym;func;char))

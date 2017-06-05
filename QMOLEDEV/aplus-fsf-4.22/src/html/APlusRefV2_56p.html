@@ -1,0 +1,246 @@
+<HTML>
+<HEAD>
+<TITLE>A+ Reference: The p Context</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF">
+<A NAME=HEADINGp671>
+<H1><FONT color="#FF0000">The <A NAME=0>p Context</FONT></H1>
+<a name="CONTENTS56p">
+<UL>
+<A HREF="#HEADINGp65"> Overview of Packages</A><BR>
+<A HREF="#HEADINGp66"> Creation and Modification of Packages</A><BR>
+<A HREF="#HEADINGp67"> Retrieval of Objects and Information from Packages</A>
+<UL>
+<A HREF="#HEADINGp68"> Inquiry and Options</A>
+</UL>
+<A HREF="#HEADINGp69"> Example</A><BR>
+</UL>
+<HR>
+<A NAME=HEADINGp65>
+<H2><FONT color="#20B2AA">Overview of Packages</FONT></H2>
+<blockquote>
+The p context provides functions to support A+ package storage.
+<P>
+A <i>package</i> is a single structure containing A+ functions, variables, and
+ dependencies. When a package is stored in a file, it is called a <i>packfile</i>. A
+ <i>packstring</i> is a package in the form of a character array in an A+ workspace. A
+ package can be used for storing a miscellaneous collection of A+ objects in a file,
+ loading an application - it is usually faster than a script -, sending A+ objects through
+ an adap connection, and performing lexical analysis (by a very knowledgeable person).<P>
+Packages are manipulated by external functions stored in the p context, which does not need
+ to be loaded. The functions come in pairs:  those whose unqualified names begin with
+ <font face=Kapl>s</font> work on packstrings and those whose names begin with
+ <font face=Kapl>f</font> work on packfiles. Package storage is optimized for fast
+ retrieval, at the expense of space where necessary.<P>
+A package consists of a number of items, each of which is an object of one of these kinds:
+<UL>
+<LI>an A+ data object (possibly an enclosed primitive function or operator);<p>
+<LI>a dependency - whose definition is included but not value, so that the dependency will
+ be evaluated afresh when needed after retrieval;<p>
+<LI>a defined function or operator;<p>
+<LI>a definition of a mapped file - viz., the name of the file and an integer indicating
+ the type of mapping:  the data itself is not included in the package.
+</UL>
+Nothing else can be included in a package. In particular, an item cannot be an s attribute
+ on a variable, the state of a variable's display, an attribute set with
+ <font face=Kapl>_set</font>, a set or preset callback, an external function (i.e., a
+ function loaded using <font face=Kapl>_dyld</font>), or an external state, such as an
+ adap connection.<P>
+The only operations performed during retrieval from a package are:
+<UL>
+<LI>specification of global variables;<p>
+<LI>definition of dependencies;<p>
+<LI>definition of functions and operators;<p>
+<LI>Mapping (beaming) in of files, using <font face=Kapl>à</font> - note that a file's
+ beamed value may be different from its value when it was put into the package and that
+ there will be a value error if the file was removed in the interim.
+</UL>
+If some other operation is required in order to restore some information, then you must
+ provide a mechanism supplemental to package retrieval. For example, you could include in a
+ package an initialization routine that sets attributes on variables.<P>
+Some of the restrictions, such as the one on dynamically loaded external functions, are due
+ to an inability to retrieve the information needed to adequately store the object; they
+ may possibly be lifted in the course of further development of the interpreter. Some
+ objects, such as adap connections, are so complex that full retrieval of them may never be
+ possible.<P>
+Other restrictions reflect a need for experience with packages and further thought.
+ Callbacks, for instance, are not included because it is not clear whether during retrieval
+ of a package variables should be specified and then callbacks set (so that no callbacks
+ fire), callbacks should be set and then variables specified (so that all callbacks fire),
+ or objects should be established in their order in the package definition (so that their
+ order determines which callbacks fire).
+</blockquote>
+<A NAME=HEADINGp66>
+<H2><FONT color="#20B2AA">Creation and Modification of Packages</FONT></H2>
+<blockquote>
+<A NAME=p4>To create a packstring or packfile, enter the appropriate one of these
+ statements:
+<pre></font><font face=Kapl>     </font><i>ps</i><font face=Kapl>ûp.snew{</font><i>obj</i><font face=Kapl>}
+
+     p.fnew{</font><i>filenm</i><font face=Kapl>; </font><i>obj</i><font face=Kapl>}</font></pre>
+<UL>
+<LI><i>filenm</i> names a file. The name given in <i>filenm</i> will have
+ <font face=Kapl>.pkg</font> appended to it if it does not already contain a period.
+ <i>filenm</i> is one of:<p>
+<UL><LI>a symbol;<p>
+<LI>a character vector;<p>
+<LI>a two-element nested array <font face=Kapl>(</font><i>flnm</i><font face=Kapl>;</font><i>opts</i><font face=Kapl>)</font>
+ where <i>flnm</i> is a file name in one of the previous two forms and <i>opts</i> is a
+ character string selecting options. Options are discussed in "<A HREF="#1">Inquiry and
+ Options</A>", below.
+</UL><p>
+<LI><i>obj</i>  is either:<p>
+<UL><LI>the names of the global objects to be stored in the package, as a symbol vector or
+ scalar - unqualified names being taken to be in the root context, so
+ <font face=Kapl>`b</font> and <font face=Kapl>`.b</font> are equivalent; or<p>
+<LI>a slotfiller, whose first element
+ <font face=Kapl>(0Ø</font><i>obj</i><font face=Kapl>)</font> supplies the names of the
+ objects to be stored in the package and whose second element
+ <font face=Kapl>(1Ø</font><i>obj</i><font face=Kapl>)</font> supplies their values.
+</UL>
+</UL>
+The result of <font face=Kapl>p.fnew</font> is null and that of
+ <font face=Kapl>p.snew</font>, <i>ps</i>, is of course a packstring, which is a simple
+ character string.<P>
+<A NAME=p1>To add items to a package or replace them (where the names coincide), enter the
+ appropriate one of these statements:
+<PRE></font><font face=Kapl>     </font><i>newps</i><font face=Kapl>ûp.sadd{</font><i>ps</i><font face=Kapl>; </font><i>obj</i><font face=Kapl>}
+
+     p.fadd{</font><i>filenm</i><font face=Kapl>; </font><i>obj</i><font face=Kapl>}</font></PRE>
+where the argument names have the same significance as in the previous pair of statements,
+ except that <i>ps</i> can take the form of a nested vector
+ <font face=Kapl>(</font><i>p</i><font face=Kapl>;</font><i>opts</i><font face=Kapl>)</font>,
+ in which <i>p </i>is a packstring and <i>opts</i> is a character string selecting options,
+ the same as the options for the corresponding form of <i>filenm</i>. The result of
+ <font face=Kapl>p.fadd</font> is null, and <i>newps</i>, the result of
+ <font face=Kapl>p.sadd</font>, is a packstring, which can be the one being modified,
+ <i>ps</i>.
+</blockquote>
+<H2><FONT color="#20B2AA">Retrieval of <A NAME=HEADINGp67>Objects and Information from
+ Packages</FONT></H2>
+<blockquote>
+<A NAME=p3>To establish (fix) objects in the workspace from data and definitions in a
+ package, enter the appropriate one of these statements:
+<PRE></font><font face=Kapl>     p.sfix{</font><i>ps</i><font face=Kapl>; </font><i>sel</i><font face=Kapl>}
+
+     p.ffix{</font><i>filenm</i><font face=Kapl>; </font><i>sel</i><font face=Kapl>}</font></PRE>
+where <i>ps</i> and <i>filenm</i> are as in the previous pair of statements and
+ <i>sel</i> is one of:<p>
+<UL><LI>Null - i.e., <font face=Kapl>p.sfix{</font><i>ps</i><font face=Kapl>;()}</font> or
+ <font face=Kapl>p.sfix{</font><i>ps</i><font face=Kapl>;}</font> or similarly for
+ <font face=Kapl>p.ffix</font> -, meaning that everything in the package is to be
+ established in the workspace.<p>
+<LI>A list of names to be fixed in the workspace, given as a scalar or vector of
+ symbols.<p>
+<LI>A two-element nested vector of the form <font face=Kapl>(</font><i>pkgnames</i><font
+ face=Kapl>;</font><i>wsnames</i><font face=Kapl>)</font>, where the two elements are
+ symbol
+ scalars or vectors of the same length. The objects to be retrieved are listed in
+ <i>pkgnames</i> and the names they are to be given in the workspace are listed in the
+ corresponding positions in <i>wsnames</i>.
+</UL>
+The explicit result of both functions is the Null.<P>
+The following two functions return data from a package in the form of a slotfiller, without
+ establishing any global objects:
+<PRE></font><font face=Kapl>     </font><i>sf</i><font face=Kapl>ûp.sslot{</font><i>ps</i><font face=Kapl>; </font><i>sel</i><font face=Kapl>}
+
+     </font><i>sf</i><font face=Kapl>ûp.fslot{</font><i>filenm</i><font face=Kapl>; </font><i>sel</i><font face=Kapl>}</font></PRE>
+where the arguments are as described above, except that <i>sel</i> is only null or a list
+ of names, not a two-element nested vector. In the result, <i>sf</i>, the first element
+ lists the names of the objects and the second gives their values;  in other words,
+ <i>sf</i>  is in one of the allowable forms for the right argument in the creation and
+ modification functions.<P>
+A function retrieved in this way is returned as a function scalar. Since there is no
+ analogous form for a dependency, it cannot really be retrieved by these functions, and it
+ has a null value in <i>sf</i>.
+</blockquote>
+<A NAME=HEADINGp68>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Inquiry<A NAME=1> and Options</FONT></H2>
+<blockquote>
+<A NAME=p2>A list of the items in a packstring or packfile can be obtained by entering the
+ appropriate one of
+<PRE></font><font face=Kapl>     p.scatalog{</font><i>psname</i><font face=Kapl>}
+
+     p.fcatalog{</font><i>filenm</i><font face=Kapl>}</font></PRE>
+They both produce symbol vectors.<P>
+<A NAME=p5>An option string, which is a character vector, contains any of the following
+ characters, with the indicated meanings:<P>
+<font face=Kapl>d - </font>debug: messages are to be generated by the package functions.
+ Primarily for debugging.<P>
+<font face=Kapl>h - </font>hash table:  the
+ ...<font face=Kapl>new</font> and ...<font face=Kapl>add</font> functions are to make a
+ hash table, for greater speed when only some items, not all, are being retrieved. Tables
+ are retained in packages regardless of later settings of <font face=Kapl>h</font>.
+ Primarily for packages used as component file systems.<P>
+<font face=Kapl>p - </font>pieces:
+ ...<font face=Kapl>fix</font>,&nbsp;...<font face=Kapl>slot</font>, and
+ ...<font face=Kapl>catalog</font>, instead of operating normally, are to return the
+ various parts of a package as a nested array. This option is primarily for debugging, but
+ it also enables lexical analysis.<P>
+<font face=Kapl>r - </font>result: has the same effect as <font face=Kapl>p</font> except
+ that ...<font face=Kapl>fix</font> is also to make assignments to global objects in the
+ usual way.<P>
+<font face=Kapl>s - </font>stats: ...<font face=Kapl>new</font> and
+ ...<font face=Kapl>add</font> are to issue messages containing statistics for the package
+ just created.<P>
+<font face=Kapl>v - </font>verbose: the functions are to issue messages regarding objects
+ handled, hash table creation, etc.<P>
+As indicated above, an option string can be included with an argument that names a file or
+ string. When an option string is not so included, package functions use the default option
+ string, whose initial value is <font face=Kapl>''</font>.<P>
+This default string can be changed by entering the statement
+<PRE></font><font face=Kapl>     p.opts{</font><i>optstring</i><font face=Kapl>}</font></PRE>
+where <i>optstring</i> is the new default string.
+</blockquote>
+<A NAME=HEADINGp69>
+<H2><FONT color="#20B2AA"><A NAME=2>Example</FONT></H2>
+<blockquote>
+<pre></font><font face=Kapl>     bû10+cû27               ã </font>Set up variables <font face=Kapl>b</font> and <font face=Kapl>c
+     f{x;y}:(|x)Ó|y          ã  </font>and a function <font face=Kapl>f
+     d:f{b;c}                ã  </font>and a dependency <font face=Kapl>d</font>, and<font face=Kapl>
+     sûp.snew `b`c`d`f       ã  </font>put them in a packstring <font face=Kapl>s
+     'test.m'à'abcdefghijklmnop'
+     mf1ûmfû1à'test.m'       ã </font>Create mapped file <font face=Kapl>mf
+     bû38; cû1000;           ã </font>Change values of <font face=Kapl>b</font> and <font face=Kapl>c
+     sûp.sadd{s;`b`mf}       ã  </font>and change the <font face=Kapl>b</font> value in <font face=Kapl>s
+                             ã  </font>and put mapped file <font face=Kapl>mf</font> in <font face=Kapl>s
+     Ø_ex¡ `b`c`d`f`mf
+ 0 0 0 0 0
+     mf1[0 1 2]û'ABC'        ã </font>Change contents of file, using <font face=Kapl>mf1
+
+     _ex `mf1
+ 0
+     p.sfix{s;}              ã </font>Establish the objects in <font face=Kapl>s
+     d                       ã </font>Recall that we didn't<font face=Kapl>
+38                           ã  </font>change <font face=Kapl>c</font> in <font face=Kapl>s
+     mf                      ã mf</font> has the latest value of the file.<font face=Kapl>
+ABCdefghijklmnop
+     p.sslot{s;}             ã </font>Retrieve <font face=Kapl>s</font> as a slotfiller.<font face=Kapl>
+&lt;  `.b `.c `.d `.f `.mf
+&lt; &lt;  38
+  &lt;  27
+  &lt;                          ã </font>Null for the dependency.<font face=Kapl>
+  &lt; .f                       ã </font>A function scalar for a function.<font face=Kapl>
+  &lt; ABCdefghijklmnop         ã </font>The contents of the file.<font face=Kapl>
+      p.sslot{s;`b`c}        ã </font>Selective retrieval, as a<font face=Kapl>
+&lt;  `.b `.c                   ã  </font>slotfiller for visibility.<font face=Kapl>
+&lt; &lt;  38
+  &lt;  27
+
+ã </font>Now demonstrate a packfile, an option string,  and a slotfiller argument.<font face=Kapl>
+
+     p.fnew{('test.m';"vh");(`one`two`three;(3;2;1))}
+ã PKG: 0: Storing .one       ã </font>The <font face=Kapl>v</font> elicits messages.<font face=Kapl>
+ã PKG: 1: Storing .two
+ã PKG: 2: Storing .three
+ã PKG: Storing hash table.   ã </font>The <font face=Kapl>h</font> creates a hash table.<font face=Kapl>
+     p.fslot{'test.m';`two`three}
+&lt;  `.two `.three             ã </font>Retrieved from the file.<font face=Kapl>
+&lt; &lt;  2
+  &lt;  1</font></pre>
+</blockquote>
+<HR>
+<ADDRESS><table width="100%"><tr><td><font size=2><i><a href="mailto:doc@aplusdev.org">doc@aplusdev.org</a></i></font></td><td align=right><font size=2><i>&#169; Copyright 1995&#150;2008 Morgan Stanley Dean Witter &amp; Co.  All rights reserved.</i></font></td></tr></table></ADDRESS>
+</BODY>
+</HTML>
+

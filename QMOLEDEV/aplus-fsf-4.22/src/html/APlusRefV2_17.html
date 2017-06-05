@@ -1,0 +1,691 @@
+<HTML>
+<HEAD>
+<TITLE>A+ Reference: Dependencies</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF">
+<A NAME=HEADING372>
+<H1><FONT color="#FF0000"><A NAME=164>Depend<A NAME=0>encies</FONT></H1>
+<a name="CONTENTS16">
+<UL>
+<A HREF="#HEADING373">  Creation and Deletion</A><BR>
+<A HREF="#HEADING374">  Evaluation</A><BR>
+<A HREF="#HEADING375">  Dependencies Defined</A><BR>
+<UL>
+<A HREF="#HEADING376">  Evaluation of Dependencies</A><BR>
+<A HREF="#HEADING377">  Invalidation of Dependencies</A><BR>
+</UL>
+<A HREF="#HEADING378">  Itemwise Dependencies</A><BR>
+<UL>
+<A HREF="#HEADING379">  Recognition of Itemwise Changes</A><BR>
+<A HREF="#HEADING380">  Recognition of Itemwise Dependence</A><BR>
+<A HREF="#HEADING381">  The Time and Form of Evaluation of an Itemwise Dependency</A><BR>
+<A HREF="#HEADING382">  Evaluation When the Index is the Null</A><BR>
+</UL>
+<A HREF="#HEADING383">  Cyclic Dependencies</A><BR>
+<A HREF="#HEADING384">  System Functions and System Commands for Dependencies</A><BR>
+</UL>
+<HR>
+<blockquote>
+A dependency is a global variable (the dependent variable) and an associated definition
+ that is like a function with no arguments. Values can be explicitly set and referenced in
+ exactly the same ways as for a global variable, but they can also be set through the
+ associated definition.<P>
+In this chapter the basic characteristics of dependencies are developed through a series of
+ examples, and are then collected in a definition of dependencies. Then, itemwise
+ dependencies are defined and exemplified. Finally, cyclic dependencies are discussed.
+</blockquote>
+<A NAME=HEADING373>
+<H1><FONT color="#20B2AA">Creation <A NAME=3>and Deletion</FONT></H1>
+<blockquote>
+<A NAME=5>A dependency is created by specifying its definition, in the form
+ </font><font face=Kapl>name:expression</font>. The variable name can be either new or
+ pre-existing. The body of the definition (which follows the colon) is entered in the same
+ way that the body of any defined function is entered, with the same syntax rules, and the
+ variable name can appear within it. The
+ description of <A HREF="APlusRefV2_8.html#111">Execute in Context</A> shows how you can
+ define dependencies of the same form in several contexts at once. Because a dependency
+ definition contains a colon, it cannot be a statement in a defined function or another
+ dependency definition. To create a dependency within such a definition, use Execute in
+ Context or the like.<P>
+<A NAME=6>A dependency, both variable and definition, can be deleted, and its storage
+ freed, by the Expunge function
+ (<A HREF="APlusRefV2_14.html#52"><font face=Kapl>_ex</font></A>) or command
+ (<A HREF="APlusRefV2_15.html#70"><font face=Kapl>$ex</font></A>).
+ The Remove Dependency Definition function,
+ (<A HREF="APlusRefV2_14.html#154"><font face=Kapl>_undef</font></A>) and command
+ (<A HREF="APlusRefV2_15.html#128"><font face=Kapl>$undef</font></A>), as their names
+ imply, delete only the definition, leaving an ordinary variable with all its other
+ properties intact, e.g., its value and any callback function set on it (see
+ "<A HREF="APlusRefV2_18.html#0">Callback Functions</A>"). They do not cause an evaluation
+ before they remove the definition.
+</blockquote>
+<A NAME=HEADING374>
+<H1><FONT color="#20B2AA"><A NAME=8>Evaluation </FONT></H1>
+<blockquote>
+The <A NAME=12>first time a dependency is referenced after it is created, (assuming it has
+ not been explicitly specified in the meantime) its definition is evaluated and the result
+ is both saved and returned. When the dependency is referenced again, the saved value is
+ returned if it has not been marked invalid in the meantime; otherwise the definition is
+ evaluated and the new result is saved and returned. The saved value can also be set
+ through ordinary Assignment, and this value will be returned until it is marked invalid.
+ For example:
+<pre></font><font face=Kapl>     aû3       ã </font>Define a global variable <font face=Kapl>a
+     b:a*2     ã </font>Define a dependency <font face=Kapl>b
+     b
+ 9             ã </font>The definition of <font face=Kapl>b</font> is evaluated.<font face=Kapl>
+     b
+ 9             ã </font>The saved value of <font face=Kapl>b</font> is returned.<font face=Kapl>
+     aû4       ã </font>The saved value of <font face=Kapl>b</font> is marked invalid.<font face=Kapl>
+     b
+ 16            ã </font>The definition of <font face=Kapl>b</font> is evaluated.<font face=Kapl>
+     bû13      ã </font>Specify a value for <font face=Kapl>b
+     b
+ 13            ã </font>The saved value of <font face=Kapl>b</font> is returned.<font face=Kapl>
+     aû5       ã </font>The saved value of <font face=Kapl>b</font> is marked invalid.<font face=Kapl>
+     b
+ 25            ã </font>The definition of <font face=Kapl>b</font> is evaluated.</pre>
+The rules of localization within the definition of a dependency are the same as those for
+ ordinary functions.<P>
+<A NAME=13>When a dependency is defined, the value, if any, of the dependent variable is
+ marked invalid - not erased, just marked invalid. After that, the saved value (which
+ continues to be retained) is marked invalid (evaluation needed) whenever the source
+ of a value or the dependency itself is changed - i.e.,<P>
+<UL>
+<LI>the value of a visibly used global variable is changed;<P>
+<LI>another dependency visibly used in the definition has its value marked invalid or explicitly set;<P>
+<LI>the definition of a visibly used function or operator is modified;<P>
+<LI>the dependency is redefined.
+</UL>
+A <A NAME=14>visible use of a name occurs when the name appears in A+ code directly, and not in a character string or a symbol. A use that is not visible is an implicit reference, which occurs through the use of <A HREF="APlusRefV2_8.html#105">Execute</A> (<font face=Kapl>â</font>) or <A HREF="APlusRefV2_8.html#331">Value</A> (<font face=Kapl>%</font>).<P>
+For example, if
+<pre></font><font face=Kapl>     aû100
+     b:a*2
+     f x:3+x
+     df:a+b+f 2000
+     df
+ 12103            ã </font>The definition of <font face=Kapl>df</font> is evaluated.</pre>
+then any one of the following will cause the value of <font face=Kapl>df</font> (saved by
+ the last input line) to be marked invalid:
+<pre><font face=Kapl>     aû50
+     b:a*3
+     bû625
+     f x:4«x
+     df:a+b+f 3000
+</font></pre>
+<A NAME=15>Only changes to global variables, functions, and dependencies that have a visible
+ use will cause the saved value of a dependency to be marked invalid: implicit references
+ will not. Moreover, changes to global variables that are assigned but not referenced in a
+ dependency definition will not cause its saved value to be marked invalid. For example, in
+ the dependency <font face=Kapl>df</font> defined below, changing <font face=Kapl>x</font>
+ will cause the saved value of <font face=Kapl>df</font> to be marked invalid, but changing
+ <font face=Kapl>y</font> or <font face=Kapl>z</font> will not, because there are no
+ <i>visible</i> uses of them, and <font face=Kapl>c</font> is only set, not referenced (it is
+ the right argument of the specification,<font face=Kapl> (â'y')+%`z</font>,&nbsp; that is
+ referenced). Entering a new definition
+ of <font face=Kapl>df</font> will of course mark any saved value invalid.
+<pre></font><font face=Kapl>     df:x+.cû(â'y')+%`z  ã </font>The saved value of <font face=Kapl>df</font> is marked invalid.<font face=Kapl>
+     xû10
+     yû100
+     zû1000
+     df
+ 1110
+     xû20      ã </font>The saved value of <font face=Kapl>df</font> is marked invalid.<font face=Kapl>
+     df
+ 1120
+     yû200     ã df</font> not marked: no visible use in the definition.<font face=Kapl>
+     df
+ 1120
+     zû2000    ã df</font> not marked: no visible use in the definition.<font face=Kapl>
+     df
+ 1120
+     cû¢50  ã df</font> not marked: in the definition <font face=Kapl>c</font> is only assigned, not referenced.<font face=Kapl>
+     df
+ 1120</font></pre>
+When a dependency definition is executed, the dependent variable is first marked valid.
+ This validation allows the variable to be referenced during evaluation, either within the
+ definition or in asynchronous execution such as a callback, and it provides a fallback
+ value, which may possibly be of some use.<p>
+<A NAME=16>If execution of a dependency fails, a suspension occurs, as here, where
+ <font face=Kapl>n</font> has no value:
+<pre><font face=Kapl>     m:3«n
+     m
+ .n: value</font></pre>
+When the suspension is cleared, one of two things happens; if the dependency does not have
+ a saved value, as in this example, then a value error on its name occurs:
+<pre><font face=Kapl>*     ý
+ .m: value
+*</font></pre>
+<A NAME=17>If, however, it has a saved value then that value has been marked valid. It is
+ returned when the suspension is cleared. Continuing the example:
+<pre></font><font face=Kapl>*     ý    ã </font>Clear the previous suspension in this example.<font face=Kapl>
+     mû5   ã </font>Now <font face=Kapl>m</font> has a saved value that is not marked invalid.<font face=Kapl>
+     nû'a' ã </font>Marks <font face=Kapl>m</font>'s saved value invalid and makes its definition erroneous.<font face=Kapl>
+     m
+ «: type   ã </font>The saved value has now been marked valid.<font face=Kapl>
+*     m
+* 5
+*     ý    ã </font>Clear the suspension.<font face=Kapl>
+ 5         ã </font>The saved value is returned.</pre>
+
+More examples of dependencies are presented in the chapters that follow.
+</blockquote>
+<A NAME=HEADING375>
+<H1><FONT color="#20B2AA">Dependencies <A NAME=19>Defined</FONT></H1>
+<blockquote>
+A dependency is a <i>global variable</i>, the dependent variable, with an associated
+ <i>niladic definition</i>. It is established by
+<pre></font><font face=Kapl>     name:definition
+</font>or<font face=Kapl>
+     name[indexname]:definition</font></pre>
+The latter form is an <i>itemwise</i> dependency and is treated separately below.<p>
+The rules of localization for a dependency definition are the same as those for ordinary
+ functions, and indeed it is interpreted exactly as the body of a niladic function would
+ be.<font face=Kapl> name</font> may appear within <font face=Kapl>definition</font>.<P>
+<A NAME=20>A dependency has a <i>saved value</i> once its <i>current definition</i> has
+ been evaluated or a value has been explicitly assigned. If the variable had a value before
+ the dependency was established, the dependency has a saved value immediately after
+ establishment, but that value is marked invalid.
+</blockquote>
+<A NAME=HEADING376>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Evaluation of Dependencies</FONT></H2>
+<blockquote>
+When referenced, the value of a dependency is determined as follows:<P>
+<UL>
+<LI>If it has no valid saved value, its definition is evaluated and the result of the
+ evaluation is the value, which is also saved for future references. If it has an invalid
+ saved value, the invalidation is removed as the first step of evaluation, and if the
+ evaluation fails this saved value is returned when the execution suspension is cleared.
+ If the dependent variable is bound to a display class and the definition yields an
+ improper value for that class, then the saved value will be retained (no longer marked
+ invalid, of course), in some cases with no warning or error message.<p>
+<LI>If the dependency has a saved value that is not marked invalid, the saved value is the
+ value.
+</UL>
+A dependency that is displayed by s in any sector or workspace and is not iconized is
+ referenced each time A+ goes through its main loop, and likewise if it is bound to the
+ <font face=Kapl>`reference</font> class.<P>
+Note that if a dependency has a stored value that is marked invalid, a reference triggers
+ an evaluation not only when the reference requires the value, as in<font face=Kapl>
+ `dep&nbsp;is&nbsp;`table</font>,&nbsp; but also when the reference does not require the
+ value, as in<font face=Kapl> `class&nbsp;of&nbsp;`dep </font>(supposing
+ <font face=Kapl>`dep</font> not shown, so that its invalidation did not trigger an
+ immediate evaluation).
+</blockquote>
+<A NAME=HEADING377>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Invalidation of Dependencies</FONT></H2>
+<blockquote>
+<A NAME=21>The saved value of a dependency is marked invalid:<P>
+<UL>
+<LI>when it is first defined (if it has a saved value), and when its definition is
+ modified;<P>
+<LI>when a change occurs to a global object that is visibly referenced (see below) in its
+ definition, and the definition is not currently being evaluated, nor a callback on the
+ dependency currently being executed.
+</UL>
+A <A NAME=23>global object is visibly referenced if its name occurs as the source of a
+ value (not just as a specification target) outside an argument to Execute or Value. A
+ change to such an object occurs when:<P>
+<UL>
+<LI>a <A NAME=24>global variable is explicitly
+ modified (a <A NAME=25>mapped-file global variable can change value without itself being
+ explicitly changed);<P>
+<LI>the saved value of a dependency is marked invalid or its saved value or definition is
+ explicitly modified;<P>
+<LI>the definition of a function or operator is changed.
+</UL>
+Note that a global variable that is set in a dependency but never referenced is not a
+ visibly referenced object.<P>
+The value of a dependency is marked valid just before its definition is evaluated (if
+ there <i>is</i> a saved value) and whenever a value is explicitly Assigned to the
+ dependent variable - including, of course, at the end of a successful execution of its
+ definition.<p>
+A change to a visibly referenced global variable made during evaluation does not cause
+ the dependent variable's value to be marked invalid. Consider
+<pre><font face=Kapl>     m:{mûm+n; (n)û10«n; m+n}
+     mû100
+     nû1
+     m
+ 111</font></pre>
+<font face=Kapl>nû1</font> marks the saved value of <font face=Kapl>m</font> invalid, so
+ the next statement triggers evaluation of its definition. The invalidation mark is changed
+ to an under-evaluation mark, and <font face=Kapl>mûm+n</font> uses the previous saved value
+ to produce a new saved value (101).  Respecifying <font face=Kapl>n</font> (as 10) at this
+ point does not invalidate this new saved value, since it is marked as under evaluation, and
+ it is used in the final <font face=Kapl>m+n</font>.<p>
+On the other hand, a new definition unconditionally invalidates a saved value, as in
+<pre><font face=Kapl>     m:{mûm+n; â"m:n"; m+n}
+     mû100
+     nû1
+     m
+ 2</font></pre>
+where in the final <font face=Kapl>m+n</font> the new definition
+ (<font face=Kapl>m:n</font>) is executed to evaluate <font face=Kapl>m</font>.<p>
+<A NAME=26>Code in callbacks is treated in this respect like code shown and called
+ explicitly in the body of the dependency. When a dependency that is being evaluated
+ triggers a callback function on another variable, any change made to a variable that is
+ visibly referenced in the dependency does not mark the saved value of the dependency
+ invalid. E.g.,
+<pre></font><font face=Kapl>     {aû0; bûÉ3;}
+     a:(c)û10«b    ã </font>Marks the saved value of <font face=Kapl>a</font> invalid.<font face=Kapl>
+     f{}:(b)û10«a  ã </font>Set <font face=Kapl>b</font> in a callback function.<font face=Kapl>
+     `c _scb (f;)  ã </font>Trigger a callback from <font face=Kapl>c</font> in the dependency definition.<font face=Kapl>
+     a             ã </font>Dependency is evaluated.<font face=Kapl>
+ 0 10 20
+     b             ã </font>See that <font face=Kapl>b</font> was set in the callback.<font face=Kapl>
+ 0                 ã </font>Yes, from <font face=Kapl>a</font>'s original stored value.<font face=Kapl>
+     a
+ 0 10 20           ã </font>The value from the evaluation.</pre>
+Note that an evaluation is not completed until all callbacks triggered by it have been
+ finished.
+<p>
+If a variable is set during its
+ <i>own</i> callback, its dependents are invalidated (again).
+</blockquote>
+<A NAME=HEADING378>
+<H1><FONT color="#20B2AA">Itemwise Dependencies</FONT></H1>
+<blockquote>
+<A NAME=30>Itemwise dependencies are intended to reduce redundant computation by allowing
+ the <i>items</i> of a dependent variable to be marked invalid separately. Only the first
+ axis is singled out in this way. The form is the same as for ordinary dependencies except
+ that Bracket Indexing and an index name are used in the definition:
+<pre><font face=Kapl>     name[indexname]:body_of_definition</font></pre>
+The variable named by the index name is local and can be used for any purpose within the definition. Since this variable is local, the index name must be unqualified.<P>
+A simple example of an itemwise dependency is
+<pre><font face=Kapl>     y[i]:f{m[i];c}</font></pre>
+<A NAME=33>Whenever <font face=Kapl>c</font> is changed - even just one of its items -, all of the saved value of <font face=Kapl>y</font> is marked invalid, but when items of <font face=Kapl>m</font> are appropriately changed, then only the corresponding items of the saved value of <font face=Kapl>y</font> are marked invalid.
+</blockquote>
+<A NAME=HEADING379>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Recognition of <A NAME=34>Itemwise</A> Changes</FONT></H2>
+<blockquote>
+<A NAME=38>For itemwise invalidation of the dependent variable, any change in a variable on
+ which the dependency depends itemwise must be made by Bracket Indexing, Choose,
+ or Append Assignment. In the example just shown (leaving aside for the moment an incompatibility between Append and the others), either
+<pre></font><font face=Kapl>   m[3756]ûexpression
+</font>or
+<font face=Kapl>   (3756#m)ûexpression</font></pre>
+marks just<font face=Kapl> y[3756] </font>invalid, and, more generally, each of
+<pre></font><font face=Kapl>   ((expr1)#m)ûexpr2
+</font>and
+<font face=Kapl>   m[expr3]ûexpr4
+</font>and
+<font face=Kapl>   m[,]ûexpr5</font></pre>
+marks items of <font face=Kapl>y</font> invalid.<P>
+All of <font face=Kapl>y</font>, however, is marked invalid by
+<pre></font><font face=Kapl>   ((3756=É#m)/m)ûexpression
+</font>and, of course,
+<font face=Kapl>   m[;5]ûexpression</font></pre>
+Moreover, either pair of statements
+<pre></font><font face=Kapl>   m[3756]ûexpression
+   m[,]ûexpr5
+</font>or<font face=Kapl>
+   m[,]ûexpr5
+   m[3756]ûexpression</font></pre>
+mark all of <font face=Kapl>y</font> invalid (assuming no updating of
+ <font face=Kapl>y</font> between the statements).
+ In effect, when <font face=Kapl>y</font> is updated, it is updated by just one of a
+ Bracket Assignment, an Append Assignment, or an ordinary Assignment. Therefore, itemwise
+ invalidations caused by a Bracket Assignment and an Append Assignment cannot be pending at
+ the same time. (Itemwise invalidations from several Bracket Assignments or several Append
+ Assignments <i>can</i> be pending simultaneously, of course.)<p>
+If <font face=Kapl>a</font> is a large itemwise dependency and you know at
+ some point in the code that you may be about to cause a total invalidation in one of the
+ two manners described just above, you might consider avoiding the total invalidation by
+ forcing an itemwise evaluation with a trivial statement such as<br>
+<font face=Kapl>     {Òa;};</font><P>
+<A NAME=39>In<font face=Kapl> y[i]:m[i] </font>&nbsp;<i>all</i>&nbsp; of
+ <font face=Kapl>y</font> is marked invalid by<font face=Kapl> m[;1]ûexpr </font>.
+ As discussed above,
+ Append Assignment is recognized as an itemwise change, except that a total
+ invalidation occurs when otherwise an itemwise change from an Append Assignment would be
+ pending at the same time as an itemwise change from a Bracket Indexing or Choose.
+</blockquote>
+<A NAME=HEADING380>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Recognition <A NAME=40>of Itemwise Dependence</FONT></H2>
+<blockquote>
+<A NAME=42>In an itemwise dependency definition, only the form shown, Bracket Indexing with just an index name and no semicolons, is allowed on the left. If any other form appears, the dependency is total, no matter what the rest of the definition is like.<P>
+In the body of the definition, to the right of the colon, a similar, but slightly less stringent, rule holds for each variable. To have the dependency depend itemwise on a variable, every referencing of that variable must be a Bracket Indexing using just that same index name for the first axis. None of the following definitions will allow updating of less than all of <font face=Kapl>ns</font>:
+<pre></font><font face=Kapl>ns[i]:(sr+nw)[i]        ã </font>An expression, not a variable, is being indexed.<font face=Kapl>
+ns[i]:{jûi;sr[j]+nw[j]} ã </font>The index has same value, but not same name.<font face=Kapl>
+ns[i]:(i#sr)+i#nw       ã </font>Choose, not Bracket Indexing, used in the def.<font face=Kapl>
+ns[i]:sr[i+1]+nw[i+1]   ã </font>Indices consist of more than just index name.<font face=Kapl>
+ns[i]:sr[i]-sr[i-1]     ã </font>The bad occurrence negates the good one.</font></pre>
+On the other hand, indexing along other axes does not interfere with itemwise invalidation:
+<pre><font face=Kapl>     ns[i]:sr[i;É50],@1 nw[i;50+É50]</font></pre>
+allows updating of only the affected items of <font face=Kapl>ns</font>. Obviously, any dependence on a
+ function or operator is total.<P>
+<b>Note:</b>  At the present time, the parser may confuse the dependent variable with a
+ function when parsing the body of an itemwise dependency definition. If such a parsing
+ error occurs, replace the dependent variable, <font face=Kapl>b</font>, say, in the body by its fully
+ qualified form, <font face=Kapl>cxt.b</font>, say, if the context is known and otherwise by <font face=Kapl>%`b</font>
+ (or more likely <font face=Kapl>(%`b)</font>) to give the parser the hint it needs.
+</blockquote>
+<A NAME=HEADING381>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;The Time and Form of Evaluation of an Itemwise Dependency</FONT></H2>
+<blockquote>
+<A NAME=44>When an itemwise dependency is defined or its definition is changed, its saved
+ value, if any, is marked invalid, just as is done for any dependency. If the next event for
+ it is a reference, its definition is evaluated, with the index name being given the value
+ Null, to indicate all items (see next section). If at some later time any change occurs in
+ a function, operator, or variable on which it depends, and that change is not recognized as
+ itemwise, then the saved value is again marked invalid. If still later the definition is
+ evaluated, the value of the index name is again the vector Null (again, see next section).
+ Just as for an ordinary dependency, an evaluation with Null index for a variable bound to a
+ screen display class can lead, sometimes with no warning or error message, to a retention of
+ the saved value (no longer marked invalid).<P>
+Now suppose a dependent variable is referenced after a series of changes that are recognized
+ as itemwise to variables on which it depends itemwise. (Indices modified by a callback may
+ not be recognized.) Suppose further that no total
+ invalidation has occurred. Then the dependency definition is evaluated with an index vector
+ consisting of the indices for which the changes were recognized, listed in the order in
+ which the changes took place, but without duplication. This vector may contain all indices
+ of the dependent variable; it will nevertheless not be transformed into the Null. Just as
+ for a total invalidation, an evaluation for a variable bound to a screen display class can
+ lead, sometimes with no warning or error message, to a retention of the saved value (no
+ longer marked invalid). Furthermore, for any dependent variable, evaluation with a value
+ that is impermissible for Bracket Indexing leads to validation of the saved value; e.g.,
+ if<font face=Kapl> int[i]:fl[i] </font>and <font face=Kapl>fl</font> is set to a
+ floating-point vector, <font face=Kapl>int</font> is set to an integer vector,
+ <font face=Kapl> fl[2] </font>is set to a value that cannot be coerced to an
+ integer, and then <font face=Kapl>int</font> is referenced, the evaluation fails and the
+ saved value of <font face=Kapl>int</font> (no longer marked invalid) is returned, without
+ any error or warning message.<P>
+If a <A NAME=45>Selective Assignment is explicitly made to a dependent variable and there are pending itemwise assignments, the definition is evaluated, for all the pending indices, before the Selective Assignment is made.<P>
+When any reference is made to an itemwise dependency, including one by Bracket Indexing, if
+ the saved value is marked invalid, even just itemwise, its definition is evaluated
+ before the reference is executed. Indices are not compared to see whether only valid items
+ are being referenced, so that an evaluation is not actually needed.<P>
+If a dependency is defined and the dependent variable is explicitly assigned a value before any reference, then a reference will not trigger an evaluation until one of the variables upon which the dependency depends is changed. In particular, itemwise dependency on a particular variable may only gradually be reflected in the value of the dependency, as illustrated in this example:
+<pre></font><font face=Kapl>     bû10+É10
+     a[i]:{Õi;Õ'---';b[i]}  ã </font>Entire saved value of <font face=Kapl>a</font> marked invalid.<font face=Kapl>
+     aûÉ10                  ã </font>Now it is not marked invalid.<font face=Kapl>
+     a
+ 0 1 2 3 4 5 6 7 8 9        ã </font>Uses saved value.<font face=Kapl>
+     b[3 5]û103 105         ã </font>Pending change for<font face=Kapl> a[3 5]
+     a[0]                   ã </font>Trigger an evaluation.<font face=Kapl>
+ 3 5                        ã </font>Just the changes since<font face=Kapl> aûÉ10
+---
+ 0
+     a
+ 0 1 2 103 4 105 6 7 8 9    ã </font>Old <font face=Kapl>a</font>, with a little new <font face=Kapl>b
+     b
+ 10 11 12 103 14 105 16 17 18 19
+</font></pre>
+You usually want all the dependency to be honored from the beginning, and usually there is
+ no problem, because you do not give an explicit value to a dependency that you have just
+ defined. You should be aware, however, of the use of the saved value in the circumstances
+ just illustrated.
+</blockquote>
+<A NAME=HEADING382>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Evaluation <A NAME=47>When the Index is the Null</FONT></H2>
+<blockquote>
+For any vector of indices <font face=Kapl>i</font> that is not the Null, the itemwise dependency
+ definition <font face=Kapl>a[i]:...</font> can be thought of as being executed in the form
+ <font face=Kapl>a[i]û...</font> . When the index vector is the Null, however, this view would be
+ incorrect. It is, rather, executed in the form <font face=Kapl>aû...</font> . The shape of <font face=Kapl>a</font>
+ can be changed by a total invalidation.<P>
+To repeat, for emphasis: when there is a recognized <i>total</i> evaluation of an
+ itemwise dependency:<P>
+<UL>
+<LI>The Null is used to index the variables for which the dependency is itemwise.<P>
+<LI>The result of executing the body of the dependency definition <i>is</i> the new saved
+ value of the dependent variable. The Assignment to the dependent variable is not an
+ Indexed Assignment, but rather an ordinary Assignment, and the shape of the dependent
+ variable can be changed by it.
+</UL>
+</blockquote>
+<A NAME=HEADING383>
+<H1><FONT color="#20B2AA">Cyclic <A NAME=48>Dependencies </FONT></H1>
+<blockquote>
+So far only<A NAME=49> <i>acyclic dependencies</i> have been discussed, i.e., sets of
+ dependencies with no recursive references, where no dependency depends on itself. The
+ <A HREF="APlusRefV2_15.html#31">Debugging State</A> system command
+ (<font face=Kapl>$dbg</font>) provides a useful tool for analyzing recursive, or
+ <i>cyclic</i> dependencies.<P>
+<b>Example 1. Evaluating Cyclic Dependencies</b><P>
+<A NAME=50>The first example illustrates an important property of cyclic dependencies: if
+ in the course of evaluating a dependency, its name is recursively referenced, that
+ reference will be satisfied with the previously saved value (if there is no saved value,
+ a value error occurs). Unlike a recursive function, a cyclic dependency cannot cause an
+ infinite recursion. For example:
+<pre></font><font face=Kapl>     $dbg dep 1    ã </font>Show dependency evaluations.<font face=Kapl>
+     a:b+2         ã </font>Marks the saved value of <font face=Kapl>a</font> invalid.<font face=Kapl>
+     b:a+g+2
+     aû12          ã </font>Assign <font face=Kapl>a</font> and <font face=Kapl>b</font> values to avoid value errors.<font face=Kapl>
+     bû5           ã </font>They are now not marked invalid.<font face=Kapl>
+     gû10          ã </font>Saved value of <font face=Kapl>b</font> is now marked invalid, so <font face=Kapl>a</font> is also.<font face=Kapl>
+     a
+ã    Dependency .a evaluation entered
+ã      Dependency .b evaluation entered
+ã      Dependency .b evaluation exited
+ã    Dependency .a evaluation exited
+ 26</font></pre>
+The new value of <font face=Kapl>a</font> is 26, which means the new value of <font face=Kapl>b</font> is 24. Since
+ <font face=Kapl>g</font> is 10, <font face=Kapl>a</font> must have been 12 when <font face=Kapl>b</font> was evaluated, which was
+ its saved value at the time.<P>
+<b>Example 2. Interrelated quantities (rate, yield, spread)</b><P>
+Cyclic dependencies arise quite naturally in applications as sets of interrelated variables.
+ For example, consider the following mutual relationships among underlying rate <font face=Kapl>u</font>,
+ yield <font face=Kapl>y</font>, and spread <font face=Kapl>s</font>:
+<pre><font face=Kapl>     y:u+s
+     u:y-s
+     s:y-u</font></pre>
+For initialization set any two of these quantities. After that, if any one of the quantities
+ is set the other two will be automatically updated when referenced. For example:
+<pre></font><font face=Kapl>     $dbg dep 1
+     (u;s)û(0.08;0.005) ã </font>Set both at once else one invalidates the other.<font face=Kapl>
+     y           ã </font>Defining dependency marked any saved value of <font face=Kapl>y</font> invalid.<font face=Kapl>
+ã    Dependency .y evaluation entered
+ã    Dependency .y evaluation exited
+ 0.085
+     yû0.09      ã </font>Marks the saved values of both <font face=Kapl>u</font> and <font face=Kapl>s</font> invalid.<font face=Kapl>
+     u
+ã    Dependency .u evaluation entered
+ã      Dependency .s evaluation entered
+ã      Dependency .s evaluation exited
+ã    Dependency .u evaluation exited
+ 0.08
+     s
+ 0.01            ã </font>The saved value is returned.</pre>
+When <font face=Kapl>y</font> was reassigned, the saved values of <font face=Kapl>u</font> and <font face=Kapl>s</font> were marked
+ invalid. When <font face=Kapl>u</font> was then referenced its definition was evaluated, causing
+ <font face=Kapl>s</font> and <font face=Kapl>y</font> to be referenced. The reference to <font face=Kapl>s</font> caused it to be
+ evaluated, using the new value for <font face=Kapl>y</font> and the old value for <font face=Kapl>u</font>. This new
+ value for <font face=Kapl>s</font> was then used with the new value of <font face=Kapl>y</font> to produce a new value
+ of <font face=Kapl>u</font>. Because of the selfconsistency of the mathematical expressions, the new
+ value of <font face=Kapl>u</font> is the same as the old one. However, these computed values would not
+ be the same if <font face=Kapl>u</font> and <font face=Kapl>s</font> had been referenced in the opposite order. To
+ verify this, reproduce the example up to the references of <font face=Kapl>u</font> and <font face=Kapl>s,</font>
+ and then reference them in the opposite order:
+<pre><font face=Kapl>     (u;s)û(0.08;0.005)
+     y
+ã    Dependency .y evaluation entered
+ã    Dependency .y evaluation exited
+ 0.085
+
+     yû0.09
+     s
+ã    Dependency .s evaluation entered
+ã      Dependency .u evaluation entered
+ã      Dependency .u evaluation exited
+ã    Dependency .s evaluation exited
+ 0.005
+
+     u
+ 0.085</font></pre>
+<A NAME=51>Reasoning as before, <font face=Kapl>u</font> now has a different value from the one originally
+ specified, but <font face=Kapl>s</font> does not. Of course it is not always possible to know the order
+ in which dependencies will reevaluated, which means that one cannot be certain of the new
+ values in cases like this. The only consistent way to use n cyclic dependencies like these
+ is to explicitly set any n-1 of the quantities and use the dependent definition only for
+ the remaining one.<P>
+<A NAME=52>How can the values of several cyclic dependencies be set independently without
+ causing one another's saved values to be marked invalid? In the above example, if
+ <font face=Kapl>y</font> is first specified and then <font face=Kapl>u</font> is specified, the specification of
+ <font face=Kapl>u</font> will cause the saved value of <font face=Kapl>y</font> to be marked invalid, and therefore
+ when <font face=Kapl>y</font> is referenced it will not necessarily return the value to which it was
+ set. The answer to this problem is to set them in a strand assignment, because at the
+ end it marks as valid the values that it has just saved for all targets that are
+ dependencies. Continuing the above example:
+<pre><font face=Kapl>     (y;s)û(0.09;0.005)
+     y
+ 0.09
+     s
+ 0.005
+     u
+ã    Dependency .u evaluation entered
+ã    Dependency .u evaluation exited
+ 0.85
+</font></pre>
+In practice, the values for <font face=Kapl>y</font> and <font face=Kapl>s</font> may not be conveniently available at
+ the same time, so the information on the right of the strand assignment should be maintained
+ in a set of auxiliary global variables. For this example these variables will be denoted by
+ <font face=Kapl>yA</font>, <font face=Kapl>uA</font>, and <font face=Kapl>sA</font>.
+<pre></font><font face=Kapl>     yAû0.09          ã </font>At some point in an application.<font face=Kapl>
+     sAû0.005         ã </font>Probably at some other point.<font face=Kapl>
+     (y;s)û(yA;sA)    ã </font>Later, and before referencing <font face=Kapl>u
+     u
+ã    Dependency .u evaluation entered
+ã    Dependency .u evaluation exited
+ 0.085
+     uAûu             ã </font>Keep the auxiliary of <font face=Kapl>u</font> current.</pre>
+By keeping the auxiliary variables current, it is not necessary for an application to
+ respecify all n-1 dependencies in a cyclic set before evaluating the n-th: those not
+ respecified will simply use their current saved values. Continuing the above example:
+<pre></font><font face=Kapl>     yAû0.095         ã </font>A subsequent respecifying of <font face=Kapl>yA
+     (y;u)û(yA;uA)    ã </font>Later, before referencing <font face=Kapl>s</font>. Old value of <font face=Kapl>uA</font> used.<font face=Kapl>
+     s
+ã    Dependency .s evaluation entered
+ã    Dependency .s evaluation exited
+ 0.01
+     sAûs             ã </font>Keep the auxiliary of <font face=Kapl>s</font> current.</pre>
+The easiest way to keep the auxiliary variables current with the dependency values is to
+ make them into dependencies as well:
+<pre><font face=Kapl>     yA:y
+     sA:s
+     uA:u</font></pre>
+The strand assignments can be incorporated in a function to be called when the current set
+ of assignments to the auxiliary variables has been completed, and before the uncommitted
+ dependency is referenced:
+<pre><font face=Kapl>     commit x:(%¡0Øx)û%¡1Øx</font></pre>
+For example, the above strand assignment is equivalent to <font face=Kapl>commit(`y`u;`yA`uA)</font>.<P>
+The use of auxiliary dependencies also makes it easy to cancel, or back out, changes simply
+ by resetting the values of these dependencies to those when the last commitment was
+ made. In the above example, if:
+<pre><font face=Kapl>     cancel x:(%¡1Øx)û%¡0Øx</font></pre>
+then the values of the auxiliary variables can be reset to their values at the time of the
+ last commitment by:
+<pre><font face=Kapl>     cancel(`y`u`s;`yA`uA`sA)</font></pre>
+</blockquote>
+<A NAME=HEADING384>
+<H1><FONT color="#20B2AA">System <A NAME=56>Functions and System Commands for Dependencies</FONT></H1>
+<blockquote>
+The <A NAME=57>system functions and commands discussed here are described in
+ "<A HREF="APlusRefV2_14.html#0">System Functions</A>", and
+ "<A HREF="APlusRefV2_15.html#0">System Commands</A>".<P>
+The following example will be used to illustrate the system functions and system commands
+ that apply to dependencies.
+<pre><font face=Kapl>     pû2 3Ò1.23 4.5 20 5.6 7 8.95
+     p
+ 1.23  4.5  20
+ 5.6   7     8.95
+     nû2 3Ò10 1 2 5 3  1
+     n
+ 10  1  2
+  5  3  1
+     fn{x}:Äx</font></pre>
+In the definitions that follow, <font face=Kapl>m</font> is dependent on <font face=Kapl>p</font>, <font face=Kapl>n</font>, and
+ <font face=Kapl>fn</font>; <font face=Kapl>ct</font> is dependent on <font face=Kapl>m</font>; and <font face=Kapl>gt</font> is dependent on
+ <font face=Kapl>ct</font>.
+<pre></font><font face=Kapl>     m:p«fn{n}         ã </font>Price times number.<font face=Kapl>
+     ct:+/m            ã </font>Column totals.<font face=Kapl>
+     gt:+/ct           ã </font>Grand total.</pre>
+The <A NAME=61>system command <font face=Kapl>$deps</font> lists the names of the dependencies, while the
+ system function <font face=Kapl>_nl</font> provides such a list as a vector of symbols when given
+ <font face=Kapl>`deps</font> as an argument:
+<pre><font face=Kapl>     $deps
+ m ct gt
+     listû_nl{;`deps}
+     list
+ `m `ct `gt
+     $vars
+ p n
+     _nl{;`vars}
+ `p `n</font></pre>
+Dependencies are global variables, and when they have saved values, their names appear
+ in variable lists.
+<pre></font><font face=Kapl>     ct
+ 40.3 25.5 48.95
+     $vars
+ p n m ct  ã </font>The evaluation of <font face=Kapl>ct</font> caused evaluation of <font face=Kapl>m</font>, but not of <font face=Kapl>gt</font>.</pre>
+The <A NAME=65>system command<font face=Kapl> $def&nbsp;dep </font>displays the definition
+ of the dependency <font face=Kapl>dep</font>, while the system function<font face=Kapl>
+ _def&nbsp;`dep </font>returns that definition as a character vector:
+<pre><font face=Kapl>     $def gt
+gt:+/ct
+     defû_def `gt
+     def
+gt:+/ct</font></pre>
+The<A NAME=69> system command<font face=Kapl> $dep&nbsp;name </font>lists all dependencies
+ in which <font face=Kapl>name</font> is explicitly referenced, where
+ <font face=Kapl>name</font> can be any name, but the only meaningful names are those of
+ global variables, dependencies, or functions. The corresponding system function is
+ <font face=Kapl>_dep</font>:
+<pre><font face=Kapl>     $dep n
+m
+     $dep fn
+m
+     _dep `ct
+ `.gt</font></pre>
+The<A NAME=71> system function <font face=Kapl>_alldep</font> is the transitive closure of
+ <font face=Kapl>_dep</font> with duplicates removed. The value of<font face=Kapl>
+ _alldep&nbsp;`name </font>is a list consisting of the unique names in<font face=Kapl>
+ _dep&nbsp;`name</font>,<font face=Kapl> _dep¡_dep&nbsp;`name</font>,&nbsp; etc.
+<pre><font face=Kapl>     _alldep `m
+ `.ct `.gt</font></pre>
+The command <font face=Kapl>$undef&nbsp;v </font>and function
+ <font face=Kapl>_undef&nbsp;v </font> remove the dependency
+ definition for <font face=Kapl>v</font> while leaving all the other properties of
+ <font face=Kapl>v</font> intact.
+ Forcing evaluation of <font face=Kapl>v</font> just before such a removal will save its
+ latest value.<P>
+Finally, <A NAME=75>there is the Debugging State system command
+ <font face=Kapl>$dbg</font>. The complete definition is given
+ <A HREF="APlusRefV2_15.html#31">above</A>, in the chapter on system commands. The use
+ illustrated here is<font face=Kapl> $dbg&nbsp;dep&nbsp;1 </font>for tracing dependency
+ evaluation. Whenever a dependency is referenced, an "entered" and an "exited" message is
+ displayed for each dependency whose definition had to be evaluated in order to satisfy
+ the reference. In the above example, <font face=Kapl>ct</font> has already been
+ referenced. If it is referenced again, its saved value is returned, so no dependencies
+ are evaluated. If <font face=Kapl>gt</font> is referenced, however, its definition will
+ be evaluated.
+<pre><font face=Kapl>     $dbg dep 1
+     ct
+ 40.3 25.5 48.95
+     gt
+ã    Dependency .gt evaluation entered
+ã    Dependency .gt evaluation exited
+ 114.75</font></pre>
+If one of the underlying variables is changed, all the dependencies are marked for
+ evaluation, so all their names appear when <font face=Kapl>gt</font> is subsequently
+ referenced:
+<pre><font face=Kapl>     n[1;1]û4
+     gt
+ã    Dependency .gt evaluation entered
+ã      Dependency .ct evaluation entered
+ã        Dependency .m evaluation entered
+ã        Dependency .m evaluation exited
+ã      Dependency .ct evaluation exited
+ã    Dependency .gt evaluation exited
+ 121.75</font></pre>
+Note<A NAME=76> that had <font face=Kapl>m</font>, <font face=Kapl>ct</font>, and
+ <font face=Kapl>gt</font> been defined as niladic
+ functions, the evaluated results illustrated in this example would have been the
+ same. However, niladic functions have no saved values and are therefore always evaluated
+ when referenced. Consequently dependencies provide a generally more efficient evaluation
+ scheme.
+</blockquote>
+<HR>
+<ADDRESS><table width="100%"><tr><td><font size=2><i><a href="mailto:doc@aplusdev.org">doc@aplusdev.org</a></i></font></td><td align=right><font size=2><i>&#169; Copyright 1995&#150;2008 Morgan Stanley Dean Witter &amp; Co.  All rights reserved.</i></font></td></tr></table></ADDRESS>
+</BODY>
+</HTML>
+

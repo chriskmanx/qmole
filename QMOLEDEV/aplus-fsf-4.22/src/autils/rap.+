@@ -1,0 +1,164 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+$cx rap
+
+ã 1-1 connection gadget
+
+BUFFERû()
+
+sync{c}:(c%`_MODE)û`sync
+async{c}:(c%`_MODE)û`async
+abort{c}:if (c%`_LISTEN) Ù()
+continue{c}:()
+
+FUNCTIONSû(`sync `async `abort `continue;<@0(sync;async;abort;continue))
+
+set_send_client{s;d;i;p;c;v}:if (`async=c%`_MODE) adap.Send{s;d} else adjust_read_client{c}
+preset_send_client{s;d;i;p;c;v}:d Ý if (`sync=c%`_MODE Ý xeq_system{c;d}) exchange_client{s;d;c}
+adjust_read_client{c}:(BUFFER)û() Ý (c%¡`_EVENT `_R)ûBUFFER
+exchange_client{s;d;c}:(BUFFER)ûsyncSend{s;d;c}
+syncSend{s;d;c}:(0Øz;1Õz) Ý zûadap.Syncsend{s;d;c%`_TIMEOUT}
+
+set_send_server{s;d;i;p;c;v}:if (`async=c%`_MODE) adap.Send{s;d} else adjust_read_server{c}
+preset_send_server{s;d;i;p;c;v}:if (`async=c%`_MODE) d else exchange_server{s;d;c}
+adjust_read_server{c}:xeq_system{c;c%`_R} Ý (BUFFER)û() Ý (c%¡`_EVENT `_R)ûBUFFER
+
+exchange_server{s;d;c}:
+	{
+	rûd;
+	while ((`OK=rc)^~system{c;z} Ý (rc;z)ûsyncXch{s;r;c}) rûif (~executable{z}) z else do âz;
+	(BUFFER)û(rc;z);
+	r
+	}
+
+syncXch{s;d;c}:
+	{
+	cdûadap.GetClientData{s};
+	adap.SetClientData{s;};
+	zûif (2=Òzûadap.SyncXch{s;d;c%`_TIMEOUT}) z else (0Øz;1Õz);
+	adap.SetClientData{s;cd};
+	z
+	}
+
+set_read{s;d;i;p;c;v}:if (`async=c%`_MODE) if (executable{d}) (c%`_S)ûdo âd else xeq_system{c;d}
+
+serverRead{c;d}:if (executable{d}) (c%`_R)ûd else xeq_system{c;d}
+clientRead{c;d}:(c%`_R)ûd
+
+system{c;d}:(<d)ÅÛ¡0ØFUNCTIONS
+xeq_system{c;d}:if (system{c;d}) (dØFUNCTIONS)¡{c}
+
+executable{x}:(`char=©x)^1¦#Òx
+
+preset_listen{s;d;i;p;c;v}:
+	{
+	if (1=c%v) shutdown{c};
+	if (1=d) listen{c};
+	d
+	}
+
+preset_connect{s;d;i;p;c;v}:
+	{
+	if (1=c%v) reset{c};
+	if (1=d) connect{c};
+	d
+	}
+
+connect{c}:
+	{
+	hûadap.Connect{c%`_DESCRIPTOR;clientCB};
+	if (h<0) Ù`connect;
+	(c%`_HANDLE)ûh;
+	adap.SetClientData{h;c};
+	}
+
+clientCB{h;e;d}:
+	{
+	cûadap.GetClientData{h};
+	(c%`_EVENT)ûe;
+	case (e)
+		{
+		`reset;		reset{c};
+		`connected;	clientConnected{c;h};
+		`read;		clientRead{c;d};
+		`sent;		;
+				Ù`error
+		};
+	}
+
+clientConnected{c;h}:
+	{
+	(c,`_S) _spcb (preset_send_client;h);
+	(c,`_S) _scb (set_send_client;h);
+	}
+
+listen{c}:
+	{
+	câ'serverCB{h;e;d}:rap.serverCB{h;e;d;`',(Îc),'}';
+	hûadap.Listen{c%`_DESCRIPTOR;c%`serverCB};
+	if (h<0) Ù`listen;
+	(c%`_LISTEN_HANDLE)ûh;
+	}
+
+serverCB{h;e;d;c}:
+	{
+	(c%`_EVENT)ûe;
+	case (e)
+		{
+		`reset;		reset{c};
+		`connected;	serverConnected{c;h};
+		`read;		serverRead{c;d};
+				Ù`error
+		};
+	}
+
+serverConnected{c;h}:
+	{
+	if (0¨c%`_HANDLE) reset{c};
+	(c%`_HANDLE)ûh;
+	(c,`_S) _scb (set_send_server;h);
+	(c,`_S) _spcb (preset_send_server;h);
+	(c,`_R) _scb (set_read;h);
+	}
+
+shutdown{c}:
+	{
+	reset{c};
+	adap.Close{c%`_LISTEN_HANDLE};
+	(c%`_LISTEN_HANDLE)û0;
+	}
+	
+reset{c}:
+	{
+	adap.Close{c%`_HANDLE};
+	(c%`_HANDLE)û0;
+	(c,`_S) _scb (;);
+	(c,`_S) _spcb (;);
+	(c,`_R) _scb (;);
+	(c%`_R)û();
+	(c%`_S)û();
+	}
+
+define{cx}:
+	{
+	(cx%`_HOST)û`localhost;
+	(cx%`_PORT)û12321;
+	(cx%`_PROTOCOL)û`A;
+	(cx%`_NAME)û`rap;
+	cxâ"_DESCRIPTOR:(`host;_HOST;`port;_PORT;`protocol;_PROTOCOL;`name;_NAME)";
+	(cx%`_LISTEN_HANDLE)û0;
+	(cx%`_HANDLE)û0;
+	(cx%`_LISTEN)û0;
+	(cx%`_CONNECT)û0;
+	(cx%`_MODE)û`async;
+	(cx%`_TIMEOUT)û1000;
+	(cx%`_S)û();
+	(cx%`_R)û();
+	(cx%`_EVENT)û();
+
+	(cx,`_LISTEN) _spcb (preset_listen;);
+	(cx,`_CONNECT) _spcb (preset_connect;);
+
+	cx
+	}
+

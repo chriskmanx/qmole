@@ -1,0 +1,681 @@
+<HTML>
+<HEAD>
+<TITLE>A+ Reference: Interprocess Communication: adap</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF">
+<A NAME=HEADING621>
+<H1><FONT color="#FF0000"><A NAME=0>Interprocess Communication: adap</FONT></H1>
+<a name="CONTENTS53">
+<UL>
+<A HREF="#HEADING622"> Interprocess Communication</A><BR>
+<UL>
+<A HREF="#HEADING623"> Client-Server Communication</A><BR>
+<A HREF="#HEADING624"> Callback Functions and Events</A><BR>
+<A HREF="#HEADING625">Table:&nbsp; adap Asynchronous Interprocess Communication Event Types</A><BR>
+</UL>
+<A HREF="#HEADING626"> The adap Data Structures</A><BR>
+<UL>
+<A HREF="#HEADING627"> Service Descriptors for Interprocess Connections</A><BR>
+<A HREF="#HEADING628">Table:&nbsp; Service Descriptor Attributes</A><BR>
+<A HREF="#HEADING629"> Protocols for Sending and Receiving Data</A><BR>
+<A HREF="#HEADING630"> Service Handles</A><BR>
+</UL>
+<A HREF="#HEADING631"> Timeouts in Synchronous Communication</A><BR>
+<A HREF="#HEADING632"> Communication Errors</A><BR>
+<UL>
+<A HREF="#HEADING633">Table:&nbsp; Errors in Synchronous Communication</A><BR>
+</UL>
+<A HREF="#HEADING634"> Definitions of adap Functions and External Functions</A><br>
+(for a listing, with links, of these functions alphabetized by their A+ names, click
+ <A HREF="APlusRefV2_69.html#1000">here</A>)<BR>
+<UL>
+<A HREF="#HEADING635"> Asynchronous Send</A><font face=Kapl> adap.Send{h;x}</font><BR>
+<A HREF="#HEADING636"> Close Handle</A><font face=Kapl> adap.Close{h}</font><BR>
+<A HREF="#HEADING637"> Connect</A><font face=Kapl> adap.Connect{s;f}</font><BR>
+<A HREF="#HEADING638"> Debug Flag</A><font face=Kapl> adap.Debug{f}</font><BR>
+<A HREF="#HEADING639"> Export Data</A><font face=Kapl> adap.Export{x}</font><BR>
+<A HREF="#HEADING640"> Get Attribute Value</A><font face=Kapl> adap.Of{h;s}</font><BR>
+<A HREF="#HEADING641"> Get Client Data</A><font face=Kapl> adap.GetClientData{h}</font><BR>
+<A HREF="#HEADING642"> Get Port and Workstation Information</A><font face=Kapl> adap.GetPort{h}</font><BR>
+<A HREF="#HEADING643"> Get Timeout</A><font face=Kapl> adap.GetTimeout{t}</font><BR>
+<A HREF="#HEADING644"> Import Data</A><font face=Kapl> adap.Import{x}</font><BR>
+<A HREF="#HEADING645"> Listen</A><font face=Kapl> adap.Listen{s;f}</font><BR>
+<A HREF="#HEADING646"> Modify Timer</A><font face=Kapl> adap.ModifyTimer{h;s;d}</font><BR>
+<A HREF="#HEADING647"> Reset</A><font face=Kapl> adap.Reset{h}</font><BR>
+<A HREF="#HEADING648"> Set Attribute Value</A><font face=Kapl> adap.Has{h;x}</font><BR>
+<A HREF="#HEADING649"> Set Client Data</A><font face=Kapl> adap.SetClientData{h;x}</font><BR>
+<A HREF="#HEADING650"> Set Timer</A><font face=Kapl> adap.SetTimer{h;f;d}</font><BR>
+<A HREF="#HEADING651"> Status of the Read Queue</A><font face=Kapl> adap.ReadQueueStatus{h}</font><BR>
+<A HREF="#HEADING652"> Status of the Write Queue</A><font face=Kapl> adap.WriteQueueStatus{h}</font><BR>
+<A HREF="#HEADING653"> Synchronous Exchange</A><font face=Kapl> adap.SyncXch{h;x;t}</font><BR>
+<A HREF="#HEADING654"> Synchronous Read</A><font face=Kapl> adap.Syncread{h;t}</font><BR>
+<A HREF="#HEADING655"> Synchronous Send</A><font face=Kapl> adap.Syncsend{h;x;t}</font><BR>
+</UL>
+</UL>
+<HR>
+<blockquote>
+<A NAME=1>The adap context is native to A+; there is no need to load adap.
+ "idap.+" is loaded automatically when the interpreter is started. idap.+ installs backward-compatible behavior on top of the automatically loaded i
+ context, which uses the MSIPC class of MStk.<P>
+<A NAME=2>DAP (Distributed Analytics Platform), a set of tools supporting interprocess communication, has been used extensively in non-A+ applications.  The functions in the adap context are a layer on top of DAP, providing application writers with the means to:<P>
+<UL>
+<LI><A NAME=4>establish and maintain communication between pairs of processes, such as a client-server pair;<P>
+<LI>specify the format of the data to be interchanged by a communicating pair of processes; and independently, to<P>
+<LI>establish and maintain timer events.
+</UL>
+Both asynchronous and synchronous interactions are supported.  In asynchronous interactions using the A protocol (cf. "<A HREF="#32">Protocols for Sending and Receiving Data</A>", and especially "<A HREF="#41">The A Protocol</A>"), both single and burst modes are supported.  These tools are in the adap context, which is always available in an A+ session.
+</blockquote>
+<A NAME=HEADING622>
+<H1><FONT color="#20B2AA">Interprocess <A NAME=5>Communication</FONT></H1>
+<blockquote>
+<A NAME=7>Communication based on adap is carried out between two processes - A+ processes or not - , but not directly among more than two.  The mode of communication can be either synchronous or asynchronous.  In synchronous communication, one partner sends a block of information to the other and is blocked from further action until it receives a response.  In asynchronous communication, one partner sends information to the other and then simply goes about other business; if there is a response to what was sent, it is processed whenever it arrives.  Thus one partner might send several  independent requests, each requiring a response, before the response to any one of them is received.  When one process is communicating asynchronously with several others and receives messages from more than one of the them, there is no guarantee that they are received in the same order they were sent.  Only this is certain regarding the order of events in asynchronous communication: if a process sends more than one message to one particular partner, the messages will be received in the order in which they are sent.<P>
+At first thought, synchronous communication may appear to be somewhat easier to manage than asynchronous, but in general it is not, and it is of less general use.  Synchronous communication can be used most effectively when one partner has nothing else to do but wait for the response from the other.  Likewise, asynchronous communication may appear to be more complicated because messages are processed whenever they arrive, and there is no way to know when the arrivals will occur, or - when there is more than one source of messages - in what order.  However, adap's way of managing asynchronous communication, namely events and callback functions, is quite straightforward.<P>
+The rules for interprocess communication are strictly up to the partners.  It can be agreed that one partner always processes requests from the other; that either partner can initiate a request of the other; that either partner can send a message at any time; that not all requests require a response; and so on.<P>
+<A NAME=9>Establishing a communication channel is not a symmetric procedure; one partner is designated to listen for the other, while the other attempts to connect to the listener.  The listener initiates its end of the communication channel by executing <font face=Kapl>adap.Listen</font>.  The other partner executes <font face=Kapl>adap.Connect</font>.  For convenience they will be called the listening partner and connecting partner, respectively.  In principle, it doesn't matter which partner happens to go first<A NAME=APlusRefV2_FootNote_960 HREF=APlusRefV2_FootNote_960.html><b><SUP>1</SUP></b></A>.  If the listening partner goes first, the effect of executing <font face=Kapl>adap.Listen</font> is to continually listen for connecting partners; if the connecting partner goes first, the effect of executing <font face=Kapl>adap.Connect</font> is to continually attempt a connection until the listening partner starts listening.  Once both partners have attempted to establish communication, the communication channel is formed.<P>
+Even though the listening partner continues to listen and the connecting partner continually attempts to connect to its partner until successful, both <font face=Kapl>adap.Listen</font> and <font face=Kapl>adap.Connect</font> return immediately after being executed, for otherwise the partners would not be free to do other work.  The status of the underlying listen and connection attempt are monitored with callback functions on adap events.<P>
+The asymmetry in establishing communication is also reflected in the fact that the connecting process can link up with only one partner for each execution of <font face=Kapl>adap.Connect</font>, while the listening process can link up with many partners with just one execution of <font face=Kapl>adap.Listen</font>.  Executing <font face=Kapl>adap.Listen</font> causes a listening port to be established, which remains open to receive connecting partners until the listening partner shuts it down.  Executing <font face=Kapl>adap.Connect</font> causes a connecting port to be established, over which the connecting partner continually tries to connect to one and only partner, until either it is successful or the connecting partner shuts it down.
+</blockquote>
+<A NAME=HEADING623>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Client-Server Communication</FONT></H2>
+<blockquote>
+<A NAME=11>Client-server communication is an important, commonly used mode of communication.  It is the mode by which one partner, the client, typically takes the lead in communication with a server, by specifying the services to be performed; the server is the passive partner, waiting for requests from clients before taking action.<P>
+The server may provide a common service for many clients, such as real time data access, or a dedicated service, such as data base access and analytic computations.  In the former case the server is the listening partner because of the one to many nature of its service; it is probably started automatically by some means of the operating system, and is always available.  In the latter case, the client-server model may be used simply for load balancing; the server may actually be started by the client, and may be the connecting partner.
+</blockquote>
+<A NAME=HEADING624>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Callback <A NAME=12>Functions and Events</FONT></H2>
+<blockquote>
+<A NAME=15>An event is an asynchronous change in the state of an application which can trigger an action by the application.  There are two classes of events that are of concern in adap applications, interprocess communication events and timer events.  Interprocess communication events mark significant changes in the communication state between processes, while timer events mark time interval expirations.  The means by which an application program takes action is a callback function, which is automatically called when the event takes place.<P>
+For example, when a client requests a connection to a server, a callback function in the server application is automatically invoked so that the server can register the client.  When a message from the client to the server is ready to be received, a callback function is automatically called so that the request can be processed.  Similarly, when the message sent back to the client is ready to be received, a callback function in the client application is automatically called.  In this manner a server can process random, or asynchronous, requests from clients, and a client can continue with other tasks, but still process responses from servers as they arrive.<P>
+Interprocess communication events fall into several categories, called <i>event types</i>.  For example, the receipt of a message from a partner is an event of type <font face=Kapl>`read</font>.  The callback function for the receiving partner's service handle (which identifies the connection) is called with arguments identifying the event type and the partner that the message is from.  There is a small, fixed set of event types in adap (see the table "<A HREF="#17">adap Asynchronous Interprocess Communication Event Types</A>"); typically a callback function consists of a single case statement with a case for each type.<P>
+Callback functions are established for the partners when they call <font face=Kapl>adap.Connect</font> and <font face=Kapl>adap.Listen</font>.  All adap callback functions have three arguments, and their meanings are always the same:
+<pre><font face=Kapl>  CallBackFunction{service_handle;event_type;call_data}</font></pre>
+In interprocess communication, <font face=Kapl>service_handle</font>, which is a scalar
+ integer, is the means by which communicating partners identify one another (see
+ "<A HREF="#42">Service Handles</A>"); <font face=Kapl>event_type</font> indicates the
+ general class of the action that caused the callback to occur (see <A HREF="#17">table
+ below</A>); and <font face=Kapl>call_data</font> holds data associated with the action
+ (see <A HREF="#17">table below</A>).  In the case of event type
+ <A href="#24"><font face=Kapl>`read</font></A>, the associated message is
+ <font face=Kapl>call_data</font>.<P>
+<A NAME=HEADING625>
+<table border=1 cellspacing=0 cellpadding=8>
+<caption><FONT color="#20B2AA" size=+2><B>
+adap <A NAME=17>Asynchronous Interprocess Communication Event Types</B></FONT><BR>
+(Callback Function<font face=Kapl> CBF{service_handle;event_type;call_data}</font>)</caption>
+<tr>
+<th>Event Type</th><th>Description And Action To Be Taken</th></tr>
+<tr>
+<td><font face=Kapl>`choose</font></td>
+<td><A NAME=18>A choose event occurs when only<font face=Kapl> `name </font>is specified in a service
+ descriptor argument to adap, and more than one service has a matching service name. In
+ this case<font face=Kapl> call_data </font>is a vector containing a complete service descriptor for
+ each matching service. The result of the callback function should be one of these service
+ descriptors. Note: it is not always useful for a callback function to produce a result,
+ but in this case it is.</td></tr>
+<tr>
+<td><font face=Kapl>`connected</font></td>
+<td><A NAME=19>A connected event indicates to both the listening and connecting partners
+ that a connection has been made. For example, a server would typically add the client
+ identified by <font face=Kapl>service_handle</font> to a list of clients and perhaps perform some
+ initialization, while a client would start off the client-server communication by sending
+ a message to the server.</td></tr>
+<tr>
+<td><font face=Kapl>`error</font></td>
+<td><A NAME=20>An error event indicates that something has gone wrong from which adap cannot
+ recover. Unlike the reset event (see below), it is left to the application to recover from
+ an error event: to call adap.Close on the handle and then either to restart if possible or
+ to terminate gracefully. No attempt is made to qualify the type of error that occurred.</td></tr>
+<tr>
+<td><font face=Kapl>`read</font></td>
+<td><A NAME=24>A read event indicates that a complete message has arrived from the partner
+ identified by <font face=Kapl>service_handle</font>, i.e., the entire message sent by the partner with
+ one call to <font face=Kapl>adap.Send</font> has arrived. The data, i.e., the contents of the message,
+ are in <font face=Kapl>call_data</font>. In burst mode (in the A protocol), all pending complete
+ messages from the same service handle are included in <font face=Kapl>call_data</font>, each as an
+ enclosed element; see <A HREF="#110">rEventMode</A>.</td></tr>
+<tr>
+<td><font face=Kapl>`reset</font></td>
+<td><A NAME=25>A reset event indicates to either partner that the connection between the
+ pair has been broken, either by the partner closing his end of the connection, or by a
+ recoverable system error. For example, a server would typically remove the client
+ indicated by <font face=Kapl>service_handle</font> from the list of clients it is processing and close
+ that service handle. A client would either explicitly close its service handle or, by doing
+ nothing, allow the system to try to reconnect by automatically recalling
+ <font face=Kapl>adap.Connect</font>. (The listening partner cannot maintain the old connection handle
+ and wait for the connecting partner to reconnect, because the new service handle of the
+ connecting partner will be different.)</td></tr>
+<tr>
+<td><font face=Kapl>`sent</font></td>
+<td><A NAME=26>A sent event indicates that one or more pending messages have been sent to
+ the partner identified by <font face=Kapl>service_handle</font>. Messages are not necessarily sent
+ immediately by <font face=Kapl>adap.Send</font>; some may remain pending and will be sent
+ by adap at a later time. Messages that are sent immediately do not cause sent events.
+ Rather, sent events occur when pending messages are actually sent.
+ <font face=Kapl>call_data</font> is the number of pending messages sent. The total of the
+ <font face=Kapl>call_data</font> values for all sent events plus the total of all results
+ of <font face=Kapl>adap.Send</font> equals the number of messages sent to the
+ partner.</td></tr>
+</table><P>
+<A NAME=27>Timers work a bit differently.  Expiration is really the only event type for a
+ timer.  Consequently, if callback arguments for timers were the same as callback arguments
+ for interprocess communication, the second argument for calls to timer callback functions
+ would always have the same value, and so be useless.  Therefore, timer event types have
+ been defined to be the names of timers; a name is given when a timer is established (see
+ <A HREF="#124"><font face=Kapl>adap.SetTimer</font></A>).  This means that timer event
+ types are not a fixed set as in interprocess communication, but are determined by the
+ application writers.  In practice, of course, they are a fixed set within each
+ application.<P>
+That the only true timer event type is expiration means that the callback function of a
+ timer is called only when the timer expires.<P>
+The <font face=Kapl>service_handle</font> argument of a timer callback function is of use
+ when the timer is to be closed or modified before it expires.  The
+ <font face=Kapl>call_data</font> argument is the time duration with which the timer was
+ established (see <A HREF="#124"><font face=Kapl>adap.SetTimer</font></A>), thus permitting
+ the callback function to reset the timer with a related duration.<P>
+Each timer is established by calling <font face=Kapl>adap.SetTimer</font>, and its callback
+ function is identified in that call.  Consequently, each timer could have a separate
+ callback function, but it is common practice to use one callback function consisting of a
+ single case statement, where the cases are the names of the timers (see
+ <A HREF="#124"><font face=Kapl>adap.SetTimer</font></A>).
+</blockquote>
+<A NAME=HEADING626>
+<H1><FONT color="#20B2AA">The <A NAME=28>adap Data Structures</FONT></H1>
+<A NAME=HEADING627>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Service <A NAME=29>Descriptors for
+ Interprocess Connections</FONT></H2>
+<blockquote>
+A <A NAME=30>service descriptor is a nested vector describing the connection a connecting
+ partner is attempting to establish with the listening partner, and the connections the
+ listener is willing to accept. The partners agree beforehand on the contents of this
+ vector. The elements of the vector are arranged in attribute-value pairs; i.e., the vector
+ is an association list.  The first element of an attribute-value pair is the service
+ attribute, and is one of<font face=Kapl> `host</font>,<font face=Kapl>
+ `port</font>,<font face=Kapl> `protocol</font>, or<font face=Kapl> `name</font>. The
+ second element of a pair is an appropriate value for the service attribute.
+ These attributes can be set on a listener, and their values will then be given to any
+ connection it establishes. (The<font face=Kapl> `retry </font>attribute is explicitly
+ turned off and<font face=Kapl>
+ `listener </font>is reference only.) See the "<A HREF="#31">Service Descriptor
+ Attributes</A>" table.<P>
+For example, the following service descriptor uses the sample values in
+ that table:<br>
+<font face=Kapl>(`host;`s5; `port;9004; `protocol;`A; `name;`ThisService)</font><P>
+The order in which the attribute-value pairs appear is immaterial, although each attribute
+ symbol must be followed immediately by its value.  For example, the above service
+ description is equivalent to:<br>
+<font face=Kapl>(`name;`ThisService; `host;`bilbo; `protocol;`A; `port;9004)</font><P>
+If the name of the listening partner is registered in the operating system,
+ it is only necessary to specify the name in the service
+ descriptor; e.g. <font face=Kapl>(`name;`idn_apc)</font>.<P>
+<A NAME=HEADING628>
+<table border=1 cellspacing=0 cellpadding=8>
+<caption><FONT color="#20B2AA" size=+2><B>
+Service <A NAME=31>Descriptor Attributes</B></FONT></caption>
+<tr>
+<th>Service Attribute</th><th>Description</th><th>Sample Value, Default</th></tr>
+<tr>
+<td><font face=Kapl>`host</font></td>
+<td>The name, as a symbol scalar, of the host machine on which the listening partner runs.
+ If both partners run on the same machine, then <font face=Kapl>`localhost</font> can be
+ used. For <font face=Kapl>adap.Listen</font>, <font face=Kapl>`host</font> must be the
+ local host; it can be given as its name, <font face=Kapl>`localhost</font>, or null.</td>
+<td><A NAME=31A><font face=Kapl>`bilbo</font> (not necessarily a real host name).<BR>
+<i>Default when anything other than </i><font face=Kapl>`name</font><i> is specified:</i>
+ <font face=Kapl>`localhost</font>.</td></tr>
+<tr>
+<td><font face=Kapl>`listener</font></td>
+<td><A NAME=31F>Reference only. This attribute is valid for connections. For
+ those created by listeners, the value is the handle of the listener which created the
+ connection. For "client" connections created through direct calls to
+ <font face=Kapl>i.connect</font>* functions, the value of the
+ <font face=Kapl>`listener</font> attribute is 0.</td>
+<td>&nbsp;</td></tr>
+<tr>
+<td><font face=Kapl>`name</font></td>
+<td><A NAME=31D>The name, as a symbol scalar, of the service.  Some services are listed in
+ the system yellow pages, and for them only their names need be given in service
+ descriptors (see the <font face=Kapl>`choose</font> event type in the table
+ "<A HREF="#17">adap Asynchronous Interprocess Communication Event Types</A>"). For others
+ a complete service descriptor must be given, and the name serves only as an abstract
+ identifier of the connection.</td>
+<td><font face=Kapl>`ThisService</font></td></tr>
+
+<!----
+<tr>
+<td><font face=Kapl>`pollRate</font></td>
+<td><A NAME=31G>This attribute, expressed in seconds (integer or
+ floating point), determines the frequency with which the connection polls libtick for new
+ information (<font face=Kapl>`tick</font> and <font face=Kapl>`stream</font> protocols).
+ The normal minimum value is 1.<p>
+<i>For stress testing only, not for production use,</i> integer arguments between -100000
+ and -101000 can be used to set the polling rate to values between 0 and 1.&nbsp;
+ -10<i>nnnn</i> sets the rate to <i>nnnn</i> milliseconds.</td>
+<td>1</td></tr>
+//---->
+
+<tr>
+<td><font face=Kapl>`port</font></td>
+<td><A NAME=31B>The port on which the communication takes place.  Port numbers are
+ controlled by the system administrators. 0 means that adap should pick any available
+ port; the number of the port chosen by adap will be the first element of
+ <font face=Kapl>adap.getPort{servicehandle}</font>, and it is the application's
+ responsibility to notify potential partners of it.</td>
+<td>9004.<BR>
+<i>Default when anything other than </i><font face=Kapl>`name</font><i> is specified:</i>
+ 0.</td></tr>
+<tr>
+<td><font face=Kapl>`protocol</font></td>
+<td>The name of the format, as a symbol scalar, in which data is sent
+ and received by the partners.  See "<A HREF="#32">Protocols for Sending and
+ Receiving Data</A>".</td>
+<td><A NAME=31C><font face=Kapl>`A</font>, for sending and receiving A+ arrays.<BR><i>Default when anything other than </i><font face=Kapl>`name</font><i> is specified:</i> <font face=Kapl>`A</font>.</td></tr>
+<tr>
+<td><font face=Kapl>`retry</font></td>
+<td><A NAME=31E>If 1, adap attempts to re-establish the Listen connection
+ if the first try fails.  If 0, it does not, perhaps the more reasonable course.</td>
+<td>0</td></tr>
+</table><P>
+</blockquote>
+<A NAME=HEADING629>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Protocols <A NAME=32>for Sending and Receiving Data</FONT></H2>
+<blockquote>
+<A NAME=39>A+ applications can use adap to communicate with other A+ applications and with
+ non-A+ processes, in particular real-time data sources. There are different formats of the
+ A+ data, or protocols, for the different types of partners: the A and
+ simple protocols are used when both partners are A+ applications.
+ In addition, there are the raw and string (as well
+ as simple) protocols for sending or receiving unformatted character strings, and the ipc
+ protocol for communicating with certain non-A+ processes that expect that protocol. The
+ ipc protocol is not documented here.<P>
+<A NAME=40>The first contact with arriving real-time data is made by the line-reader
+ processes, which format the input streams into discrete messages.
+<P>
+The raw protocol can be used to communicate with the lowest level of these processes, the
+ line readers.  Most A+ applications deal with
+ the higher level protocols, but, as you can see, it is possible to establish
+ communication at any level of the real-time data management scheme.
+</blockquote>
+<b><A NAME=41>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The A Protocol</b>
+<blockquote>
+The A protocol is for sending and receiving A+ arrays between A+ applications; it is
+ specified in the protocol portion of the service descriptor as <font face=Kapl>`A</font>.
+ These arrays cannot contain function expressions.  The array is actually transmitted in CDR
+ format (see <A HREF="APlusRefV2_58.html#21">Import an A+ Array</A>,
+ <font face=Kapl>sys.import</font>).
+</blockquote>
+<b><A NAME=41A>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The simple Protocol</b>
+<blockquote>
+simple is designed as a fast, simple A+ protocol; it is
+ specified in the protocol portion of the service descriptor as
+<font face=Kapl>`simple</font>. It is similar to the A protocol but does
+ not accept nested, symbolic, or functional data. That is, it takes only simple integer,
+ float, or character arrays, ones that can be mapped.  The simple protocol does not use
+ import or export (no CDR format), so an A+ object sent can be easily reconstituted in a C
+ process.
+ It does include a four-byte header containing the length of the A object in bytes.
+</blockquote>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The raw Protocol</b>
+<blockquote>
+The raw protocol is to communicate with non-A+ processes that send and receive character
+ strings; it is specified in the protocol portion of the service descriptor as
+ <font face=Kapl>`raw</font> or <font face=Kapl>`RAW</font>.
+</blockquote>
+<b><A NAME=41B>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The string Protocol</b>
+<blockquote>
+string has more general appeal for communication between A+ and C processes than simple
+ does. It is similar to raw, except that it includes a four-byte header with the length of
+ the message, and ensures that only complete messages are delivered. (This differs from raw,
+ in which a single send may come out as several reads, or vice versa.) It accepts (and
+ delivers) only character vectors. It is specified in the protocol portion of the service
+ descriptor as <font face=Kapl>`string</font>.
+</blockquote>
+<A NAME=HEADING630>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Service <A NAME=42>Handles</FONT></H2>
+<blockquote>
+<A NAME=43>Whenever a listening partner initializes a service by executing <font face=Kapl>adap.Listen</font>, it receives as a result of that function an identifying integer known as a <i>service handle</i>.  From the point of view of the application, this integer is simply an abstract identifier.  In the case of <font face=Kapl>adap.Listen</font>, the service handle identifies the listening partner to itself.<P>
+When the listening partner accepts a request to connect from a connecting partner, a service handle identifying that partner is generated.  Similarly, when a connecting partner requests a connection with a listening partner, a service handle identifying the listener is generated.  These service handles should be saved because they are means by which partners are identified.  <P>
+There are four types of service handles, including the three just mentioned:<P>
+<UL>
+<LI>a <A NAME=44><i>listen handle</i> identifies the listening partner to itself, typically for the purpose of closing the communication channel at some later time, and is the result of <font face=Kapl>adap.Listen</font>;<P>
+<LI>an <A NAME=45><i>accept handle</i> identifies a connecting partner to the listening partner, and is the first argument to the listening partner's callback function when a connected event occurs;<P>
+<LI>a <A NAME=46><i>connection handle</i> identifies the listening partner to a connecting partner, and is the first argument to the connecting partner's callback function when a connected event occurs;<P>
+<LI>a <A NAME=47><i>timer handle</i> identifies a timer, and is the result of <font face=Kapl>adap.SetTimer</font>.
+</UL>
+Every service handle, including those for timers, should be saved for the purpose of closing the connection later.
+</blockquote>
+<A NAME=HEADING631>
+<H1><FONT color="#20B2AA">Timeouts <A NAME=48>in Synchronous Communication</FONT></H1>
+<blockquote>
+<A NAME=49>When a process sends a message to its partner synchronously, if no provision had
+ been provided to interrupt the sending function, it will not return until the message is
+ sent. If time is crucial, the wait may be unacceptable; it might be better to interrupt the
+ sending function and try again later.  The function that adap provides for sending messages
+ synchronously, <font face=Kapl>adap.Syncsend</font>, has a timeout argument.  If the timeout expires
+ before the message is completely sent, the underlying message-sending mechanism is
+ interrupted and <font face=Kapl>adap.Syncsend</font> returns.  There is a timeout argument to the function
+ for synchronously reading messages as well.<P>
+If a timeout occurs then all that is known about the message is that it has been partially sent or partially received, but the exact state is unknown.  The only way to clear the pending message fragments is to force a reset.<P>
+A timeout argument indicates the duration of time during which attempts will be made to complete a synchronous operation.  The form of a timeout is either a numeric scalar or one-element vector, or a two-element integer vector.  In the case of a numeric scalar or one-element vector, the value represents seconds, and any fractional part of the number represents fractions of seconds.  In the case of a two-element integer vector, the first element represents seconds and the second element represents microseconds.  For example, 2, 2.5, and 2 500000 are all valid timeouts.<P>
+An alternative timeout form is to specify the clock time by which a synchronous operation must be completed, or else abandoned.  This form is a three-element integer array, where the first element represents seconds since the Epoch (see <A HREF="APlusRefV2_58.html#225"><font face=Kapl>sys.secs_in_Epoch</font></A>), the second element represents microseconds, and the third element is 1.<P>
+The two forms of timeouts are called <i>duration timeouts</i> and <i>clock timeouts</i>.
+</blockquote>
+<A NAME=HEADING632>
+<H1><FONT color="#20B2AA">Communication Errors</FONT></H1>
+<blockquote>
+In asynchronous operations, an unrecoverable system error results in a callback with event type <font face=Kapl>`error</font>, while a recoverable system error results in a callback with event type <font face=Kapl>`reset</font>.  For synchronous operations, however, no analogous default actions are taken.  This means that the application writer is responsible for examining the error and determining if a <font face=Kapl>`reset</font> needs to be sent to the partner (see <A HREF="#100"><font face=Kapl>adap.Reset</font></A>).<P>
+The errors that the synchronous functions can report (as indicated by the second element of an error return) are listed in the <A HREF="#51">next table</A>.<P>
+<A NAME=HEADING633>
+<table border=1 cellspacing=0 cellpadding=8>
+<caption><FONT color="#20B2AA" size=+2><B>
+Errors in <A NAME=51>Synchronous Communication</B></FONT></caption>
+<tr>
+<th>Error Name</th><th>Description And Action To Be Taken</th></tr>
+<tr>
+<td><font face=Kapl>`buffread</font></td>
+<td><A NAME=52>Call <font face=Kapl>adap.Reset</font>.</td></tr>
+<tr>
+<td><font face=Kapl>`buffwrite</font></td>
+<td><A NAME=53>Call <font face=Kapl>adap.Reset</font>.</td></tr>
+<tr>
+<td><font face=Kapl>`fdsisset</font></td>
+<td><A NAME=54>Call <font face=Kapl>adap.Reset</font>.</td></tr>
+<tr>
+<td><font face=Kapl>`nochan</font></td>
+<td><A NAME=55>Call <font face=Kapl>adap.Reset</font>.</td></tr>
+<tr>
+<td><font face=Kapl>`select</font></td>
+<td><A NAME=56>Call <font face=Kapl>adap.Reset</font>.</td></tr>
+<tr>
+<td><font face=Kapl>`readImport</font></td>
+<td><A NAME=57>This error indicates that <font face=Kapl>adap.Syncread</font> received a bad A+ object.
+ It may or may not require a reset. More likely, it indicates a bug in the partner. (A bad
+ A+ object is one that does not conform to the A protocol, which must be used in synchronous
+ communication; see "<A HREF="#32">Protocols for Sending and Receiving Data</A>".)</td></tr>
+<tr>
+<td><font face=Kapl>`export</font></td>
+<td><A NAME=58>This error indicates that the argument to
+ <font face=Kapl>adap.Syncsend</font> is an invalid A+ object (perhaps one with function
+ pointers). Reset is not necessary.</td></tr>
+<tr>
+<td><font face=Kapl>`interrupt</font></td>
+<td><A NAME=59>This indicates that a system interrupt occurred while the operation was in
+ progress. A reset need not be called, but you should continue execution so that the
+ interrupt can be processed. (Note that processing the interrupt may well cause a reset or
+ even termination of the program.)</td></tr>
+<tr>
+<td><font face=Kapl>`timeout</font></td>
+<td><A NAME=60>This indicates that the function did not finish before the timeout was
+ reached. Whether or not a reset is necessary is up to the application.</td></tr>
+</table><P>
+</blockquote>
+<A NAME=HEADING634>
+<H1><FONT color="#20B2AA">Definitions of adap Functions and External Functions</FONT></H1>
+<A NAME=HEADING635>
+<H2><FONT color="#20B2AA">Asynchronous <A NAME=63>Send<font face=Kapl>
+ adap.Send{h;x}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+<font face=Kapl>h</font> is a service handle, as described in
+ "<A HREF="#42">Service Handles</A>".  <font face=Kapl>x</font> is any array. The result is
+ a scalar integer.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function is used by either communicating partner to send a message to the other one.
+ The message is the array <font face=Kapl>x</font>. If possible, the message is sent
+ immediately. If not, the message is considered pending, and will be sent at some later
+ time.<font face=Kapl> adap.Send </font>sends only one packet (2K, perhaps) synchronously
+ (i.e., before it returns); the rest is transmitted during later calls to this function or
+ when the process returns to the mainloop. If the message is sent immediately, any pending
+ messages will also have been sent. The contents of the message <font face=Kapl>x</font>
+ depend on the protocol being used (see "<A HREF="#32">Protocols for Sending and Receiving
+ Data</A>").<P>
+The result is the number of messages sent. The number is 0 if the current message
+ <font face=Kapl>x</font> is not immediately sent, and it may be greater than 1 if this
+ message and pending ones are immediately sent.  Any messages immediately sent by this
+ function will not cause a <A HREF="#26"><font face=Kapl>`sent</font> event</A>; see
+ "<A HREF="#HEADING625">Protocols for Sending and Receiving Data</A>".  Note that a result
+ of 0 can also arise if the function fails, which can happen, for example, if the arguments
+ are invalid.<P>
+A cumulative total of the results of this function and the
+ <font face=Kapl>call_data</font> arguments to <font face=Kapl>`sent</font> callbacks
+ equals the total number of messages sent to the partner.</BLOCKQUOTE><P>
+<A NAME=HEADING636>
+<H2><FONT color="#20B2AA">Close <A NAME=66>Handle<font face=Kapl>  adap.Close{h}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Argument and Result</b><BLOCKQUOTE>
+<font face=Kapl>h</font> is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The result is a scalar integer.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function closes the service handle <font face=Kapl>h</font>.  All system resources associated with this service handle are deleted.  In the case the service handle <font face=Kapl>h</font> was established through <font face=Kapl>adap.Listen</font>, previously established connections for the listening partner are maintained, but no new ones will be established.  If the listening partner wishes to terminate service completely, in addition to closing its service handle <font face=Kapl>h</font>, it must explicitly close all accept handles it has previously received for <font face=Kapl>h</font>; the listening partner is responsible for maintaining a list of accept handles.<P>
+Service handles for timers can be closed with <font face=Kapl>adap.Close</font> before their set times expire; they are automatically closed when their set times expire, and therefore, the timers can be said to expire.<P>
+The result of this function is 1 if the connection is successfully closed, i.e.  if the service associated with it is found and closed, and 0 otherwise.<P>
+The requirement to explicitly close connections when they are no longer needed is the main reason for saving the service handles produced by <font face=Kapl>adap.Connect</font>, <font face=Kapl>adap.Listen</font>, and <font face=Kapl>adap.SetTimer</font>.</BLOCKQUOTE><P>
+<A NAME=HEADING637>
+<H2><FONT color="#20B2AA">Connect<A NAME=69><font face=Kapl>  adap.Connect{s;f}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+<font face=Kapl>s</font> is a service descriptor, as described in "<A HREF="#29">Service Descriptors for Interprocess Connections</A>".  <font face=Kapl>f</font> is a callback function, as described in "<A HREF="#12">Callback Functions and Events</A>".  The result is a service handle, as described in "<A HREF="#42">Service Handles</A>".</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function is used by a connecting partner to establish communication with a listening partner.  See "<A HREF="#5">Interprocess Communication</A>".  The result is -1 if the function fails, which can happen, for example, if either argument is invalid.</BLOCKQUOTE><P>
+<A NAME=HEADING638>
+<H2><FONT color="#20B2AA">Debug<A NAME=72> Flag<font face=Kapl>  adap.Debug{f}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Argument</b><BLOCKQUOTE>
+The argument is a scalar integer.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+Immediately after execution of <font face=Kapl>adap.Debug{1}</font>, adap displays trace messages in the A+
+ session as it is executed. Immediately after execution of <font face=Kapl>adap.Debug{0}</font>, most adap
+ messages are suppressed; some error and warning messages are still issued. A "zero-length
+ message" warning indicates a real problem with a socket, and, even though the message may be
+ suppressed, the condition may cause the process to burn CPU cycles.<P>
+When a problem occurs with adap, you can help the adap developers resolve it if you can
+ repeat the error after executing <font face=Kapl>adap.Debug{1}</font> and send them the resulting A+
+ session log.</BLOCKQUOTE><P>
+<A NAME=HEADING639>
+<H2><FONT color="#20B2AA">Export<A NAME=75> Data<font face=Kapl>  adap.Export{x}</font></FONT></H2>
+<BLOCKQUOTE>This function has been superseded by <font face=Kapl>sys.exp</font>.</BLOCKQUOTE><P>
+<A NAME=HEADING640>
+<H2><FONT color="#20B2AA">Get <A NAME=78>Attribute Value<font face=Kapl>  adap.Of{h;s}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+The left argument <font face=Kapl>h</font> is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The right argument <font face=Kapl>s</font> is a symbol.  The result is an array.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+The result is the value of the attribute named in the right argument <font face=Kapl>s</font> for the service handle <font face=Kapl>h</font>.  See <A HREF="#103"><font face=Kapl>adap.Has</font></A>.</BLOCKQUOTE><P>
+<A NAME=HEADING641>
+<H2><FONT color="#20B2AA">Get <A NAME=81>Client Data<font face=Kapl>  adap.GetClientData{h}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Argument and Result</b><BLOCKQUOTE>
+The argument is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The result is an array.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+The result of this function is the client data previously associated with <font face=Kapl>h</font> by <font face=Kapl>adap.SetClientData</font>.  If no client data has previously been set or if <font face=Kapl>h</font> is not a currently active service handle, the value is Null.</BLOCKQUOTE><P>
+<A NAME=HEADING642>
+<H2><FONT color="#20B2AA">Get Port<A NAME=85> and Workstation Information<font face=Kapl>  adap.GetPort{h}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Argument and Result</b><BLOCKQUOTE>
+The argument is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The result is a five-element integer vector.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+The first element of the result is the port number for the service handle, and the last four elements are the conventional Unix network id for the current host machine.
+</BLOCKQUOTE>
+<A NAME=HEADING643>
+<H2><FONT color="#20B2AA">Get <A NAME=88>Timeout<font face=Kapl>  adap.GetTimeout{t}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Results</b><BLOCKQUOTE>
+The argument <font face=Kapl>t</font> is a duration timeout, as described in "<A HREF="#48">Timeouts in Synchronous Communication</A>".  The result is a clock timeout.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+The argument <font face=Kapl>t</font> represents a number of seconds, possibly fractional.  The result is the clock time <font face=Kapl>t</font> seconds after the function is called.  For example, <font face=Kapl>adap.GetTimeout{10.5}</font> is the clock time 10.5 seconds from the time the function was called.<P>
+This function is useful when several synchronous operations are to be performed in a row, and all must finish within a certain time.  Since the operations are performed sequentially, the same duration timeout cannot be used for all calls, but the same clock timeout can.  This function converts a duration timeout to the (nearly) equivalent clock timeout, if the first of the synchronous operations is called immediately after the conversion is done.</BLOCKQUOTE><P>
+<A NAME=HEADING644>
+<H2><FONT color="#20B2AA">Import <A NAME=91>Data<font face=Kapl>  adap.Import{x}</font></FONT></H2>
+<BLOCKQUOTE>This function has been superseded by <font face=Kapl>sys.imp</font>.
+</BLOCKQUOTE>
+<A NAME=HEADING645>
+<H2><FONT color="#20B2AA">Listen<A NAME=94><font face=Kapl>  adap.Listen{s;f}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b>
+<BLOCKQUOTE>
+<font face=Kapl>s</font> is a service descriptor, as described in "<A HREF="#29">Service Descriptors for Interprocess Connections</A>".  <font face=Kapl>f</font> is a callback function, as described in "<A HREF="#12">Callback Functions and Events</A>".  The result is a service handle, as described in "<A HREF="#42">Service Handles</A>".</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function is used to initialize listening partners, i.e., to set up the mechanism by
+ which processes listen for partners attempting to establish connections.  See
+ "<A HREF="#5">Interprocess Communication</A>".  The result is -1 if the function fails,
+ which can happen, for example, if either argument is invalid.  See <A HREF="#31">"Service
+ Descriptor Attributes</A> regarding retries.<P>
+The listening partner can set the port number to 0 in the argument s, in which case adap generates a valid port number.  The listening partner can then get the assigned port number by executing <font face=Kapl>adap.GetPort</font>, but must broadcast this number to all potential partners.
+</BLOCKQUOTE>
+<A NAME=95><b>&nbsp;&nbsp;&nbsp;Example</b>
+<BLOCKQUOTE>
+<pre><font face=Kapl>(ListenHandle)ûadap.Listen{
+                           (`name;`Test;
+                            `host;`localhost;
+                            `port;0;
+                            `protocol;`A;
+                            `retry;0);
+                           CallBackFunc};</font></pre>
+</BLOCKQUOTE>
+<A NAME=HEADING646>
+<H2><FONT color="#20B2AA">Modify <A NAME=97>Timer<font face=Kapl>  adap.ModifyTimer{h;s;d}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+<font face=Kapl>h</font> is the service handle of the timer, as described in "<A HREF="#42">Service Handles</A>".  <font face=Kapl>s</font> is a symbol scalar, the name of the timer.  <font face=Kapl>d</font> is a numeric scalar, the duration of the timer.  The result is an integer scalar.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function changes the name (<font face=Kapl>s</font>) or the duration (<font face=Kapl>d</font>) of the timer with service handle <font face=Kapl>h</font>.  The new duration is from the time when <font face=Kapl>adap.ModifyTimer</font> was called.  The result is 1 if the timer is found and successfully modified, and 0 otherwise.</BLOCKQUOTE><P>
+<A NAME=HEADING647>
+<H2><FONT color="#20B2AA">Reset<A NAME=100><font face=Kapl>  adap.Reset{h}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Argument and Result</b><BLOCKQUOTE>
+<font face=Kapl>h</font> is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The result is a scalar integer.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+If <font face=Kapl>h</font> is the service handle of an interprocess connection, this function closes the connection.  This is a user-generated reset.  It differs from a normal reset, in that a reset event is not generated.  However, if this function is called by a connecting partner, the underlying system will then continually try to reconnect to the partner, just as it would for a normal reset.  This function, which in practice would rarely be executed by the listening partner, has the same effect as <font face=Kapl>adap.Close</font> for that partner.<P>
+If <font face=Kapl>h</font> is a timer, the timer event is reset to its original time duration, and no callback is generated.<P>
+The result of this function is 1 if the service is successfully reset, i.e.  if the service associated with it is found and reset, and 0 otherwise.</BLOCKQUOTE><P>
+<A NAME=HEADING648>
+<H2><FONT color="#20B2AA">Set <A NAME=103>Attribute Value<font face=Kapl>
+ adap.Has{h;x}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments</b><BLOCKQUOTE>
+The left argument h is a service handle, as described in
+ "<A HREF="#42">Service Handles</A>".  The right argument is a nested vector.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+The right argument is an association list, i.e., a nested vector consisting of symbol,
+ value pairs.  The symbols are the names of service handle attributes.  The effect of this
+ function is to set these attributes, for the service handle <font face=Kapl>h</font>, to
+ the values in the symbol, value pairs.  The attributes applicable to
+ <font face=Kapl>h</font> depend on the protocol for sending and receiving data with which
+ <font face=Kapl>h</font> was established.  A description of all the attributes follows.<P>
+<UL>
+<LI><A NAME=105>list:  A list of names, as symbols, of the attributes applicable to the
+ service handle <font face=Kapl>h</font>.  This attribute applies to all protocols.<P>
+<LI><A NAME=106>rBufsize:  The read buffer size for the A protocol; the default is 32K.<P>
+<LI><A NAME=110>rEventMode:  For the A protocol.  If <font face=Kapl>`single</font> (the
+ default), a separate read event occurs for each message received. If
+ <font face=Kapl>`burst</font>, all pending messages from a service handle are gathered in
+ a nested array (even if there is only one) for a single read callback.
+ (<font face=Kapl>Syncread</font> is not affected; it always returns one message and does
+ not enclose it in a nested array.)  The purpose of burst mode is to allow an application
+ to ensure that it is up to date. Burst mode can prevent a process with time-consuming
+ read-event code from falling behind and it can obviate the execution of time-consuming
+ dependency definitions. If an application nevertheless falls behind, that fact can be
+ seen from the increasing numbers of messages at each read event.  Cf. the
+ <A HREF="#24">read event type</A>.<P>
+<LI><A NAME=111>rPause: If 1, messages coming in on the read channel of the service handle
+ <font face=Kapl>h</font> will be queued and no <font face=Kapl>`sent</font> events will be
+ received; if 0, message processing proceeds normally, and in particular, any messages
+ queued while the value was 1 will be read. This attribute applies to all protocols.
+ Contact the A+ Development Group before setting this attribute.<P>
+<LI><A NAME=112>rPriority: The value is an integer representing the relative priority of
+ processing the read channel of the service handle <font face=Kapl>h</font> in the event
+loop of the A+ process. (Every time through the event loop, events associated with the
+ event source of highest priority are processed first, then those associated with the event
+ source of next highest priority, and so on.) Note: screen management events have priority
+ 1024. Contact the A+ Development Group before setting this attribute.<P>
+<LI><A NAME=113>rQueueStatus: This attribute is reference only, and its value and meaning
+ are the same as those of the result of <font face=Kapl>adap.ReadQueueStatus{h}</font>.
+ This attribute applies to all protocols.<P>
+<LI><A NAME=114>wPause: Like rPause, except that when 1, sent messages are queued.
+ This attribute applies to the A, raw, and ipc protocols.<P>
+<LI><A NAME=115>wPriority: The value is an integer representing the relative priority of
+ processing the send channel of the service handle <font face=Kapl>h</font> in the event
+ loop of the A+ process. See rPriority. This attribute applies to the A, raw, and
+ ipc protocols.<P>
+<LI><A NAME=116>wQueueStatus: This attribute is reference only, and its value and meaning
+ are the same as those of the result of <font face=Kapl>adap.WriteQueueStatus{h}</font>.
+ This attribute applies to the A, raw, and ipc protocols.<P>
+<LI><A NAME=117>wBufsize: The write buffer size for the A protocol; the default is 32K.<P>
+<LI><A NAME=118>wNodelay: For the A protocol. Causes even tiny messages to be sent
+ immediately; prevents their being accumulated with a view toward traffic reduction by
+ batch transmission.
+</UL></BLOCKQUOTE>
+<A NAME=HEADING649>
+<H2><FONT color="#20B2AA">Set <A NAME=121>Client Data<font face=Kapl>  adap.SetClientData{h;x}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+<font face=Kapl>h</font> is a service handle, as described in "<A HREF="#42">Service Handles</A>".  <font face=Kapl>x</font> is any array that satisfies the conditions of the A protocol (see "<A HREF="#32">Protocols for Sending and Receiving Data</A>").  The result is 0.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function associates the array <font face=Kapl>x</font> with the service handle <font face=Kapl>h</font>.  The array can be retrieved using <font face=Kapl>adap.GetClientData</font>.  The client data <font face=Kapl>x</font> will no longer be accessible once the connection is closed.<P>
+Client data is a convenient way to store auxiliary information about the communication handle.  For example, if a client has several communication paths open to the same server, the client data could hold "instance" information.
+</BLOCKQUOTE>
+<A NAME=HEADING650>
+<H2><FONT color="#20B2AA">Set <A NAME=124>Timer<font face=Kapl>  adap.SetTimer{h;f;d}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+<font face=Kapl>h</font> is a symbol scalar, which is the name of the timer and of the event type in the callback.  <font face=Kapl>f</font> is a callback function, as described in "<A HREF="#12">Callback Functions and Events</A>".  <font face=Kapl>d</font> is a numeric scalar that represents the duration of the timer, in seconds; <font face=Kapl>d</font> can be fractional.  The result is a service handle, as described in "<A HREF="#42">Service Handles</A>".</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function sets the timer named by <font face=Kapl>h</font> to the duration specified by <font face=Kapl>d</font>.  See "<A HREF="#5">Interprocess Communication</A>".  The result is 0 if the function fails to establish a timer, which can happen, for example, if any of the arguments are invalid.</BLOCKQUOTE><P>
+<A NAME=HEADING651>
+<H2><FONT color="#20B2AA">Status of the <A NAME=128>Read Queue<font face=Kapl>  adap.ReadQueueStatus{h}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+The argument <font face=Kapl>h</font> is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The result is a two-element integer vector.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+The first element of the result is 1 if there is a message waiting to be read, and 0 otherwise.  The second element is 1 if there is a message in the process of being read.</BLOCKQUOTE><P>
+<A NAME=HEADING652>
+<H2><FONT color="#20B2AA">Status of the <A NAME=132>Write Queue<font face=Kapl>  adap.WriteQueueStatus{h}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+The argument <font face=Kapl>h</font> is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The result is a two-element integer vector.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+The first element of the result contains the number of pending messages on the write queue.  The second element is 1 if there is a message in the process of being sent, and 0 otherwise.<P>
+If the write queue is empty (no pending messages), the result is 0 0.  A result of 2 0 indicates two pending messages, while 1 1 indicates one pending message which has been partially sent.<P>
+This function can be used in simple communication arrangements to keep track of the number of
+ messages sent, rather than counting results of <font face=Kapl>adap.Send</font> and the callback data for
+ sent events (see <A HREF="#63"><font face=Kapl>adap.Send</font></A>, and the <A HREF="#26">event types
+ table</A>).</BLOCKQUOTE><P>
+<A NAME=HEADING653>
+<H2><FONT color="#20B2AA">Synchronous <A NAME=135>Exchange<font face=Kapl>  adap.SyncXch{h;x;t}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+The argument <font face=Kapl>h</font> is a service handle, as described in "<A HREF="#42">Service Handles</A>".  The argument <font face=Kapl>x</font> is the array to be the sent to the partner, which must satisfy the conditions of the A protocol (see "<A HREF="#32">Protocols for Sending and Receiving Data</A>").  The argument <font face=Kapl>t</font> is a timeout (see "<A HREF="#48">Timeouts in Synchronous Communication</A>").  The result is a nested vector.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+<font face=Kapl>adap.SyncXch</font> is an A+ cover function for synchronous communication in which the message <font face=Kapl>x</font> is sent with <font face=Kapl>adap.Syncsend</font> and, in response, a message is received using <font face=Kapl>adap.Syncread</font>.  This is useful when only one message will be received for each message sent.  If more than one message will be received for each message sent, then <font face=Kapl>adap.Syncsend</font> should be used, followed by a series of calls to <font face=Kapl>adap.Syncread</font>.  The latter occurs, for example, when a server performing a long computation sends a series of status reports to the client.<P>
+If <font face=Kapl>adap.SyncXch</font> fails due to a timeout in <font face=Kapl>adap.Syncread</font>, then the message was successfully sent, but the response was not received in the allotted time.  If this function is subsequently called again for the same message, the message will be sent again.<P>
+The first element of the result is either <font face=Kapl>`error</font> or <font face=Kapl>`OK</font>.  If <font face=Kapl>`OK</font>, the second element contains the message from the partner.  If it is <font face=Kapl>`error</font>, the first three elements are the result from either <font face=Kapl>adap.Syncsend</font> or <font face=Kapl>adap.Syncread</font>, and the fourth element is either <font face=Kapl>`send</font> or <font face=Kapl>`read</font>, to indicate which function it is.</BLOCKQUOTE><P>
+<A NAME=HEADING654>
+<H2><FONT color="#20B2AA">Synchronous <A NAME=138>Read<font face=Kapl>  adap.Syncread{h;t}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Results</b><BLOCKQUOTE>
+The argument <font face=Kapl>h</font> is a service handle, as described in
+ "<A HREF="#42">Service Handles</A>". The argument <font face=Kapl>t</font> is a timeout
+ (see "<A HREF="#48">Timeouts in Synchronous Communication</A>"). The result is a
+ three-element nested vector, or the Null.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This functions waits for a message, i.e. array, to be received from the partner. The
+ partner may send this array synchronously or asynchronously; if it was sent
+ asynchronously, it must have been sent using the A protocol (see
+ "<A HREF="#32">Protocols for Sending and Receiving Data</A>").<P>
+If <font face=Kapl>h</font> is bad (not a valid service) the result is null. Otherwise,
+ the result is a three-element enclosed vector. The first element is either
+ <font face=Kapl>`error</font> or <font face=Kapl>`OK</font>, indicating success or
+ failure. In case of an error, the second element is a symbol categorizing the error, and
+ the third element is a system-generated character vector describing the error in more
+ detail. Otherwise, the second element is the received message, and the third element is
+ the Null.</BLOCKQUOTE><P>
+<A NAME=HEADING655>
+<H2><FONT color="#20B2AA">Synchronous <A NAME=141>Send<font face=Kapl>  adap.Syncsend{h;x;t}</font></FONT></H2>
+<b>&nbsp;&nbsp;&nbsp;Arguments and Result</b><BLOCKQUOTE>
+The argument <font face=Kapl>h</font> is a service handle, as described in
+ "<A HREF="#42">Service Handles</A>". The argument <font face=Kapl>x</font> is the array
+ to be the sent to the partner, which must satisfy the conditions of the A protocol (see
+ "<A HREF="#32">Protocols for Sending and Receiving Data</A>"). The argument
+ <font face=Kapl>t</font> is a timeout (see "<A HREF="#48">Timeouts in Synchronous
+ Communication</A>"). The result is a three-element nested vector, or the Null.</BLOCKQUOTE>
+<b>&nbsp;&nbsp;&nbsp;Definition</b><BLOCKQUOTE>
+This function is for sending arrays to partners synchronously.  This means that the message <font face=Kapl>x</font>, and any that are pending, are sent before the function terminates. <P>
+If <font face=Kapl>h</font> is bad (not a valid service) the result is null. Otherwise,the
+ result is a three-element nested vector. The first element is either
+ <font face=Kapl>`error</font> or <font face=Kapl>`OK</font>, indicating success or
+ failure. In case of an error, the second element is a symbol categorizing the error, and
+ the third element is a system-generated character vector describing the error in more
+ detail. In case of success, the second argument is the numbers of messages actually sent,
+ and the third argument is the status of the write queue (see
+ <A HREF="#132"><font face=Kapl>adap.WriteQueueStatus</font></A>).  Note that if there were
+ previously sent messages in the write queue when <font face=Kapl>adap.Syncsend</font> was
+ called, then the following are possible:<P>
+<UL>
+<LI>the number of messages sent can be greater than 1;<P>
+<LI>if the timeout expires then the number of messages sent can be greater than 0, although the current message <font face=Kapl>x</font> was not sent.
+</UL></BLOCKQUOTE>
+
+<HR>
+<ADDRESS><table width="100%"><tr><td><font size=2><i><a href="mailto:doc@aplusdev.org">doc@aplusdev.org</a></i></font></td><td align=right><font size=2><i>&#169; Copyright 1995&#150;2008 Morgan Stanley Dean Witter &amp; Co.  All rights reserved.</i></font></td></tr></table></ADDRESS>
+</BODY>
+</HTML>

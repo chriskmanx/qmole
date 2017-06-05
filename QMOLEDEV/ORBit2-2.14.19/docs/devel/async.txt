@@ -1,0 +1,57 @@
+Re: ORBit2 versus hanging method calls
+
+Hi Joe,
+
+On 12 Oct 2001, Joe Shaw wrote:
+> On Thu, 2001-10-11 at 22:10, Michael Meeks wrote:
+> >         Thirdly - there is builtin ASync support in ORBit2 - a bit
+> > like bonobo-async, but using the infastructure inside ORBit2 [
+> > that superceeds bonobo-async by an order of intelligence ], so -
+> > it should be possible to make nice async methods for things that
+> > might take a long time, and invoke a standard CORBA method
+> > asynchronously without any fooling around in the IDL.
+> 
+> Cool!  How does one utilize this functionality?
+
+	Ah; wait - let me just commit. So, there is an example (
+regression test ) in ORBit2/test/everything/client.c search for Async.
+Essentialy however you just need this:
+
+typedef struct _ORBitAsyncQueueEntry ORBitAsyncQueueEntry;
+
+typedef void (*ORBitAsyncInvokeFunc) (CORBA_Object          object,
+				      ORBit_IMethod        *m_data,
+				      ORBitAsyncQueueEntry *aqe,
+				      gpointer              user_data, 
+				      CORBA_Environment    *ev);
+
+/* Various bits for Async work */
+void ORBit_small_invoke_async        (CORBA_Object           obj,
+				      ORBit_IMethod         *m_data,
+				      ORBitAsyncInvokeFunc   fn,
+				      gpointer               user_data,
+				      gpointer              *args,
+				      CORBA_Context          ctx,
+				      CORBA_Environment     *ev);
+
+void ORBit_small_demarshal_async     (ORBitAsyncQueueEntry  *aqe,
+				      gpointer               ret,
+				      gpointer              *args,
+				      CORBA_Environment     *ev);
+
+
+	so you do something like ORBit_small_invoke_async (cb), and
+inside the cb you do ORBit_small_demarshal_async (queue_entry), and
+that's about it really.
+
+	Of course - it would be quite easy to write IDL compiler
+support for async stubs / skels; all that really needs doing is to sit
+down and spec. up the ABI, I don't believe the OMG helps us there.
+
+	The 'gpointer *args' is a standardly normalized array of
+argument indirectors - as defined in
+ORBit2/docs/internals/interface-indirection.gnumeric.
+
+	HTH,
+
+		Michael.

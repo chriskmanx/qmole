@@ -1,0 +1,303 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="GENERATOR" content="Mozilla/4.51 [en] (X11; I; Linux 2.2.5-15 i686) [Netscape]">
+</head>
+<body>
+&nbsp;
+<font face=Kapl size=3>
+<pre>
+                       Special Input and Display Classes
+                       ¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢
+
+1. Special Input
+
+	1.a The Text Display Class
+
+		Attributes:	buffer
+				save
+
+	1.b The Command Display Class
+
+	1.c The Password Display Class
+
+		Attributes:	fill
+				valid
+				validate
+
+2. Special Display
+
+	2a. The Scalar Display Class
+
+	2b. The Tree Display Class
+
+---------------------------------------------------
+
+
+1. Special Input
+
+
+Input to the classes described in the Data tutorial is performed by entering an
+Emacs-type editor in a cell and later exiting from it.  Input to the three
+classes described below is performed or handled in a special way.
+
+
+1a. The Text Display Class
+
+		Attributes:	buffer
+				save
+
+The text display class provides a note pad, a general means for text entry.
+The underlying variable for an object bound to this class is a character
+vector.  A text object is always in edit mode; there are no user actions that
+begin or end edit mode.  Keystrokes constitute text input to it whenever it
+has focus.
+
+New lines are created during text entry by pressing the Enter key, which
+appears in the character vector as the character `char©10 (newline); this is
+the only control character that should be used in the text.  APL characters
+can be entered.
+
+     $load s
+     scrûs.SCREEN-34 12
+     br{w;m}:{w has (`yx;scr-m+Ø`yxs of w);}
+     tû'Notes, 6/15/94:   '
+     `t has (`class;`text; `shelltitle;'Shelltitle'; `title;'Title');
+     show `t; br{`t;0}
+
+Observe that the cursor is at the beginning of the text.  It can be moved to
+the end by using either the Right Arrow key or the End key.  Enter some text.
+
+     t
+
+The text you entered should not appear in the value of  t.  Since there is
+never a signal that editing is complete, when text is entered the underlying
+character vector is not automatically updated.  The text currently on the
+screen can always be obtained, however, as the value of the "buffer"
+attribute, which is a one-row matrix:
+
+     >`buffer of `t
+     Ò>`buffer of `t
+
+To update the underlying variable, the viewer enters Ctl-s (when the text
+object has focus).  If the "save" attribute has the value 0, the Ctl-s entry
+has no effect, but if save is 1 (the default value), then the underlying
+variable is set to the value of the buffer attribute.  Enter Ctl-s in the text
+object after save is set to 0 and again after it is set to 1, and notice the
+behavior of the cursor each time:
+
+     `t has (`save;0);
+     t
+     `t has (`save;1);
+     t
+     Òt
+     Ò>`buffer of `t
+
+The visible sign that the text has been saved in the variable is the movement
+of the cursor to the beginning of the text.  That movement may require that
+End be pressed every time after Ctl-s.  If, however, you want a series of
+notes in inverse chronological order, then you can just start entering text
+where you are left after each Ctl-s.  In that case, you would probably not
+want to have any initial text, but rather put the identification -- date or
+other tag -- in either the title or the shelltitle.
+
+After respecification as a result of a Ctl-s, the underlying variable is still
+a vector and the value of the buffer attribute is still a matrix with one row,
+but their ravels are equal.  The buffer is ready to accept additional text, in
+contrast to a buffer for an object of the command display class, which we turn
+to next.
+
+     _ex >free `t;
+
+
+1b. The Command Display Class
+
+The command display class is for monitoring the character-by-character input
+of a command line.  A command display has two parts, a title area on the left
+and a value area on the right.  Text can be entered in the value area, and the
+entry can be monitored one character at a time, using a callback function
+specified in the key attribute.
+
+The contents of the value area is initially, of course, the value of the
+underlying variable.  It could be blank, as here, or an initial, common
+segment of the command, to aid the viewer.  The value of the underlying
+variable does not change until the editing is complete, that is, until Enter
+is pressed.  Just as for a text object, the current contents of the value area
+are available in the buffer attribute and the position of the cursor can be
+queried:
+
+     cû20Ò' '
+     f{x}:Õ(,>`buffer of x;>`cursor of x)
+     `c has (`class;`command; `key;(f;`c); `title;'Enter command:');
+     show `c; br{`c;0}
+     `cursor of `c
+     Ò>`buffer of `c
+
+The buffer is empty because edit mode has not yet been entered.  Now begin
+editing; press a few keys and notice that there is a callback for each of
+them, including the arrow and shift keys, so that to determine whether a new
+character has been entered or one has been deleted you need to know the buffer
+contents, or at least its shape, at the previous callback:
+
+     >`buffer of `c
+     Ò>`buffer of `c
+     c
+     Òc
+     `c has (`key;);
+
+Now press some more keys, and end with Enter:
+
+     Ò>`buffer of `c
+     c
+     Òc
+
+The buffer is empty, since you are no longer in edit mode, but the contents of
+the value area are now reflected in the underlying variable.
+
+     _ex¡ `f, >free `c;
+
+
+1c. The Password Display Class
+	
+		Attributes:	fill
+				valid
+				validate
+
+The password display class provides password protection for applications.  The
+password display has two parts, a title area on the left and a value area on
+the right.  The underlying variable holds a user name.  Text can be entered in
+the value area and compared to the login password of that user.  You can
+control the size of the value area by means of the space attribute.  The value
+area is empty initially and is cleared each time input is completed.  For the
+underlying variable in the example, we'll use your login id, so that you'll
+know the correct password:
+
+     pwûsys.getusername{}
+     `pw has (`class;`password; `title;'Enter password:'; `space;10);
+     show `pw; br{`pw;0}
+
+The "validate" attribute holds the definition of a function that is to be
+called when input is completed, i.e., when Enter is pressed.  The "valid"
+attribute, which is for reference only, is initially 0.  It is set to 1 when
+input is completed if the entry in the value area is the login password for
+the user name in the underlying variable.  It is set to 0 whenever input mode
+is entered.  Assign to the validate attribute a callback function that
+displays the value of valid:
+
+     f{s;c;v}:Õ`valid of cÖv
+     `pw has (`validate;f);
+
+Each character that is entered in the value area is displayed as an asterisk,
+which is the default value of the "fill" attribute.  You can change fill to
+any character you want (including blank).  Enter your password and observe
+that 1 appears in the A+ session log, then execute the following statement to
+change the fill character, enter text that is not your password, and see 0 in
+the log:
+
+     `pw has (`fill;'-');
+
+     _ex¡ `f, >free `pw;
+
+
+2. Special Display
+
+
+There are two classes that display variables in special ways: the scalar and
+tree display classes.
+
+
+2a. The Scalar Display Class
+
+Any A+ global variable can be bound to the scalar class.  The display has two
+parts side by side, a title area on the left and a value area on the right.
+The value area contains an A+ expression that represents the value of the
+variable, in the sense that the evaluation of the expression is identical to
+the value of the variable.  (This is not quite true for floating-point values;
+the number of decimal digits appearing in the formatted display of a floating-
+point value from the workspace may not be enough to exactly reproduce the
+source value when executed.)
+
+     sû1 2 3 4 5 6
+     show `s is `scalar; br{`s;0}
+
+There are the usual possibilities for the title area, whose default value is
+the variable name:
+
+     `s has (`title;'');
+     `s has (`title;' ');
+     `s has (`title;'An A+ expression:');
+     `s has `naturalsize; br{`s;0}
+
+Edit the A+ expression in the value area, inserting a 0 after the 1.  When the
+size is increased, all the extra room goes to the value area.  Linear
+expressions are recognized:
+
+     s
+     `s has (`xs;Ä1.3«>`xs of `s); br{`s;0}
+     sû(É3 4;'abcdef'; 5.3 1.4 2.7 0.863)
+     `s has (`space;37; `naturalsize;); br{`s;0}
+     sû2 4 6 8 10 12
+     sû(10 8 6 4 2;2.2 4.4 6.6 8.8)
+     sû(1 2 4 7 11; 2 4 8 16 32 64)
+     sûô4 3Ò0 4 8 1 5 9 2 6 10 3 7 11
+
+     _ex free `s;
+
+
+2b. The Tree Display Class
+
+The tree display class is for displaying nested slotfillers as trees.
+
+A layout can be represented as a nested slotfiller; in fact, the value of the
+familytree attribute is such a representation.  Consider this layout, for
+example:
+
+     labelû'Just an example'
+     f{}:Õsys.ts{}
+     button1ûbutton2ûbutton3û<{f}
+     vpaneû`hpane1 `hpane2
+      hpane1û1 2Ò`array1 `array2
+       array1ûarray2ûÉ10 8
+      hpane2û1 2Ò`table1 `table2
+       table1û`array3 `array4
+       table2û`array5 `array6
+        array3ûarray4ûarray5ûarray6û1000000«É10
+     s.QUIETû1
+     {`label `vpane `hpane1 `hpane2 `table1 `table2 is¡
+      `label `vpane `hpane  `hpane  `table  `table;}
+     `table1 has (`cols;2); `table2 has (`cols;1);
+     `array3 `array4 `array5 `array6 has¡ <(`space;8);
+     layoutû(`label;`button1 `button2 `button3;`vpane)
+     show `layout is `layout; br{`layout;0}
+
+Now obtain the nested slotfiller representation from the familytree attribute
+and show it as a tree, alongside the layout:
+
+     tû0Ø`familytree of `layout
+     t
+     show `t is `tree; br{`t;0,10+>`xs of `layout}
+
+A nested slotfiller cannot embody the geometry of a layout in general, because
+for each set of children it can only give a linear order, which would
+correspond to a simple horizontal or vertical arrangement.  Therefore, no
+attempt is made in the familytree attribute to capture the geometry and each
+set of children just appears in some convenient order.
+
+Viewer interactions with objects in the tree display class are controlled not
+by attribute settings but rather through callback functions.  Define a
+callback function for t:
+
+     cbf{s;d;i;p;c;v}:Õ(s;d;i;p;c;v)
+     `t has (`set;(cbf;'----------'));
+
+Click the left mouse button twice on some nodes of t.  Observe that the first
+click causes a box to appear around the node (and any box around another node
+to disappear) and the second click causes a callback and that  p, the path
+variable, is the symbol vector path to the node.
+
+     _ex¡ `f`cbf, Øs.reset{};
+</pre>
+</font>
+</body>
+</html>

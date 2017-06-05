@@ -1,0 +1,968 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+
+$cx S 
+
+ã geometry
+ã how
+ã variable_name
+
+load_s{}:	if (`vars¨_nc{`s;`SERVER}) {Õ'$loading s ...';â'$load s'}
+
+ãã	title and out covers
+
+format{sym}:	s.al_to_sf{format_out{sym},format_title{sym}}
+
+format_out{sym}:
+	{
+	(cx;var)ûs.c_c{sym};
+	case (s.g_varClass{cx,var})
+		{
+		`array;		format_out_array{cx;var};		
+		`table;		format_out_table{cx;var}
+		}
+	}
+
+format_title{sym}:
+	{
+	(cx;var)ûs.c_c{sym};
+	case (s.g_varClass{cx,var})
+		{
+		`array;		format_title_array{cx;var};		
+		`table;		format_title_table{cx;var}
+		}
+	}
+
+format_title_object{cx;var}:
+	{
+	(fn;cd)û2Ùs.g_varTitleFunc{cx,var};
+	cwûs.g_varCw{cx,var};
+	zûfn¡{cd;;;};
+	if (2=#z) z else (¢2Ù1 1,Òz)Òz
+	}
+
+format_title_array{cx;var}:	(`title;format_title_object{cx;var})
+
+format_title_table{cx;var}:
+	{
+	zûformat_title_array{cx;var};
+	zzû();
+	(iû#dûcx%var) do zzûzz,<format_title_object{dcx;dvar} Ý (dcx;dvar)ûs.c_v{cx;i#d};
+	z,(`headings;zz)
+	}
+
+format_out_cell_1{fn;cd;d;cw}:
+	{
+	zû(0,cw)Ò' ';
+	(iû#d) do zûz,cwÙfn¡{cd;i#d;<i;};
+	z
+	}
+
+format_out_cell_2{fn;cd;d;cw}:
+	{
+	zû(0,cw«1ÕÒd)Ò' ';
+	(iû#d) do
+		{
+		ddûi#d;
+		zzû'';
+		(iiû#dd) do
+			{
+			zzûzz,cwÙfn¡{cd;ii#dd;(i;ii);}
+			};
+		zûz,zz
+		};
+	z
+	}
+
+format_out_array{cx;var}:	(`out;format_out_object{cx;var})
+
+format_out_object{cx;var}:
+	{
+	dûcx%var;
+	(fn;cd)û2Ùs.g_varOutFunc{cx,var};
+	cwûs.g_varCw{cx,var};
+	if (`char=©d)
+		{
+		case (#Òd)
+			{
+			1; 	cwÙfn¡{cd;d;<0;};
+			2;	format_out_cell_1{fn;cd;d;cw}
+			}
+		}
+	else case (#Òd)
+		{
+		1;	format_out_cell_1{fn;cd;d;cw};
+		2;	format_out_cell_2{fn;cd;d;cw}
+		}
+	}
+
+format_out_table{cx;var}:
+	{
+	zû();
+	(iû#dûcx%var) do zûz,<format_out_object{dcx;dvar} Ý (dcx;dvar)ûs.c_v{cx;i#d};
+	(`out;z)
+	}
+
+ãã	geometry utility
+
+geometry_ok{c}:
+	{
+	S.GEOMETRYûRC+-(1+RC)«~(ÒRC)ÒØ1ØCheck;
+	Õ'S.GEOMETRY:';
+	ÕGEOMETRY
+	}
+
+geometry{x}:
+	{
+	load_s{};
+	rû(1#x)/É0#x;
+	cû(#r)ÒÉ1#x;
+	S.RCûÉx;
+	S.Checkû(ØÂ¡<@1î1!É#r;Û¡(#r)Ò0);
+	.is{`S.Check;`check};
+	.has{`S.Check;(`geometry;(0#x)/1#x;`title;'';`titlefont;'helvetica-boldoblique-18')};
+	S.OKû<{geometry_ok};
+	.is{`S.OK;`button};
+	.has{`S.OK;(`title;'OK';`titlefont;'helvetica-boldoblique-18')};
+	S.GeometryûÛ¡`OK `Check;
+	.is{`S.Geometry;`layout};
+	.has{`S.Geometry;(`title;'';`titlefont;'helvetica-boldoblique-18')};
+	.show{`S.Geometry};
+	}
+
+
+ã 	A array display function
+
+ã	A-types: "i" (integer) "f" (float) "c" (character) "`" (symbol) "n" (null) "b" (box) and "Ç" (function).
+ã       Simple scalars are displayed "type:value", e.g. "c:a".
+ã       Shape information is displayed:  # of scalars on the top bar, # rows on the innermost left bar.
+ã       Type information for non-simple-scalars is displayed on the bottom bar.
+ã	"½" is used to indicate match-along-an-axis; matched sub-arrays are elided up to the first non-match.
+ã	Syntax is: charmatûS.display array.
+ã	Global states: 	Drawû8Ò'box-characters': 
+ã			  top, bottom, left, right, topleftenclosed, topleftsimple, topright, bottomleft, bottomright.
+ã			Boxû0 or 1: use boxes (1) or not (0)
+ã			Sameû0 or 1: do sub-array matching (1) or not (0).
+ã			Labelû0 or 1: do display labelling (1) or not (0).
+ã			Aplû'Ç½ÉÒ': replace these Apl characters for ascii display (e.g. 'F=IR' is nice).
+ã			Horizontalû0 or 1: center display (1) on horizontal axis.
+ã			Verticalû0 or 1: center display (1) on vertical axis.
+ã			Iotaû0 or 1: represent Én as "Én"
+ã			Treeû0 (box representation) or 1 (tree) or 2 (tree with centered connectors)
+ã			Encloseû0 (don't box simple scalars) or 1 (box simple scalars)
+ã			Intû'' (default) or optional _fmt{} for integers
+ã			Floatû'' (default) or optional _fmt{} for floats
+ã			Fontû0 (none) 1 (ibmSingle) 2 (surrogate) 3 (ibmDouble)
+
+ã	Utilities
+
+btom{x}:	>(Ó/>#¡x)Ù¡x
+btom2{x}:	{xû(¢2Ù¡1,¡1,¡Ò¡x)Ò¡x;Ø(Ó/Ø1Õ¡Ò¡x)Ù@1¡x}
+vtoe{y;x}:	if (`null=©x) x else 1Õ¡(ÚxÅy)Úxû((~(1Ùx)Åy)/1Ùy),x
+vtom{y;x}:	btom{vtoe{y;x}}
+rstrip{x}:	if (0ÅÒ,x) ((#Òx)Ò0)Ò'' else (-Ä/(÷@1' '=x)É@1Û0)Õ@1x
+ljust{x}:	((x=' ')É@1Û0)÷@0 1x
+db{x}:		(x¨' ')/x
+encode{y;x}:	zÝ(¢1Ùz)û(¢1ÙzûyÎÄx)+(1,#x)Ò1|x
+
+ttom{x}:
+	{
+	if (0=½x) xû<x;
+	zûif (~1Åtû0<>½¡x) btom2{x}
+	else
+		{
+		zû(èèt)#((~t)/x),' ',@1¡&¡{t/x};
+		zû(¢2Ù¡1,¡1,¡Ò¡z)Ò¡z;
+		Ø(Ó/>1#¡Ò¡z)Ù@1¡z
+		};
+	(¢2Ù1 1,Òz)Òz
+	}
+
+mtot{x}:
+	{
+	if (~0Åcûx[;0]¨' ') rstrip¡{<@1 x}
+	else
+		{
+		aû(Úc)Úx;
+		bûrstrip¡{0#¡a};
+		(<b),¡&¡{1Õ@1¡1Õ¡a}
+		}
+	}
+
+ã	Center array x in y positions
+center{y;x}:if (y¤#x) x else (-Ä.5«y-#x)÷yÙx
+
+ã	Determine matching initial sub-arrays and elide up to the first non-match
+same{x}:
+	{
+	if ((~Same)©0ÅÒx) û(x;0);
+	zû0;
+	(#Òx) do if (^/x½@(¢1+#Òx)Û0#x) {xû0#x;zûz+1} else û(x;z);
+	(x;z)
+	}
+
+ã	,@y / x idiom
+encat{y;x}:
+	{
+	if (0=ÒÒx) ûx
+	else
+		{
+		zû>0#@y x;
+		(iû¢1+#@y x) do zûz,@y >(i+1)#@y x
+		};
+	<z
+	}
+
+ã	Enclose array in line-drawing characters
+enbox{x;dep}:
+	{
+	if (~Box) ûx;
+	bû9ÙDraw;
+	xû(¢2Ù1 1,Òx)Òx;
+	xûb[0],x,b[1];
+	xûb[2],@1 x,@1 b[3];
+	x[0;0,¢1+1ÕÒx]ûb[((0=dep)#4 5),6];
+	x[0#¢1+1ÙÒx;0,¢1+1ÕÒx]ûb[7 8];
+	x
+	}
+
+ã	Convert simple character array to character matrix with traditional Apl inter-array spacing
+rank2{x}:
+	{
+	if (0=#Òx) û1 1Òx;
+	if (1=#Òx) û(1,#x)Òx;
+	if (2=#Òx) ûx;
+	& ! @ 3 x,@ 2 ' '
+	}
+
+ã	Optional _fmt{} formatter
+
+quadFmt{x}:
+	{
+	case (©x)
+		{
+		`int;	if (0<#Int) _fmt{Int;x} else îx;
+		`float;	if (0<#Float) _fmt{Float;x} else îx;
+			x
+		}
+	}
+
+ã	Generate displays for simple character, integer, and float arrays
+char{x}:{(a;b)ûsame{x};frame{rank2{a};Òx;'c';½x;b}}
+int{x}:{(a;b)ûsame{x};frame{rank2{quadFmt{iota{a;0;2#Apl;0}}};Òx;'i';½x;b}}
+float{x}:{(a;b)ûsame{x};frame{rank2{quadFmt{iota{a;1;2#Apl;0}}};Òx;'f';½x;b}}
+
+iota{x;y;z;w}:
+	{
+	flûy/'1.0«';
+	if (~Iota©w) x
+	else
+		{
+		if (((,0)½,x)©(,1)½,x) x
+		else if ((isûÉsûÒx)½x) fl,z,1Õîs
+		else if (is½-x) fl,'-',z,1Õîs
+		else if ((gû1<#,x)^is½x-fû0#,x) fl,(1Õîf),'+',z,1Õîs
+		else if (g^is½-x-f) fl,'-',(1Õî-f),'+',z,1Õîs
+		else x
+		}
+	}
+
+ã	Generate display for arrays of type symbol
+sym{x}:
+	{
+	if (0<½x) box{x}
+	else
+		{
+		(a;b)ûsame{x};
+		if (0=#Òa) frame{rank2{'`',@1 Îa};Òx;'`';½x;b}
+		else frame{rank2{! @ 2 '`',@ 1 (Îa),@ 1 ' '};Òx;'`';½x;b}
+		}
+	}
+
+ã	Given a matrix of character matrices, produce a character matrix with nice inter-array spacing
+plane{x}:
+	{
+	sû>Ò¡x;
+	rû(Òx)Ò(1ÕÒx)/Ó/@1Ûs[;;0];
+	cûô(÷Òx)Ò(#x)/Ó/s[;;1];
+	if (Vertical) xûcenter¡{r;x} else xûrÙ¡x;
+	if (Horizontal) xûcenter@1¡{1+c;x} else xû(1+c)Ù@1¡x;
+	<¢1Õ@1>encat{ÒÒx;encat@1{1;x}}
+	}
+
+ã	Generate display for nested array
+box{x}:
+	{
+	(a;b)ûsame{x};
+	zûdisp¡{a};
+	zûif (0=#Òz) >z
+	else
+		{
+		if (1=#Òz) zû(1,#z)Òz;
+		zû,plane @2{z};
+		rank2{>(Ó/>#¡z)Ù¡(Ó/,>1Õ¡Ò¡z)Ù@1¡z}
+		};
+	frame{z;Òx;(`sym `box `funcÉ©x)#'`b',0#Apl;½x;b}
+	}
+
+ã	Generate display for null array
+null{x}:frame{1 1Ò' ';Òx;'n';½x;0}
+
+ã	Generate display for function array
+func{x}:if ((0¨#Òx)©0<½x) box{x} else frame{vtom{`char©10;(zÉ':')Ùzûîx};0;0#Apl;0;0}
+
+ã	Global variables:  valid types and display functions
+TYPESû`int `float `null `box `sym `func `char
+FUNCSû(int;float;null;box;sym;func;char)
+
+ã	Assign label to display form
+label{x;y;i;j}:
+	{
+	if (~Box^Label) ûx;
+	if (6=#bûDraw) bû2 2 1 1 1 1/b;
+	bû8ÙDraw;
+	if (0<kû1+(¢1Ùj)-1ÕÒx) xû(¢1Õ@1 x),@1 (b[0],(((¢2+1ÙÒx),k)Ò' '),b[1]),@1Û¢1Ù@1 x;
+	if (0<kû1+(¢1Ùi)-1ÙÒx) xû(¢1Õx),(b[2],@1((k,¢2+1ÕÒx)Ò' '),@1 b[3]),¢1Ùx;
+	x[i;j]ûy;
+	x
+	}
+
+ã	Generate display form
+frame{x;shp;typ;dep;sam}:
+	{
+	if ((~Enclose)^(0=#shp)^0=dep)
+		{
+		zû,x;
+		zû(Label/typ,':'),(z¨' ')/z;
+		zû(1,#z)Òz
+		}
+	else
+		{
+		zûenbox{x;dep};
+		rnkû#shp;
+		rû1Órnk-1;
+		zûô(1+(1ÕÒz)Ùr-1)/ôz;
+		aû,1Õ¡î¡shp;
+		(iûrnk-1) do zûlabel{z;t;1+É#tû>i#a;i};
+		if (0<rnk) zûlabel{z;t;0;r+É#tû>(¢1+#a)#a};
+		zûlabel{z;typ;¢1+#z;r};
+		(iûsam) do zûif (i<rnk-1) label{z;1#Apl;1+#>i#a;i} else label{z;1#Apl;0;r+#>i#a}	
+		};
+	z
+	}
+	
+disp{x}:((TYPESÉ©x)#FUNCS)¡x
+
+display{x}:if (Tree>0) tree{(Leaf1{disp}){,x}} else disp{x}
+
+ã	tree diagrammer
+
+(f Leaf1)r:if (0=½r)f r else f &¡r
+
+tree{x}:if (Tree=2) branch{(Leaf1{leaf}){x}} else branch2{(Leaf1{leaf2}){x}} 
+
+line_drawing_characters{}:
+	{
+	(S.N;S.V;S.H;S.TL;S.TR;S.BL;S.BR;S.I;S.TI;S.BI;S.LI;S.RI)ûFontØ(
+		'þ|-',9Ò'+';
+		`char©4 179 196 218 191 192 217 197 194 193 195 180;
+		'þ|-<>¤¦+ÙÕûý';
+		`char©4 186 205 201 187 200 188 206 203 202 204 185
+		);
+	S.Drawûif (Font=0) '--||<..`''' else H,H,V,V,N,TL,TR,BL,BR;
+	S.Aplûif (Font=0) 'Ç½ÉÒ' else `char©183 207 236 230;
+	}
+
+leaf{x}:
+	{
+	xû(¢2Ù1 1,Òx)Òx;
+	xûV,@1(H,x,H),@1 V;
+	x[0;0,¢1+1ÕÒx]û(Horizontal#TI,LI),TR;
+	x[¢1+#x;0,¢1+1ÕÒx]ûBL,BR;
+	x
+	}
+
+branch{x}:
+	{
+	if (0=½x) x
+	else
+		{
+		if (1Ådû0<Ø½¡xû,x) (d/x)û&¡{d/x};
+		cûHorizontal;eûc#1 9;fûc#9 1;dûc÷É2;
+		xû((c#¡Ò¡x)Ù@f¡(#x)Ò<cØ(ô1!LI,3ÒH;1!TI,3ÒV)),@e¡x;
+		tû0Øx;t[0;0]ûc#TI,LI;(0#x)û<t;
+		if (1=#x) {t[0;0]ûN;t}
+		else
+			{	
+			tû(¢1+#x)Øx;t[0;0]ûc#BL,TR;((¢1+#x)#x)û<t;
+			xû(Ó/Ø(~c)Ø¡Ò¡x)Ù@e¡x;
+			tûØ(<d)ô¡¢1Õx;
+			(((t[;0]=' ')/É#t;0)#t)ûc#V,H;
+			(dôt),@f 0Ø¢1Ùx
+			}
+		}
+	}
+
+leaf2{x}:
+	{
+	xû(¢2Ù1 1,Òx)Òx;
+	xûV,@1(H,x,H),@1 V;
+	x[0;0,¢1+1ÕÒx]ûTL,TR;
+	x[¢1+#x;0,¢1+1ÕÒx]ûBL,BR;
+	x
+	}
+
+twig2{x}:
+	{
+	xû(dûHorizontal÷É2)ôx;
+	if (I¨x[iûÄ.5«#x;0]) x[i;0]û((Horizontal#V,H)Åx[;0])#N,Horizontal#RI,BI;
+	if (1Åcûb\I=(bûi¨É#x)/x[;0]) x[c/É#c;0]ûHorizontal#LI,TI;
+	dôx
+	}
+
+branch2{x}:
+	{
+	if (0=½x) x
+	else
+		{
+		if (1Ådû0<Ø½¡x) (d/x)û&¡{d/x};
+		cûHorizontal;eûc#1 9;fûc#9 1;dûc÷É2;gû(~c)÷É2;
+		bû(<g)ô¡1!¡((#x)Òk,((0Ó(#x)-2)/I),kûc#LI,TI),¡<3Òc#H,V;
+		xû(mÙ@f¡(-1+Ä.5«ØmûcØ¡Ò¡x)Ù@f¡b),@e¡twig2¡{x};
+		tû0Øx;((c÷(Ä.5«c#Òt;0))#t)ûTL;(0#x)û<t;
+		if (1=#x) {((c÷(Ä.5«c#Òt;0))#t)ûN;t}
+		else
+			{	
+			tû(¢1+#x)Øx;((c÷(Ä.5«c#Òt;0))#t)ûc#BL,TR;((¢1+#x)#x)û<t;
+			xû(Ó/Ø(~c)Ø¡Ò¡x)Ù@e¡x;
+			t0û0Øx;
+			tnû(¢1+#x)Øx;
+			tmûØ(<d)ô¡1Õ¢1Õx;
+			((c÷((÷^\÷' '=(c÷(;0))#t0)/Éc#Òt0;0))#t0)ûc#V,H;
+			if (0=#tm) tmû(c÷(0,(~c)#Òt0))Ò''
+			else
+				{
+				tmûdôtm;
+				((c÷((' '=(c÷(;0))#tm)/Éc#Òtm;0))#tm)ûc#V,H
+				};
+			((c÷((^\' '=(c÷(;0))#tn)/Éc#Òtn;0))#tn)ûc#V,H;
+			t0,@f tm,@f tn
+			}
+		}
+	}
+
+initialize_disp{}:
+	{
+
+	S.Boxû1;
+	S.Sameû0;
+	S.Labelû0;
+	S.Horizontalû0;
+	S.Verticalû0;
+	S.Iotaû0;
+	S.Treeû0;
+	S.Encloseû0;
+	S.Fontû0;
+
+	S.Floatû'';
+	S.Intû'';
+	
+	line_drawing_characters{};
+
+	}
+
+ã ------ screen display ---------
+
+show_option{c;d;i;p}:
+	{
+	(`S%p)ûd;
+	if (p=`Font)
+		{
+		line_drawing_characters{};
+		.has{`S.Display;(`font;FontØ('kaplscreen-bold';'ibm-apl-14'))};	
+		};
+	show_update{;;;};
+	}
+
+show_update{c;d;i;p}:
+	{
+	S.Displayûdisplay{Array};
+	}
+
+Options:(
+	`Box `Same `Label `Horizontal `Vertical `Iota `Tree `Enclose `Font;
+	(Box;Same;Label;Horizontal;Vertical;Iota;Tree;Enclose;Font)
+	)
+
+Formats:(`Float `Int;
+	(Float;Int)
+	)
+
+how{x}:
+	{
+	load_s{};
+	initialize_disp{};
+
+	(iû#0ØOptions) do _scb{`S,i#0ØOptions;(S.show_update;)};
+	(iû#0ØFormats) do _scb{`S,i#0ØFormats;(S.show_update;)};
+
+	S.Arrayûx;
+	S.Displayûdisplay{Array};
+	S.Layoutû(`Display;`Array;`Options;`Formats);
+
+	.is{`S.Display;`view};
+	.is{`S.Options;`check};
+	.is{`S.Array;`scalar};
+	.is{`S.Formats;`slot};
+	.is{`S.Layout;`layout};
+
+	.has{`S.Options;(`fg;`palegreen;`geometry;3 3 3;`set;show_option;`resize;'h';`titlefont;'helvetica-boldoblique-18')};
+	.has{`S.Formats;(`geometry;,2;`titleratio;30;`editbg;`white;`set;show_option;`resize;'h';`titlefont;'helvetica-boldoblique-18')};
+	.has{`S.Array;(`editbg;`white;`titleratio;15;`set;show_update;`resize;'h';`title;'===>';`titlefont;'helvetica-boldoblique-18')};
+	.has{`S.Display;(`font;'kaplscreen-bold';`title;'';`titlefont;'helvetica-boldoblique-18')};
+	.has{`S.Layout;(`handle;'S.how';`title;'';`titlefont;'helvetica-boldoblique-18')};
+
+	.show{`S.Layout};
+	}
+
+ãã **	Widget works :-)
+
+works{obj}:
+	{
+
+	load_s{};
+
+	s.EGû1;
+
+	S.Classesût[èÎtûs.createable_classes{}];
+	S.Objectsûif (0<#obj) s.c_c{obj},0Ø.of{`descendents;};
+	S.Resourcesû(;);
+	S.Dataû();
+	S.Windowû`Resources;
+	S.Msgû'';
+	S.LoadûS.SaveûS.Workû20Ò' ';
+	S.Worksû(`Msg;`Classes `Objects;`Data;`Window;`Load;`Save;`Work);
+
+	_scb{`S.Data;(S.modify_data;)};
+	_scb{`S.Resources;(S.modify_resource;)};
+	_scb{`S.Load;(S.load_file;)};
+	_scb{`S.Save;(S.save_file;)};
+	_scb{`S.Work;(S.work_instance;)};
+
+	.is{`S.Msg;`label};
+	.is{`S.Classes;`array};
+	.is{`S.Objects;`array};
+	.is{`S.Data;`scalar};
+	.is{`S.Resources;`slot};
+	.is{`S.Window;`window};
+	.is{`S.Load;`scalar};
+	.is{`S.Save;`scalar};
+	.is{`S.Work;`scalar};
+	.is{`S.Works;`layout};
+
+	.has{`S.Classes;(`space;15;`middledown;instantiate_class;`insert;`off;`insertup;`off;`delete;`off;`protect;1;`title;`Classes;`titlefont;'helvetica-boldoblique-18';`font;'kaplscreen-bold')};
+	.has{`S.Objects;(`space;15;`middledown;edit_instance;`insert;`off;`insertup;`off;`delete;free_instance;`title;`Objects;`in;change_name;`titlefont;'helvetica-boldoblique-18';`font;'kaplscreen-bold')};
+	.has{`S.Data;(`titleratio;15;`out;s.out_a;`in;s.in_a;`title;`Data;`titlefont;'helvetica-boldoblique-18';`font;'kaplscreen-bold')};
+	.has{`S.Resources;(`out;s.out_a;`in;s.in_a;`titlefont;'kaplscreen-bold';`titleratio;40)};
+	.has{`S.Works;(`title;'')};
+	.has{`S.Load;(`titleratio;15;`title;'Load';`titlefont;'helvetica-boldoblique-18';`font;'kaplscreen-bold')};
+	.has{`S.Save;(`titleratio;15;`title;'Save';`titlefont;'helvetica-boldoblique-18';`font;'kaplscreen-bold')};
+	.has{`S.Work;(`titleratio;15;`title;'Work';`titlefont;'helvetica-boldoblique-18';`font;'kaplscreen-bold')};
+	.has{`S.Msg;(`font;'kaplscreen-bold')};
+	.show{`S.Works};
+	.hide{`S.Resources};
+	}
+
+load_file{c;d;i;p}:
+	{
+	if (©/d¨' ')
+		{
+		clear_editor{};
+		(bobs;fobs)ûs.load{d};
+		S.Objectsû(~ObjectsÅfobs)/Objects;
+		S.ObjectsûObjects,bobs;
+		S.Msgû((d¨' ')/d),' loaded'
+		};
+	}
+
+work_instance{c;d;i;p}:
+	{
+	if (0<#dû(d¨' ')/d)
+		{
+		clear_editor{};
+		obûÂd;
+		if (obÅs.objects{})
+			{
+			obsûob,0Ø.of{`descendents;ob};
+			obsû(~obsÅObjects)/obs;
+			if (0<#obs)
+				{
+				rowû#Objects;
+				S.ObjectsûObjects,obs;
+				.has{`Objects;(`row;row)};
+				S.Msgû((d¨' ')/d),' selected'
+				};
+			};
+		};
+	}
+
+save_file{c;d;i;p}:
+	{
+	if (©/d¨' ')
+		{
+		if (0>iû0Ø.of{`row;`S.Objects}) û();
+		(cx;var)ûs.c_c{i#S.Objects};
+		s.save{.state{cx,var};dû(d¨' ')/d};
+		S.Msgûs.variable_name{cx;var},' saved to ',d,if (~'.'Åd) '.+'
+		};
+	}
+
+instantiate_class{c}:
+	{
+	if (0>iû0Ø.of{`row;`S.Classes}) û();
+	clear_editor{};
+	clsûi#Classes;
+	valûs.eg{cls};
+	(cx;var)ûs.generate_symbol{`;val};
+	S.ObjectsûS.Objects,s.u_n{cx,var};
+	.is{cx,var;cls};
+	.show{cx,var};
+	S.Msgûs.variable_name{cx;var},' is ',Îcls;
+	}
+
+change_name{c;d;i;p}:
+	{
+	oldûi#S.Objects;
+	if (0=#d) old
+	else
+		{
+		newûÂd;
+		if (new½old) old
+		else
+			{
+			(cx;var)ûs.c_c{new};
+			if (`null¨_nc{cx;var}) old
+			else
+				{
+				(ocx;ovar)ûs.c_c{old};
+				(cx%var)ûocx%ovar;
+				oclsû0Ø.of{`class;ocx,ovar};
+				clear_editor{};
+				s.free{ocx,ovar};
+				s.is{cx,var;ocls};
+				s.show{cx,var};
+				new
+				}
+			}
+		}
+	}
+
+free_instance{c}:
+	{
+	if (0>iû0Ø.of{`row;`S.Objects}) û();
+	if (`¨insûi#Objects)
+		{
+		clear_editor{};
+		(cx;var)ûs.c_c{ins};
+		finsû.free{cx,var};
+		S.Objectsû(~ObjectsÅfins)/Objects;
+		S.Msgûs.variable_name{cx;var},' freed'
+		};
+	}
+
+edit_instance{c}:
+	{
+	if (0>iû0Ø.of{`row;`S.Objects}) û();
+	clear_editor{};
+	insûi#Objects;
+	(cx;var)ûs.c_c{ins};
+
+	_scb{`S.Data;(;)};
+	S.Dataûcx%var;
+	_scb{`S.Data;(S.modify_data;cx,var)};
+
+	S.Resourcesûs.get{cx,var};
+	_scb{`S.Resources;(S.modify_resource;cx,var)};
+
+	.show{`S.Resources};
+	S.Msgûs.variable_name{cx;var},' in edit';
+	}
+
+clear_editor{}:
+	{
+	.hide{`S.Resources};
+
+	_scb{`S.Data;(S.modify_data;)};
+	S.Dataû();
+
+	_scb{`S.Resources;(S.modify_resource;)};
+	S.Resourcesû(;);
+	}
+
+modify_data{c;d;i;p}:
+	{
+	if (()½c) û();
+	(cx;var)ûc;
+	(cx%var)ûd;
+	S.msgûs.variable_name{cx;var},' assigned';
+	}
+
+modify_resource{c;d;i;p}:
+	{
+	if (()½c) û();
+	(cx;var)ûc;
+	.has{cx,var;(p;pØResources)};
+	S.Msgûs.variable_name{cx;var},' has resource';
+	}
+
+ã ***	Quote parser
+
+out_quote{x}:
+	{
+	(val;typ;pfx)û3Ùx;
+	if (0=#val) û0 7Ò' ';
+	if (0=#typ) typû`decimal;
+	if (0=#pfx) pfxû' ';
+	case (typ)
+		{
+		`decimal;
+			{
+			pfx,,_fmt{0ØFORMATS;val}
+			};
+		`32nd `320th;
+			{
+			sgnû(0>val)/'-';valû|val;
+			denû(ybû`32nd `320thÉtyp)#256 320;
+			valû(Ä.5+den«val)ßden;
+			pdelûyb#'/`';
+			pintû,_fmt{1ØFORMATS;Äval};
+			valû32«1|val;
+			p32û,_fmt{2ØFORMATS;Äval};
+			pfrcû¢1Ù3.1î(yb#.8 1)«1|val;
+			pfrcûif ((yb^pfrc='5')©(~yb)^pfrc='4') '+' else if (pfrc='0') '' else pfrc;
+			if BLANK if (0=#pfrc) if (^/p32='0') (pdel;p32)û('';'');
+			pfx,sgn,pint,pdel,p32,pfrc
+			};
+		`128th `64th;
+			{
+			denû(ybû`128th `64thÉtyp)#128 64;
+			pdelûyb#'=\';
+			sgnû(0>val)/'-';valû|val;
+			(pint;p128)ûencode{0,den;den«(Ä.5+den«val)ßden};
+			pintû,_fmt{1ØFORMATS;pint};
+			p128û,_fmt{(~yb)Ø2ÕFORMATS;Äp128};
+			if BLANK if (^/p128='0') (pdel;p128)û('';'');
+			pfx,sgn,pint,pdel,p128
+			}
+		}
+	}
+
+in_quote{x}:
+	{
+	if (0=#x) û(0Ò0.0;;'');
+	(ftyp;pat;str)ûd.form{x;MACHINE};
+	if (ftyp½()) Ù`form;
+	(val;typ;pfx)û(0.0;ftyp;'');
+	if (0<#pat) case (ftyp)
+		{
+		`decimal;
+			{
+			if (1=0#pat) pfxû0Østr;
+			valûâØ(1¨pat)/str			
+			};
+		`32nd `320th;	
+			{
+			if (1=0#pat) pfxû0Østr;
+			sgnû(3Åpat)#1 ¢1;
+			fdenû(`32nd `320thÉftyp)#256 320;
+			n64ûif (4Åpat) 1ß64 else 0;
+			valûsgn«n64+if (2Åpat)
+				{
+				case (#kû(0=pat)/É#pat)
+					{
+					0;	0;
+					1;	if ((patÉ2)¦k) (âkØstr) else quote_fraction{kØstr;fden};
+					2;	(âk[0]Østr)+quote_fraction{k[1]Østr;fden}
+					}
+				}
+			else if (0Åpat) â(patÉ0)Østr
+			else 0
+			};
+		`128th `64th;
+			{
+			denû(ybû`128th `64thÉftyp)#128 64;
+			if (1=0#pat) pfxû0Østr;
+			valû((3Åpat)#1 ¢1)«if (2=+/0=pat) +/(Øâ¡(pat=0)/str)ß1,den
+			else if ((#str)¤kûpatÉ0) 0 else (âkØstr)«1ß((patÉ2)<k)#1,den
+			}
+		};
+	(val;typ;pfx)
+	}
+
+quote_fraction{frac;fden}:
+	{
+	case (#frac)
+		{
+		1 2;	(âfrac)ß32;
+		3;	((â2Ùfrac)ß32)+if ('0'¨ffracû2Õfrac) (1ßfden)«âffrac else 0
+		}
+	}
+
+FORMATSû('f7.3';'i3';'zi2';'zi3')
+BLANKû0
+
+ã ------------------- use everything ÙÙÙ ------------------------
+ã ------------------- "compiler" ÕÕÕÕÕÕÕ ------------------------
+
+MACHINEû(
+	`decimal`32nd`128th`64th`320th;
+	(
+		('0123456789';'pycdjwvePYCDJWVE';,'.';,'-';' ');
+		('0123456789';'pycdjwvePYCDJWVE';,'/';,'-';,'+';' ');
+		('0123456789';'pycdjwvePYCDJWVE';,':';,'-';' ');
+		('0123456789';'pycdjwvePYCDJWVE';,'\';,'-';' ');
+		('0123456789';'pycdjwvePYCDJWVE';,'`';,'-';,'+';' ')
+	);
+	(
+	7 6Ò 	3 1 4 2 0 ¢2 3 ¢1 4 2 ¢1 ¢1 3 ¢1 4 ¢1 ¢1 ¢2 3 ¢1 4 ¢1 6 ¢2 5 ¢1 ¢1 ¢1 6 ¢2 5 ¢1 ¢1 ¢1 6 ¢2 ¢1 ¢1 ¢1 ¢1 6 ¢2;
+	10 7Ò 	3 1 4 2 ¢1 0 ¢2 3 ¢1 4 2 ¢1 ¢1 ¢1 3 ¢1 4 ¢1 8 ¢1 ¢2 3 ¢1 4 ¢1 8 9 ¢2 5 ¢1 ¢1 ¢1 8 9 ¢2 6 ¢1 ¢1 ¢1 8 9 ¢2 7 ¢1 ¢1 ¢1 8 9 ¢2 ¢1 ¢1 ¢1 ¢1 ¢1 9 ¢2 ¢1 ¢1 ¢1 ¢1 ¢1 9 ¢2 ¢1 ¢1 ¢1 ¢1 ¢1 9 ¢2;
+	9 6Ò 	3 1 4 2 0 ¢2 3 ¢1 4 2 ¢1 ¢1 3 ¢1 4 ¢1 ¢1 ¢2 3 ¢1 4 ¢1 8 ¢2 5 ¢1 ¢1 ¢1 8 ¢2 6 ¢1 ¢1 ¢1 8 ¢2 7 ¢1 ¢1 ¢1 8 ¢2 ¢1 ¢1 ¢1 ¢1 8 ¢2 ¢1 ¢1 ¢1 ¢1 8 ¢2;
+	8 6Ò 	3 1 4 2 0 ¢2 3 ¢1 4 2 ¢1 ¢1 3 ¢1 4 ¢1 ¢1 ¢2 3 ¢1 4 ¢1 7 ¢2 5 ¢1 ¢1 ¢1 7 ¢2 6 ¢1 ¢1 ¢1 7 ¢2 ¢1 ¢1 ¢1 ¢1 7 ¢2 ¢1 ¢1 ¢1 ¢1 7 ¢2;
+	10 7Ò 	3 1 4 2 ¢1 0 ¢2 3 ¢1 4 2 ¢1 ¢1 ¢1 3 ¢1 4 ¢1 8 ¢1 ¢2 3 ¢1 4 ¢1 8 9 ¢2 5 ¢1 ¢1 ¢1 8 9 ¢2 6 ¢1 ¢1 ¢1 8 9 ¢2 7 ¢1 ¢1 ¢1 8 9 ¢2 ¢1 ¢1 ¢1 ¢1 ¢1 9 ¢2 ¢1 ¢1 ¢1 ¢1 ¢1 9 ¢2 ¢1 ¢1 ¢1 ¢1 ¢1 9 ¢2
+	);
+	(
+	`init`pre`sign`left`dot`right`term;
+	`init`pre`sign`left`slash`right0`right1`right2`plus`term;
+	`init`pre`sign`left`colon`right0`right1`right2`term;
+	`init`pre`sign`left`bslash`right0`right1`term;
+	`init`pre`sign`left`tick`right0`right1`right2`plus`term
+	)
+)
+
+aForm{string;machine}:
+	{
+	(names;symbols;states;snames)ûmachine;
+	if (0=#string) û(0#names;É0;);
+	(iû#symbols) do
+		{
+		if (^/(pû>(>¡stringÅ¡¡i#symbols)É¡1)<#iØsymbols)
+			{
+			sû0;vû0,p;
+			while ((s¦0)^0<#vû1Õv) sû(s;0#v)#iØstates;
+			if (¢1¨s) 
+				{
+				if (¢1¨¢1Ùs#iØstates) 
+					{
+					parûÚ1,¢1Õp¨1÷p;
+					û(i#names;>0#¡parÚp;parÚstring)
+					}
+				}
+			}
+		};
+	(;;)
+	}
+
+represent{x}:
+	{
+	xûif (`sym=©x) (Îx),'.form' else x;
+	saûÒaûsys.readmat{x};
+	aû,a;
+	aûsaÒb\(bû~aÅ`char©9 10)/a;
+	aûrstrip{ljust{a}};
+	namûif (0<#tûdb{(1+tÉ':')Õ,(a[;É#t]½@1 tû'name:')/a}) t else ÙÂ'! form name';
+	orûif (0<#tûdb{(1+tÉ':')Õ,(a[;É#t]½@1 tû'or:')/a}) 0#,t else '|';
+	sepûif (0<#tûdb{(1+tÉ':')Õ,(a[;É#t]½@1 tû'sep:')/a}) 0#,t else ',';
+	tûif (1Åuûa[;É#t]½@1 tû'let:') vtoe¡{':';<@1 ljust{(1+tÉ':')Õ@1 u/a}} else (;);
+	(lsym;lval)ûif (0<#0Øt) (0Ø¡t;1Ø¡t) else (;);
+	blocksûif (~1Åbû(a[;É#t]½@1 tû'form:')©a[;0]='Ì')ÙÂ'! form' else (Út/b)Ú(tû~^\~b)/a;
+	namesûsymbolsûstatesûsnamesû();
+	(iû#blocks) do
+		{
+		fnamûÂif (0<#tû(1+tÉ':')Õtûdb{0#zûiØblocks}) t else ÙÂ'! form symbol';
+		zû(©/@1 z¨' ')/z;
+		zûvtoe{"\n";_gsr{db{,"\n",@1Û1Õz};lsym;lval;'._¢'}};
+		fstaû(tûzÉ¡':')Ù¡z;zû(1+¡t)Õ¡z;
+		zûdb¡¡¡{vtoe¡¡{sep;vtoe¡{or;z}}};
+		fsymû(`char=>©¡t)/tûs.unique{t}/tûØ0Ø¡¡¢2Ù¡¡z;
+		rû((#fsta),2+#fsym)Ò¢1;
+		(jû#z) do
+			{
+			aûjØz;
+			caûØ¡#¡¡a;
+			if (1Åtwoû2=>#¡ca) ((j;k)#r)û(èkûfsymÉ0Ø¡b)#fstaÉ1Ø¡bûtwo/a;
+			if (1Åoneû(1=>#¡ca)^~>0Å¡ca) ((j;¢2+1#Òr)#r)û0#fstaÉ0Ø¡one/a;
+			if (0ÅØca) ((j;¢1+1#Òr)#r)û¢2
+			};
+		namesûnames,fnam;
+		symbolsûsymbols,<fsym,<' ';
+		statesûstates,<r;
+		snamesûsnames,<ØÂ¡fsta		
+		};
+	(names;symbols;states;snames)
+	}
+
+ã 	finite state machine for "quotes"
+ã       32nd = 1/256 = 1ß8«32
+ã       320th = 1/320 = 1ß10«32
+ã
+ã or:	|
+ã sep:	,
+ã
+ã let:	p:pycdjwvePYCDJWVE
+ã let:	d:0123456789
+ã
+ã name:	quote
+ã
+ã form:	decimal
+ã init:		d,left | p,pre | .,dot | -,sign | ,init | 
+ã pre:  	d,left | .,dot | -,sign 
+ã sign:		d,left | .,dot |
+ã left:		d,left | .,dot | ,term |
+ã dot:		d,right | ,term |
+ã right:	d,right | ,term |
+ã term:		,term |
+ã
+ã form:	32nd
+ã init:	 	d,left | p,pre | /,slash | -,sign | ,init | 
+ã pre: 	 	d,left | /,slash | -,sign 
+ã sign:	 	d,left | /,slash | +,plus |
+ã left:	 	d,left | /,slash | +,plus | ,term |
+ã slash: 	d,right0 | +,plus | ,term |
+ã right0:	d,right1 | ,term | +,plus |
+ã right1:	d,right2 | ,term | +,plus | 
+ã right2:	,term | 
+ã plus:		,term |
+ã term:		,term |
+ã
+ã form:	128th
+ã init:		d,left | p,pre | :,colon | -,sign | ,init | 
+ã pre: 		d,left | :,colon | -,sign 
+ã sign:		d,left | :,colon |
+ã left:		d,left | :,colon | ,term |
+ã colon:	d,right0 | ,term |
+ã right0:	d,right1 | ,term |
+ã right1:	d,right2 | ,term |
+ã right2:	,term |
+ã term:		,term |
+ã
+ã form:	64th
+ã init:		d,left | p,pre | \,bslash | -,sign | ,init | 
+ã pre: 		d,left | \,bslash | -,sign 
+ã sign:		d,left | \,bslash |
+ã left:		d,left | \,bslash | ,term |
+ã bslash:	d,right0 | ,term |
+ã right0:	d,right1 | ,term |
+ã right1:	,term |
+ã term:		,term |
+ã
+ã form:	320th
+ã init:		d,left | p,pre | `,tick | -,sign | ,init | 
+ã pre: 		d,left | `,tick | -,sign 
+ã sign:		d,left | `,tick | +,plus |
+ã left:		d,left | `,tick | +,plus | ,term |
+ã tick:		d,right0 | +,plus | ,term |
+ã right0:	d,right1 | ,term | +,plus |
+ã right1:	d,right2 | ,term | +,plus |
+ã right2:	,term | 
+ã plus:		,term |
+ã term:		,term |

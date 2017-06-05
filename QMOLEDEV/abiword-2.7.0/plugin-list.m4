@@ -1,0 +1,1 @@
+passepartout applix psion docbook xslfo sdw mht pdb bmp openxml hrtext mathview mswrite google aiksaurus urldict opendocument t602 nroff kword gda babelfish wmf jpeg gimp clarisworks ots gdict latex eml wml grammar pdf paint mif openwriter loadbindings presentation win32gfx hancom command rsvg wpg goffice s5 collab iscii freetranslation wikipedia wordperfect opml

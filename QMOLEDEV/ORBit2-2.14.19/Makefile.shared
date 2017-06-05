@@ -1,0 +1,23 @@
+IDL_COMPILER = @IDL_COMPILER@
+
+%-stubs.c %-skels.c %-common.c %-imodule.c %-skelimpl.c: %.h
+	true
+
+%.h: $(IDL_DIR)%.idl $(IDL_COMPILER)
+	-(rm -f $(*).h $(*)-stubs.c $(*)-skels.c $(*)-common.c $(*)-imodule.c $(*)-skelimpl.c || true) > /dev/null
+	$(IDL_COMPILER) $(IDL_FLAGS) --deps $(*D)/.deps/$(*F).idl.P $<
+	for I in $(*).h $(*)-stubs.c $(*)-skels.c $(*)-common.c $(*)-imodule.c $(*)-skelimpl.c; do \
+		if test -f $$I; then \
+			sed -e 's,OObject,Object,g' -e 's,TTypeCode,TypeCode,g' $$I > $$I.out; \
+			mv $$I.out $$I ; \
+		fi; \
+	done
+
+if MAINTAINER_MODE
+IDL_DEPS_MAGIC := $(shell mkdir .deps > /dev/null 2>&1 || :)
+IDL_DEP_FILES = $(IDL_FILES:%.idl=.deps/%.idl.P)
+-include $(IDL_DEP_FILES)
+endif
+
+distclean-local:
+	-rm -rf .deps

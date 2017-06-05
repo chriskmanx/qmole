@@ -1,0 +1,862 @@
+
+m4_define([abi_version_major], [2])
+m4_define([abi_version_minor], [7])
+m4_define([abi_version_micro], [0])
+m4_define([abi_series], [abi_version_major.abi_version_minor])
+m4_define([abi_version], [abi_version_major.abi_version_minor.abi_version_micro])
+
+AC_INIT([abiword],[abi_version],[http://www.abisource.com/])
+AC_CANONICAL_TARGET
+AC_CONFIG_HEADERS(config.h)
+
+AM_INIT_AUTOMAKE
+
+#
+# Dependency requirements 
+#
+
+# cross platform deps
+fribidi_req='fribidi >= 0.10.4'
+glib_req='glib-2.0 >= 2.6.0 gthread-2.0 >= 2.6.0 gobject-2.0 >= 2.6.0'
+gsf_req='libgsf-1 >= 1.12'
+gsf_gio_req='libgsf-1 >= 1.14.9'
+wv_req='wv-1.0 >= 1.2.0'
+xp_pkgs="
+  ${fribidi_req}
+  ${glib_req}
+  ${gsf_req}
+  ${wv_req}
+"
+
+# optional deps
+enchant_req='enchant >= 1.2.0'
+gnomevfs_req='gnome-vfs-2.0 >= 2.2.0 libgsf-gnome-1 >= 1.12.0'
+gio_req='gio-2.0'
+goffice_req=
+for ver in 0.8 0.6 ; do
+  if test "x$goffice_req" = x; then
+    if pkg-config --exists libgoffice-$ver; then
+      goffice_req=libgoffice-$ver
+    fi
+  fi
+done
+if test "x$goffice_req" = x; then
+  goffice_req=libgoffice-0.6
+fi
+gucharmap_req='gucharmap-2'
+hildon_pkgs='hildon-libs hildon-fm dbus-1 libosso libosso-gsf-1'
+# placeholder for accumulated optional deps
+opt_pkgs=''
+
+# cocoa deps
+cocoa_pkgs="$enchant_req"
+
+# gtk deps
+cairo_req='cairo-pdf cairo-ps'
+gtk_req='gtk+-2.0 >= 2.12.0 gtk+-unix-print-2.0 librsvg-2.0 >= 2.16.0'
+gtk_pkgs="
+  ${cairo_req}
+  ${gtk_req}
+"
+
+# win32 deps
+win_pkgs="$enchant_req"
+
+#
+# System tests
+#
+
+AC_PROG_CC
+AC_PROG_CXX
+#AC_PROG_OBJC
+AC_PROG_INSTALL
+#building static abiword by default
+#AC_DISABLE_STATIC
+AC_LIBTOOL_WIN32_DLL
+AC_PROG_LIBTOOL
+DOLT
+AC_PROG_LN_S
+
+AC_MSG_CHECKING([for platform and toolkit])
+case ${target_os} in
+  *darwin*)
+    PLATFORM="unix"
+    TOOLKIT="cocoa"
+    ;;
+  *mingw*)
+    PLATFORM="win"
+    TOOLKIT="win"
+    ;;
+  *)
+    PLATFORM="unix"
+    TOOLKIT="gtk"
+    ;;
+esac
+AC_MSG_RESULT([$PLATFORM / $TOOLKIT])
+AC_SUBST([PLATFORM])
+AC_SUBST([TOOLKIT])
+
+# Platform-specific tests
+
+function_err='Your operating system or setup seems to be missing one or more required functions'
+header_err='Your operating system or setup seems to be missing one or more required header files'
+
+cocoa_funcs='floor mkdir'
+unix_funcs='alarm gettimeofday'
+win_funcs=
+xp_funcs='localeconv strcspn strncasecmp strtoul' # "sqrt" test fails, hmm
+funcs=
+
+if test "$PLATFORM" == "cocoa"; then
+	funcs="$cocoa_funcs $xp_funcs"
+elif test "$PLATFORM" == "unix"; then
+	AC_CHECK_HEADERS([sys/time.h], [], [$header_err])
+	AC_FUNC_STRTOD
+	AC_TYPE_UINT32_T
+	funcs="$unix_funcs $xp_funcs"
+elif test "$PLATFORM" == "win"; then
+	funcs="$win_funcs $xp_funcs"
+fi
+
+AC_CHECK_FUNCS([ $funcs ], 
+[], [
+	AC_MSG_ERROR([$function_err])
+])
+
+#
+# Features
+#
+
+AC_ARG_ENABLE([default-plugins], 
+	[AS_HELP_STRING([--disable-default-plugins], [do not build any plugins by default])], 
+[
+	if test "$enableval" == "no"; then
+		abi_cv_disable_default_plugins="yes"
+	fi
+])
+
+AC_ARG_ENABLE([plugins], 
+	[AS_HELP_STRING([--enable-plugins], [="foo bar baz", list of plugins to build. Use --disable-plugins to disable plugin loading support, resulting in a smaller binary size.])], 
+[
+	if test "$enableval" == "no"; then
+		abi_cv_disable_exports="yes"
+		abi_cv_disable_default_plugins="yes"
+		abi_cv_plugins=""
+	elif test "$enableval" == "yes"; then
+		# auto-detect which plugins can be built
+		abi_cv_plugins="auto"
+	else
+		# custom plugins list
+		abi_cv_plugins="$enableval"
+	fi
+])
+
+AC_ARG_ENABLE([builtin-plugins], 
+	[AS_HELP_STRING([--enable-builtin-plugins], [="foo bar baz", list of plugins to link statically])], 
+[
+	if test "$enableval" == "no"; then
+		abi_cv_builtin_plugins=""
+	elif test "$enableval" == "yes"; then
+		# just build default plugins
+		abi_cv_builtin_plugins=""
+	else
+		# custom plugins list
+		abi_cv_builtin_plugins="$enableval"
+	fi
+])
+
+AC_ARG_ENABLE([menubutton], 
+	[AS_HELP_STRING([--enable-menubutton], [(Gtk+ only) menu-button instead of menu-bar])], 
+[
+	abi_cv_menubutton="$enableval"
+],[
+	abi_cv_menubutton="no"
+])
+
+AC_ARG_ENABLE([print], 
+	[AS_HELP_STRING([--disable-print], [(Gtk+ only) do not include printing support])], 
+[
+	abi_cv_print="$enableval"
+],[
+	abi_cv_print="yes"
+])
+
+if test "$abi_cv_print" == "yes" &&
+   test "$TOOLKIT" == "gtk"; then
+	opt_pkgs="$opt_pkgs"
+fi
+
+AC_ARG_ENABLE([spell], 
+	[AS_HELP_STRING([--disable-spell], [(Gtk+ only) do not include spell checking support])], 
+[
+	abi_cv_spell="$enableval"
+],[
+	# autodetect
+	if test "$TOOLKIT" == "gtk"; then
+		PKG_CHECK_EXISTS([ $enchant_req ],
+		[
+			abi_cv_spell="yes"
+		], [
+			abi_cv_spell="no"
+		])
+	else
+		abi_cv_spell="yes"
+	fi
+])
+
+if test "$abi_cv_spell" == "yes"; then
+	opt_pkgs="$opt_pkgs $enchant_req"
+fi
+
+AC_ARG_ENABLE([statusbar], 
+	[AS_HELP_STRING([--disable-statusbar], [(Gtk+ only) do not include status bar])], 
+[
+	abi_cv_statusbar="$enableval"
+],[
+	# on by default
+	abi_cv_statusbar="yes"
+])
+
+AC_ARG_ENABLE([emacs-keybinding], 
+	[AS_HELP_STRING([--enable-emacs-keybinding], [Enable the use of emacs-compatible keyboard commands])], 
+[
+	abi_cv_emacs_keybinding="$enableval"
+], [
+	abi_cv_emacs_keybinding="yes"
+])
+
+AC_ARG_ENABLE([vi-keybinding], 
+	[AS_HELP_STRING([--enable-vi-keybinding], [Enable the use of vi-compatible keyboard commands])], 
+[
+	abi_cv_vi_keybinding="$enableval"
+], [
+	abi_cv_vi_keybinding="yes"
+])
+
+# We define EMBEDDED_TARGET to a numerical value so that we can do like
+# #if EMBEDDED_TARGET == EMBEDDED_TARGET_HILDON
+#
+# The following have to be defined unconditionally, because we want 
+# EMBEDDED_TARGET to be undefined if not building for embedded so that we 
+# can use #ifdef and #ifndef on it (two undefined symbols will return 
+# true if tested for equality in #if construct)
+AC_DEFINE([EMBEDDED_TARGET_GENERIC], [1], [Generic embedded platform])
+AC_DEFINE([EMBEDDED_TARGET_HILDON],  [2], [Hildon embedded platform])
+AC_DEFINE([EMBEDDED_TARGET_POKY],    [3], [Poky embedded platform])
+
+AC_ARG_ENABLE([embedded],
+	[AS_HELP_STRING([--enable-embedded], [=generic|hildon|poky, (Gtk+ only), build for embedded platform])],
+[
+	abi_cv_embedded_platform="$enableval"
+	case "$enableval" in
+	hildon) 
+		abi_cv_embedded_target=EMBEDDED_TARGET_HILDON ;;
+	poky)
+		abi_cv_embedded_target=EMBEDDED_TARGET_POKY ;;
+	generic)
+		abi_cv_embedded_target=EMBEDDED_TARGET_GENERIC ;;
+	yes)	
+		abi_cv_embedded_target=EMBEDDED_TARGET_GENERIC 
+		abi_cv_embedded_platform="generic" ;;
+	no)
+		;;
+	*) 
+		AC_MSG_ERROR(bad value $enableval for --enable-embedded) ;;
+	esac
+],[	
+	abi_cv_embedded_platform="no"
+	abi_cv_embedded_target="no"
+])
+
+if test "$abi_cv_embedded_platform" == "hildon"; then
+	opt_pkgs="$opt_pkgs $hildon_pkgs"
+fi
+
+AC_ARG_ENABLE([debug], 
+	[AS_HELP_STRING([--enable-debug], [Enable debugging functionality, verbose terminal output])], 
+[
+	if test "$enableval" == "yes"; then
+		abi_cv_debug="yes"
+	fi
+], [
+	abi_cv_debug="no"
+])
+
+#
+# Optional packages
+#
+
+AC_ARG_WITH([gnomevfs], 
+	[AS_HELP_STRING([--with-gnomevfs], [(Gtk+ only) use gnome-vfs library])], 
+[
+	abi_cv_gnomevfs="$withval"
+],[
+	# use gnomevfs if detected
+	if test "$TOOLKIT" == "gtk"; then
+		PKG_CHECK_EXISTS([ $gnomevfs_req ],
+		[
+			abi_cv_gnomevfs="yes"
+		], [
+			abi_cv_gnomevfs="no"
+		])
+	else
+		abi_cv_gnomevfs="no"
+	fi
+])
+
+if test "$abi_cv_gnomevfs" == "yes"; then
+	opt_pkgs="$opt_pkgs $gnomevfs_req"
+fi
+
+AC_ARG_WITH([gio], 
+	[AS_HELP_STRING([--with-gio], [use GIO library])], 
+[
+	abi_cv_gio="$withval"
+],[
+	# use gio if detected
+	PKG_CHECK_EXISTS([ $gio_req ],
+	[
+		abi_cv_gio="yes"
+	], [
+		abi_cv_gio="no"
+	])
+])
+
+if test "$abi_cv_gio" == "yes"; then
+	opt_pkgs="$opt_pkgs $gio_req"
+fi
+
+AC_ARG_WITH([goffice], 
+	[AS_HELP_STRING([--with-goffice], [(Gtk+ only) use goffice library])], 
+[
+	abi_cv_goffice="$withval"
+],[
+	# use goffice if detected
+	if test "$TOOLKIT" == "gtk"; then
+	PKG_CHECK_EXISTS([ $goffice_req ],
+	[
+		abi_cv_goffice="yes"
+	], [
+		abi_cv_goffice="no"
+	])
+	fi
+])
+
+GOFFICE_BUILTIN_CPPFLAGS=
+GOFFICE_BUILTIN_LIBS=
+if test "$PLATFORM" == "unix" && \
+   test "$abi_cv_goffice" == "yes"; then
+	opt_pkgs="$opt_pkgs $goffice_req"
+else
+	GOFFICE_BUILTIN_CPPFLAGS='-I${top_srcdir}/goffice-bits'
+	GOFFICE_BUILTIN_LIBS='${top_builddir}/goffice-bits/libgoffice.la'
+	AC_SUBST(GOFFICE_BUILTIN_CPPFLAGS)
+	AC_SUBST(GOFFICE_BUILTIN_LIBS)
+fi
+
+AC_ARG_WITH([gucharmap], 
+	[AS_HELP_STRING([--with-gucharmap], [(Gtk+ only) use gucharmap library])], 
+[
+	abi_cv_gucharmap="$withval"
+],[
+	# use gucharmap if detected
+	if test "$TOOLKIT" == "gtk"; then
+		PKG_CHECK_EXISTS([ $gucharmap_req ],
+		[
+			abi_cv_gucharmap="yes"
+		], [
+			abi_cv_gucharmap="no"
+		])
+	else
+		abi_cv_gucharmap="no"
+	fi
+])
+
+if test "$abi_cv_gucharmap" == "yes"; then
+	opt_pkgs="$opt_pkgs $gucharmap_req"
+fi
+
+AC_ARG_WITH([darwinports],
+	[AS_HELP_STRING([--with-darwinports], [(Mac OSX only) add `/opt/local' prefix to CPP/LDFLAGS])], 
+[
+        if test "x$withval" != "xno"; then
+                CPPFLAGS="$CPPFLAGS -I/opt/local/include"
+                LDFLAGS="$LDFLAGS -L/opt/local/lib"
+		CC=g++
+        fi
+])
+
+AC_ARG_WITH([fink],
+	[AS_HELP_STRING([--with-fink], [(Mac OSX only) add `/sw' prefix to CPP/LDFLAGS])], 
+[
+        if test "x$withval" != "xno"; then
+                CPPFLAGS="$CPPFLAGS -I/sw/include"
+                LDFLAGS="$LDFLAGS -L/sw/lib"
+		CC=g++
+        fi
+])
+
+
+#
+# Compiler settings (from gnumeric's configure.in)
+#
+# TODO enable -Wshadow
+AC_LANG_PUSH(C++)
+if test "$GCC" = "yes"; then
+	for option in -Wall -Wextra -Wsign-compare -Wpointer-arith \
+		      -Wchar-subscripts -Wwrite-strings -Wmissing-noreturn \
+		      -Wunused -Wpointer-arith ; do
+		SAVE_CPPFLAGS="$CPPFLAGS"
+		CPPFLAGS="$CPPFLAGS $option"
+		AC_MSG_CHECKING([whether gcc understands $option])
+		AC_TRY_COMPILE([], [],
+			has_option=yes,
+			has_option=no,)
+		if test $has_option = no; then
+		  CPPFLAGS="$SAVE_CPPFLAGS"
+		fi
+		AC_MSG_RESULT($has_option)
+		unset has_option
+		unset SAVE_CPPFLAGS
+	done
+	unset option
+fi
+AC_LANG_POP
+
+#
+# Dependency tests
+#
+
+# TODO need to check for libpng too, at least on win32
+# check using pkg-config instead
+AC_CHECK_HEADER([png.h], [], 
+[
+	AC_MSG_ERROR([`png.h' not found, install libpng or specify CPPFLAGS to include custom locations])
+])
+
+# TODO need to check for libz too, at least on win32
+AC_CHECK_HEADER([zlib.h], [], 
+[
+	AC_MSG_ERROR([`zlib.h' not found, install zlib or specify CPPFLAGS to include custom locations])
+])
+
+deps_pkgs="$xp_pkgs $opt_pkgs"
+SYSTEM_LIBS=
+SYSTEM_CFLAGS=
+if test "$TOOLKIT" == "win"; then
+	deps_pkgs="$deps_pkgs $win_pkgs"
+	# nonstandard dlls go below the blank line
+	SYSTEM_LIBS="-ladvapi32 -lcomctl32 -lcomdlg32 -lgdi32 -lkernel32 -lole32 -lshell32 -luser32 -luuid -lversion -lwinspool \
+		     -lpng13 -lzlib1"
+	SYSTEM_CFLAGS="-mthreads"
+elif test "$TOOLKIT" == "cocoa"; then
+	deps_pkgs="$deps_pkgs $cocoa_pkgs"
+	SYSTEM_LIBS="-framework Cocoa"
+	AC_CHECK_PROG([CONVERT], [convert], convert, AC_MSG_ERROR(Cannot find ImageMagick convert))
+else
+	deps_pkgs="$deps_pkgs $gtk_pkgs"
+fi
+
+PKG_CHECK_MODULES(DEPS,[$deps_pkgs])
+dnl specific gtk214 test.
+if test "$TOOLKIT" == "gtk"; then
+	PKG_CHECK_MODULES(GTK214, gtk+-2.0 > 2.14, [abi_cv_gtk214=yes], 
+                 [abi_cv_gtk214=no])
+	if test "$abi_cv_gtk214" == "yes" ; then
+		AC_DEFINE([HAVE_GTK214], [1], [GTK is at least 2.14])
+	fi
+	dnl move away
+	AC_DEFINE([WITH_CAIRO], [1], [Using Cairo])
+fi
+
+AC_SUBST([DEPS_CFLAGS])
+if test "$abi_cv_gio" == "yes"; then
+	PKG_CHECK_MODULES(GSFGI, [$gsf_gio_req], [abi_cv_gsf_gio=yes], 
+                 [abi_cv_gsf_gio=no])
+	if test "$abi_cv_gsf_gio" == "yes" ; then
+		AC_DEFINE([HAVE_GSF_GIO], [1], [GSF has GIO support])
+	fi
+else
+	abi_cv_gsf_gio=no
+fi
+
+DEPS_LIBS="$SYSTEM_LIBS $DEPS_LIBS"
+AC_SUBST([DEPS_LIBS])
+
+BASE_CPPFLAGS_='
+  ${DEPS_CFLAGS} 
+  -I${top_srcdir} 
+  ${GOFFICE_BUILTIN_CPPFLAGS}'
+BASE_CPPFLAGS="$SYSTEM_CFLAGS"
+for f in $(echo $BASE_CPPFLAGS_); do BASE_CPPFLAGS="$BASE_CPPFLAGS $f"; done
+AC_SUBST([BASE_CPPFLAGS])
+
+AF_CPPFLAGS_='
+  ${BASE_CPPFLAGS} 
+  -I${top_srcdir}/src/af/ev/${TOOLKIT} 
+  -I${top_srcdir}/src/af/ev/xp 
+  -I${top_srcdir}/src/af/gr/${TOOLKIT} 
+  -I${top_srcdir}/src/af/gr/xp 
+  -I${top_srcdir}/src/af/util/${PLATFORM} 
+  -I${top_srcdir}/src/af/util/xp 
+  -I${top_srcdir}/src/af/xap/${TOOLKIT} 
+  -I${top_srcdir}/src/af/xap/xp'
+AF_CPPFLAGS=
+for f in $(echo $AF_CPPFLAGS_); do AF_CPPFLAGS="$AF_CPPFLAGS $f"; done
+AC_SUBST([AF_CPPFLAGS])
+
+AF_TEST_CPPFLAGS_='
+  ${AF_CPPFLAGS} 
+  -I${top_srcdir}/src/af/tf/xp'
+AF_TEST_CPPFLAGS=
+for f in $(echo $AF_TEST_CPPFLAGS_); do AF_TEST_CPPFLAGS="$AF_TEST_CPPFLAGS $f"; done
+AC_SUBST([AF_TEST_CPPFLAGS])
+
+TEXT_CPPFLAGS_='
+  ${AF_CPPFLAGS} 
+  -I${top_srcdir}/src/text/fmt/${TOOLKIT} 
+  -I${top_srcdir}/src/text/fmt/xp 
+  -I${top_srcdir}/src/text/ptbl/xp'
+TEXT_CPPFLAGS=
+for f in $(echo $TEXT_CPPFLAGS_); do TEXT_CPPFLAGS="$TEXT_CPPFLAGS $f"; done
+AC_SUBST([TEXT_CPPFLAGS])
+
+TEXT_TEST_CPPFLAGS_='
+  ${TEXT_CPPFLAGS} 
+  -I${top_srcdir}/src/af/tf/xp'
+TEXT_TEST_CPPFLAGS=
+for f in $(echo $TEXT_TEST_CPPFLAGS_); do TEXT_TEST_CPPFLAGS="$TEXT_TEST_CPPFLAGS $f"; done
+AC_SUBST([TEXT_TEST_CPPFLAGS])
+
+IMPEXP_CPPFLAGS_='
+  ${TEXT_CPPFLAGS} 
+  -I${top_srcdir}/src/wp/impexp/${TOOLKIT} 
+  -I${top_srcdir}/src/wp/impexp/xp'
+IMPEXP_CPPFLAGS=
+for f in $(echo $IMPEXP_CPPFLAGS_); do IMPEXP_CPPFLAGS="$IMPEXP_CPPFLAGS $f"; done
+AC_SUBST([IMPEXP_CPPFLAGS])
+
+IMPEXP_TEST_CPPFLAGS_='
+  ${IMPEXP_CPPFLAGS} 
+  -I${top_srcdir}/src/af/tf/xp'
+IMPEXP_TEST_CPPFLAGS=
+for f in $(echo $IMPEXP_TEST_CPPFLAGS_); do IMPEXP_TEST_CPPFLAGS="$IMPEXP_TEST_CPPFLAGS $f"; done
+AC_SUBST([IMPEXP_TEST_CPPFLAGS])
+
+WP_CPPFLAGS_='
+  ${IMPEXP_CPPFLAGS} 
+  -I${top_srcdir}/src/wp/ap/${TOOLKIT} 
+  -I${top_srcdir}/src/wp/ap/xp
+  -I${top_srcdir}/src/plugins'
+WP_CPPFLAGS=
+for f in $(echo $WP_CPPFLAGS_); do WP_CPPFLAGS="$WP_CPPFLAGS $f"; done
+AC_SUBST([WP_CPPFLAGS])
+
+#
+# Settings
+#
+
+ABIWORD_SERIES="abi_series"
+AC_DEFINE_UNQUOTED([ABIWORD_SERIES], [ "$ABIWORD_SERIES" ], [major.minor])
+AC_SUBST(ABIWORD_SERIES)
+AC_SUBST(ABIWORD_HEADERSDIR, "${includedir}/${PACKAGE_NAME}-${ABIWORD_SERIES}")
+if test "$TOOLKIT" == "cocoa"; then
+AC_SUBST(ABIWORD_CONTENTSDIR, "/AbiWord.app/Contents")
+AC_SUBST(ABIWORD_DATADIR,    "${ABIWORD_CONTENTSDIR}/Resources")
+AC_SUBST(ABIWORD_UIDIR,      "${ABIWORD_CONTENTSDIR}/Resources")
+AC_SUBST(ABIWORD_MACOSDIR,   "${ABIWORD_CONTENTSDIR}/MacOS")
+AC_SUBST(ABIWORD_PLUGINSDIR, "${ABIWORD_CONTENTSDIR}/Plug-ins")
+AC_SUBST(ABIWORD_LIBDIR,     "${ABIWORD_CONTENTSDIR}/Frameworks")
+else
+AC_SUBST(ABIWORD_DATADIR,    "${datadir}/${PACKAGE_NAME}-${ABIWORD_SERIES}")
+AC_SUBST(ABIWORD_UIDIR,   "${ABIWORD_DATADIR}/ui")
+AC_SUBST(ABIWORD_LIBDIR,     "${libdir}/${PACKAGE_NAME}-${ABIWORD_SERIES}")
+AC_SUBST(ABIWORD_PLUGINSDIR, "${ABIWORD_LIBDIR}/plugins")
+fi
+
+# maybe just switch on TOOLKIT instead of the fancy TARGET defines
+# also for embedded, e.g. hildon would set TOOLKIT_GTK and TOOLKIT_HILDON
+AM_CONDITIONAL([TOOLKIT_COCOA], test "$TOOLKIT" == "cocoa")
+AM_CONDITIONAL([TOOLKIT_GTK], test "$TOOLKIT" == "gtk")
+AM_CONDITIONAL([TOOLKIT_WIN], test "$TOOLKIT" == "win")
+
+if test "$enable_dynamic" == ""; then
+	enable_dynamic="no"
+fi
+
+if test "$enable_static" == ""; then
+	enable_static="no"
+fi
+
+if test "$TOOLKIT" == "win"; then
+	AC_DEFINE([TOOLKIT_WIN], [1], [Build win32 user interface])
+	AC_DEFINE([_WIN32_IE], [0x0300], [minimal comctl.dll v4.70 for toolbars])
+	# override static/dynamic, on win32 only static is possible
+	enable_dynamic="no"
+	enable_static="yes"
+elif test "$TOOLKIT" == "cocoa"; then
+	AC_DEFINE([TOOLKIT_COCOA], [1], [Build cocoa user interface])
+	AC_DEFINE([XAP_DONTUSE_XOR], [1], [do not use XOR drawing functions])
+	# override static/dynamic, on cocoa. dynamic only
+	enable_dynamic="yes"
+	enable_static="no"
+else
+	AC_DEFINE([TOOLKIT_GTK], [1], [Build gtk+ user interface])
+	# build static binary by default
+	if test "$enable_dynamic" == "no" && \
+	   test "$enable_static" == "no"; then 
+		enable_dynamic="no"
+		enable_static="yes"
+	fi
+fi
+AM_CONDITIONAL([ENABLE_DYNAMIC], test "$enable_dynamic" == "yes")
+AM_CONDITIONAL([ENABLE_STATIC], test "$enable_static" == "yes")
+
+PKG_CHECK_MODULES(PLUGIN,[$glib_req])
+PLUGIN_CFLAGS="$PLUGIN_CFLAGS "'${WP_CPPFLAGS} -DABI_DLL'
+if test "$TOOLKIT" == "gtk" && 
+   test "$enable_dynamic" == "yes"; then
+	# link plugins to work around gcc visibility issue with 
+	# derived classes in dlopened modules
+	PLUGIN_LIBS="$PLUGIN_LIBS "'-L${top_builddir}/src'" -labiword-$ABIWORD_SERIES"
+elif test "$TOOLKIT" == "win"; then
+	# link plugins to the executable so they can be loaded
+	PLUGIN_LIBS="$PLUGIN_LIBS "'-L${top_builddir}/src -labiword'
+elif test "$TOOLKIT" == "cocoa" ; then 
+	PLUGIN_LIBS="$PLUGIN_LIBS "'-L${top_builddir}/src'" -labiword-$ABIWORD_SERIES"
+fi
+AC_SUBST([PLUGIN_CFLAGS])
+AC_SUBST([PLUGIN_LIBS])
+
+if test "$abi_cv_disable_exports" == "yes"; then
+	AC_DEFINE([DISABLE_EXPORTS], [1], [Define to prevent symbols from being exported dynamically])
+fi
+
+if test "$abi_cv_menubutton" == "yes"; then
+	AC_DEFINE([ENABLE_MENUBUTTON], [1], [Define if building menu button support])
+fi
+AM_CONDITIONAL([ENABLE_MENUBUTTON], test "$abi_cv_menubutton" == "yes")
+
+if test "$abi_cv_print" == "yes"; then
+	AC_DEFINE([ENABLE_PRINT], [1], [Define if building printing support])
+fi
+AM_CONDITIONAL([ENABLE_PRINT], test "$abi_cv_print" == "yes")
+
+if test "$abi_cv_spell" == "yes"; then
+	AC_DEFINE([ENABLE_SPELL], [1], [Define if building spell checking support])
+	# TODO get rid of this after all platforms are using enchant exclusively
+	AC_DEFINE([WITH_ENCHANT], [1], [use Dom's enchanting spell checker abstraction library])
+fi
+AM_CONDITIONAL([ENABLE_SPELL], test "$abi_cv_spell" == "yes")
+
+if test "$abi_cv_statusbar" == "yes"; then
+	AC_DEFINE([ENABLE_STATUSBAR], [1], [Define if building status bar])
+fi
+AM_CONDITIONAL([ENABLE_STATUSBAR], test "$abi_cv_statusbar" == "yes")
+
+if test "$abi_cv_embedded_target" != "no"; then
+	AC_DEFINE_UNQUOTED(EMBEDDED_TARGET, $abi_cv_embedded_target, [Whether we are building for embedded device])
+fi
+AM_CONDITIONAL(EMBEDDED_HILDON, test "$abi_cv_embedded_target" == "EMBEDDED_TARGET_HILDON")
+
+if test "$abi_cv_emacs_keybinding" == "yes"; then
+	AC_DEFINE([ENABLE_EMACS_KEYBINDING], [1], [Define to enable include emacs-compatible keyboard commands])
+fi
+AM_CONDITIONAL(ENABLE_EMACS_KEYBINDING, test "$abi_cv_emacs_keybinding" == "yes")
+
+if test "$abi_cv_vi_keybinding" == "yes"; then
+	AC_DEFINE([ENABLE_VI_KEYBINDING], [1], [Define to enable include vi-compatible keyboard commands])
+fi
+AM_CONDITIONAL(ENABLE_VI_KEYBINDING, test "$abi_cv_vi_keybinding" == "yes")
+
+if test "$abi_cv_debug" == "yes"; then
+	AC_DEFINE([DEBUG], [1], [Define to enable debugging functionality])
+else
+	AC_DEFINE([NDEBUG], [1], [Define to disable debugging functionality])
+fi
+AM_CONDITIONAL(DEBUG, test "$abi_cv_debug" == "yes")
+
+#
+# Optional dependencies handling
+#
+
+if test "$abi_cv_gnomevfs" == "yes"; then
+	AC_DEFINE([WITH_GNOMEVFS], [1], [Define if using gnome-vfs])
+fi
+
+if test "$abi_cv_gio" == "yes"; then
+	AC_DEFINE([WITH_GIO], [1], [Define if using GIO])
+fi
+
+if test "$abi_cv_goffice" == "yes"; then
+	AC_DEFINE([WITH_GOFFICE], [1], [Define if using goffice])
+fi
+AM_CONDITIONAL([WITH_GOFFICE_BUILTIN], test "$TOOLKIT" == "gtk" && test "$abi_cv_goffice" != "yes")
+AC_SUBST([GOFFICE_BUILTIN_LIBS])
+
+if test "$abi_cv_gucharmap" == "yes"; then
+	AC_DEFINE([WITH_GUCHARMAP], [1], [Define if using gucharmap])
+fi
+AM_CONDITIONAL([WITH_GUCHARMAP], test "$abi_cv_gucharmap" == "yes")
+
+ALL_PLUGINS_="\
+  m4_include([plugin-list.m4])"
+# strip trailing newline from the included file, it messes up sed on windows
+ALL_PLUGINS=
+for p in $(echo $ALL_PLUGINS_); do ALL_PLUGINS="$ALL_PLUGINS $p"; done
+AC_SUBST([ALL_PLUGINS])
+
+PLUGINS=
+if test "$abi_cv_plugins" == "auto"; then
+
+	# which plugins to auto-enable
+	# this creates variables like "enable_wordperfect=auto"
+	for plugin in `echo $ALL_PLUGINS`; do
+		eval $(echo "enable_$plugin")="auto"
+	done
+else
+	default_plugins="opendocument"
+
+	if test "$abi_cv_disable_default_plugins" != "yes"; then
+		PLUGINS="$default_plugins"
+	fi
+	PLUGINS="$PLUGINS $abi_cv_plugins"
+
+	# which plugins to enable
+	# this creates variables like "enable_wordperfect=yes"
+	for plugin in `echo $PLUGINS`; do
+		eval $(echo "enable_$plugin")="yes"
+	done
+fi
+
+# enable the plugins we want to link statically
+# this creates variables like "enable_wordperfect=yes"
+BUILTIN_PLUGINS="$abi_cv_builtin_plugins"
+for plugin in `echo $BUILTIN_PLUGINS`; do
+	eval $(echo "enable_$plugin")="yes"
+done
+
+# which plugins to build in
+# this creates variables like "enable_wordperfect_builtin=yes"
+for plugin in `echo $BUILTIN_PLUGINS`; do
+	variable="enable_"$plugin"_builtin"
+	eval $(echo $variable)="yes"
+done
+
+# this creates the list of .la files to link statically
+# used in src/plugins/Makefile.am
+BUILTIN_PLUGINS_LA=
+for plugin in `echo $BUILTIN_PLUGINS`; do
+	BUILTIN_PLUGINS_LA="$BUILTIN_PLUGINS_LA ../../plugins/$plugin/$plugin.la"
+done
+
+m4_include([plugin-builtin.m4])
+
+m4_include([plugin-configure.m4])
+
+AC_SUBST([PLUGINS])
+AC_SUBST([BUILTIN_PLUGINS])
+AC_SUBST([BUILTIN_PLUGINS_LA])
+
+# put all deps on a single line for the .pc file
+ABIWORD_REQUIRED_PKGS=
+for dep in `echo $deps_pkgs`; do
+	ABIWORD_REQUIRED_PKGS="$ABIWORD_REQUIRED_PKGS $dep"
+done
+AC_SUBST(ABIWORD_REQUIRED_PKGS)
+
+SHAVE_INIT
+AC_OUTPUT(
+  shave
+  shave-libtool
+  libabiword.pc
+  Makefile
+  goffice-bits/Makefile
+  src/Makefile
+  src/af/Makefile
+  src/af/ev/Makefile
+  src/af/ev/cocoa/Makefile
+  src/af/ev/gtk/Makefile
+  src/af/ev/win/bmp/Makefile
+  src/af/ev/win/Makefile
+  src/af/ev/xp/Makefile
+  src/af/gr/Makefile
+  src/af/gr/cocoa/Makefile
+  src/af/gr/gtk/Makefile
+  src/af/gr/win/Makefile
+  src/af/gr/xp/Makefile
+  src/af/tf/Makefile
+  src/af/tf/xp/Makefile
+  src/af/util/Makefile
+  src/af/util/unix/Makefile
+  src/af/util/win/Makefile
+  src/af/util/xp/Makefile
+  src/af/util/xp/t/Makefile
+  src/af/xap/Makefile
+  src/af/xap/cocoa/Makefile
+  src/af/xap/gtk/Makefile
+  src/af/xap/gtk/t/Makefile
+  src/af/xap/win/Makefile
+  src/af/xap/xp/Makefile
+  src/plugins/Makefile
+  src/text/Makefile
+  src/text/fmt/Makefile
+  src/text/fmt/gtk/Makefile
+  src/text/fmt/xp/Makefile
+  src/text/fmt/xp/t/Makefile
+  src/text/ptbl/Makefile
+  src/text/ptbl/xp/Makefile
+  src/text/ptbl/xp/t/Makefile
+  src/wp/Makefile
+  src/wp/ap/Makefile
+  src/wp/ap/cocoa/Makefile
+  src/wp/ap/gtk/Makefile
+  src/wp/ap/win/Makefile
+  src/wp/ap/xp/Makefile
+  src/wp/ap/xp/ToolbarIcons/Makefile
+  src/wp/impexp/Makefile
+  src/wp/impexp/cocoa/Makefile
+  src/wp/impexp/gtk/Makefile
+  src/wp/impexp/win/Makefile
+  src/wp/impexp/xp/Makefile
+  src/wp/main/cocoa/Makefile
+  src/wp/main/cocoa/bundle/Info.plist
+  user/Makefile
+  user/wp/Makefile
+  user/wp/strings/Makefile
+  user/wp/templates/Makefile
+)
+
+AC_OUTPUT(
+  m4_include([plugin-makefiles.m4])
+)
+
+echo "
+Configuration:
+  target                ${target}
+  dynamic binary        ${enable_dynamic}
+  static binary         ${enable_static}
+  platform              ${PLATFORM} (embedded: $abi_cv_embedded_platform)
+  toolkit               ${TOOLKIT}
+  debug                 ${abi_cv_debug}
+
+Optional features:
+  menubutton            ${abi_cv_menubutton}
+  printing              ${abi_cv_print}
+  spell checking        ${abi_cv_spell}
+  status bar            ${abi_cv_statusbar}
+  emacs keybinding      ${abi_cv_emacs_keybinding}
+  vi keybinding         ${abi_cv_vi_keybinding}
+
+Optional dependencies:
+  gtk2 > 2.14           ${abi_cv_gtk214}
+  gnome-vfs             ${abi_cv_gnomevfs}
+  gio			${abi_cv_gio}
+  gsf-gio               ${abi_cv_gsf_gio}
+  goffice               ${abi_cv_goffice}
+  gucharmap             ${abi_cv_gucharmap}
+
+Builtin plugins         ${BUILTIN_PLUGINS}
+Plugins                 ${PLUGINS}
+"
+

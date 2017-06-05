@@ -1,0 +1,233 @@
+
+
+				ted
+				===
+		
+
+0.  Description.
+
+	TED is an editor for T Describe slotfillers.
+
+1.  Operation.
+
+	A T directory is a directory dir which contains all and only
+	.m files f0 ... fm, which represent the sources of the fields
+	in the table corresponding to dir.
+
+	A described T directory is a directory which has an additional
+	file called ".T".  .T is always an exported "T Describe".  A T
+	Describe is either () or a two-level slotfiller d of the form:
+
+	      dûs.rsf{ 
+		(
+		`.;	 (
+		  	 `.	;
+				:
+			 );
+		`field-1;(
+			 `.	;	'definition of field-1';
+			 `att	;	value;
+			        :
+			 );
+			 :
+		`field-n;(
+		  	 `.	;	'definition of field-n';
+			 `att	;	value;
+				:
+			 )
+		)
+	      }
+
+	I.e. d represents each field in the table (each file in the
+	directory) as a slot.  For each field, a further slotfiller
+	gives 
+
+	      Ê the symbol `., whose slot always contains a character
+		vector defining the contents of the field.
+
+	      Ê a dotted symbol `c.a, whose slot contains a value
+		appropriate for the attribute x.y.
+
+	      Ê an undotted symbol `a, whose slot contains a value
+		appropriate for the corresponding S-attribute (e.g., 
+		`out or `bg).
+
+	A distinguished "field" `. represents attributes to be set on
+	the table itself, and is a required part of a well-formed
+	Describe.
+
+	Similarly, the attribute `. is required for each field in the
+	describe, including the empty field `.
+
+	t.open{} distinguishes between described and undescribed T
+	directories:
+
+		'undescribed' t.open ()		ã open *all* files
+		'described' t.open ()		ã use .T as right arg.
+
+	TED provides a simple editing mechanism for .T files.
+
+	Actions:
+
+	      Ê Help
+
+	      Ê	New:   	Set directory to '', clear fields and attributes.
+
+	      Ê Load:  	Prompt for directory, and load Describe.
+
+	      Ê Save:  	Prompt for directory, and save Describe.
+
+	      Ê Make:  	Prompt for number of records, and generate files
+			in directory according to current Describe.
+
+	      Ê +Field: Prompt for name, and add new field.
+
+	      Ê -Field: Delete selected field.
+
+	      Ê +Attr:  Prompt for name, and add new attribute.
+
+	      Ê -Attr:  Delete selected attribute.
+
+	      Ê Derive: Derive a Describe from the specified directory.
+
+	TED is sensitive to the following attributes:
+
+	      	`.		character string, definition of field data source
+		`na		na-value of data
+		`t.item		shape of a field item (i.e., 1ÕÒfield)
+		`t.calendar	character string, timeseries definition
+		`out		format string
+
+	E.g.,
+
+		:
+		`field;		(
+				`.;		'0àmyfile.m';
+				`na;		¢999999999;
+				`t.item;	300;
+				`t.calendar;	'1/1/70ý1/1/1999';
+				`out;		'f10.3'
+				);
+		:
+
+	Note that if `item is specified, it overrides the implied length of
+	`t.calendar when the Make action occurs.  If `item is not specified,
+	and `t.calendar is, then the array is created with column-axis =
+	t.calendar{value of `t.calendar}.  If neither is specified, the array
+	is created as a vector.
+
+2.  zûdefine cx
+
+	cx = target context of TED tool.
+	z = `cx._TED
+
+	Define TED in the specified context.
+
+3.  Variables
+
+	_FIELDû		selected field (offscreen)
+	_DOû		one of 0Ø_ACTION (non-interactive action)
+
+	_ACTIONû	actions
+	_MSGû		message
+	_DESCRIBEû	imported .T file in _DIR
+	_FIELDS:	0Ø_DESCRIBE
+	_ATTRS:		_FIELDØ_DESCRIBE
+	_WINDOWû	scrolled window for _ATTRS
+	_HPANEû		hpane for _FIELDS and _ATTRS
+	_TEDû		outer layout
+
+	_ACTû		symbol of ACT popup context
+	_NAMEû		popup field/attribute name input
+	_DIRû		popup directory input
+	_Nû		Number of records to make
+
+4.  Restrictions
+
+	TED controls:
+
+		`set callback on _DO, _ACTION, _DIR, and _ATTRS.
+		`select on _FIELDS
+		`done on _ATTRS
+		`preset on _DO
+
+5.  Example
+
+		$mkdir ddd
+
+		'ddd/a.m'à10«É10
+		'ddd/b.m'à1.123«É10
+
+		sûs.rsf{
+			(
+			`.;
+				(
+				`.;		;
+				`doc;		'table description';
+				`bg;		`yellow;
+				`t.open;	'Õ"opening test table"';
+				`t.close;	'Õ"closing test table"'
+				);
+			`aa;
+				(
+				`.;		'0àa.m';
+				`doc;		'field description';
+				`na;		¢123;
+				`out;		'i5';
+				`bg;		`green;
+				);
+			`bb;	(
+				`.;		'1àb.m';
+				`out;		'f6.3';
+				`bg;		`red;
+				);
+			`cc;	(
+				`.;		':aa+bb';
+				`out;		'f6.3';
+				`fg;		`blue;
+				);
+			`dd;	(
+				`.;		':ôaa~bb';
+				`t.item;	1;
+				);
+			`ee;	(
+				`.;		':aa-bb';
+				`t.visible;	0
+				)
+		  )
+		}
+
+		'ddd/.T' à sys.exp s
+
+	ã the table has a yellow background
+	ã open and close execute strings are specified.
+
+	ã aa is read only.
+	ã bb is writeable.
+	ã cc is a dependency.
+	ã dd is non-displayable numeric matrix.
+	ã ee is explicitly declared not visible.
+
+	ã First:
+
+		$load s
+		$load t
+
+		'ddd' t.open ()		ã uses ._T
+		show t.table ` 
+
+		` `v t.only ()		ã create a view
+		` `v t.send ()		ã send all
+
+		show t.table `v		ã attributes propagate
+
+	ã Then
+		
+		` t.close ()		ã frees `
+
+		$load ted
+		show ted.define `xyz
+
+	ã Repeat t.open{} and show{}.
+
+

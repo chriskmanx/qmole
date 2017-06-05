@@ -1,0 +1,268 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+
+$cx adap
+
+ltoa{list}:(>list[;0];(listû2!list)[;1])
+
+getopt{list;key;default}:if (keyÅ0Ølist) keyØlist else default
+
+getretryarg{service}:4«if (`retryÅ0Øsfû_alsf service) `retryØsf else 1
+
+CBFunctionsû();
+CBHandlesûÉ0;
+
+TweakAArgument{a}:{
+  newsymsû`opened`closed;
+  oldsymsû`connected`reset;
+  if((~`sym½©a)©(~(É0)½Òa)) a else if (aÅnewsyms) oldsyms[newsymsÉa] else a
+} 
+
+ConnectionCallbackPassthru{h;a;d}:{
+  aûTweakAArgument{a};
+  if (`connected½a) {
+    if (~hÅadap.CBHandles) {
+      lstnûi.getattr{h;`listener};
+      if ((~0½lstn)^(~()½lstn)) {
+        adap.CBHandlesûadap.CBHandles,h;
+        adap.CBFunctionsûadap.CBFunctions,adap.CBFunctions[adap.CBHandlesÉlstn];
+      } else {
+        Õ"ã Warning `connect event received for an unknown possibly closed handle:",îh;
+        û();
+      };
+    };
+  };
+  if (hÅadap.CBHandles) (adap.CBFunctions[adap.CBHandlesÉh])¡{h;a;d}
+  else adap.ConnectCBFunction{h;a;d};
+}
+
+filterConnectArgs{name;host;port;protocol}:{
+  if(protocol½`RAW) protocolû`raw;
+  if(host½()) hostû`localhost;
+  (name;host;port;protocol)
+}
+
+Connect{service_descriptor;callbackfn}:{
+  serviceargû_alsf service_descriptor;
+  hostûgetopt{servicearg;`host;`localhost};
+  portûgetopt{servicearg;`port;};
+  protocolûgetopt{servicearg;`protocol;`A};
+  nameûgetopt{servicearg;`name;`None};
+  (name;host;port;protocol)ûfilterConnectArgs{name;host;port;protocol};
+
+  adap.ConnectCBFunctionûcallbackfn;
+  if(()½port) {
+    if(^/`name`protocolÅ0Øservicearg) {
+      hûi.connectNP{adap.ConnectionCallbackPassthru;name;protocol};
+    } else if (`nameÅ0Øservicearg) {
+      hûi.connectN{adap.ConnectionCallbackPassthru;name}
+    } else hû¢1;
+  } else {
+    hûi.connectNHPP{adap.ConnectionCallbackPassthru;name;host;port;protocol}
+  };
+  if(¢1¨h) {
+    adap.CBHandlesûadap.CBHandles,h;
+    adap.CBFunctionsûadap.CBFunctions,<{callbackfn};
+    i.open h;
+  };
+  h
+}
+
+SyncConnect{service_descriptor;callbackfn}:{
+  if (`null=_nc{`i;`openSync}) Ù"This build of a+/adap does not support adap.SyncConnect";
+
+  serviceargû_alsf service_descriptor;
+  hostûgetopt{servicearg;`host;`localhost};
+  portûgetopt{servicearg;`port;};
+  timeout û getopt{servicearg;`timeout;5};
+  protocolûgetopt{servicearg;`protocol;`A};
+  nameûgetopt{servicearg;`name;`None};
+  (name;host;port;protocol)ûfilterConnectArgs{name;host;port;protocol};
+
+  adap.ConnectCBFunctionûcallbackfn;
+  if(()½port) {
+    if(^/`name`protocolÅ0Øservicearg) {
+      hûi.connectNP{adap.ConnectionCallbackPassthru;name;protocol};
+    } else if (`nameÅ0Øservicearg) {
+      hûi.connectN{adap.ConnectionCallbackPassthru;name}
+    } else hû¢1;
+  } else {
+    hûi.connectNHPP{adap.ConnectionCallbackPassthru;name;host;port;protocol}
+  };
+  if(¢1¨h) {
+    adap.CBHandlesûadap.CBHandles,h;
+    adap.CBFunctionsûadap.CBFunctions,<{callbackfn};
+    conn û i.openSync{h;timeout};
+    if (conn¨0) { Õ"ã Error: adap.SyncConnect failed after",(,îtimeout)," secs";û0};
+  };
+  h
+}
+
+
+Listen{service_descriptor;callbackfn}:{
+  serviceargû_alsf service_descriptor;
+  retryargûgetopt{servicearg;`retry;1};
+  portûgetopt{servicearg;`port;};
+  protocolûgetopt{servicearg;`protocol;`A};
+  nameûgetopt{servicearg;`name;`None};
+  (name;junk;port;protocol)ûfilterConnectArgs{name;`localhost;port;protocol};
+
+  adap.ConnectCBFunctionûcallbackfn;
+ãããããããããããããããã
+  if(()½port) {
+    if(^/`name`protocolÅ0Øservicearg) {
+      hûi.listenNP{adap.ConnectionCallbackPassthru;name;protocol};
+    } else if (`nameÅ0Øservicearg) {
+      hûi.listenN{adap.ConnectionCallbackPassthru;name}
+    } else hû¢1;
+  } else {
+    hûi.listenNPP{adap.ConnectionCallbackPassthru;name;port;protocol}
+  };
+ãããããããããããããããã
+ã   hûi.listenNPP{adap.ConnectionCallbackPassthru;name;port;protocol};
+ãããããããããããããããã
+  if(¢1¨h) {
+    i.setattr{h;`retry;retryarg};
+    adap.CBHandlesûadap.CBHandles,h;
+    adap.CBFunctionsûadap.CBFunctions,<{callbackfn};
+    i.open h;
+  };
+  h
+}
+
+Export a:if(()½aûsys.exp{a}){''} else {a}
+
+Import a:if(()½aûsys.imp{a}){''} else {a}
+
+adap.SyncXch{h;outgoing;to}:{
+  timeoutû to;
+  if ((()½timeout)^~()½to) Ù`domain;
+
+  readPauseûi.getattr{h;`readPause};
+  if(readPause=0) i.setattr{h;`readPause;1};
+  resûi.syncsend{h;outgoing;timeout};
+  if(`error½0Øres) {
+      if(readPause=0) i.setattr{h;`readPause;readPause};
+     ûres,<`send;
+  };
+
+  resûi.syncread{h;timeout};
+  if(readPause=0) i.setattr{h;`readPause;readPause};
+  if(`error½0Øres) ûres,<`read;
+
+  0 1#res
+}
+
+WriteQueueStatus{h}:{i.getattr{h;`writeStatus}}
+
+ReadQueueStatus{h}:{i.getattr{h;`readStatus}}
+
+ã xfs functions
+
+SetDebug{h;val}: i.setdebug{h;val}
+
+Debug{val}: i.debug{val}
+
+Reset{h}: i.close{h}
+
+Send{h;msg}: i.send{h;msg}
+
+TimerCallbackPassthru{h;a;d}:{
+  if(~()½ddûi.getattr{h;`expiry}) dûdd;
+  if(hÅadap.CBHandles) {
+    idxûadap.CBHandlesÉh;
+    (adap.CBFunctions[idx])¡{h;a;d};
+    idxûadap.CBHandlesÉh;             ã recalc idx if CB does adap.close{}
+    if( idx<#adap.CBHandles ) {
+      bû(#adap.CBHandles)Ò1;
+      b[idx]û0;
+      adap.CBFunctionsûb/adap.CBFunctions; 
+      adap.CBHandlesûb/adap.CBHandles;
+    }; 
+  } else { adap.TimerCBFunction{h;a;d};}
+}
+
+SetTimer{name;callbackfn;secs}:{
+  adap.TimerCBFunctionûcallbackfn;
+  hûi.timer{TimerCallbackPassthru;secs};
+  i.setattr{h;`eventSymbol;name};
+  if(¢1¨h) {
+    adap.CBHandlesûadap.CBHandles,h;
+    adap.CBFunctionsûadap.CBFunctions,<{callbackfn};
+    i.open h;
+  };
+  h
+}
+
+Close{h}: {
+  zûi.destroy{h};
+  if(0Åbûadap.CBHandles¨h) {
+    adap.CBFunctionsûb/adap.CBFunctions;
+    adap.CBHandlesûb/adap.CBHandles;
+  };
+  z
+}
+
+SetClientData{h;val}: {
+  attrû`clientData`eventData[`timer½0#i.whatis{h}];
+  i.setattr{h;attr;val}
+}
+
+ModifyTimer{h;name;secs}:{
+  if(()½zûi.getattr{h;`pending}) zû¢1; ã Invalid Handle
+  if(z=1)  i.close h;
+  if(z¨¢1) zûi.setattr{h;`eventSymbol;name};
+  if(z¨¢1) zûi.setattr{h;`expiry;secs};
+  if(z¨¢1) zûi.open{h};
+  z
+}
+
+GetClientData{h}:{
+  attrû`clientData`eventData[`timer½0#i.whatis{h}];
+  i.getattr{h;attr}
+}
+
+Syncread{h;timeout}: i.syncread{h;timeout}
+
+Syncsend{h;msg;timeout}: i.syncsend{h;msg;timeout}
+
+Getfd{h}: i.getattr{h;`fd}
+
+GetTimeout{timeout}: i.timeout{timeout}
+
+GetPort{h}: i.getattr{h;`port}
+
+ATTRMATû2!(`rPriority `readPriority `wPriority `writePriority
+  `rQueueStatus `readStatus `wQueueStatus `writeStatus
+  `rPause `readPause `wPause `writePause
+  `rBufsize `readBufsize `wBufsize `writeBufsize
+  `rEventMode `burstMode `wNoDelay `noDelay)
+
+adap2ipc{attr}:if((#ATTRMAT)>idxûATTRMAT[;0]Éattr) ATTRMAT[idx;1] else attr
+
+Of{h;arg}:{
+  zûif (`list½arg) i.attrs{h} else i.getattr{h;adap2ipc arg};
+  if((`rEventMode½arg)^(z½0)©z½1)zû`single`burst[z];
+  z
+}
+
+setattrCover{h;arg;val}:{
+  if(`rEventMode½arg)valûval½`burst;
+  i.setattr{h;adap2ipc arg;val}
+}
+
+Has{h;arg}:{
+  sfû_alsf arg;
+  (iû#0Øsf) do setattrCover{h;iØ0Øsf;iØ1Øsf};
+}
+
+GetTickProto{}: i.getTickProto{}
+
+SetTickProto{val}: i.setTickProto{val}
+
+SetTickDebug{val}: i.setTickDebug{val}
+
+enqueue{h;msg}: if(`null=_nc{`i;`enqueue}) ¢1 else i.enqueue{h;msg}
+
+bufferCount{h}: if(`null=_nc{`i;`bufferCount}) ¢1 else i.bufferCount{h}
+

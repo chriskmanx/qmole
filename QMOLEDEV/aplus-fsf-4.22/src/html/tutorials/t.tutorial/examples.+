@@ -1,0 +1,198 @@
+
+„ Here are the examples in the The t Context document.
+„   First load a setup file, and then initialize the 
+„   departments and employees base tables.
+
+_load '/usr/local/aplus-fsf-4.22/doc/tutorials/t.tutorial/preamble.+'
+_load '/usr/local/aplus-fsf-4.22/doc/tutorials/t.tutorial/departments.+'
+
+_load '/usr/local/aplus-fsf-4.22/doc/tutorials/t.tutorial/employees.+'
+
+„                         Examples
+
+„ Restriction and Projection
+
+	`employees `r_view t.only 'dept_no≈3 3“"D11D21D31"'
+	`employees `r_view t.send ()
+	
+	on_screen{`r_view;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+	`employees `p_view t.only ()
+	`employees `p_view t.send `emp_no `emp_name `salary	
+
+	on_screen{`p_view;
+		`emp_no`emp_name`salary;
+		10 11 8}
+
+	`employees `rp_view t.only 'dept_no≈3 3“"D11D21D31"'
+	`employees `rp_view t.send `emp_no`emp_name`salary
+
+	on_screen{`rp_view;
+		`emp_no`emp_name`salary;
+		10 11 8}
+
+
+„ Break Fields and Break Functions
+
+	`employees `bd_view t.break `dept_no
+	`employees `bd_view t.send (`dept_no;(`_func`_frame;(;':˜@1dept_no')))
+	`employees `bd_view t.send (`salary;”/)
+	`employees `bd_view t.send (`emp_no;<)
+
+	bd_view.dept_no
+	bd_view.salary	
+	bd_view.emp_no
+
+„       Map from employees to bd_view:
+
+	D{x}:((x…x)=…#x)/x
+	OE{x;y}:xΩ@1 1 0 y
+
+	(<@1 (D employees.dept_no)OE employees.dept_no)/°<…#employees.dept_no
+	bd_view._J
+
+„ Breaks by Intervals
+
+	`employees `e_view t.only ()
+	`employees `e_view t.send `emp_no`emp_name`salary
+
+	`e_view t.define (`min_range;(`.;'‚1+5000´ƒemployees.salaryﬂ5000';
+				      `na;`intÿt.NA))
+
+	`e_view t.define (`max_range;(`.;'‚5000´”employees.salaryﬂ5000';
+				      `na;`floatÿt.NA))
+
+	`e_view `i_view t.break (`salary;5000´…12)
+	`e_view `i_view t.send (`min_range;;`max_range;;
+						`salary_count;(`salary;#))
+
+	on_screen{`e_view;
+		`emp_no `emp_name `min_range `max_range `salary;
+		10 11 8 8 8}
+
+	on_screen{`i_view;
+		`min_range`max_range`salary;
+		8 8 8}
+
+
+„ Join and Division
+
+     	`departments `employees t.link `dept_no
+     	`departments `employees t.send `dept_name
+ 
+	`employees `query1 t.only ()
+	`employees `query1 t.send `emp_name `dept_name
+	on_screen{`query1;`emp_name `dept_name;11 29}
+	
+    	`employees `departments t.send (`salary;”/)
+
+	`departments `query2 t.only ()
+	`departments `query2 t.send `dept_name `salary
+     	on_screen{`query2;`dept_name `salary; 29 14}
+
+„       Map from departments to employees:
+
+	departments.dept_no…employees.dept_no
+	employees._I_departments	
+
+„       Map from employees to departments:
+
+        (<@1 departments.dept_no OE employees.dept_no)/°<…#employees.dept_no
+	departments._J_employees
+
+
+„ Set Union, Intersection, and Difference
+
+	`employees `salary t.only ()
+	`employees `salary t.send ()
+	`salary t.only 'salary®`intÿt.NA'
+	
+	`employees `commission t.only ()
+	`employees `commission t.send ()
+	`commission t.only 'commission®`intÿt.NA'
+	
+	on_screen{`salary;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+	on_screen{`commission;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+	`salary `commission t.link salary._T
+	`salary `commission t.link ()
+
+	`commission `intersection t.only 'commission._I_salary®salary._N'
+	`commission `intersection t.send ()
+
+	on_screen{`intersection;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+	`commission `comm_minus_sal t.not 'commission._I_salary®salary._N'
+	`commission `comm_minus_sal t.send ()
+
+	on_screen{`comm_minus_sal;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+	`salary `comm_minus_sal `union t.cat ()
+	`salary `comm_minus_sal `union t.send ()
+	
+	on_screen{`union;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+	`salary `sal_minus_comm t.only '~>#°salary._J_commission'
+	`salary `sal_minus_comm t.send ()
+	
+	on_screen{`sal_minus_comm;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+
+„ Outer Union
+
+	`employees `salary1 t.only 'salary®`intÿt.NA'
+	`employees `salary1 t.send (employees._T®`commission)/employees._T
+
+	`employees `commission1 t.only 'commission®`intÿt.NA'
+	`employees `commission1 t.send (employees._T®`salary)/employees._T
+
+	`salary1 `commission1 t.link (salary1._T®`salary)/salary1._T
+
+	`salary1 `commission1 t.send `salary
+	`commission1 `salary1 t.send (`commission;)
+
+	on_screen{`salary1;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+	on_screen{`commission1;
+		`emp_no`emp_name`dept_no`hire_date`sex`salary`commission;
+		10 11 9 11 5 8 12}
+
+
+„ Relational Product and Row Catenation
+
+	`employees `v_employees t.only '18“10'
+	`employees `v_employees t.send ()
+
+	`departments `v_departments t.only ()
+	`departments `v_departments t.send ()
+	
+	`v_employees t.define (`index;'‚180“…10')
+	`v_departments t.define (`index;'‚…10')
+
+	`v_departments `v_employees t.link `index
+
+	`v_departments `v_employees t.send `dept_name `mgr `supdept
+	`v_departments `v_employees t.send (`dept_dept_no;<(`dept_no;0;;))
+	
+	`v_employees `product t.only ()
+	`v_employees `product t.send (v_employees._T®`index)/v_employees._T
+	
+	on_screen{`product;product._T;10 11 9 11 5 8 12 14 29 5 9}
+

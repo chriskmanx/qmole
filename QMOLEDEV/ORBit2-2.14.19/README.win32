@@ -1,0 +1,59 @@
+To build ORBit2 on Win32 you must use gcc (mingw). Using MSVC does not
+work without some major restructuring in they way type codes etc is
+exported from the ORBit2 DLLs. ORBit2 and code produced by its IDL
+compiler depend heavily on the --enable-auto-import (which is on by
+default) and --enable-runtime-pseudo-reloc (which isn't) features of
+the GNU linker. The same holds for building software that uses ORBit2
+itself or DLLs containing code produced by ORBit2's IDL compiler (for
+instance libbonobo).
+
+Personally I build ORBit2 using a command sequence like the one below
+that corresponds to my (unofficial) source and binary release on
+2005-08-28. Obviously you need to adapt it to where you have various
+dependencies installed, and otherwise. Just use this as a model. Don't
+use it blindly, but try to understand what each step does and why it
+is needed.
+
+----------------
+THIS=ORBit2-2.13.0-20050828
+DEPS="glib-2.8.1 libIDL-0.8.6"
+sed -e 's/need_relink=yes/need_relink=no # no way --tml/' <ltmain.sh >ltmain.temp && mv ltmain.temp ltmain.sh
+# This sets PATH and PKG_CONFIG_PATH to "base" values that don't include
+# things in the GNOME platform, but does include things like libintl or popt.
+usestable 
+unset MY_PKG_CONFIG_PATH
+for D in $DEPS; do
+    PATH=/devel/dist/$D/bin:$PATH
+    MY_PKG_CONFIG_PATH=/devel/dist/$D/lib/pkgconfig:$MY_PKG_CONFIG_PATH
+done
+PKG_CONFIG_PATH=$MY_PKG_CONFIG_PATH:$PKG_CONFIG_PATH CC='gcc -mtune=pentium3' CPPFLAGS='-I/opt/gnu/include -I/devel/dist/popt-1.10.2-tml-20050828/include' LDFLAGS='-Wl,--enable-runtime-pseudo-reloc -L/opt/gnu/lib -L/devel/dist/popt-1.10.2-tml-20050828/lib' CFLAGS=-O ./configure  --enable-debug=yes --disable-gtk-doc --disable-static --prefix=c:/devel/target/$THIS &&
+libtoolcacheize &&
+unset MY_PKG_CONFIG_PATH &&
+PATH=/devel/target/$THIS/bin:.libs:$PATH make install &&
+rm .libtool-cache-link-exe &&
+(cd test && PATH=/devel/target/$THIS/bin:$PATH make check) &&
+./ORBit2-zip
+----------------
+
+Things to note above are:
+
+- If you build with optimization, you must pass the
+  --enable-runtime-pseudo-reloc flag to the linker. Otherwise the
+  (default) --enable-auto-import is enough.
+
+- /opt/gnu is where I have GNU libintl installed
+
+- /devel/dist/* are folders which contain the exact contents of
+  the zipped packages I distribute. Others probably shouldn't have any
+  reason to unzip each package in a separate folder. I use those in
+  the build sequence just to make sure everything needed from the
+  dependencies are included in the zipfiles of the dependencies.
+
+- /devel/target/* are separate folders into which I run make install
+  for each module. I don't use anything from there when building other
+  stuff, though, but from the corresponding /devel/dist/* folder into
+  which I only unzip the actual contents of the zipfiles I am going to
+  distribute. This way I make sure that there are no leftover
+  dependencies on built-in compile-time pathnames in the binaries.
+
+--Tor Lillqvist <tml@novell.com>, <tml@iki.fi>

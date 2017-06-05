@@ -1,0 +1,84 @@
+TODO:
+
+* Ensure that we can have our 'non-threaded' thread be any thread.
+
+* Turn off the global 'fast_calls' variable, to knobble
+  old stubs, and go with the new ABI.
+
+* Cross thread Object references
+	+ I think the way to fix this is by using a different
+	  interface->adaptor_type: ORBIT_ADAPTOR_POA_THREADED,
+	  such that the fast case will always drop through to
+	  small_invoke_stub_n, where we can get far more creative.
+
+* Threading 
+	+ GIOPMessageQueueEntry needs to hold a cnx ref.
+	+ orb->current_invocations needs to be per-thread ...
+	  also, we should push a stack-data pointer.
+	+ Need to emit 'broken' connection - via the listen/unlisten
+	  stuff in the main thread ... [ and garentee the same
+	  invariants as previously ? cnx status etc. ? ]
+
+	+ Create a per-object policy 'PROCESS_REENTERANTLY', using our
+	  VPVID space; takes a boolean ... set it on the object ...
+	  [ make some libbonobo wrappers to improve the situation ]
+	+ CORBA_Object_non_existant - needs to do a blocking
+	  check for CONNECTED / DISCONNETED.
+	+ bin redundant forwards in poa.c
+	+ giop_recv_thread_fn - more work needed
+	+ ** ERROR **: Need to handle zapped cnx' async callbacks
+
+
+* User friendliness
+	+ tolerate NULL CORBA_Environments in stubs
+	+ 'sequence from GList' API.
+	+ always return initialized memory on exception
+	+ add an X like 'event' processing API for incoming bits (?)
+
+* GIOP fragments
+/	+ need to handle a cancel request in the middle of a fragment stream
+
+* It seems the local case optimization can go wrong when
+  invoking bogus methods from a different interface on an Object ref.
+	+ this is to do with
+		a) not checking the vepv offset we get
+		b) not expanding the lookup of the vepv offset at all.
+
+* Thread safety
+	+ For independent clients, we need some way to
+	  arbitrate the giop_recv_buffer_get method - so
+	  that either: a single thread does the poll and the
+	  rest block, or we all poll.
+
+	+ apparently g_object_ref / unref are not thread safe
+	  we need linc_object_ref / unref instead that does
+	  a LINC_MUTEX_LOCK on the global object lifecycle lock
+	  that needs to move into linc ... sigh !
+
+	+ we need to ensure that linc does no signal emissions,
+	  since these are horribly slow and again not safe.
+
+* Optimization
+	+ we need 2 de-marshalling routines, 1 with (slow)
+	  byteswap and 1 without it, save scads and scads of
+	  branch cache misses; easy to do too; make it a virtual
+	  method on the recv buffer (?) [ for easy chaining ]
+
+	+ we need some concept of align == native align flagged
+	  on TypeCodes, so we can blat things quickly with memcpy
+	  in a generic way - eg. sequences of octets.
+
+	+ we need to implement 'wait for completion' on
+	  shutdown so that we can activate async unrefs in
+	  bonobo.
+
+* Dragons:
+	+ giop_recv_buffer.c (giop_connection_handle_input)
+	  manages to go through the error condition a whole
+	  load; _why_ is this ? - is it a recursive effect on
+	  the method ? why are we called if there is no data ?
+
+	+ We need a typecast in an _allocbuf which we know is
+	  aliased, eg. PortableServer_POAList_allocbuf, since
+	  it gets assigned to a CORBA_Object *, and the cast
+	  is bogus.

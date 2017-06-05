@@ -1,0 +1,1 @@
+SUBDIRS=CORBA CORBA_PIDL interop misc

@@ -1,0 +1,84 @@
+OK, this is the third iteration, it has to be done right this time! :)
+
+There are multiple tasks involved:
+. Generating the header files (solved)
+. Generating the memory allocators and typecodes (solved)
+. Generating the POA tie-ins (solved)
+. Generating the stubs and exception demarshallers (not so solved)
+. Generating the skeletons and exception marshallers (not so solved)
+
+So it is mostly doing the marshalling/demarshalling that is the hard part. The reason it is hard is because:
+. We need to allow choosing between multiple mechanisms, e.g.:
+  Inlined code
+  Call to a separate function (possibly shared between multiple stubs/skels).
+  Use the CORBA_any routine.
+
+It will not be an all-or-nothing decision between the mechanisms - we
+will try to mix the different mechanisms according to heuristics. The
+granularity of the decision will be on the level of a 'marshallable
+entity' (big long words to denote something that can be marshalled,
+hereafter abbreviated as 'ME').
+
+So, with an ME:
+
+def atomically_marshallable():
+# The results of this function depend on more than just the data type, but also:
+# Whether we have to do endian swapping (only applies to demarshalling)
+# Whether the data arrangement in memory matches the data arrangement on the wire
+  if is_complex:
+     return FALSE
+  if is_struct or is_union or is_sequence or is_array:
+     return probably-FALSE
+  return TRUE
+
+if atomically_marshallable():
+   marshal_inline()
+else if not is_recursive() and data_type_use_count == 1:
+   marshal_inline()
+else:
+   if use_any_marshaller():
+      marshal_via_any_marshaller()
+   else:
+      generate_marshalling_function()
+      call_marshalling_function()
+
+The decision is made on a per-data-type basis and NOT on a per-stub
+basis, because we want to be consistent (i.e. no inlining the
+marshalling in one function and then calling the any_marshaller in
+another function, for the same data type).
+
+Generating the call-to-separate-function and ORBit_*marshal_any calls
+should be easy once it is determined that this is desired. Generating
+the inline code (and generating the separate-function, which will use
+the 'inlined code' engine), is a difficult thing, because of the
+optimizations involved and the different situations that the code
+might be used in.
+
+----------------
+OK the above blah is either implemented or total crap.
+
+Biggest issue that seems to be looming is memory management during
+demarshalling. It's not at all clear whether caller or called
+allocates, how we get rid of things if there is an error or we don't
+need them, etc.
+
+Problems to solve:
+	 Currently the marshal/demarshal code is stupid about
+	 allocating, esp. for toplevels.
+
+	 We need to handle all cases of OIDL_Marshal_Where properly.
+
+	 OIDL_Marshal_Where is a function of context rather than data
+	 type. It will always be MW_Heap or MW_Null for
+	 stubs.  We need the concept of 'allocation contexts' -
+	 i.e. where a variable is 'auto' in or alloca'd in. No we
+	 don't, we just need to have a mask of allowed marshalling
+	 methods passed down.
+
+Possible solutions:
+	 We need to know how to allocate a variable for each potential
+	 OIDL_Marshal_Where and generate the valuestr for it.
+
+	 'Caller allocates' allows some optimizations in
+	 skeletons. So, if we are going to ask someone to demarshal
+	 something, we need to make sure it is allocated first.

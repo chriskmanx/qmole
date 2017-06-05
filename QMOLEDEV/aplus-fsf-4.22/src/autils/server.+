@@ -1,0 +1,158 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+$cx server
+
+preset_execute{s;d;i;p;c;v}:if (i½()) _alsf{d} else d
+
+preset_listen{s;d;i;p;c;v}:
+	{
+	if (1½c%v) shutdown{c};
+	if (1½d) listen{c};
+	d
+	}
+
+client_index{c;h}:(c%`_HANDLES)Éh
+client_context{c;h}:client_index{c;h}#c%`_CONTEXTS
+server_context{c}:Â÷(1+dÉ'_')Õdû÷Îc
+
+current_context{c;h}:
+	{
+	ccûclient_context{c;h};
+	(c%`_CONTEXT)ûcc;
+	(c%`_HANDLE)ûh;
+	cc
+	}
+
+create_context{c;h}:
+	{
+	iû#c%`_CONTEXTS;
+	ccûÂ(Îc),'_',1Õîi;
+	(c%`_CONTEXTS)û(c%`_CONTEXTS),cc;
+	(c%`_HANDLES)û(c%`_HANDLES),h;
+	(cc%`_S)û();
+	(cc%`_R)û();
+	(cc,`_S) _scb (if (()½tûc%`_SEND) <{send} else t),<h;
+	(cc,`_R) _scb (if (()½tûc%`_RECEIVE) <{receive} else t),<h;
+	cc
+	}
+
+expunge{c}:
+	{
+	gsûcÖ_nl{c;`globs};
+	if (1Åbû«s.g_varWid@0{gs}) s.free¡{b/gs};
+	_ex¡{gs};
+	do _excxt{if (`½c) `. else c};
+	}
+
+destroy_context{c;h}:
+	{
+	iûclient_index{c;h};
+	dûi#c%`_CONTEXTS;
+	bûd¨c%`_CONTEXTS;
+	(c%`_HANDLES)ûb/c%`_HANDLES;
+	(c%`_CONTEXTS)ûb/c%`_CONTEXTS;
+	expunge{d};
+	}
+
+listen{c}:
+	{
+	câ'serverCB{h;e;d}:server.serverCB{h;e;d;`',(Îc),'}';
+	hûadap.Listen{c%`_DESCRIPTOR;c%`serverCB};
+	if (h<0) Ù`listen;
+	(c%`_LISTEN_HANDLE)ûh;
+	}
+
+serverCB{h;e;d;c}:
+	{
+	case (e)
+		{
+		`reset;		reset{c;h};
+		`connected;	connected{c;h};
+		`read;		read{c;h;d};
+		`sent;		sent{c;h};
+				error{c;h};
+		};
+	(c%`_EVENT)ûe;
+	}
+	
+reset{c;h}:
+	{
+	current_context{c;h};
+	adap.Close{h};
+	destroy_context{c;h};
+	}
+
+connected{c;h}:create_context{c;h}
+read{c;h;d}:(current_context{c;h}%`_R)ûd
+error{c;h}:current_context{c;h}
+sent{c;h}:current_context{c;h}
+
+send{s;d;i;p;c;v}:adap.Send{s;d}
+
+receive{s;d;i;p;c;v}:
+	{
+	(n;d)ûd;
+	(c%`_S)û(n;do if (_issf{d}) execute{c;d} else âd);
+	}
+
+execute{c;x}:
+	{
+	zû();
+	(syms;args)û_alsf{x};
+	xeqûserver_context{c}%`_EXECUTE;
+	(iû#syms) do z[,]û<apply{syms[i]Øxeq;iØargs};
+	z
+	}
+
+shutdown{c}:
+	{
+	reset¡{c;c%`_HANDLES};
+	adap.Close{c%`_LISTEN_HANDLE};
+	(c%`_LISTEN_HANDLE)û0;
+	}
+
+apply{f;x}:
+	{
+	if (¢1=½f) fû<{f};
+	if (2=#f) (f;x)û(0Øf;f[1],x);
+	xû,if (0<½x) x else <x;
+	case (n Ý xûnÙx Ý nû_valence{f})
+		{
+		0;	f¡{};
+		1;	f¡{0Øx};
+		2;	f¡{0Øx;1Øx};
+		3;	f¡{0Øx;1Øx;2Øx};
+		4;	f¡{0Øx;1Øx;2Øx;3Øx};
+		5;	f¡{0Øx;1Øx;2Øx;3Øx;4Øx};
+		6;	f¡{0Øx;1Øx;2Øx;3Øx;4Øx;5Øx};
+		7;	f¡{0Øx;1Øx;2Øx;3Øx;4Øx;5Øx;6Øx};
+		8;	f¡{0Øx;1Øx;2Øx;3Øx;4Øx;5Øx;6Øx;7Øx};
+		9;	f¡{0Øx;1Øx;2Øx;3Øx;4Øx;5Øx;6Øx;7Øx;8Øx};
+			Ù`valence
+		}
+	}
+
+define{cx}:
+	{
+	(cx%`_HOST)û`localhost;
+	(cx%`_PORT)û12321;
+	(cx%`_PROTOCOL)û`A;
+	(cx%`_NAME)û`server;
+	cxâ"_DESCRIPTOR:(`host;_HOST;`port;_PORT;`protocol;_PROTOCOL;`name;_NAME)";
+	(cx%`_LISTEN)û0;
+	(cx%`_LISTEN_HANDLE)û0;
+	(cx%`_HANDLES)ûÉ0;
+	(cx%`_CONTEXTS)û();
+	(cx%`_EXECUTE)û(;);
+	(cx%`_HANDLE)û0;
+	(cx%`_CONTEXT)û();
+	(cx%`_EVENT)û();
+	(cx%`_SEND)û();
+	(cx%`_RECEIVE)û();
+
+	(cx,`_LISTEN) _spcb (preset_listen;);
+	(cx,`_EXECUTE) _spcb (preset_execute;);
+
+	cx
+	}
+

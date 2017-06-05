@@ -1,0 +1,76 @@
+#
+# Atol file manager plugin (Linux/Gtk makefile)
+#
+# USAGE:
+# 1. type "make" to create program binary
+#
+
+# check these defines
+
+#
+# other settings
+#
+
+#DEBUG=-g
+CXX=gcc
+CFLAGS= -I ../
+FLAGS= $(CFLAGS)
+
+# define compile/link command line with flags
+CC=$(CXX) $(DEBUG) -fPIC -O2 -MMD -pthread -Wall -D_REENTRANT
+LD=$(CXX) $(DEBUG) -fPIC
+
+#
+# define default project to build
+#
+.PHONY: all
+
+all: lstlib
+
+#
+# list of all objects to build (atol dependency)
+#
+
+SRCPATH=.
+
+OBJS= EntryTree.o LstCatalog.o ArchiveInfo.o LstLib.o
+
+# link program binary
+# mark symbols with dllexport in source, or try -Wl,--export-all
+lstlib: $(OBJS)
+	$(LD) $(OBJS) -o LstLib.atp $(FLAGS) $(LDFLAGS) -shared -fpic --export-all --enable-auto-import
+
+# compile individual objects
+# TOFIX?: use pattern rules (how to adjust for possible multiple source directories?)
+
+EntryTree.o: $(SRCPATH)/EntryTree.cpp $(SRCPATH)/EntryTree.h
+	$(CC) $(FLAGS) -c $(SRCPATH)/EntryTree.cpp -o EntryTree.o
+
+LstCatalog.o: $(SRCPATH)/LstCatalog.cpp $(SRCPATH)/LstCatalog.h
+	$(CC) $(FLAGS) -c $(SRCPATH)/LstCatalog.cpp -o LstCatalog.o
+
+ArchiveInfo.o: $(SRCPATH)/ArchiveInfo.cpp $(SRCPATH)/ArchiveInfo.h
+	$(CC) $(FLAGS) -c $(SRCPATH)/ArchiveInfo.cpp -o ArchiveInfo.o
+
+LstLib.o: $(SRCPATH)/LstLib.cpp $(SRCPATH)/LstLib.h
+	$(CC) $(FLAGS) -c $(SRCPATH)/LstLib.cpp -o LstLib.o
+
+#
+# clean up the mess
+#
+.PHONY : clean
+
+clean:
+	@echo cleaning up
+	rm -f *.o *.d *.atp
+
+#
+# help printout
+#
+.PHONY : help
+
+help:
+	@echo Usage:
+	@echo make           - builds application binaries
+	@echo make help      - prints this help
+

@@ -1,0 +1,495 @@
+
+
+					TL
+					==
+
+
+		0. 	TL .......................... A T interpreter
+		1.	Concepts .................... Simplifications of T
+		2.      Syntax ...................... TL keywords
+		3.	Functions ................... TL functions
+		4.	Variables ................... TL variables
+		5.	Examples .................... Master, &c.
+
+0.  TL.
+
+	TL (T Layer) is a parser/interpreter for a Hydra-like cover on T.
+	TL has been designed to fill the need for a universal end-user
+	interface to the suite of T functions.  A further layer on TL,
+	"TLC", will consist of a screen gadget for interactive use of TL.
+
+	These layers correspond roughly to TurboHydra (T), Hydra (TL), and
+	HydraEdit (TLC).
+
+1.  Concepts.
+
+	TL is a gadget:
+
+			$load tl
+			tl.define `f	ã instantiate a TL in context f
+		`f
+			$vars f		ã instance variables (see below)
+		_TABLE _OPEN _SCRIPT _RESULT _RETURN _COMMANDS _COMMAND _MODE
+
+			$fns f		ã instance function (see below)
+		inq			
+
+	All TL interactions proceed by way of inq{}:
+
+			f.inq '... TL command or query ...'
+
+	A quick example to illustrate basic functionality:
+
+			$mkdir foo		ã create a toy table
+
+			'foo/a.m'à1 1 2 2 2 2 3 3 3 4
+			'foo/b.m'à0 1 2 3 4 5 6 7 8 9
+
+			$load tl	ã TL
+
+			tl.define `		ã instantiate in the root
+         	`
+     			inq 'open x foo'	ã open x from foo
+		<  0
+		<  `x
+     			inq 'table?'		ã query the reference table
+		<  0
+		<  `x
+     			inq 'view y'		ã create a view
+		<  0
+		<  10
+     			inq 'table?'		ã the new reference table
+		<  0
+		<  `y
+     			inq 'group b a'		ã b is grouped on field a
+		<  0
+		<  4
+     			inq 'table?'		ã the new reference table
+		<  0
+		<  `b
+     			inq 'bsum:: +/y.b'	ã send summation field to b
+		<  0
+		< <  y.b
+		  <  b.bsum
+     			inq 'benc:: <y.b'	ã send partition field to b
+		<  0
+		< <  y.b
+		  <  b.benc
+     			inq 'fields?'		ã query fields in b
+		<  0
+		<  `a `b `benc `bsum
+     			inq 'table y'		ã reset reference table
+		<  0
+		<  `y
+     			inq 'a<3'		ã select
+		<  0
+		<  6
+     			inq 'table b'		ã reset reference table
+		<  0
+		<  `b
+     			inq 'count?'		ã records in b
+		<  0
+		<  2
+
+	As this example demonstrates, TL introduces certain simplifications:
+
+		Ê  the notion of a reference table.  All T operations are
+		   performed on the reference table.
+
+		Ê  quoteless syntax.  Backquote (`) and quotes (" and ') are
+		   eliminated by parsing.
+
+		Ê  division of keywords into command and query.  All TL 
+		   queries end in "?".  The full set of keywords is:
+
+     				inq '?'
+			<  0
+			<  `? `all `also `clear `close `copy `count?
+			   `detach `drop `fields `fields? `fix `free
+			   `from `group `hide `load `move `name `name?
+		           `not `only `open `open? `report `reset `sample
+			   `save `script? `show `sort `table `table?
+			   `tables? `to `view `â
+		
+		Ê  controlled t.open{}.  The instance variable _OPEN is
+		   a slot-filler of the form:
+
+				(`x1 ... `xn;(v1;...;vn))
+
+		   such that:
+
+				inq 'open x'
+
+		   causes the table or set of tables associated with `x
+		   to be opened.
+
+		   If `xØ_OPEN is a slotfiller, it is assumed to be a
+		   valid right argument to t.open{}, and the table `x
+	           is opened.
+
+		   If `xØ_OPEN is a pair (character string;slotfiller),
+		   it is assumed to be a directory left argument to 
+		   t.open{} and a slotfiller right argument to t.open{}.
+
+		   If `xØ_OPEN is a character string, it is assumed to
+		   be a valid right argument to _load{}, where the script
+		   x opens tables y0 ... yn.
+
+		   The query
+
+				inq 'open?'
+		  	 < 0
+		  	 < `x ... `x
+
+		   returns a vector of symbols of tables or A-scripts in 
+		   the universe.
+
+		Ê  script recording and playback.  Every successful use
+		   of inq{} appends its right argument to the instance
+		   variable _SCRIPT:
+
+				inq 'script?'
+			<  0
+			< 
+				inq 'script?'
+			<  0
+			< < script?
+				inq 'table v'
+			<  0
+			<  `v
+				inq 'script?'
+			<  0
+			< < script?
+			  < script?
+			  < table v
+
+		   Operations on scripts are:
+
+				inq 'save foo'
+				inq 'load foo'
+				inq 'copy foo goo'
+				inq 'drop foo'
+				inq 'move foo goo'
+				inq 'clear'
+
+		Ê  silent running.  Expressions of the form
+		
+				[ X ]
+
+		   execute without recording to _SCRIPT.  E.g.,
+
+				inq 'table t'
+			<
+			< `t
+				inq '[table u]'
+			<
+			< `v
+				inq 'table v'
+			<
+			< `t
+				inq 'script?'
+			< 0
+			< < table t
+			  < table v
+
+		Ê  stacked commands.  Expressions of the form
+
+				{X; ... ;X}
+
+		   execute each [X] ... [X].  E.g.,
+
+				inq '{table t;only a<3;view u}'
+			< 0
+			< < `t
+			  < 12
+			  < 12
+				inq 'script?'
+			< 0
+			< {table t;only a<3;view u}
+
+		Ê  limited S operations.  Tables can be shown, hidden, and
+		   freed:
+
+				inq 'show'  OR  inq 'show <table>'
+				inq 'hide'  OR  inq 'hide <table>'
+				inq 'free'  OR  inq 'free <table>'
+
+		Ê  Application-specific keywords.  A set of operations can
+		   be added to TL by specifying cx._COMMANDS as a slot-filler
+		   of the form:
+
+				(`key1 ... `keyn;(key_func_1;...;key_func_n))
+
+		   so that
+
+				inq 'key <argument>'
+
+		   causes execution of:
+
+				(keyØ_COMMANDS)¡{cx;argument}
+
+		   Elements of (0Øcx._COMMANDS) override same-named elements of
+		   0Øtl.COMMANDS (the set of TL primitives).  Extreme care must
+		   be taken in these overrides.  Normally, the command-sets will
+		   be disjoint.
+
+2.  Syntax.
+
+	"<>" is syntactic (corner) quotation.  E.g., "<table>" means that 
+	a table name is expected.
+
+	Prefixed "!" prevents TL from resetting the reference-table:
+
+	   "*" indicates that the operation resets the reference table 
+	       as a side-effect.  
+
+	  "**" indicates that the operation resets the reference table 
+	       if it can.
+
+	 "***" indicates that the operation voids the reference-table 
+	       if it must.
+
+	The abbreviation "rt" is used to designate the reference table.
+
+	"." refers to the root table.  E.g., inq 'table .' sets the reference
+	table to `.
+
+	In all cases, inq{} returns (rc;z), where z is the "expected" result
+	of the corresponding T or S operation.
+
+	<fieldpairs> = <fieldpair> ... <fieldpair>, where
+	<fieldpair> = <field> or <lfield/rfield>
+
+	"cx" refers to the context of instantiation.
+
+    =========================================================================
+
+	Keyword		Syntax			Effect
+	¢¢¢¢¢¢¢		¢¢¢¢¢¢			¢¢¢¢¢¢
+    General
+    ¢¢¢¢¢¢¢
+	A					parse & execute A
+
+	[A]					execute A but do not append to _SCRIPT
+
+	{A;...;Z}				parse & execute each [A] ... [Z]
+
+	$A					do not reset reference table during A
+
+	âA					execute A expression
+
+	<name>!A				(%cxÖname)ûâA
+
+	<name>!					û%cxÖname
+
+	ãA					ûA (no op)
+
+	<blank>					û'' (no op)
+
+    Queries:
+    ¢¢¢¢¢¢¢
+	?		?			ûTL commands
+    
+	tables?		tables?			ût.TABLES
+
+	table?		table?			ûreference table
+
+	script?		script?			ûscript so far
+
+	open?		open?			ûtables in universe
+
+	count?		count?			û_N of reference table
+			count? <table>		û_N of <table>
+
+	fields?		fields?			ûfields in reference table
+			fields? <table>		ûfields in <table>
+
+	name?		name?			ûname of current script
+
+    Commands:
+    ¢¢¢¢¢¢¢¢
+     *	table		table <table>		set reference table to <table>
+
+	fields		fields <fields>		(rt%`_U)ûfields
+
+	all		all			rt t.only ()
+
+	only		only			rt t.only ()
+			only <select>		rt t.only 'select'
+			only <field><select> 	rt t.only (`field;select)
+
+			only <field1><select1>;	rt t.only (
+				:			   `field1 ... `fieldn;
+			     <fieldn><selectn>		   `select1 ... `selectn
+							  )
+
+	also		also			rt t.also ()
+			also <select>		rt t.also 'select'
+			also <field><select> 	rt t.also (`field;select)
+
+			also <field1><select1>;	rt t.also (
+				:			   `field1 ... `fieldn;
+			     <fieldn><selectn>		   `select1 ... `selectn
+							  )
+
+	not		not			rt t.not ()
+			not <select>		rt t.not 'select'
+			not <field><select>  	rt t.not (`field;select)
+
+			not <field1><select1>;	rt t.not (
+			       :			  `field1 ... `fieldn;
+			    <fieldn><selectn>		  `select1 ... `selectn
+							  )
+
+	sort		sort <fields>		rt t.sort fields
+			sort < ... -field ...>	rt t.sort ( ... ;(f;1); ...)
+
+	sample		sample <n>		rt t.sample n
+
+	fix		fix			rt t.fix 0/1  (toggle fix)
+
+     *	view		view <table>		(rt,table) t.only ()
+						(rt,table) t.send ()
+
+			view <table> <tables>	(tables,table) t.cat ()
+						(tables,table) t.send ()
+
+     *	group		group <table> <fields>	(rt,table) t.group fields
+						(rt,table) t.send ()
+
+     *	report		report <table> <fields>	(rt,table) t.report fields
+						(rt,table) t.send ()
+
+     *	to		to <table> <fieldpairs>	
+						(rt,table) t.linkto (lfields;rfields)
+						(rt,table) t.send ()
+
+			to <table>		(rt,table) t.link ()
+
+     	from		from <table> <fieldpairs>
+						(table,rt) t.link (lfields;rfields)
+						(table,rt) t.send ()
+
+			from <table>		(table,rt) t.link()
+
+    Scripts  ("file" --> "file.tl"):
+    ¢¢¢¢¢¢¢
+	name		name {<name>}
+	save		save {<name>}		
+	load		load {<name>}
+
+	drop		drop <file>
+	move		move <from_file> <to_file>
+	copy		copy <from_file> <to_file>
+
+	clear		clear
+
+    S  (requires S):
+    ¢
+	show		show			.show t.table rt
+			show <table>		.show t.table <table>
+
+	hide		hide			.hide rt,`_T
+			hide <table>		.hide table,`_T
+
+	free		free			.free rt,`_T
+			free <table>		.free table,`_T
+
+     Other:
+     ¢¢¢¢¢
+    **	open		open <object>		object t.open objectØ_OPEN
+						_load objectØ_OPEN
+
+			open <object> <dir>	(object;dir) t.open objectØ_OPEN
+						_load dir,objectØ_OPEN
+
+						(object;dir) t.open ()
+
+   ***	close		close			rt t.close ()
+			close <table>		table t.close ()
+			close <table> <fields>	table t.close fields
+
+     *  detach		detach			rt t.detach ()
+			detach <table>		table t.detach ()
+
+     *	reset		reset			t.reset{}
+
+	(none)		<field::func table.field
+						(table,rt) t.send (field;func)
+
+			<field:definition>	rt t.define (`field;definition)
+			<field select>		rt t.only (`field;select)
+			<table>			set reference table to <table>
+			X			try:  rt t.only X
+
+     X Å 0Ø_COMMANDS:	
+     ¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢
+	X		X Y			(XØ_COMMANDS)¡{cx;Y}
+
+3.  Functions.
+
+	(rc;z)ûcx.inq{str}
+			
+		str = string to interpret
+		 rc = 0 or error
+		  z = result
+
+4.  Variables.
+
+	_TABLEû		symbol of reference table
+
+	_NAMEû		symbol of current script-name (default = `continue)
+
+	_MODEû		`_T	(non-S)
+			`_T_	(S)
+
+	_SCRIPTû	nested array of right args to inq{}
+
+	_COMMANDû	symbol of last command executed or ()
+
+	_RESULTû	(0 or error;result_of_inq{})
+
+	_OPENû		(
+			`tab1 ... `tabn;(
+					 arg1;
+					 :
+					 argn
+					)
+
+			arg_i:
+				a.  charvec:  ra to _load{}
+				b.  slotfiller:  ra to t.open{}
+				c.  (charvec;slotfiller) = ('dir';ra_to_t.open{})
+				d.  <charvec = 'dir'
+			)
+
+	_COMMANDSû	(
+			`key1 ... `keyn;(
+					 key_func_1;
+					 :
+					 key_func_n
+					)
+			)
+	
+5. Examples.
+
+	Ê  Master:
+
+		$load tl		ã setup
+		tl.define `
+		._OPENû(`master;<'/u/db/master/mas.t')
+		
+		inq 'open master'		ã open many tables
+		inq 'tables?'			ã which ones?
+	... Indic ...
+		inq 'Indic'			ã set reference table
+		inq 'view indic'		ã create the view `indic
+		inq 'count?'			ã initial count
+	...
+		inq 'mat>20010101'		ã make a selection
+		inq 'also mat<19940301'		ã include these
+		inq 'count?'			ã new count
+	...
+		inq 'all'			ã select all the records
+		inq '?'				ã commands
+	...

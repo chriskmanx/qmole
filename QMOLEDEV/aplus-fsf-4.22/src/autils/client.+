@@ -1,0 +1,91 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+$cx client
+
+BUFFERû()
+
+preset_connect{s;d;i;p;c;v}:
+	{
+	if (1=c%v) close{c};
+	if (0¨d) connect{c};
+	d
+	}
+
+close{c}:
+	{
+	adap.Close{c%`_HANDLE};
+	(c%`_HANDLE)û0;
+	(c,`_S) _scb (;);
+	(c,`_S) _spcb (;);
+	}
+
+connect{c}:
+	{
+	hûadap.Connect{c%`_DESCRIPTOR;call};
+	if (h<0) Ù`connect;
+	(c%`_HANDLE)ûh;
+	adap.SetClientData{h;c};
+	}
+
+call{h;e;d}:
+	{
+	cûadap.GetClientData{h};
+	case (e)
+		{
+		`reset;		reset{c};
+		`connected;	connected{c;h};
+		`read;		read{c;d};
+		`sent;		sent{c;d};
+				error{c};
+		};
+	(c%`_EVENT)ûe;
+	}
+
+read{c;d}:(c%`_R)ûd
+send{s;d;i;p;c;v}:if (`async=c%`_MODE) adap.Send{s;d} else adjust_read{c}
+send_sync{s;d;i;p;c;v}:d Ý if (`sync=c%`_MODE Ý dûtag{c;d}) Ý (BUFFER)ûsyncXch{s;d;c}
+adjust_read{c}:(BUFFER)û() Ý (c%¡`_R `_EVENT)û÷BUFFER
+
+tag{c;d}:((c%`_TAG)û1+c%`_TAG;if (`char=©d) d else _alsf{d}) 
+
+syncXch{s;d;c}:
+	{
+	cdûadap.GetClientData{s};
+	adap.SetClientData{s;};
+	zûif (2=Òzûadap.SyncXch{s;d;c%`_TIMEOUT}) z else (0Øz;1Õz);
+	adap.SetClientData{s;cd};
+	if (`OK½0Øz) (`read;1Õz) else z
+	}
+
+error{c}:()
+sent{c}:()
+
+connected{c;h}:
+	{
+	(c,`_S) _scb (send;h);
+	(c,`_S) _spcb (send_sync;h);
+	}
+	
+reset{c}:if (1=c%`_CONNECT) (c%`_CONNECT)û0
+
+define{cx}:
+	{
+	(cx%`_HOST)û`localhost;
+	(cx%`_PORT)û12321;
+	(cx%`_PROTOCOL)û`A;
+	(cx%`_NAME)û`client;
+	cxâ"_DESCRIPTOR:(`host;_HOST;`port;_PORT;`protocol;_PROTOCOL;`name;_NAME)";
+	(cx%`_MODE)û`async;
+	(cx%`_TIMEOUT)û1000;
+	(cx%`_CONNECT)û0;
+	(cx%`_HANDLE)û0;
+	(cx%`_S)û();
+	(cx%`_R)û();
+	(cx%`_EVENT)û();
+	(cx%`_TAG)û¢1;
+
+	(cx,`_CONNECT) _spcb (preset_connect;);
+
+	cx
+	}
+

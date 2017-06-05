@@ -1,0 +1,28 @@
+Random code flow notes for client policy blah.
+
+	giop_thread_request_push( thread, pobj, recv )
+	    - puts on request_queue.
+
+	+ Processing incoming requests:
+	    + giop_connection_handle_input
+		+ handles async / cross-thread calls too.
+	    -> ORBit_handle_request (orbit-adaptor.c)
+		-> ORBit_POA_handle_request
+		    -> [pool_]push_request_T
+		    -> at_idle - safe anyway.
+			-> giop_thread_request_push[_key]
+			    -> push on request queue / signal
+**			    -> giop_thread_request_process in other thread.
+		-> drop through to invoke_incoming_request if non-threaded.
+		    -> POAObject_handle_request
+			-> lookups etc.
+
+	+ Processing incoming calls during outgoing:
+	    + giop_recv_buffer_get
+		-> link_main_iteration
+		-> process 'request_queue' - doesn't check async_ents [!]
+			-> giop_recv_handle_queued_input
+			    -> check async_ents
+**			-> giop_thread_request_process
+
+

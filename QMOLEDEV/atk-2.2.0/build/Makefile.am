@@ -1,0 +1,3 @@
+SUBDIRS = \
+	win32
+

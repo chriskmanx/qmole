@@ -1,0 +1,265 @@
+<HTML>
+<HEAD>
+<TITLE>A+ Reference: Callback Functions</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF">
+<A NAME=HEADING385>
+<H1><FONT color="#FF0000"><A NAME=0>Callback Functions</FONT></H1>
+<a name="CONTENTS17">
+<UL>
+<A HREF="#HEADING386">  Setting and Causing Callbacks</A><br>
+<UL>
+<A HREF="#HEADING387">  Selective Assignment Causes Callbacks</A><br>
+<A HREF="#HEADING388">  Avoiding Callbacks</A><br>
+</UL>
+<A HREF="#HEADING389">  When Callbacks Occur</A><br>
+<UL>
+<A HREF="#HEADING390">  Preset Callbacks</A><br>
+<A HREF="#HEADING391">  Callbacks during Dependency Evaluations</A><br>
+<A HREF="#45">  Callbacks during Protected Execute and Monadic Do</A>
+</UL>
+</UL>
+<HR>
+<blockquote>
+<A NAME=4>Variable callbacks are functions associated with global variables, including
+ dependencies, (or, indeed, functions or names that do not yet have a value) that are
+ called just before or after Assignments or certain Selective
+ Assignments are made to those variables. Variable callback functions are the subject of
+ this chapter and will usually be spoken of as just "callback functions". Callbacks are
+ particularly important for asynchronous events, such as in screen management in the
+ <font face=Kapl>s</font> context, for tracking user actions; <A NAME=44>see
+ "<A HREF="APlusRefV2_54.html#0">Interprocess Communication: adap</A>", and
+ "<A HREF="APlusRefV2_21.html#0">Introduction to Screen Management</A>" and the chapters
+ that follow it.<P>
+<A NAME=4A>
+A mapped file<font face=Kapl> mf </font>can have an associated callback, but that callback is associated
+ with the variable<font face=Kapl> mf</font>, not the underlying file. A change to the file through
+ another mapped variable, in the same process or not, or by any other means than an
+ assignment to<font face=Kapl> mf </font>will not trigger a callback for<font face=Kapl> mf</font>.<P>
+<A NAME=5>In A+, variable callback functions (as distinct from event callback functions)
+ have the same basic syntax (variations are discussed below):
+<pre><font face=Kapl>     cfn{s;d;i;p;c;v}</font></pre>
+<A NAME=6>For example, if the function <font face=Kapl>cfn</font> is associated with the global variable
+ <font face=Kapl>price</font> defined in the context <font face=Kapl>comp</font>, then when <font face=Kapl>price</font> changes,
+ <font face=Kapl>cfn</font> is automatically called with arguments supplied by A+:
+<OL>
+<LI><font face=Kapl>s</font> is static data (see below);<P>
+<LI><font face=Kapl>d</font> is the new value, i.e., the value of the righthand side of the Assignment
+ triggering the callback;<P>
+<LI><font face=Kapl>i</font> is an index or set of indices (left argument to Choose - see <font face=Kapl>p</font>);<P>
+<LI><font face=Kapl>p</font> is a path (left argument to Pick) such that <font face=Kapl>i#pØprice</font> is the
+ subarray that changed;<P>
+<LI><font face=Kapl>c</font> is the name of the context, in the form of a symbol, <font face=Kapl>`comp</font>; and<P>
+<LI><font face=Kapl>v</font> is the name of the global variable in the form of a symbol,<font face=Kapl>`price</font>.
+</OL>
+When <font face=Kapl>cfn</font> is called because of an Assignment
+ of a global variable, the change to that variable can be described
+ in terms of the arguments to <font face=Kapl>cfn</font> as
+<p>
+<font face=Kapl>&nbsp; &nbsp; &nbsp;(i#pØc%v)ûd &nbsp;&nbsp; </font>if <font face=Kapl>i</font> is nested, or<br>
+<font face=Kapl>&nbsp; &nbsp; &nbsp;(i#,pØc%v)ûd &nbsp; </font>if <font face=Kapl>i</font> is simple, or<br>
+<font face=Kapl>&nbsp; &nbsp; &nbsp;(pØc%v)[,]ûd &nbsp; </font>if <font face=Kapl>i</font> is out of range for <font face=Kapl>c%v</font> before this assignment.
+<p>
+The last case involves the <A HREF="APlusRefV2_8.html#264">Append</A> form
+ of Selective Assignment and <font face=Kapl>i</font> is the set of indices in <font face=Kapl>pØc%v</font> (after the
+ assignment) of the appended elements.<P>
+<A NAME=7>The first argument of a callback function is called the <i>static data</i>.
+ Static data is specified when the association between a variable and a callback function
+ is established. Typically, the static data is any constant extra information needed to
+ process the change in the associated variable.<P>
+<A NAME=8>A callback function can have anywhere from zero to six arguments, but no matter
+ how many it has, their meaning from left to right is the same as above. For example, if
+ <font face=Kapl>f{a;b;c}</font> is a callback function, then <font face=Kapl>a</font> is
+ static data, <font face=Kapl>b</font> is new data, and <font face=Kapl>c</font> is an
+ index.<P>
+The other type of callback is the event callback. Event callback functions have the basic
+ syntax <font face=Kapl>cfn{s;c;v}</font> where the names <font face=Kapl>s</font>,
+ <font face=Kapl>c</font>, and <font face=Kapl>v</font> have the same significance as
+ above. An event callback function may have from zero to three arguments;  the arguments
+ are positional. See the chapters mentioned in the <A HREF="#44">first paragraph</A> of
+ this chapter and especially  "<A HREF="APlusRefV2_25.html#0">Attributes with
+ Callbacks</A>".
+</blockquote>
+<A NAME=HEADING386>
+<H1><FONT color="#20B2AA">Setting <A NAME=10>and Causing Callbacks</FONT></H1>
+<blockquote>
+<A NAME=15>A+ provides the <A HREF="APlusRefV2_14.html#175">Set Callback</A> (<font face=Kapl>_scb</font>)
+ and <A HREF="APlusRefV2_14.html#188">Set Preset Callback</A> (<font face=Kapl>_spcb</font>) system
+ functions for establishing and removing the association between a global variable and a
+ callback function. Set Callback is discussed here, and Set Preset Callback
+ <A HREF="#22">below</A>. The left argument is a symbol naming the global variable. The
+ right argument is a pair of the form <font face=Kapl>(fcn_name;static_data)</font>, where
+ <font face=Kapl>static_data</font> is the static data (perhaps Null), and <font face=Kapl>fcn_name</font>  is a
+ function expression, a name entered without backquote or quotes. Thus the first element of
+ this argument, with the enclosure by strand, is a function scalar and not a name, so this
+ association is unaffected by any later changes to the meaning of the name of
+ <font face=Kapl>fcn_name</font>. For example:
+<pre></font><font face=Kapl>     cbf{s;d;i;p;c;v}:Õ(s;d;i;p;c;v)   ã </font>A callback function.<font face=Kapl>
+     `a _scb (cbf;'-- a --')   ã </font>Call <font face=Kapl>cbf</font> whenever <font face=Kapl>a</font> is specified.<font face=Kapl>
+
+
+     aû92       ã </font>Specify <font face=Kapl>a</font> and see the arguments to the callback function.<font face=Kapl>
+&lt; -- a --       ã </font>Static data <font face=Kapl>s
+&lt;  92           ã </font>New data <font face=Kapl>d
+&lt;               ã </font>Index <font face=Kapl>i</font> is null.<font face=Kapl>
+&lt;               ã </font>Path <font face=Kapl>p</font> is null.<font face=Kapl>
+&lt; `             ã c </font>names the root context.<font face=Kapl>
+&lt; `a            ã v </font>names the variable <font face=Kapl>a
+
+     aû10 20 30 40  ã </font>Set <font face=Kapl>a</font> and see args to <font face=Kapl>cbf
+&lt; -- a --
+&lt;  10 20 30 40
+&lt;
+&lt;
+&lt; `
+&lt; `a
+
+     a[1]û200       ã </font>Indexed Assignment.<font face=Kapl>
+&lt; -- a --
+&lt;  200
+&lt;  1
+&lt;
+&lt; `
+&lt; `a
+
+     `a _scb (;)    ã </font>Remove the callback on <font face=Kapl>a</font> and<font face=Kapl>
+     aû999          ã </font>see no callback.<font face=Kapl>
+     a
+ 999
+
+     $cx ctx        ã </font>Set new context.<font face=Kapl>
+     bû(`scalar`vector`matrix; (3.14; 'abcdef'; É3 2))
+     `b _scb (.cbf;'-- b --')  ã </font>Call <font face=Kapl>cbf</font> when <font face=Kapl>b</font> changes.<font face=Kapl>
+
+     (1;0)#`matrixØb       ã </font>Pick-Choose 2 from the matrix.<font face=Kapl>
+ 2
+
+     ((1;0)#`matrixØb)û22  ã </font>Change the 2 to a 22.<font face=Kapl>
+&lt; -- b --
+&lt;  22
+&lt; &lt; 1                      ã </font>Index<font face=Kapl> (1;0)
+  &lt; 0
+&lt;  `matrix                 ã </font>Path<font face=Kapl> `matrix
+&lt; `ctx
+&lt; `b
+
+     (1;0)#`matrixØb       ã </font>Pick-Choose 22 from the matrix.<font face=Kapl>
+ 22</font></pre>
+</blockquote>
+<A NAME=HEADING387>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Selective Assignment <A NAME=16>Causes Callbacks</FONT></H2>
+<blockquote>
+Any form of <A NAME=17>Selective Assignment can cause a callback function to be executed.
+ Taking the last example from the previous section and continuing:
+<pre></font><font face=Kapl>     (1 0/b)û&lt;`Scalar`Vector`Matrix
+&lt; -- b --
+&lt; &lt; `Scalar `Vector `Matrix
+&lt; 0              ã </font>Index is 0.<font face=Kapl>
+&lt;                ã </font>Path is Null.<font face=Kapl>
+&lt; `ctx
+&lt; `b
+     b           ã </font>And the change was made.<font face=Kapl>
+&lt;  `Scalar `Vector `Matrix
+&lt; &lt;  3.14
+  &lt;  abcdef
+  &lt;    0  1
+      22  3
+       4  5</font></pre>
+The next example shows an Append Selective Assignment triggering a callback:
+<pre></font><font face=Kapl>
+     xûÉ10
+     `x _scb (.cbf;'-- x --')
+     x[,]û100 200
+&lt; -- x --        ã </font>The callback was triggered.<font face=Kapl>
+&lt;  100 200
+&lt; &lt;  10 11
+&lt;
+&lt;  `ctx
+&lt;  `x</font></pre>
+</blockquote>
+<A NAME=HEADING388>
+<H3><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Avoiding <A NAME=18>Callbacks</FONT></H3>
+<blockquote>
+There may be times when you want to avoid callbacks - for example, when you are clearing a
+ suspension and with normal execution many more suspensions would occur because of errors in
+ callback functions. You can use the <font face=Kapl>$Sf</font> command for that purpose.
+ See "<A HREF="APlusRefV2_15.html#11">Callback Flag</A>" and note the warnings there.
+</blockquote>
+<A NAME=HEADING389>
+<H1><FONT color="#20B2AA">When <A NAME=19>Callbacks Occur</FONT></H1>
+<blockquote>
+<A NAME=20>It is important to know that callbacks established by <font face=Kapl>_scb</font> are called
+ <i>after </i>the associated global variables have changed. This can be verified by defining
+ a callback function that displays the value of the associated variable. When the function
+ is called, the new value of the variable will be displayed, not the old. Note that the
+ callback argument <font face=Kapl>d</font> is not necessarily this new value;
+ <font face=Kapl>d</font> is, rather, the explicit result of the Assignment.<p>
+An ordinary callback function on a dependency is not called when the dependency definition
+ is evaluated, although a preset callback function is. Similarly, during a callback on a
+ dependency, the dependent variable's value is not marked invalid by any change the function
+ makes in a variable on which the dependency depends.
+</blockquote>
+<A NAME=HEADING390>
+<H2><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Preset <A NAME=22>Callbacks </FONT></H2>
+<blockquote>
+<A NAME=25>It is also possible to establish callbacks that are called just before the value
+ of a variable is changed, so that the change can be validated. To do so, use the system
+ function <font face=Kapl>_spcb</font>, which takes the same arguments as <font face=Kapl>_scb</font>.<P>
+<A NAME=27>The differences between callback functions established by <font face=Kapl>_spcb</font> and
+ <font face=Kapl>_scb</font> are:<P>
+<UL>
+<LI>preset callback functions on dependencies are called when either a dependent variable is
+ assigned a value or the dependency is evaluated, whereas callback functions are called only
+ when the dependent variable is assigned a value;<P>
+<LI><A NAME=28><font face=Kapl>_spcb{y;x}</font> causes the callback function specified in <font face=Kapl>x</font> to be
+ called <i>just</i> <i>before </i>the value of the global variable named in <font face=Kapl>y</font> is
+ changed;<P>
+<LI><A NAME=29>preset callback functions are used to validate new values for global variables
+ and they therefore must return meaningful results (namely, the validated data), while
+ callback functions need not, their explicit results being ignored;<P>
+<LI>for the Append form of Selective Assignment, the indices <font face=Kapl>i</font> are not valid for a
+ preset callback, since the appending has not yet been done.
+</UL>
+Since preset callbacks are used for validating new values of global variables, the following
+ rules should be followed in their definitions:<P>
+<UL>
+<LI>if a new value is valid, set the result of the preset callback function to that value;<P>
+<LI>if the indices <font face=Kapl>i</font> are not null, do not change the shape of <font face=Kapl>d</font> or you
+ will get a length error report;<P>
+<LI>if a new value is invalid, signal an error (see
+ "<A HREF="APlusRefV2_8.html#293">Signal</A>"); the value of the global variable will
+ remain unchanged.
+</UL>
+</blockquote>
+<A NAME=HEADING391>
+<H1><FONT color="#20B2AA">&nbsp;&nbsp;&nbsp;Callbacks <A NAME=31>during Dependency Evaluations</FONT></H1>
+<blockquote>
+The evaluation of a dependency can trigger a callback on the dependent variable, one that
+ was established by the Set Preset Callback function - but not one that was established by
+ the Set Callback function. The callback occurs after the definition body has been evaluated
+ and before the dependent variable is set. The second argument to the callback is the
+ result of evaluating the definition body, and the result of the callback is the value to
+ which the dependent variable is set - or to which the items of the dependent variable are
+ set, in the itemwise case.<P>
+Moreover, when a dependency is evaluated, callbacks of either kind can be triggered by
+ assignments to other variables during the evaluation. These callbacks may mark saved values
+ of other dependencies invalid.<p>
+A dependency that is currently being evaluated, however, or indeed a dependency whose
+ callback function is being executed is marked as being in that state, and so its value will
+ not be marked invalid while the evaluation or execution is going on.<P>
+Evaluation of a dependency is not complete until all callbacks, including any on the
+ dependent variable, have been finished. See
+ "<A HREF="APlusRefV2_57.html#164">Dependencies</A>" for an example.
+</blockquote>
+<H1><FONT color="#20B2AA"><a name=45>&nbsp;&nbsp;&nbsp;Callbacks</a> during Protected
+ Execute and Monadic Do</FONT></H1>
+<blockquote>
+An error that occurs during the execution of a callback within the execution
+ of a Protected Execute or Monadic do is reported in the result of the protected
+ execution.
+</blockquote>
+<HR>
+<ADDRESS><table width="100%"><tr><td><font size=2><i><a href="mailto:doc@aplusdev.org">doc@aplusdev.org</a></i></font></td><td align=right><font size=2><i>&#169; Copyright 1995&#150;2008 Morgan Stanley Dean Witter &amp; Co.  All rights reserved.</i></font></td></tr></table></ADDRESS>
+</BODY>
+</HTML>
+

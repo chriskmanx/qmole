@@ -1,0 +1,140 @@
+	I'm just going to stick some stuff here to help anyone trying
+to hack the POA. I'll also try and keep it up to date ;)
+
+Mark.
+
+CORBA object and servant life cycles
+====================================
+
+	Here's a nice diagram from 'Advanced CORBA Porgamming with
+C++' by Henning and Vinoski.
+
+                          +---------------------------+
+                          |                           |
+                          |      Object Exists        |
+                          |                           |
+                          |   +------------------+    |
+                          |   |     Object       |    |
+                          |   |    Activated     |    |
+                          |   | +--------------+ |    |
+                          |   | |   Servant    | |    |
+                          |   | |  Incarnated  | |    |
+                          |   | +--------------+ |    |
+                          |   +------------------+    |
+                          |    ^                |     |
++--------------+ Creation |    |                |     | Destruction +--------------+
+|    Object    |--------->| Activate       Deactivate |------------>|    Object    |
+| Non-existent |          |    |                |     |             | Non-existent |
++--------------+          |    |                |     |             +--------------+
+                          |    |                v     |
+                          |   +------------------+    |
+                          |   | +--------------+ |    |
+                          |   | |   Servant    | |    |
+                          |   | | Etherealized | |    |
+                          |   | +--------------+ |    |
+                          |   |     Object       |    |
+                          |   |   Deactivated    |    |
+                          |   +------------------+    |
+                          |                           |
+                          +---------------------------+
+
+	The key points are :
+
+	* once an object reference has been created the object exists.
+	* once it exists it can either be activated or deactivated.
+	* to be activated it must be incarnated by a servant - i.e. a
+	  servant must be associated with object.
+	* to be deactivated the servant must be etherealised - i.e.
+	  the bond between the servant and object broken.
+	* activate and deacitvate apply to objects, incarnate and
+	  etherealise apply to servants.
+
+ORBit's implementation
+======================
+
+	In ORBit and object reference is represented by a
+CORBA_Object and, within the POA, by a POAObject. Every CORBA_Object
+created by the POA has a POAObject associated with it.
+
+	When a POAObject is created it is entered into its POA's
+.oid_obj_map, a hash table with ObjectIds as keys and POAObjects as
+values.
+
+	When an object is activated by the POA, it is associated with
+a servant by setting its POAObject .servant member. The POAObject is
+also entered into a list of POAObjects in the servant's ._private
+member. The reverse is done when the object is deactivated.
+
+	The CORBA spec talks about an 'Active Object Map'. The idea is
+that if the POA has the RETAIN policy it stores the association
+between object id and servant in this Active Object Map when it is
+activated. In ORBit, there is no explicit Active Object Map. An object
+can be thought of being entered in the POA's Active Object Map once it has
+been entered in the POA's .oid_to_obj_map hash table (when the
+POAObject is created) and the POAOjbect's .servant is non-NULL (when
+the object is activated).
+
+POA refcounting
+===============
+
+	When talking about refcounting, I mean internal refs - i.e
+ORBit_RootOject_duplicate as opposed to CORBA_Object_duplicate - the
+application can also be responsible for refs to the POA.
+
+	* ORBit_POA_new - we're creating a POA, set the initial
+	refcount to 1. This ref is released in ORBit_POA_destroy.
+
+	* ORBit_POA_add_child - we're associating the POA with its
+	parent. The ref is released ORBit_POA_remove_child when the
+	POA is being destoryed.
+
+	* ORBit_POA_create_object - we're assoiciating a POA with a
+	POAObject. The ref is released in ORBit_POAObject_release_cb
+	when the POAObject is being destroyed.
+
+	* ORBit_init_internals - this is *only* for the RootPOA. We
+	don't want the RootPOA to be destroyed until, at the earliest,
+	the ORB has been destroyed. So, this ref is released in
+	CORBA_ORB_destroy.
+
+POAObject refcounting
+=====================
+
+	* ORBit_POA_activate_object - ref released in
+	ORBit_POA_deactivate.
+
+	* ORBit_POA_obj_to_ref - we're creating a CORBA_Object and
+	associating the POAObject with it. The ref is released in
+	CORBA_Object_release_cb when the object reference is being
+	destoryed.
+
+	* ORBit_POA_ServantManager_use_servant - we're using a servant
+	manager to activate an object. In both the RETAIN and
+	NON-RETAIN cases we ref the POAObject. In the RETAIN case this
+	ref is released by ORBit_POA_deactivate. In the NON-RETAIN
+	case the ref is released by unuse_servant.
+
+MULTIPLE_ID POAs
+================
+
+	So that a servant can incarnate more than one object, the
+ORBit_POAObject pointed to by the servant's ._private member has a
+.next member pointing to the next Object incarnated by that servant.
+This forms a simple singly-linked list of Objects. A GSList was not
+used so as to not kill the common case of a UNIQUE_ID POA.
+
+	If you look at the note at the end of section 11.3.5.1, it
+says that it is legal for the servant to be shared between two POAs
+with different Object Id uniqueness policies.	
+
+	This could create serious problems when we are using
+obtaining the POAObject associated with the servant in the UNIQUE_ID
+case. This needs to fixed to check that it actually belongs to the POA
+in question.
+
+Implementing Another Object Adaptor
+==================================
+
+	ORBit2's POA is virtualised. This means that, in theory, it
+should be possible to plug another Object Adaptor into the ORB. The
+details are in orbit/poa/orbit-adaptor.h.

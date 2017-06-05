@@ -1,0 +1,83 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+
+$cx flu
+
+r_f{x;y}:(~(2Ù@1 z)Å2 2Ò'... ')/z İ zûsys.readmat{'/tmp/flu'} İ sys.system{'rsh ',a,' ls -',y,' ',b,' > /tmp/flu 2>&1'} İ (a;b)û(iÙx;(i+1)Õx) İ iûxÉ':'
+agetdents{x}:if (~':'Åx) (èz)#z İ zûsys.agetdents{x} else r_f{x;'a'}
+
+is_d_entry{x;m}:if (1Åbû0<,>#¡_ss¡{<@1 m;<(x¨' ')/x}) 'd'=0#,b/m else 0
+is_dir{y;x}:if (~':'Åy) 0#(15Ò2)Î2#@1 sys.astat{y,@1 1 x} else is_d_entry@1 2{x;m} İ mûr_f{y;'l'}
+
+d_d{x}:if (~':'Åx) ('';x) else (iÙx;iÕx) İ iû1+xÉ':'
+up{s;c;v}:if (~'./'½d İ (y;d)ûd_d{c%`_DIR}) (c%`_DIR)ûy,(-i)Õd İ iû1+(1Õ÷d)É'/'
+preset_dir{s;d;i;p;c;v}:z İ null_file{c} İ zûy,if (0=#z İ (y;z)ûd_d{(d¨' ')/d}) './' else if ('/'=¢1Ùz) z else z,'/'
+filtered{f;fs}:if (~'.'Åf) 0 else if ((<(-(÷f)É'.')Ùf)ÅÎ¡(>1Øfs)/0Øfs) 1 else 0
+rj{x}:(-(' '=÷@1 x)É@1Û0)÷@0 1x
+
+set_cb{c}:(c,`_FILE) .has (`preset;preset_file)
+unset_cb{c}:(c,`_FILE) .has (`preset;)
+null_file{c}:set_cb{c} İ (c%`_FILE)û'' İ unset_cb{c} İ (c,`_FILES) .has (`row;¢1)
+
+select_files{s;c;v}: if(~¢1=fû0Ø`row .of c,`_FILES) set_cb{c} İ (c%`_FILE)û(' '¨f)/f#c%`_FILES İ unset_cb{c}
+select_dirs{s;c;v}: if(~¢1=fû0Ø`row .of c,`_DIRS) (c%`_DIR)û(c%`_DIR),f,'/' İ fû(' '¨f)/f#c%`_DIRS
+
+preset_file{s;d;i;p;c;v}:if (¢1=k İ kûfind{c;,d;1+0Ó0Ø`row .of c,`_FILES}) d İ (c,`_FILES) .has (`row;¢1) else k#c%`_FILES İ (c,`_FILES) .has (`firstrow `row;2Òk)
+
+find{c;d;r}:if ((#f)=iûfÉd İ (f;d)ûtake{c;r÷c%`_FILES;d}) ¢1 else (#f)|r+i
+
+take{c;f;d}:if (1=c%`_FIND) ((#d)Ù@1 f;d) else (f;(1#Òf)Ùd)
+
+filter{dir;fs}:
+	{
+	zûif (0=#matûagetdents{dir}) (mat;mat)
+	else if (~©/k İ kû>1Øfs) (a/mat;(~a)/mat) İ aûis_dir{dir;mat}
+	else (a/mat;b/mat) İ aûis_dir{dir;mat}^~'.'Å@1 mat İ bû©/>b½@1¡'.',¡sfs İ bû(-1+>#¡sfs İ sfsûÎ¡k/0Øfs)Ù@1¡<rj{mat};
+	(è¡z)#¡z
+	}
+
+read{x}:if (('/'=¢1Ùx)©^/x=' ') 0 0Ò'' else if (0=rc İ (rc;z)ûdo sys.readmat{x}) z else 0 0Ò''
+
+define{cx}:
+	{
+	WSûs.autows{()};
+	
+	(cx%`_FIND)û1;
+	cxâ'K:flu.filter{_DIR;_FILTERS}';
+	cxâ'_DIRS:0Ø',ÎcxÖ`K;
+	cxâ'_FILES:1Ø',ÎcxÖ`K;
+	(cx%`_DIR)û'./';
+	(cx%`_FILTERS)û(;);
+	(cx%`_UP)û<{up};
+	(cx%`_FILE)û'';
+
+	(cx,`_FILES) .is `array;
+	(cx,`_DIRS) .is `array;
+	(cx,`_DIR).is `scalar;
+	(cx,`_FILTERS) .is `check;
+	(cx,`_UP) .is `button;
+	(cx,`_FILE) .is `scalar;
+
+	cxâ'_VIEW:flu.read{_DIR,_FILE}';
+	(cx,`_VIEW) .is `view;
+
+	(cx,`_FILES) .has (`space;30;`protect;1;`select;select_files;`title;'';`selectbg;`lightsteelblue3;`stars;0);
+	(cx,`_DIRS) .has (`space;30;`protect;1;`select;select_dirs;`title;'';`selectbg;`lightsteelblue3;`stars;0);
+	(cx,`_DIR) .has (`preset;preset_dir;`stars;0;`title;'Dir: ');
+	(cx,`_UP) .has (`title;'..';`resize;'w';`acceptfocus;0);
+	(cx,`_FILTERS) .has (`geometry;¢2;`title;'';`acceptfocus;0);
+	(cx,`_FILE) .has (`title;'File: ';`preset;preset_file;`stars;0);
+
+	(cx%`_PANE)û`_DIRS `_FILES;
+	(cx,`_PANE) .is `vpane;
+	(cx,`_PANE) .has (`title;'');
+
+	(cx%`_FLU)û(`_DIR `_UP;`_PANE;`_FILE;`_FILTERS);
+	(cx,`_FLU) .is `layout;
+	(cx,`_FLU) .has (`title;'');
+	
+	s.autows{WS};
+	
+	cxÖ`_FLU
+	}
+

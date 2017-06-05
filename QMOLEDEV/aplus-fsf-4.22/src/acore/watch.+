@@ -1,0 +1,157 @@
+ã$Id: watch.+,v 1.3 2008/02/29 21:20:49 jmiz Exp $
+ã watch.set{var; mode; cond}
+ã For finding out where global variables are set
+ã   var: symbol of the variable to watch
+ã  mode: `stop or `trace (`stop enbles ^1; `trace displays value $si info and continues)
+ã  cond: if(âcond) execute `stop or `trace
+ã        Note that you can test any of the arguments to watch.cb{s;d;i;p;c;v}
+ã        i.e. 'd>100' test if the value being assigned to c%v is greater that 100
+ã        (watch.cb{...} will report an error if the condition cannot be run or tested)
+ã
+ã watch.clear{var} 
+ã  clears a watch set for var (symbol of the varible being watched)
+ã  if var is a null all watched variables are cleared
+ã
+ã watch.list{} 
+ã  displays a list of variables being watched with their watch state, `on or `off
+ã
+ã watch.suspend{var}
+ã  Temporarily disables a watch on the variable
+ã  if var is a null all watches are disabled
+ã
+ã watch.resume{var}
+ã  Resumes watching a varible that was suspended
+ã  if var is a null all suspended watches are resumed
+ã
+ã watch.set is implemented using a pre-set callback.  If the variable already has a 
+ã pre-set callback it is handled correctly within the watch pre-set callback
+ã watch.clear will also restore a prior pre-set callback
+ 
+if(`null=_nc{`watch;`listSF}) watch.listSFû(;);
+
+watch.cb{s;d;i;p;c;v}:{
+  ã Pre-set callback for the variable being watched
+  ã Note: for now  output of _doErrorStack{} is preferred over _gsv{`si}
+  (mode;cond;pcb)ûs;
+  attrsû'#=',(î#d),'  Ò=',(îÒd),'  ©=',(î©d);
+  if(()½cond) {
+    Gfû_gsv{`Gf}; _ssv{`Gf;1};doErrorStackû_gsv{`doErrorStack}; _ssv{`doErrorStack;1};
+    do 0ß0; siû¢1Õ¡_doErrorStack{};
+    _ssv{`doErrorStack;doErrorStack}; _ssv{`Gf;Gf};
+    Õ('watch.set: ',ÎcÖv; attrs; ¢1Õsi);
+    if(`stop½mode) {
+      stopû_gsv{`stop}; _ssv{`stop;1};
+      ^1;
+      _ssv{`stop;stop};
+    };
+  } else {
+    (rc;res)ûdo âcond;
+    ã catch errors for executed condition 
+    if(rc©(1¨#res)©`int¨©res) {
+      Õ('watch.set Error: condition';cond;if(rc) res else 'result not a single integer');
+      resû0;
+    };
+
+    if(res) {
+      Gfû_gsv{`Gf}; _ssv{`Gf;1};doErrorStackû_gsv{`doErrorStack}; _ssv{`doErrorStack;1};
+      do 0ß0; siû¢1Õ¡_doErrorStack{};
+      _ssv{`doErrorStack;doErrorStack}; _ssv{`Gf;Gf};
+      Õ('watch.set: ',ÎcÖv; 'Is true: ',cond; attrs; ¢1Õsi);
+      if(`stop½mode) {
+        stopû_gsv{`stop}; _ssv{`stop;1};
+        ^1;
+        _ssv{`stop;stop};
+       };
+    };
+  };
+
+  if(()½pcb){
+    ûd;
+  } else {
+    (f;s)ûpcb;
+    ûf¡{s;d;i;p;c;v};
+  };
+}
+
+watch.set{var;mode;cond}:{
+  ã Set a watch for the global variable var
+  ã   var: symbol of the variable to watch
+  ã  mode: `stop or `trace (`stop enbles ^1; `trace displays value $si info and continues)
+  ã  cond: if(âcond) execute `stop or `trace
+  ã        Note that you can test any of the arguments to watch.cb{s;d;i;p;c;v}
+  ã        i.e. 'd>100' test if the value being assigned to c%v is greater that 100
+  ã        (watch.cb{...} will report an error if the condition cannot be run or tested)
+
+  ã   pcb: is null or contains the prior pre-set callback setting
+  pcbû_gpcb{var};
+  if(()½pcb) fû() else (f;s)ûpcb;
+  if(f½<{watch.cb}) {
+    watch.clear{var};  
+  };
+  pcbû_gpcb{var};
+  _spcb{var;(watch.cb;(mode;cond;pcb))};
+  if(varÅ0Øwatch.listSF) {
+    (varØwatch.listSF)û(`status`mode`cond;(`on;mode;cond));
+  } else {
+    watch.listSFûwatch.listSF,¡(var;<(`status`mode`cond;(`on;mode;cond)));
+  }
+}
+     
+watch.clear{var}:{
+  ã  clears a watch set for var (symbol of the varible being watched)
+  ã  if var is a null all watched variables are cleared
+  if( ()½var ) {
+    bû`on=1#@1watch.list{};
+    if(©/b) watch.clear¡{b/0Øwatch.listSF};
+  } else {
+    (f;s)û_gpcb{var};
+    if(f½<{watch.cb}) {
+      (mode;cond;pcb)ûs;
+      if(pcb½()) {
+        _spcb{var;(;)};
+      } else {
+        _spcb{var;pcb};
+      };
+      if(varÅ0Øwatch.listSF) watch.listSFû(<~(0Øwatch.listSF)Åvar)/¡watch.listSF;
+    };
+  };
+}
+
+watch.list{}:ô(0Øwatch.listSF)~>`statusØ¡1Øwatch.listSF
+
+watch.resume{var}:{
+  ã  Resumes watching a varible that was suspended
+  ã  if var is a null all suspended watches are resumed
+  if( ()½var ) {
+    bû`off=1#@1watch.list{};
+    varsûb/0Øwatch.listSF;
+    (iû#vars) do {
+      varûi#vars;
+      watch.set{var; `modeØvarØwatch.listSF; `condØvarØwatch.listSF};
+    }
+  } else if(varÅ0Øwatch.listSF) {
+      watch.set{var; `modeØvarØwatch.listSF; `condØvarØwatch.listSF};
+  };
+}
+
+watch.suspend{var}:{
+  ã  Temporarily disables a watch on the variable
+  ã  if var is a null all watches are disabled
+  if( ()½var ) {
+    bû`on=1#@1watch.list{};
+    varsûb/0Øwatch.listSF;
+    if(©/b) watch.suspend¡{vars};
+  } else if(varÅ0Øwatch.listSF) {
+      modeû`modeØvarØwatch.listSF;
+      condû`condØvarØwatch.listSF;
+      watch.clear{var};
+      watch.listSFûwatch.listSF,¡(var;<(`status`mode`cond;(`off;mode;cond)));
+  };
+}
+
+
+
+
+
+
+  

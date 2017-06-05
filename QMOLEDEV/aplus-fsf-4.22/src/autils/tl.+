@@ -1,0 +1,398 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+
+$cx tl
+
+VERSIONû1.0
+
+SCRIPTû'ã tl.script'
+
+unroot{x}:replace{x;ÂROOT;`}
+root{x}:replace{x;`;ÂROOT}
+replace{x;y;z}:x Ý ((x=y)/x)ûz
+
+paired{y;x}:r©¢1÷rû2|+\y=x
+quoted{x}:paired{'"';x}©paired{'''';x}
+parts{y;x}:if (0<#x) 1Õ¡(Ú(~quoted{x})^x=y)Úxûy,x
+tokens{x}:parts{' ';db{x}}
+
+braced{y;x}:(y[0]=1Ùx)^y[1]=¢1Ùx
+
+ntom{x}:>(Ó/>#¡x)Ù¡x
+
+dltb{x}:((÷©\÷x¨' ')^©\x¨' ')/x
+deb{x}:(quoted{x}©(x¨' ')©x¨1÷x)/x
+db{x}:dltb{deb{x}}
+dbi{x}:(©/@1 x¨' ')/x
+
+first{x}:if ('â'=1Ùx) (1Ùx;1Õx) else (iÙx;dltb{iÕx}) Ý iû+/^\xÅALP,NUM,'¢.?!'
+field{x}:((1Ùx)ÅALP)^if (1=#x) 1 else ^/(1Õx)ÅALP,NUM,'_'
+vname{x}:((ROOT=1Ùx)^1=#x)©field{x}
+split{y;x}:if ((#b)=i Ý iûbÉ1 Ý bû(x=y)^~quoted{x} Ý xûdltb{x}) x else (iÙx;(1+i)Õx)
+colon{x}:split{':';x}
+shriek{x}:split{'!';x}
+semicolon{x}:split{';';x}
+space{x}:if (0=½z Ý zûsplit{' ';x}) z else if (field{0Øz}) z
+
+ROOTû'.'
+
+ALPû'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+NUMû'0123456789'
+
+load_a{d;k}:_load{if (d½'') k else (d,if ('/'¨¢1Ùd) '/'),k}
+
+get_ref{cx}:if (~()½t Ý tûcx%`_TABLE) t else 	parse_error{"no reference table";''}
+set_ref{cx;t}:if ((t½())©1=cx%`_RESET) (cx%`_TABLE)ût
+
+commands_q{cx;x}:(èÎz)#z Ý zû((~zÅy)/z),y Ý yû0Øcx%`_COMMANDS Ý zû0ØCOMMANDS
+script_q{cx;x}:cx%`_SCRIPT
+tables_q{cx;x}:(èÎz)#z Ý zû,root{t.TABLES}
+table_q{cx;x}:root{cx%`_TABLE}
+fields_q{cx;x}:(èÎz)#z Ý zûparse_s{cx;x}%cx%`_MODE
+open_q{cx;x}:root{0Øcx%`_OPEN}
+count_q{cx;x}:parse_s{cx;x}%`_N
+name_q{cx;x}:cx%`_NAME
+
+show{cx;x}:.show{t} Ý tût.table{parse_s{cx;x}}
+hide{cx;x}:.hide{parse_s{cx;x},cx%`_MODE}
+free{cx;x}:.free{parse_s{cx;x},cx%`_MODE}
+fields{cx;x}:(s%`_U)ûparse_fields{cx;x;s} Ý sûget_ref{cx}
+
+script_name{x}:Â(-3«'.tl'½¢3Ùx)Õx
+
+load{cx;x}:if (~SCRIPT½(#SCRIPT)Ù,1Ùr Ý rûsys.readmat{z} Ý zûparse_continue{cx;x}) _load{z} else load_tl{cx;z;dbi{r}}
+load_tl{cx;z;s}:(cx%`_NAME)ûscript_name{z} Ý (iû#s) do interpret{cx;i#s}
+
+save{cx;x}:t.write{z;SCRIPT,NEWLINE,NEWLINE,Ø(cx%`_SCRIPT),¡NEWLINE} Ý zûparse_continue{cx;x}
+drop{cx;x}:â'$rm ',z Ý zûparse_file{cx;x}
+copy{cx;x}:â'$cp ',z Ý zûparse_files{cx;x}
+move{cx;x}:â'$mv ',z Ý zûparse_files{cx;x}
+name{cx;x}:(cx%`_NAME)ûif (0=#z Ý zûdltb{x}) `continue else script_name{z}
+clear{cx;x}:(cx%`_SCRIPT)û()
+
+table{cx;x}:set_ref{cx;parse_table{cx;x}}
+
+all{cx;x}:t.only{get_ref{cx};}
+only{cx;x}:t.only{get_ref{cx};parse_select{cx;x}}
+also{cx;x}:t.also{get_ref{cx};parse_select{cx;x}}
+not{cx;x}:t.not{get_ref{cx};parse_select{cx;x}}
+sort{cx;x}:t.sort{get_ref{cx};parse_sort{cx;x}}
+sample{cx;x}:t.sample{get_ref{cx};parse_sample{cx;x}}
+fix{cx;x}:t.fix{t;()½t%`_F} Ý tûget_ref{cx}
+
+group{cx;x}:z Ý set_ref{cx;d} Ý t.send{s,d;} Ý zût.group{s,d;f} Ý sûget_ref{cx} Ý (d;f)ûparse_group{cx;x}
+report{cx;x}:z Ý set_ref{cx;d} Ý t.send{s,d;fs} Ý fsû(~fsÅ`_,f)/fs Ý fsûs%`_T_ Ý zût.report{s,d;f} Ý sûget_ref{cx} Ý (d;f)ûparse_group{cx;x}
+
+to{cx;x}:if (()½f Ý (d;f)ûparse_link{cx;x} Ý sûget_ref{cx}) unlink{s;d} else link{s;d;cx;f}
+from{cx;x}:if (()½f Ý (s;f)ûparse_link{cx;x} Ý dûget_ref{cx}) unlink{d;s} else link{d;s;cx;f}
+link{s;d;cx;f}:z Ý set_ref{cx;d} Ý t.send{s,d;} Ý zût.link{s,d;f}
+unlink{s;d}:t.link{s,d;}
+
+view{cx;x}:z Ý set_ref{cx;0#¢1Ùd} Ý if (1=#d Ý dûparse_view{cx;x}) t.send{s,d;} Ý zût.only{s,d;} Ý sûget_ref{cx} else t.send{d;} Ý zût.cat{d;} Ý dû1÷d
+
+open{cx;x}:if ((k½())©_issf{k} Ý (t;k;d)ûparse_open{cx;x}) set_ref{cx;t} Ý t.open{(t;d);k} else load_a{d;k}
+reset{cx;x}:set_ref{cx;} Ý t.reset{}
+
+close{cx;x}:{t.close{t;f} Ý (t;f)ûparse_close{cx;x};if (()½f) if (t½get_ref{cx}) set_ref{cx;}}
+
+detach{cx;x}:t.close{parse_table{cx;x};}
+
+execute{cx;x}:âx
+
+def{cx;f;x}:if (':'=1Ùx) send{cx;f;1Õx} else t.define{get_ref{cx};(f;':',x)}
+
+send{cx;f;p}:
+	{
+	(y;fun)û÷¡(iÙy;iÕy) Ý iû+/^\yÅALP,NUM,'_.' Ý yûdeb{÷p};
+	if ((#y)=i Ý iûyÉ'.') 			parse_error{"expecting <table.field>";y};
+	tûif (^/' '=t Ý tûiÙy) ` else parse_table{cx;iÙy};
+	gûparse_field{cx;(i+1)Õy;t};
+	funûif (0<#funûdb{fun}) if (0=rc Ý (rc;gun)ûdo âfun) gun else fun;
+	t.send{t,get_ref{cx};(f;(g;fun))};
+	}
+
+let{cx;v;x}:if (^/x=' ') %cxÖv else Ý (%cxÖv)ûâx
+
+naked{cx;x}:
+	{
+	if (1=½z Ý zûcolon{x}) if (field{0Øz}) ûdef{cx;Â0Øz;dltb{1Øz}};
+	if (1=½z Ý zûshriek{x}) if (field{0Øz}) ûlet{cx;Â0Øz;dltb{1Øz}};
+	kû~()½t Ý tûcx%`_TABLE;
+	if (k) if (1=½z Ý zûspace{x}) if (field{0Øz}) if (aÅt%cx%`_MODE Ý (a;b)û(Â0Øz;1Øz)) ût.only{t;(a;b)};
+	if (0=½z) if (vname{z}) if (tÅt.TABLES Ý tûunroot{Âz}) û(cx%`_TABLE)ût;
+	if (k) ût.only{t;z};
+	parse_error{"cannot recognize string";x};
+	}
+
+parse_error{x;y}:Ù'ã !! ',x,': ',y
+
+parse_continue{cx;x}:
+	{
+	if (0=#z Ý zûdb{x}) zûÎcx%`_NAME;
+	parse_file{cx;z}
+	}
+
+parse_file{cx;x}:
+	{
+	if (0=#z Ý zûdb{x})			parse_error{"expecting <file>";x};
+	if ('.'Åz) z else z,'.tl'
+	}
+
+parse_files{cx;x}:
+	{
+	if (2¨#z Ý zûtokens{x})			parse_error{"expecting <from_file> <to_file>";x};
+	if (~'.'Å0Øz) (0Øz)[,]û'.tl';
+	if (~'.'Å1Øz) (1Øz)[,]û'.tl';
+	(0Øz),' ',1Øz
+	}
+
+parse_open_alsf{x}:if (`sym=©x) (x;(#x)Ù()) else _alsf{x}
+
+parse_open{cx;x}:
+	{
+	if (~1Å1 2=#tûtokens{x})		parse_error{"expecting <name> {<directory>}";x};
+	sûparse_name{cx;0Øt};
+	if (sÅ0Øo Ý oûcx%`_OPEN)
+		{
+		kûsØo;
+		(z;d)û  
+				if (1Å`null `sym `charÅ©k) 		(k;'')
+			else	if (0=½k)				parse_error{"_OPEN type error";x}
+			else	if (1=#k)				(;0Ø,k)
+			else	if (2¨#k)				parse_error{"_OPEN type error";x}
+			else	if (`char=©0Øk)				(parse_open_alsf{1Øk};0Øk)
+			else						(parse_open_alsf{k};'');
+
+		(s;z;d)
+		}
+	else if (1=#t) 	(s;;'')
+	else 		(s;;1Øt)
+	}
+
+parse_close{cx;x}:
+	{
+		if (0=#x Ý xûdb{x}) 		(get_ref{cx};)
+	else	if ((#x)=i Ý iûxÉ' ')		(parse_table{cx;x};)
+	else					(t;f) Ý fûparse_fields{cx;(i+1)Õx;t} Ý tûparse_table{cx;iÙx}
+	}
+
+parse_table{cx;x}:
+	{
+	if (~vname{x})				parse_error{"bad table name";x};
+	if (~zÅt.TABLES Ý zûunroot{Âx}) 	parse_error{"not a table";x};
+	z
+	}
+
+parse_field{cx;x;t}:
+	{
+	if (~field{x})				parse_error{"bad field name";x};
+	if (~zÅt%cx%`_MODE Ý zûÂx)		parse_error{"expecting a field in ",Ît;x};
+	z
+	}
+
+parse_fields{cx;x;t}:
+	{
+	if (0<#z Ý zûtokens{x})
+		{
+		if (~^/>field¡{z})		parse_error{"bad field name somewhere";x};
+		if (~^/zÅt%cx%`_MODE Ý zû>Â¡z)	parse_error{"expecting fields in ",Ît;x};
+		};
+	z
+	}
+
+parse_name{cx;x}:
+	{
+	if (1¨#z Ý zûtokens{x}) 		parse_error{"expecting a name";x};
+	if (~vname{z} Ý zû0Øz) 			parse_error{"bad name";x};
+	unroot{Âz}
+	}
+
+parse_view{cx;x}:
+	{
+	if (0=#z Ý zûtokens{x})			parse_error{"expecting at least one name";''};
+	if (~^/>vname¡{z})			parse_error{"bad name somewhere";x};
+	zûunroot{>Â¡z};
+	if (~^/(1Õz)Åt.TABLES)			parse_error{"bad table name somewhere";x};
+	z
+	}
+
+parse_s{cx;x}:if (~^/x=' ') parse_table{cx;x} else get_ref{cx}
+
+parse_select{cx;x}:
+	{
+	if (^/x=' ') û'';
+	rtûget_ref{cx};
+	x[,]û(';'¨¢1Ùx)/';';
+	flagû0;
+	symû();
+	valû();
+	while (0<#x)
+		{
+		(f;x)ûsemicolon{x};
+		if (0=½z Ý zûspace{f})
+			{
+				if (flag=0) 	ûz 
+			else 			parse_error{"expecting <field><select>{;...;<field><select>}";x}
+			}
+		else 
+			{
+			(a;b)û(parse_field{cx;0Øz;rt};1Øz);
+			sym[,]ûa;
+			val[,]û<b;
+			};
+		flagû1;
+		};
+	(sym;val)
+	}
+
+parse_sample{cx;x}:
+	{
+	if (0=#z Ý zû(x¨' ')/x)			parse_error{"expecting <n>";x};
+	if (0¨rc Ý (rc;z)ûdo _sfi{z})		parse_error{"bad number";x};
+	if (z<0)				parse_error{"must be positive";x};
+	`int©z
+	}	
+
+parse_sort{cx;x}:
+	{
+	tûget_ref{cx};
+	rûtokens{x};
+	zû();
+	(iû#r) do zûz,if ('-'=1Ùq Ý qûiØr) (parse_field{cx;1Õq;t};1) else (parse_field{cx;q;t};0);
+	z
+	}
+
+parse_group{cx;x}:
+	{
+	if (0=½z Ý zûspace{x}) 			parse_error{"expecting <table> <fields>";x};
+
+	tûparse_name{cx;0Øz};
+	fûparse_fields{cx;1Øz;get_ref{cx}};
+	(t;f)
+	}
+
+parse_link{cx;x}:
+	{
+	if (0=#z Ý zûtokens{x}) 		parse_error{"expecting <table> <fields>";x};
+	tûparse_name{cx;0Øz};
+	zû1Õz;
+	if (0=#z) (t;)
+	else
+		{
+		(f;g)û(;);
+		rtûget_ref{cx};
+		(iû#z) do
+			{
+			(ff;gg)ûif (0=½r Ý rûsplit{'/';iØz}) (r;r) else r;
+			f[,]ûparse_fields{cx;ff;rt};
+			g[,]ûparse_fields{cx;gg;rt};
+			};
+		(t;(f;g))
+		}
+	}
+
+COMMANDSû_alsf{
+	(
+	Â"?";		commands_q;	ã - commands
+	Â"tables?";	tables_q;	ã - tables
+	Â"fields?";	fields_q;	ã - fields {<table>}
+	Â"table?";	table_q;	ã - reference table
+	Â"script?";	script_q;	ã - script so far
+	Â"open?";	open_q;		ã - tables in _OPEN
+	Â"count?";	count_q;	ã - count {<table>}
+	Â"name?";	name_q;		ã - _NAME
+
+	Â"â";		execute;	ã A
+
+	`all;		all;		ã all
+	`table;		table;		ã table <table>
+	`fields;	fields;		ã fields {<fields>}
+
+	`only;		only;		ã only {<constraint>}
+	`also;		also;		ã also {<constraint>}
+	`not;		not;		ã not {<constraint>}
+
+	`sort;		sort;		ã sort <f ... g> (where f = <field> or <-field>)
+	`sample;	sample;		ã sample <n> (where n is a positive integer)
+	`fix;		fix;		ã fix 
+
+	`view;		view;		ã view <table> {<tables>}
+	`group;		group;		ã group <table> <fields>
+	`report;	report;		ã report <table> <fields>
+
+	`to;		to;		ã to <table> {<fields> {<fields_in_table>}}
+	`from;		from;		ã from <table> {<fields> {<fields_in_table>}}
+
+	`save;		save;		ã save <file>
+	`load;		load;		ã load {<file>}
+	`name;		name;		ã name {<file>}
+	`drop;		drop;		ã drop <file>
+	`move;		move;		ã move <from_file> <to_file>
+	`copy;		copy;		ã copy <from_file> <to_file>
+	
+	`clear;		clear;		ã clear
+
+	`show;		show;		ã show {<table>}
+	`hide;		hide;		ã hide {<table>}
+	`free;		free;		ã free <table>
+
+	`open;		open;		ã open <table> {<directory>}
+	`close;		close;		ã close <table> {field ... field}
+	`detach;	detach;		ã detach <table>
+	`reset;		reset		ã reset T
+	)
+}
+
+parse{cx;x}:
+	{
+	if ('ã'=1Ùx) û();
+	if (kûbraced{'[]';x}) xû1Õ¢1Õx;
+	if ('$'=1Ùx) xû1Õx Ý (cx%`_RESET)û0;
+	(f;r)ûfirst{x};
+	fûÂf;
+	sfûz,¡y Ý zû(<~(0Øz)Å0Øy)/¡z Ý zûCOMMANDS Ý yûcx%`_COMMANDS;
+	if (fÅ0Øsf) (f;(fØsf)¡{cx;r};k) else (;naked{cx;x};k)
+	}
+
+interpret{cx;x}:
+	{
+	(cx%`_COMMAND)û();
+	if (()½r Ý rûparse{cx;x}) (0;x)
+	else
+		{
+		(f;z;k)ûr;
+		(cx%`_COMMAND)ûf;
+		if (~k) (cx%`_SCRIPT)[,]û<x;
+		z
+		}
+	}
+
+inq{cx;x}:
+	{
+	xûdltb{x};
+	if ('ã'=1Ùx) (0;x)
+	else if (0=#x) (0;x)
+	else if (~braced{'{}';x}) interpret{cx;x}
+	else
+		{
+		zûinterpret¡{cx;'[',¡dltb¡{parts{';';1Õ¢1Õx}},¡']'};
+		(cx%`_SCRIPT)[,]û<x;
+		z
+		}
+	}
+
+define{cx}:
+	{
+	(cx%`_NAME)û`continue;
+	(cx%`_MODE)û`_T;
+	(cx%`_TABLE)û();
+	(cx%`_SCRIPT)û();
+	(cx%`_RESULT)û(;);
+	(cx%`_OPEN)û(;);
+	(cx%`_COMMANDS)û(;);
+	(cx%`_COMMAND)û();
+	(cx%`_RESET)û1;
+	â(Îcx),'.inq{x}:_RESULT Ý (_RESET)û1 Ý (_RESULT)ûdo tl.inq{`',(Îcx),';x}';
+	cx
+	}
+

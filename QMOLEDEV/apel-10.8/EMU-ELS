@@ -1,0 +1,223 @@
+;;; EMU-ELS --- list of EMU modules to install. -*-Emacs-Lisp-*-
+
+;;; Commentary:
+
+;; APEL-MK imports `emu-modules' and `emu-modules-to-compile' from here.
+
+;;; Code:
+
+(defvar emu-modules-not-to-compile nil)
+(defvar emu-modules-to-compile nil)
+
+;; We use compile-time evaluation heavily.  So, order of compilation is
+;; very significant.  For example, loading some module before compiling
+;; it will cause "compile-time" evaluation many times.
+(defvar emu-modules
+  (nconc
+   ;; modules are sorted by compilation order.
+   '(static broken)
+
+   ;; product information.
+   '(product apel-ver)
+
+   ;; poe modules; poe modules depend on static.
+   '(pym)
+   (cond
+    ;; XEmacs.
+    ((featurep 'xemacs)
+     '(poe-xemacs poe))
+    ;; Emacs 19.29 and earlier. (yes, includes Emacs 19.29.)
+    ((and (= emacs-major-version 19)
+	  (<= emacs-minor-version 29))
+     '(localhook poe))
+    ;; Emacs 19.30 and later.
+    ((>= emacs-major-version 19)
+     '(poe))
+    (t
+     ;; v18.
+     '(localhook env poe-18 poe)))
+
+   ;; pcustom modules; pcustom modules depend on poe.
+   (if (and (module-installed-p 'custom)
+	    ;; new custom requires widget.
+	    (module-installed-p 'widget))
+       ;; if both 'custom and 'widget are found, we have new custom.
+       '(pcustom)
+     ;; pcustom does (require 'custom) at compile-time, and tinycustom
+     ;; need to test existence of some custom macros at compile-time!
+     ;; so, we must compile tinycustom first.
+     '(tinycustom pcustom))
+
+   ;; pccl modules; pccl modules depend on broken.
+   (cond
+    ((featurep 'xemacs)
+     (cond
+      ;; XEmacs 21 w/ mule.
+      ((and (featurep 'mule)
+	    (>= emacs-major-version 21))
+       '(pccl-20 pccl))
+      (t
+       '(pccl))))
+    ((featurep 'mule)
+     (cond
+      ;; Emacs 20.
+      ((>= emacs-major-version 20)
+       '(pccl-20 pccl))
+      ;; Mule 1.* and 2.*.
+      (t
+       '(pccl-om pccl))))
+    (t
+     '(pccl)))
+
+   ;; pces modules; pces modules depend on poe.
+   (cond
+    ((featurep 'xemacs)
+     (cond
+      ((featurep 'mule)
+       ;; XEmacs w/ mule.
+       ;; pces-xfc depends pces-20, so we compile pces-20 first.
+       '(pces-20 pces-xm pces-xfc pces))
+      ((featurep 'file-coding)
+       ;; XEmacs w/ file-coding.
+       ;; pces-xfc depends pces-20, so we compile pces-20 first.
+       '(pces-20 pces-xfc pces))
+      (t
+       '(pces-raw pces))))
+    ((featurep 'mule)
+     (cond
+      ;; Emacs 20.3 and later.
+      ((and (fboundp 'set-buffer-multibyte)
+	    (subrp (symbol-function 'set-buffer-multibyte)))
+       ;; pces-e20 depends pces-20, so we compile pces-20 first.
+       '(pces-20 pces-e20 pces))
+      ;; Emacs 20.1 and 20.2.
+      ((= emacs-major-version 20)
+       ;; pces-e20 depends pces-20, so we compile pces-20 first.
+       '(pces-20 pces-e20_2 pces-e20 pces))
+      (t
+       ;; Mule 1.* and 2.*.
+       '(pces-om pces))))
+    ((boundp 'NEMACS)
+     ;; Nemacs.
+     '(pces-nemacs pces))
+    (t
+     '(pces-raw pces)))
+
+   ;; poem modules; poem modules depend on pces.
+   (cond
+    ((featurep 'mule)
+     (cond
+      ((featurep 'xemacs)
+       ;; XEmacs w/ mule.
+       '(poem-xm poem))
+      ((>= emacs-major-version 20)
+       (if (and (fboundp 'set-buffer-multibyte)
+		(subrp (symbol-function 'set-buffer-multibyte)))
+	   ;; Emacs 20.3 and later.
+	   '(poem-e20_3 poem-e20 poem)
+	 ;; Emacs 20.1 and 20.2.
+	 '(poem-e20_2 poem-e20 poem)))
+      (t
+       ;; Mule 1.* and 2.*.
+       '(poem-om poem))))
+    ((boundp 'NEMACS)
+     '(poem-nemacs poem))
+    (t
+     '(poem-ltn1 poem)))
+
+   ;; mcharset modules; mcharset modules depend on poem and pcustom.
+   (cond
+    ((featurep 'mule)
+     (cond
+      ((featurep 'xemacs)
+       ;; XEmacs w/ mule.
+       (if (featurep 'utf-2000)
+	   ;; XEmacs w/ UTF-2000.
+	   (setq emu-modules-not-to-compile
+		 (cons 'mcs-xmu emu-modules-not-to-compile)))
+       ;; mcs-xm depends mcs-20, so we compile mcs-20 first.
+       '(mcs-20 mcs-xmu mcs-xm mcharset))
+      ((>= emacs-major-version 20)
+       ;; Emacs 20 and later.
+       ;; mcs-e20 depends mcs-20, so we compile mcs-20 first.
+       '(mcs-20 mcs-e20 mcharset))
+      (t
+       ;; Mule 1.* and 2.*.
+       '(mcs-om mcharset))))
+    ((boundp 'NEMACS)
+     ;; Nemacs.
+     '(mcs-nemacs mcharset))
+    (t
+     '(mcs-ltn1 mcharset)))
+
+   ;; timezone.el; Some versions have Y2K problem.
+   (condition-case nil
+       (let ((load-path (delete (expand-file-name ".")
+				(copy-sequence load-path))))
+	 ;; v18 does not have timezone.el.
+	 (require 'timezone)
+	 ;; Is timezone.el APEL version?
+	 (if (product-find 'timezone)
+	     (error "timezone.el is APEL version. Install newer version."))
+	 ;; Y2K test.
+	 (or (string= (aref (timezone-parse-date "Sat, 1 Jan 00 00:00:00 GMT")
+			    0)
+		      "2000")
+	     (error "timezone.el has Y2K problem. Install fixed version."))
+	 ;; Old parser test.
+	 (if (string=
+	      (aref (timezone-parse-date "Wednesday, 31-Jan-01 09:00:00 GMT")
+		    0)
+	      "0")
+	     (error "timezone.el has old date parser. Install fixed version."))
+	 ;; no problem.
+	 '())
+     (error
+      '(timezone)))
+
+   ;; invisible modules; provided for backward compatibility with old "tm".
+   (cond
+    ((featurep 'xemacs)
+     ;; XEmacs.
+     '(inv-xemacs invisible))
+    ((>= emacs-major-version 23)
+     ;; Emacs 23 and later
+     '(inv-23 invisible))
+    ((>= emacs-major-version 19)
+     ;; Emacs 19 and later.
+     '(inv-19 invisible))
+    (t
+     ;; v18.
+     '(inv-18 invisible)))
+
+   ;; emu modules; provided for backward compatibility with old "tm".
+   (if (and (featurep 'mule)
+	    (< emacs-major-version 20))
+       ;; Mule 1.* and 2.*.
+       '(emu-mule emu)
+     '(emu))
+
+   ;; emu submodules; text/richtext and text/enriched support.
+   (if (if (featurep 'xemacs)
+	   (or (>= emacs-major-version 20)
+	       (and (= emacs-major-version 19)
+		    (>= emacs-minor-version 14)))
+	 (or (>= emacs-major-version 20)
+	     (and (= emacs-major-version 19)
+		  (>= emacs-minor-version 29))))
+       ;; XEmacs 19.14 and later, or Emacs 19.29 and later.
+       '(richtext)
+     '(tinyrich))
+
+   ;; mule-caesar.el; part of apel-modules, but it is version-dependent.
+   '(mule-caesar)))
+
+;; Generate `emu-modules-to-compile' from `emu-modules-not-to-compile'
+;; and `emu-modules'.
+(let ((modules emu-modules-not-to-compile))
+  (setq emu-modules-to-compile (copy-sequence emu-modules))
+  (while modules
+    (setq emu-modules-to-compile (delq (car modules) emu-modules-to-compile)
+	  modules (cdr modules))))
+
+;;; EMU-ELS ends here

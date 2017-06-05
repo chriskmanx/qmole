@@ -1,0 +1,2594 @@
+============================= 2.14.17 =========================
+
+2009-01-05  Tor Lillqvist  <tml@novell.com>
+
+	Bug 547885 - ORBit2 should not call g_thread_init() itself as it
+	is usually too late
+
+	* src/linc.c (link_init): Revert change below. Do call
+	g_thread_init(). We don't care what the GLib documentation
+	says. If this potentially late call of g_thread_init() causes
+	problems on some non-Linux platforms, that is the problem of
+	whoever is porting or writing code for that platform, and they
+	need to make sure they call g_thread_init(NULL) very early.
+
+2008-12-15  Tor Lillqvist  <tml@novell.com>
+
+	Bug 547885 - ORBit2 should not call g_thread_init() itself as it
+	is usually too late
+
+	* src/linc.c (link_init): Don't call g_thread_init() here, it's
+	way too late. g_thread_init() must be the first GLib function
+	called in a program if it is called at all. Instead, if thread
+	support is requested but g_thread_init() has not been called,
+	print a warning and continue without threads.
+
+2008-10-17  Cosimo Cecchi  <cosimoc@gnome.org>
+
+	* include/linc/linc-connection.h:
+	* include/linc/linc-protocol.h:
+	* include/linc/linc-server.h:
+	* include/linc/linc-types.h:
+	Use single GLib includes.
+
+2008-10-02  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-protocols.c (link_protocol_is_local_ipv46): Do simple
+	checks for loopback addresses first before doing any
+	gethostbyname(). Avoids superfluous potential DNS lookups.
+
+2008-10-02  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-debug.h: Always turn on the debug printout possibility
+	on Windows.
+
+	* src/Makefile.am: Don't use -DGNU_SOURCE on Windows as it
+	confuses newest mingw headers.
+
+====================== 2.14.16 ===================
+
+2008-09-16  Jules Colding  <colding@42tools.com>
+
+	* src/linc-protocols.c (link_protocol_get_sockinfo_ipv4)
+	(link_protocol_get_sockinfo_ipv6): Do not fail if the hostname
+	couldn't be determined. Instead rely on the link_get_local_hostname()
+	provided hostname. This is expected to fix #538388 and #552323.
+
+====================== 2.14.15 ==================
+
+2008-08-26  Mike Gorse  <mgorse@novell.com>
+
+	* src/linc-protocols.c (link_protocol_post_create_unix):
+	use chown not fchown on the socket.
+
+2008-08-11  Michael Meeks  <michael.meeks@novell.com>
+
+	* src/linc-protocols.c (get_first_non_local_ipaddr):
+	remove bogus return bits; re-order linc-protocols array
+	to maintain binary compat.
+
+2008-08-11  Mike Gorse  <mgorse@novell.com>
+
+	* src/linc-protocols.c (link_protocol_post_create_unix),
+	* src/linc-server.c (link_server_setup): add and call post_create
+	method to allow root user to create sockets in ORBIT_SOCKETDIR,
+	to allow user owned ATs to talk to a root owned app.
+
+2008-06-21  Jules Colding  <colding@42tools.com>
+
+	* src/linc-protocols.c (get_netid): This function
+	failed on Mac OS X for (ORBNetID == "ipaddr"). It is
+	now fixed and simplified greatly by the use of the new
+	function get_first_non_local_ipaddr().
+	(get_first_non_local_ipaddr):  This function will
+	correctly deduce the first non-loopback interface
+	on the host.
+
+============================== 2.14.13 ===========================
+
+2008-05-25  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-connection.c (link_connection_broken_idle): Don't print
+	a parameter that is now gone in d_printf.
+
+2008-05-22  Michael Meeks  <michael.meeks@novell.com>
+
+	* src/linc-connection.c (link_connection_broken_idle),
+	(add_idle_broken_for_cnx_T, link_connection_state_changed_T_R): 
+	don't add one idle handler per cnx; share a global idle handler.
+	don't inhibit reconnection while emitting 'broken' if we are
+	already emitting broken callbacks. bug #534351#
+
+2008-05-20  Tor Lillqvist  <tml@novell.com>
+
+	Bug 524056 - Patch: fix linc2 so it compiles with MSVC.
+	
+	* src/linc-connection.c
+	* src/linc-source.c
+	* src/linc-compat.h: Patch by Marcelo Vanzin. Add a few ifdefs.
+
+2008-04-23  Tor Lillqvist  <tml@novell.com>
+
+	Bug 514993 - Get rid of the "FIXME: guard from double entry" warning
+
+	* src/linc.c (link_set_io_thread): Get rid of the warning.
+        (link_exec_set_io_thread): Instead rearrange the locking and
+	testing of flag here.
+
+2008-04-15  Jeff Cai<jeff.cai@sun.com>
+
+	* src/linc-protocols.c: (link_get_local_hostname),
+	(link_use_local_hostname), (link_protocol_is_local_ipv46):
+	Bug #527128
+	Removed Li Yuan's Patch. Any incoming requests with
+	"127.0.0.1" or "::1" in header field will be regarded
+	as local request.
+
+2008-04-10  Li Yuan  <li.yuan@sun.com>
+
+	* src/linc-protocols.c: (link_get_local_hostname),
+	(link_use_local_hostname):
+	Bug #527128.
+	Refresh local_host when use_local_host is changed.
+
+=============================== 2.14.12 ========================
+
+=============================== 2.14.11 ========================
+
+2008-01-23  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-protocols.c (link_protocol_get_sockinfo_ipv4): Add
+	accidentally removed closing brace.
+
+2008-01-21  Tor Lillqvist  <tml@novell.com>
+
+	Rework form of addresses used on Windows. Seems to fix the
+	problems reported in bug #363648. See that bug for extensive even
+	if occasionally misleading discussion.
+
+	* src/linc-protocols.c [Win32]: Change the default value of the
+	use_local_host variable to LINK_NET_ID_IS_IPADDR. This seems to in
+	general be more useful than FQDNs especially for end-user machines
+	with DNS randomness issues.
+
+	Add some d_printf() calls to print debugging information when DNS
+	lookups are being done. To see them, recompile with
+	CONNECTION_DEBUG defined in src/linc-debug.h and set the
+	LINK_CONNECTION_DEBUG environment variable.
+
+	(get_netid) [Win32]: Return the numeric "127.0.0.1" in the
+	LINK_NET_ID_IS_LOCAL case.
+
+	(link_protocol_get_sockinfo_ipv4) [Win32]: always return the
+	numeric IP address instead of doing any gethostbyaddr() etc
+	lookups.
+
+2007-10-29  Tor Lillqvist  <tml@novell.com>
+
+	* include/linc/linc-connection.h
+	* src/linc-connection.c
+	* src/linc-server.c: Improve type safety: Change type of parameter
+	of link_connection_ref() and link_connection_unref() from gpointer
+	to LinkConnection*.
+
+======================== 2.14.10 ==========================
+
+2007-09-24  Jules Colding  <colding@omesc.com>
+
+	* include/linc/linc-protocol.h (enum): LinkNetIdType expanded 
+	with one more value. This value will request that ORBit2 is using 
+	a specific NIC when creating network visible objects.
+
+	* src/linc-protocols.c (get_netid): Support more than 2 NICs.
+	Implement the new LINK_NET_ID_IS_CUSTOM functionality.
+	(link_set_local_hostname): Will set the requested NIC as the
+	one that is chosen when an object is bound to an interface.
+
+2007-09-22  Jules Colding  <colding@omesc.com>
+
+	* src/linc-connection.c (link_connection_finalize): 
+	Remove g_assert() on the non-presence of cnx in cnx_list. The 
+	cnx might not yet have gone.
+
+======================== ORBit2-2.14.9 ====================
+
+2007-08-14  Jules Colding  <colding@omesc.com>
+
+	* src/linc-connection.c (link_connection_init): Initialize new
+	data member in connection struct
+
+	* include/linc/linc-connection.h (struct): Add void member 
+	to hold a GIOPThread*
+
+2007-08-07  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-connection.c (link_connection_from_fd_T): Ifdef
+	AF_INET6. (#464094, Andreas Köhler)
+
+2007-07-05  Jules Colding  <colding@omesc.com>
+
+	* src/linc-connection.c (link_connection_try_reconnect): 
+	Added LINK_TIMEOUT to valid reconnect states.
+
+2007-06-19  Jules Colding  <colding@omesc.com>
+
+	* src/linc-connection.c (link_connection_init): Initialize
+	timeout members in the LinkConnection structure.
+	(link_set_timeout): New function to set the timeout value.
+
+2007-06-18  Jules Colding  <colding@omesc.com>
+
+	* src/linc-connection.c (link_connection_from_fd_T): Initiate
+	timeout members of the link connection iff:
+	1) The connection is IPv4 or IPv6
+	2) It is not a oneway
+	3) The timeout parameter is non-zero
+
+	* include/linc/linc-connection.h (struct): 
+	1) timeout mutex
+	2) timeout value in milliseconds
+	3) timeout status
+
+	Furthermore declare link_set_timeout()
+
+========================== ORBit2-2.14.8 ========================
+
+2007-02-27  Kjartan Maraas  <kmaraas@gnome.org>
+
+	* src/linc-connection.c: (link_connection_get_type):
+	* src/linc-server.c: (link_server_get_type):
+	* test/test-linc.c: (test_get_broken_cnx_type),
+	(test_get_blocking_cnx_type): Remove unneeded trailing
+	commas.
+
+========================== ORBit2-2.14.7 ========================
+
+========================== ORBit2-2.14.6 ========================
+
+2007-01-23  Kjartan Maraas  <kmaraas@gnome.org>
+
+	* src/Makefile.am: Remove unneeded -version-info
+	flag. Patch from dmacks at netspace org. Closes bug #399309.
+
+========================== ORBit2-2.14.5 ========================
+
+2006-12-04  Jules Colding  <colding@omesc.com>
+
+	* src/linc.c (link_wait): Do not wait forever for the link
+	condition to get signaled.
+
+2006-11-22  Kjartan Maraas  <kmaraas@gnome.org>
+
+	* src/Makefile.am: Remove SSL_LIBS and SSL_CFLAGS.
+	* test/Makefile.am: Same here. This makes --enable-http work.
+
+2006-09-09  Jules Colding  <colding@omesc.com>
+
+	* src/linc-connection.c (link_connection_do_initiate): Remove code
+	that disabled any non-local IPv4 connection.
+
+2006-06-23  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-protocols.c (link_protocol_get_sockinfo_ipv4): In the
+	Win32-only code snippet that verifies looking up the name works,
+	don't bother looking up "localhost", as it will return a hostent
+	containing the host name (and not "localhost"). Using the host
+	name will then cause us to use a real interface anyway and not the
+	loopback interface as the intention was. In the case of
+	"localhost", actually even use the name "127.0.0.1" for extra
+	safety.
+
+2006-06-20  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-compat.c (link_map_winsock_error_to_errno): Keep the
+	return value from WSAGetLastError() in a variable so it's easier
+	to look at in in the debugger...
+	(link_pipe): Make the Win32 socket pair sockets non-inheritable,
+	just for cleanliness, isn't actually required for it to work.
+
+2006-06-19  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-connection.c (link_connection_do_initiate)
+	* src/linc-server.c (link_server_setup)
+	(link_server_accept_connection): Make the sockets we create
+	non-inheritable on Windows. In retrospect, it is rather
+	embarrassing that it should take this long for me to notice how
+	essential it is to do this... but the root cause of the ill
+	effects was not immediately obvious. This corresponds to the
+	FD_CLOEXEC that is used on Unix.
+
+	Use LINK_CLOSE_SOCKET() instead of close().
+
+2006-06-16  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-protocols.c (make_local_tmpdir): Don't do the utime()
+	trick on Win32 here either, as we don't have any gstdio wrapper
+	for utime() (so it won't work anyway if the username or temp
+	folder path have non-ASCII characters), and the usefulness of it
+	is questionable on Win32. But why is the utime() code snippet
+	duplicated here and in giop_tmpdir_init()?
+
+2006-06-02  Michael Meeks  <michael.meeks@novell.com>
+
+	* src/linc.c (link_mainloop_handle_input, link_signal):
+	use broadcast instead of signal - bug#341238 - many thanks
+	to Jeff Cai <jeff.cai@sun.com> for the fix.
+
+2006-05-24  Michael Meeks  <michael.meeks@novell.com>
+
+	* src/linc.c (link_mainloop_handle_input): fix
+	race causing lockup of e-d-s at times.
+	(link_exec_command): change magic char on pipe to
+	'L' to distinguish from glib's wakeup.
+
+2006-02-03  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-protocols.c [Win32] (get_netid): Guard against
+	gethostbyname() failing.
+
+2006-02-01  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-protocols.c (get_netid): Use getaddrinfo() only if
+	HAVE_GETADDRINFO, otherwise gethostbyname(). This means we won't
+	use getaddrinfo() on Windows, as the configure test as currently
+	written doesn't find it on Windows. (It is present only on XP
+	anyway, so if we use it the ORBit2 DLL will not load on Windows
+	2000.)
+
+2005-12-21  Jules Colding  <colding@omesc.com>
+
+	* src/linc-protocols.c (get_netid): Remove unnecessary casts (Bug #324686). 
+	The fix was created by Damien Carbery.
+
+2005-11-11  Jens Granseuer  <jensgr@gmx.net>
+
+	* src/linc-protocols.c (get_netid): fix // comment.
+
+2005-11-08  Anders Carlsson  <andersca@imendio.com>
+ 
+ 	* src/linc-server.c (link_server_accept_connection): 
+ 	Listen to the "broken" signal on connections.
+ 	(link_server_client_connection_broken): 
+ 	Remove the connection from the list and unref it.
+ 	(link_server_dispose): Disconnect from the "broken" signal.
+
+2005-10-13  Dmitry Maksyoma  <ledestin@gmail.com>
+
+	* src/linc-server.c (link_server_setup): fix potential
+	socket leak, don't spin forever with a specified port.
+
+2005-08-01  Jules Colding  <colding@omesc.com>
+
+	* src/linc-protocols.c (get_netid): Replace two silly ';;'s with ';'.
+
+2005-07-28  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-compat.h: Include also ws2tcpip.h on Win32.
+
+	* src/linc-protocols.c: Drop unnecessary inclusion of
+	<dirent.h>. Don't include Unix-only headers on Win32.
+	(get_netid): Add Win32 implementation of interface listing.
+	(link_get_local_hostname): Drop the Win32-only code snippet that
+	made sure looking up the hostname works. Will have to rethink
+	whether it's necessary later, and add back inside the appropriate
+	place in get_netid().
+
+2005-07-28  Jules Colding  <colding@omesc.com>
+
+	* src/linc-protocols.c: Change default use_local_host to
+	LINK_NET_ID_IS_FQDN. 
+	(get_netid): Convert to C89-style.
+
+2005-07-25  Jules Colding  <colding@omesc.com>
+
+	* src/linc-protocols.c (get_netid): New function get_netid(). This 
+	function will full a preallocated buffer with a string describing 
+	the name of the local host according to the value of use_local_host.
+
+	link_get_local_hostname(): Modified to produce a resolvable hostname 
+	according to the value of use_local_host. This hostname will be used 
+	when composing IORs. 
+
+	use_local_host: Defaults now to LINK_NET_ID_IS_IPADDR fopr maximum
+	resolvability.
+
+	* include/linc/linc-protocol.h: Added new enum type "LinkNetIdType" to
+	use as argument in link_use_local_hostname().
+
+2005-07-09  Sebastian Rittau  <srittau@jroger.in-berlin.de>
+
+	* src/cleanup.c: (main): Use g_get_tmpdir() instead of hardcoding
+	/tmp.
+
+2005-05-10  Mark McLoughlin  <mark@skynet.ie>
+
+	Use a 256k stack for the IO thread rather than
+	the system default (10M on FC4). bug #303649
+
+	* src/linc.c: (link_exec_set_io_thread): Use
+	a 256k stack.
+
+2005-04-15  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-private.h: On Win32, keep a pointer back to the
+	embedding LinkWatch in the LinkUnixWatch. Also, keep a pointer to
+	the last polled LinkUnixWatch in the LinkWatch.
+
+	* src/linc-source.c (link_source_prepare): On Win32, if changing
+	which of the two LinkUnixWatch GSources associated with a
+	LinkWatch we are polling, we have to associate the corresponding
+	event with the socket by calling WSAEventSelect().
+	(link_source_create_watch_for_watch): New helper function that
+	calls link_source_create_watch() and then on Win32 associates a
+	LinkWatch with the LinkUnixWatch().
+	(link_io_add_watch_fd, link_watch_move_io): Call the above.
+
+2005-04-14  Arvind Samptur  <arvind.samptur@wipro.com>
+
+	* include/linc/linc-protocol.h: Add link_get_local_hostname ()
+	* src/linc-private.h: Remove link_get_local_hostname ()
+	Patch approved by Michael Meeks
+
+2005-04-13  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc.c
+	* src/linc-protocols.c: Use gstdio wrappers for better localized
+	filename support on Win32.
+
+	* src/linc-compat.c (link_strerror): Use g_strerror() instead of
+	strerror() to get UTF-8 messages.
+
+2005-03-24  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-source.c (link_source_check): One more iteration of the
+	Win32 code. The code passes zero as the hEventObject parameter to
+	WSAEnumNetworkEvents(). This meant that the event never got reset,
+	and kept firing. Problem noticed with gconfd-2 and
+	bonobo-activation-server, which kept busy-looping and consuming
+	lots of CPU.
+
+	Now we reset the event if it is set but WSAEnumNetworkEvents() has
+	returned an empty network event mask. We then also
+	WSAEventSelect() an empty network event mask, so that the next
+	call to the prepare method will reselect for the appropriate
+	network events.
+
+	No need to handle FD_ACCEPT events specially any longer, the above
+	takes care of it.
+
+	* src/linc-debug.h (d_printf): Do a fflush(), too.
+
+	* src/linc.c (link_init): Improve debug output facilities: If
+	CONNECTION_DEBUG and CONNECTION_DEBUG_FLAG are #defined, check for
+	environment variable LINK_PER_PROCESS_STDERR, and if set, redirect
+	stderr to a per-process log file.
+
+2005-03-11  Arvind Samptur  <arvind.samptur@wipro.com>
+
+	* src/linc-server.c (link_server_setup): Fill the LinkServer proto
+	with the info as soon as we find one. In case we cannot setup the 
+	connection the link_protocol_destroy_cnx () throws up a proto not 
+	found assertion which is not true. Patch reviewed by Micheal Meeks.
+
+2005-03-10  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-protocols.c (link_get_local_hostname): Make sure
+	looking up the local hostname works on Win32. Try first dropping
+	the domain suffix, and then using the NetBIOS name.
+	(link_protocol_get_sockinfo_ipv4): Make sure looking up the
+	hostname to be returned works. If not, use IP address instead.
+
+	* test/test-linc.c (test_local): Ifdef out variable not used on Win32.
+
+2005-02-23  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-private.h
+	* src/linc.c: Use consistent spelling, with a 'k', for the
+	optional LINK_CONNECTION_DEBUG environment variable.
+
+	* src/linc-source.c (link_source_check): If we get a FD_ACCEPT
+	event on a socket, reset the selected event mask to zero, and
+	reset the event. Otherwise the event keeps firing. Problem noticed
+	in test-giop.
+
+2005-02-18  Tor Lillqvist  <tml@novell.com>
+
+	More hacking on linc2 for Windows. After the below changes,
+	test_blocking() in test-linc finally works also on Windows. More
+	importantly, the test programs in libbonobo also work.
+
+	The semantics of the socket event functionality (WSAEventSelect(),
+	WSAEnumNetworkEvents()) were less intuitive than I had
+	thought. The event fires for writeability only once after
+	connect() or accept(), and after that only once each time the
+	socket becomes writeable again, after having been in the
+	WSAEWOULDBLOCK state. The documentation for WSAEventSelect() does
+	explain this, but it's very easy to miss.
+
+	* src/linc-private.h (LinkUnixWatch): Add new flag for Win32:
+	write_would_have_blocked, to be set to TRUE for watches when
+	writing to the socket has errored with WSAEWOULDBLOCK.
+
+	(LinkConnectionPrivate): Add counters of total number of bytes
+	read and written if CONNECTION_DEBUG defined.
+
+	* src/linc-source.c (link_source_check, link_source_dispatch):
+	Move the call to WSAEnumNetworkEvents() to the check method from
+	the dispatch method. Call WSAEnumNetworkEvents() always, as the
+	WaitForMultipleObjects() in g_poll() fires just for one event at a
+	time. If writes to the socket are not currently known to cause
+	blocking, always set G_IO_OUT in revents.
+
+	Don't reset the selected event mask each time. Reselect a new mask
+	(in the prepare method) only if the condition has changed, as
+	originally was the idea. The tests in ../test/everything still
+	work.
+
+	(link_win32_watch_set_write_wouldblock): New function, to set the
+	write_would_have_blocked flag.
+
+	* src/linc-connection.c: Initialize, increment and print the total
+	counters if CONNECTION_DEBUG.
+
+	(write_data_T): Call link_win32_watch_set_write_wouldblock().
+
+	* src/linc-debug.h: Enable making the debugging printout
+	selectable at run-time through an environment variable. By default
+	debugging printout code not compiled in, though.
+
+	* test/test-linc.c: Do run test_blocking() also on Windows.
+
+2005-02-13  Arvind Samptur  <arvind.samptur@wipro.com>
+
+	* include/linc/linc-protocol.h: Add link_use_local_hostname ()
+
+	* src/linc-protocols.c (link_use_local_hostname): Set the global
+	use_local_host.
+	(link_get_local_hostname): Return "localhost" if use_local_host
+	is set.
+	Patch reviewed by Michael Meeks
+
+2005-02-07  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-debug.h: Don't define CONNECTION_DEBUG on Win32, done
+	with the heavy debugging for now.
+
+	* src/linc-source.c (link_source_dispatch): Unselect socket
+	events, so that we have to re-select them with WSAEventSelect() in
+	link_source_prepare(). Don't know why, but this prevents the test
+	in ../test/everything from hanging after the async tests.
+
+2005-02-02  Hans Petter Jansson  <hpj@novell.com>
+
+	* src/linc-compat.h: Include <sys/types.h> before the optional stuff.
+	Some platforms don't pull it in automatically when needed.
+
+2005-01-28  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-compat.c: Rename link_socketpair() to link_pipe(), and
+	make it cross-platform, just encapsulating pipe() on Unix.
+
+	* src/linc.c: Change accordingly.
+
+	* src/linc/linc-compat.h
+	* include/linc/linc.h: Move declarations of
+	link_map_winsock_error_to_errno() and link_pipe() to linc.h, as
+	they are used also in GIOP.
+
+2005-01-27  Tor Lillqvist  <tml@novell.com>
+
+	* src/linc-compat.h: Include <sys/utime.h> if that's where utime.h
+	is.
+
+	* src/linc-private.h (LinxUnixWatch): On Win32, the GPollFD::fd is
+	actually a HANDLE, so keep also the original SOCKET around, and
+	the desired socket event mask.
+	(LINK_TEMP_FAILURE_RETRY): Split into separate macros for retrying
+	"normal" system call API and socket API. They're different on
+	Win32.
+	(LINK_CLOSE_SOCKET): New macro. On Win32 uses closesocket().
+
+	* src/*.c: Adapt to above changes. Include linc-compat.h. Add more
+	d_printf() debugging output (which normally expands to
+	nothing). Add WinSock code. Bypass Unix-only stuff on Win32.
+
+	* src/linc-debug.h: Always define CONNECTION_DEBUG on Win32 (for
+	now while working on Win32 port).
+
+	* src/linc-protocols.c: Use LINK_PROTOCOL_NEEDS_BIND for IPv4 on
+	Win32.
+
+	* src/linc-source.c: The core machinery for interfacing to the
+	GLib main loop on Win32 is here.
+	(link_source_prepare): Call WSAEventSelect() if the event mask
+	(i.e., condition) has changed.
+	(link_source_dispatch): Call WSAEnumNetworkEvents() to find out
+	what socket event actually fired.
+	(link_source_create_watch): Create an event to poll on in the GLib
+	main loop. Store that in the GPollFD::fd.
+	(link_watch_unlisten): Close the events.
+
+	* src/linc.c: On Win32, instead of a pipe, use a connected TCP
+	socket pair as the wakeup pipe.
+	(link_init): Start WinSock.
+
+	* test/test-linc.c (init_tmp): Use g_build_filename().
+	(create_server, create_client): On Win32 use IPv4 not UNIX
+	sockets.
+	(test_broken): Only if HAVE_SYS_WAIT_H.
+	(knobble_watch): Don't use a pointer before asserting it's
+	non-NULL. Don't g_assert() an expression with side-effects,
+	g_assert expands to empty when compiled with G_DISABLE_ASSERT.
+	(test_local): Don't test UNIX sockets on Win32.
+	(test_blocking, main): For some reason the "blocking" test doesn't
+	work on Win32, bypass for now.
+
+2005-01-26  Gustavo J. A. M. Carneiro  <gjc@gnome.org>
+
+	* src/linc-protocols.c: Add missing #include <utime.h>.
+
+2005-01-26  Tor Lillqvist  <tml@novell.com>
+
+	* include/linc/linc-connection.h
+	* include/linc/linc-protocol.h: Restructure includes for Win32.
+
+	* src/linc-compat.c: New file, Win32 portability functions.
+
+	* src/linc-compat.h: Win32 additions, restructuring.
+
+	* src/Makefile.am (bin_PROGRAMS): Don't build linc-cleanup-sockets
+	on Win32, where there are no Unix domain sockets to clean up. Add
+	linc-compat.c
+
+2004-09-27  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(link_connection_try_reconnect): actually
+	unset inhibit reconnect having emitted callbacks.
+
+2004-09-16  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(dispatch_callbacks_drop_lock): split out.
+	(link_connection_state_changed_T_R): upd.
+	(link_connection_try_reconnect): dispatch callbacks
+	immediately if we own the default mainloop, so we don't
+	deadlock vs. the idle handler.
+
+2004-05-26  Padraig O'Briain  <padraig.obriain@sun.com>
+
+	* src/linc-private.c (LINC_TEMP_FAILURE_RETRY): Change macro to
+	not use __extension__ which does not build on Solaris when not using
+	gcc.
+	* src/linc-connection.c (linc_connection_do_initiiate,
+	link_server_accept_connection, write_data_T): Update because of
+	change to macro LINC_TEMP_FAILURE_RETRY.
+	* src/linc-server.c (link_server_accept_connection): Update because of
+	change to macro LINC_TEMP_FAILURE_RETRY.
+
+	Fixes bug #143129.
+
+2004-05-21  Frank Rehberger  <frehberg@gnome-de.org>
+
+	* src/linc-private.h (LINC_TEMP_FAILURE_RETRY): macro retries IO
+	operation in case of EINTR IO-error.
+	* src/linc-connection.c (link_connection_do_initiate,
+	link_server_accept_connection): wrap IO read/write operations with
+	LINC_TEMP_FAILURE_RETRY
+
+2004-03-04  Michael Meeks  <michael@ximian.com>
+
+	* Version 2.10.0
+
+2004-02-05  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(link_connections_close): fix - do dispose loop,
+	don't unref things we don't own.
+	(link_connection_finalize): add debug assertion.
+	(link_connection_from_fd_T): dont' re-add the cnx
+	to the list when re-trying the connect.
+
+2004-02-04  Michael Meeks  <michael@ximian.com>
+
+	* Version 2.9.7
+
+2004-02-02  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-private.h: include linc-debug.h here, after the
+	glib include, instead of all elsewhere.
+
+2004-01-14  The Written Word  <bugzilla-gnome@thewrittenword.com>
+
+	* src/linc-debug.h: don't assume vararg macros.
+
+	* src/linc.c: include config.h
+
+2003-12-10  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (link_set_io_thread): fix warning.
+
+2003-12-08  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(link_connection_exec_cnx_unref): do yet more locking.
+
+2003-11-14  Padraig O'Briain  <padraig.obriain@sun.com>
+	* linc2/src/linc-server.c (link_server_handle_io): Add comment
+	about change of g_error to g_warning for bug #126209.
+
+2003-11-13  Michael Meeks  <michael@ximian.com>
+
+	* Version 2.9.1
+
+2003-11-11  Justin Schoeman <justin@expertron.co.za>
+
+	* linc2/src/linc.c (link_set_io_thread): Fix command type for
+	LINK_COMMAND_SET_IO_THREAD to use synchronous command structure.
+
+	* linc2/src/linc-connection.c (link_connection_exec_cnx_unref)
+	(link_connection_unref_unlock), linc2/src/linc-private.h,
+	linc2/src/linc.c (cmd_is_sync) (link_dispatch_command): Move
+	tail_unref of connection to the I/O thread to remove some shutdown
+	races.
+
+2003-10-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (link_set_io_thread): don't allocate
+	the cmd, for the synchronous command - just use
+	the stack; thanks to Sebastian Rittau.
+
+2003-10-10  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(link_connections_close): implement, and
+	warn less.
+
+	* src/linc.c (link_io_thread_fn): close
+	connections on IO thread exit.
+
+2003-10-09  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (link_set_io_thread): only spew
+	warning with debug enabled.
+
+2003-08-22  Michael Meeks  <michael@ximian.com>
+
+	* src/cleanup.c (read_sockets): cope with opendir
+	failure: from Debian patch.
+
+2003-08-12  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-source.c: staticize linc_source_watch_funcs.
+
+2003-08-11  Michael Meeks  <michael@ximian.com>
+	
+	* Version 2.7.6
+
+2003-07-30  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (link_protocol_get_sockinfo_irda) 
+	(link_protocol_get_sockaddr_irda): bin.
+	(irda_getnameinfo, irda_getaddrinfo, irda_find_device): bin.
+
+2003-07-29  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (link_mutex_is_locked): substantially
+	disable it except for GLIBC systems that have sensible
+	pthreads impls.
+
+2003-07-15  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (queue_free): re-order to
+	fix warnings - thanks to Damien Carbery.
+
+2003-07-15  Michael Meeks  <michael@ximian.com>
+
+	* Version 2.7.3
+
+2003-07-14  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (link_connection_state_changed_T_R):
+	free the write queue on disconnect.
+
+2003-07-11  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (link_connection_wait_connected_T): split
+	(link_connection_wait_connected): from here.
+	(link_connection_try_reconnect): impl.
+	(link_connection_from_fd_T): free previous values.
+	(link_connection_broken_idle): unset inhibit_reconnect.
+	(link_connection_state_changed_T_R): set inhibit_reconnect.
+
+2003-07-10  George Lebl <jirka@5z.com>
+
+	* src/linc-connection.c
+	(link_connection_remove_broken_cb): fix leak.
+
+2003-07-09  Michael Meeks  <michael@ximian.com>
+
+	* test/test-linc.c (test_connected): impl.
+
+	* src/linc-connection.c (link_connection_wait_connected):
+	use link_wait, and work for threading cases.
+
+	* src/linc.c (link_wait, link_signal): impl.
+
+2003-07-08  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (link_set_io_thread): move set of
+	(link_exec_set_io_thread): is_io_in_thread to here - so we
+	can't race elsewhere.
+
+2003-06-29  Dave Camp  <dave@ximian.com>
+
+	* src/linc-connection.c (link_connection_broken_idle): Pass
+	bc->user_data to the callback rather than l->data.
+
+2003-06-28  Dave Camp  <dave@ximian.com>
+
+	* src/linc-connection.c (link_connection_remove_broken_cb): Fixed
+	the g_slist_delete_link() call.
+
+2003-06-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(link_connection_add_broken_cb, link_connection_remove_broken_cb):
+	impl. so we can emit 'broken' at idle.
+	(link_connection_broken_idle): impl.
+	(link_connection_finalize): upd.
+	(link_connection_state_changed_T_R): upd.
+
+2003-06-19  Gustavo J. A. M. Carneiro  <gustavo@users.sourceforge.net>
+
+	* include/linc/linc-config.h: Removed this file; it is generated
+	from linc-config.h.in.
+
+2003-06-09  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(link_connection_class_state_changed): fold this into
+	(link_connection_state_changed_T): here, so we can call
+	the sub-classed impl. without the lock held.
+	(link_connection_class_init): upd.
+	(link_connection_state_changed_T_R): rename & drop lock.
+
+2003-06-04  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (link_connection_initiate): 
+	fix a truly stupid list traversal bug.
+
+2003-06-04  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(link_connection_exec_set_condition): only take lock
+	if not immediate.
+	(link_connection_unref_T_): impl.
+	(link_connection_exec_set_condition): use it in
+	the immediate case.
+	(link_connection_unref_unlock): split out from
+	(link_connection_unref): here, and use all over.
+
+	* src/linc.c (link_dispatch_command): add / propagate
+	the immediate flag.
+
+	* src/linc-source.c (link_io_add_watch_fd):
+	always add to the main_source in non thread_io mode.
+	(link_watch_unlisten): beef up.
+
+	* src/linc-protocols.c,
+	* test/test-linc.c: fix Linc->Link sanfu's -
+	autotools dependency tracking gets progressively
+	more wonderful.
+
+2003-06-03  Michael Meeks  <michael@ximian.com>
+
+	* src/*.[ch]: update to get_thread_safe.
+
+	* src/linc.c (link_get_threaded): bin it.
+	(link_thread_io, link_thread_safe): replace 
+	with these.
+	(link_mutex_new): bin link_mutex_new_called etc.
+	(link_main_idle_add): bin - unused.
+	(link_main_get_loop): bin it.
+
+	* src/linc-connection.c (queue_flattened_T_R):
+	only update the poll if we didn't have a queue
+	already; remove assert.
+
+2003-06-03  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-source.c (link_watch_unlisten): split
+	(link_io_remove_watch): from here.
+	(link_watch_move_io): impl.
+
+	* src/linc.c (linc_exec_set_io_thread): 
+	call the hooks.
+
+	* src/linc-connection.c
+	(link_connections_move_io_T): impl.
+
+	* src/linc-server.c: s/cnx/srv/ for servers.
+	(link_server_dispose, link_server_setup): manage
+	server_list. (link_servers_move_io_T): impl.
+
+	* src/linc-connection.c
+	(link_connection_initiate_list): check was_initiated.
+	Track all connections on cnx_list.
+	(link_connection_from_fd_T): prepend to list here.
+	(link_connection_initiate): and not here.
+
+2003-06-03  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c
+	(link_server_accept_connection): upd.
+
+	* src/linc-connection.c
+	(link_connection_initiate): internalize and rename
+	to (link_connection_do_initiate).
+	(link_connection_initiate): rename from initiate_list.
+
+	* src/linc.c (link_init): upd.
+	(link_lock, link_unlock): face reality -
+	a global lock for everything.
+
+	* src/linc-connection.c
+	(_link_connection_thread_init): bin it.
+
+	* src/linc.c (cmd_is_sync): impl.
+	(link_exec_command): impl. sync methods.
+	(link_init): create condition.
+	(linc_exec_set_io_thread): stub.
+	(link_set_io_thread): stub.
+
+2003-06-02  Michael Meeks  <michael@ximian.com>
+
+	* test/test-linc.c (verify_addr_is_loopback):
+	don't fail with loopback reverselookup.
+
+	* src/linc-source.c (link_io_add_watch):
+	bin / privatize, all done by fd now.
+	(link_io_remove_watch): privatize.
+
+	* src/linc.c: bin deprecated bits.
+	(link_set_threaded): bin.
+
+2003-05-31  Michael Meeks  <michael@ximian.com>
+
+	* src/Makefile.am (noinst_LTLIBRARIES): don't
+	install the library (doh).
+
+2003-05-23  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c: add _R suffix to methods,
+	assuming a reference is held.
+	(linc_connection_from_fd_T): split from.
+	(linc_connection_from_fd): here.
+	(linc_connection_initiate): use it.
+	(linc_connection_class_init): don't create locks here
+	(_linc_connection_thread_init): do them here.
+
+	* src/linc.c (linc_init): use it.
+
+	* src/linc.c (linc_object_unref, linc_object_ref),
+	(linc_object_get_mutex): deprecated
+	(linc_idle_unref, linc_fast_unref): bin.
+
+	* src/linc-connection.c (linc_connection_unref) 
+	(linc_connection_ref): handle weak refs nicely.
+	(linc_connection_initiate_list): impl.
+
+2003-05-22  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (queue_signal_T): drop lock
+	over the signal emission.
+	(linc_connection_class_state_changed): ditto.
+	(linc_connection_exec_set_condition): actually use
+	the passed in I/O condition. (thanks AlexL)
+
+2003-05-21  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_io_handler):
+	drop the lock over the handle_input emission.
+	(linc_connection_state_changed_T): split out from
+	(linc_connection_state_changed): here & upd.
+	Add a _T suffix to lots of methods that assume the
+	lock is held.
+	(linc_connection_exec_disconnect): clean.
+	(linc_connection_read): take / release the cnx. lock.
+
+	* src/linc.c (linc_in_io_thread): fix horrors.
+	(linc_object_unref): use it instead of the same hack;
+	thanks to Alex L.
+
+2003-05-12  Gustavo J. A. M. Carneiro  <gustavo@users.sourceforge.net>
+
+	* MAINTAINERS: Declare myself as documentation maintainer.
+
+2003-05-03  Michael Meeks  <michael@ximian.com>
+
+	* Version 1.1.1
+
+2003-04-29  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_io_thread_fn): hold lock over
+	wake fd shutdown.
+	(linc_exec_command): if the pipe is shut, then just
+	exec the command in-line (server shutdown condition).
+
+2003-04-28  Gustavo J. A. M. Carneiro  <gustavo@users.sourceforge.net>
+
+	* Makefile.am (DISTCHECK_CONFIGURE_FLAGS): Added --enable-gtk-doc.
+
+	* docs/tmpl/linc-config.sgml: Added this file.  Document
+	LINC_SSL_SUPPORT.
+
+	* docs/linc-docs.sgml: Replace header with the docbook-4.1.2/xml
+	one.  Removed the "linc" chapter, so that the section entries
+	become toplevel instead.  Added the linc-config section.
+
+	* docs/linc-sections.txt: Removed LINCProtocolInfo from section
+	linc-types, since it is already present in section linc-protocol.
+	Made the macro LINC_SSL_SUPPORT, in the linc-config section, appear.
+
+	* autogen.sh: Source system's gnome-autogen.sh instead of doing
+	our own checks.
+
+	* docs/Makefile.am: Replaced the boilerplate gtk-doc makefile
+	section with include $(top_srcdir)/gtk-doc.make.
+	(MKDB_OPTIONS): Added --sgml-mode --output-format=xml.
+
+	* configure.in: Replace the gtk-doc check with the macro
+	GTK_DOC_CHECK.
+
+2003-04-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_wait_connected): impl.
+	(linc_connection_writev): use it here.
+	(linc_connection_io_handler): handle the just connected
+	=> start flush queued writes case.
+
+2003-04-21  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_exec_command): handle EINTR.
+	(linc_exec_command): dispatch commands immediately
+	if not in threading mode.
+	(linc_mainloop_handle_input): split out
+	(linc_dispatch_command): the dispatch.
+
+2003-04-19  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_exec_disconnect) 
+	(queue_flattened, linc_connection_exec_set_condition): impl.
+
+	* src/linc.c (linc_io_thread_fn, linc_init): move
+	the I/O thread instantiation in here.
+	(linc_shutdown, linc_exec_command): impl.
+	(linc_mainloop_handle_input): mux. commands.
+
+	* src/linc-connection.c (linc_connection_read),
+	assert locked on read, re-factor exit.
+	(linc_connection_flush_write_queue): bin locking.
+	(linc_connection_class_init): bin crack-pot complex
+	locking schemes, and go for a big global lock.
+	(linc_connection_finalize): bin lock init/destroy.
+	(linc_connection_flush_write_queue_cb): bin it.
+	(linc_connection_disconnect): impl.
+
+	* src/linc-server.c (linc_server_init, linc_server_handle_io) 
+	(linc_server_dispose): bin curious mutex; all happens in I/O
+	thread anyway.
+
+	* src/linc.c (linc_mutex_is_locked): impl. for debug.
+
+2003-04-18  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_io_handler)
+	(queue_signal): use linc_object_ref/unref.
+	(linc_connection_get_status): impl.
+	(linc_connection_flush_write_queue_cb): lock/unlock cnx.
+	(linc_connection_state_changed): assert unlocked, and in
+	main thread.
+	(linc_connection_from_fd): hold the lock while operating.
+
+	* src/linc-server.c (linc_server_dispose): ditto.
+
+2003-04-16  Masahiro Sakai  <sakai@tom.sfc.keio.ac.jp>
+
+	* configure.in: call AC_PROG_CC earlier. because AM_PROG_LIBTOOL
+	needs it on some platforms.
+
+	* configure.in: call AC_LIBTOOL_WIN32_DLL and add check for 
+	arpa/nameser.h and resolv.h.
+
+	* src/Makefile.am: add -no-undefined to liblinc_la_LDFLAGS.
+
+	* src/linc-protocols.c, src/linc-compat.h: make them work even if 
+	arpa/nameser.h and resolv.h are not available.
+
+	* src/linc-protocols.c (make_local_tmpdir): disable permission
+	checking on Cygwin.
+
+	* linc-1.1.0/test/test-linc.c (init_tmp): use g_get_user_name()
+	instead of g_getenv("USER").
+
+2003-04-15  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (linc_protocol_get_sockinfo_ipv6):
+	consistantly use GETNAMEINFO don't mix GETADDRINFO.
+
+2003-04-13  Masahiro Sakai  <sakai@tom.sfc.keio.ac.jp>
+
+	* src/linc-protocols.c (linc_protocol_get_sockaddr_unix): fix to
+	include path's terminating '\0' into *saddr_len count.
+
+2003-04-10  Michael Meeks  <michael@ximian.com>
+
+	* Thanks to mmokrejs@natur.cuni.cz for the
+	excellent report.
+
+	* src/linc-protocols.c
+	(linc_protocol_is_local_ipv46): explicitely
+	cast h_addr_list[n] to a guint8 * to please OSF/1.
+	(in6_addr): break the Mac OS/X brain-damage hack-around,
+	this needs to be specific to Mac only - it was
+	breaking OSF/1.
+
+	* src/linc-connection.c (write_data):
+	cast iovec->iov_base to guchar * for OSF/1
+	True64 Unix. 
+
+	* src/linc-debug.h: bin bogus ';' on
+	static inline d_printf fallback.
+
+2003-04-03  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_flush_write_queue): fix dofus
+	like write locking leak of mine.
+
+2003-04-01  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_finalize): free write lock
+	here and not in dispose.
+
+2003-03-31  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_flush_write_queue_cb): only
+	try to flush the write queue if we're not still
+	connecting.
+
+	* src/linc-compat.h: if we don't have UNIX_PATH_MAX it
+	is 100.
+
+	* src/linc-protocols.c (linc_protocol_get_sockaddr_unix):
+	use LINC_UNIX_PATH_MAX, not 64 for the static buffer size
+
+2003-03-29  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_writev)
+	(linc_connection_init, linc_connection_io_handler) 
+	(linc_connection_dispose): use the write_lock mutex
+	to protect the write_queue.
+	(queue_signal): drop it over signal emission (clearly)
+	(linc_connection_flush_write_queue): split out of
+	(linc_connection_io_handler): here.
+
+2003-03-25  Michael Meeks  <michael@ximian.com>
+
+	* Version 1.1.0
+
+2003-03-18  Shailesh Mittal  <shailesh.mittal@wipro.com>
+
+	* configure.in:
+	  Added checks for getaddrinfo() and getnameinfo().
+
+	* src/linc-connection.c (linc_connection_initiate):
+	  Modified so now it falls back to IPv4 if IPv6 address 
+	  is not there.
+
+	* src/linc-protocols.c 
+	  (linc_protocol_is_local_ipv46):It has been modified 
+	  in such a fashion that it works for IPv6 addresses as well.
+	  gethostbyname doesn't produce right results on all systems.
+	  (linc_protocol_get_sockaddr_ipv6):Also modified to work 
+	  with IPv6 addresses.
+	  (linc_protocol_get_sockinfo_ipv46):Signature changed.
+	  Added const char *host in place of struct hostent *host as
+	  the gethostbyname has been called twice for the same operation.
+	  (linc_protocol_get_sockinfo_ipv4):char *hname is passed
+	  in place of struct hostent to call for get_sockinfo_ipv46.
+	  (linc_protocol_get_sockinfo_ipv6):Modified to support IPv6
+	  addresses and char * is passed to linc_protocol_is_local_ipv46 
+	  in place of struct hostent *.
+
+2002-10-30  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-source.c (linc_io_add_watch_fd):
+	  don't add a watch to the main thread if
+	  running in threaded mode.
+
+	* src/linc.c (linc_get_threaded): impl.
+	  (linc_set_threaded): spew deprecated
+	  warnings.
+
+	* docs/linc-decl-list.txt: don't mention
+	  linc_set_threaded.
+
+2002-10-31  Michael Meeks  <michael@ximian.com>
+
+	* include/linc/linc-source.h: add.
+
+	* include/linc/Makefile.am: add linc-source.h
+
+	* src/linc-source.c
+	(linc_source_set_condition): upd. prototype.  
+	(linc_source_create_watch): upd & expose.
+	(linc_io_remove_watch): upd.
+	(linc_watch_set_condition): upd.
+
+2002-11-29  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-source.c (linc_io_add_watch):
+	don't add a main watch if threaded.
+	(linc_io_remove_watch): don't destroy a
+	NULL main_source.
+
+	* src/linc.c (linc_object_unref): do an
+	idle unref (in the linc mainloop) if we're
+	threaded, and it's the last ref.
+	(linc_fast_unref): split.
+	(linc_idle_unref): impl.
+
+2002-10-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_object_unref): handle the
+	  last ref sanely, so we don't deadlock doing
+	  subsequent unrefs.
+
+2003-01-21  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_setup):
+	setup the listening socket as non-blocking [!]
+	(linc_server_handle_io): quite why we emit
+	a signal in this case is rather beyond me,
+	hopefully that code-path is somewhat tested.
+
+2003-01-09  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump version to 1.1.0
+
+	* Branch for gnome-2-2
+
+2002-12-28  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.7.1
+
+2002-12-09  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (linc_protocol_get_sockaddr_unix): 
+	finally - scuppered by my own undefined test in gcc ;-)
+
+2002-12-09  Laurent Vivier  <Laurent.Vivier@bull.net>
+
+	* src/linc-connection.c (LINC_IOV_MAX): re-order
+	mess of compatibility evilness to move glibc's
+	UIO_MAXIOV down, since this is something else on
+	AIX (which has IOV_MAX).
+
+2002-11-21  Dan Mills  <thunder@ximian.com>
+
+	* configure.in: fix two typoes:  pango -> linc, and change spaces
+	to a tab in the IFS assignment.
+
+2002-11-21  Dan Mills  <thunder@ximian.com>
+
+	* configure.in: fix gtk-doc version check.
+
+2002-11-02  Michael Meeks  <michael@ximian.com>
+
+	* test/test-linc.c
+	(test_broken_cnx_handle_input): disconnect
+	on fatal error.
+
+2002-10-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_object_unref): handle the
+	  last ref sanely, so we don't deadlock doing
+	  subsequent unrefs.
+
+2002-10-18  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.7.0
+
+2002-10-14  Marcus Brinkmann <Marcus.Brinkmann@ruhr-uni-bochum.de>
+
+	* src/linc-protocols.c (linc_set_tmpdir), 
+	(linc_protocol_get_sockaddr_unix),
+	(linc_get_tmpdir): use dynamic allocation for
+	linc_tmpdir to avoid PATH_MAX issues.
+
+2002-09-24  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump to 0.7.0 - odd, and bigger.
+
+	* src/linc-connection.c (linc_connection_read):
+	don't be daft, don't emit a signal on fatal IO
+	error at 0 read EOF, or we'll get into locking
+	hell elsewhere.
+
+2002-08-23  Elliot Lee  <sopwith@redhat.com>
+
+	* src/linc-protocols.c (linc_protocol_get_sockaddr_ipv4): Don't
+	turn on IPv6 name resolution when we are trying to resolve an IPv4
+	host name - instead, turn it off. Also try to make use of all
+	addresses that gethostbyname returns, not just the first. (Fixes a
+	bug with connecting to a host that has both IPv6 and IPv4
+	addresses.)
+
+2002-08-23  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.5.3
+
+2002-08-18  Havoc Pennington  <hp@pobox.com>
+
+	* autogen.sh: hardcode aclocal-1.4/automake-1.4 so that users with
+	both automake 1.6 and 1.4 installed get the right automake. Means
+	compilation from CVS will now require the latest automake 1.4
+	release, or manually creating symlinks called "automake-1.4" and
+	"aclocal-1.4"
+
+2002-08-05  Laurent Vivier  <Laurent.Vivier@bull.net>
+
+	* include/linc/linc-connection.h: sanitize remote_info
+	to gchar *
+
+2002-08-05  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.5.2
+
+2002-07-31  jacob berkman  <jacob@ximian.com>
+
+	* src/linc-connection.c (LINC_IOV_MAX): bump to 1024 on os x, as
+	the macros isn't defined unless we are defining KERNEL, which we
+	aren't
+
+2002-07-31  Michael Meeks  <michael@ximian.com>
+
+	* test/test-linc.c (test_hosts_lookup): regression test.
+	(verify_addr_is_loopback): split out.
+
+	* configure.in: add inet_pton check.
+
+	* src/linc-protocols.c (linc_protocol_get_sockaddr_ipv4):
+	do a dotted quad type lookup first.
+	(linc_protocol_get_sockaddr_ipv6): add inet_pton - raw IPv6
+	addr translation 
+
+	* src/linc-compat.h (INADDR_NONE): for broken systems.
+
+2002-07-25  Yanko Kaneti <yaneti@declera.com>
+
+	* test/test-linc.c: include "linc-compat.h" for ehm.. compatibilty. 
+
+2002-07-24  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.5.1
+
+2002-06-19  Michael Meeks  <michael@ximian.com>
+
+	* test/test-linc.c (test_local_ipv4): upd.
+	(test_hosts_lookup, test_host): impl
+
+	* src/linc-protocols.c (linc_get_local_hostname):
+	rename from get_local_hostname & make module public.
+
+	* src/linc-server.c (linc_server_setup): upd. to use it.
+
+	* src/linc-connection.c
+	(linc_connection_initiate, linc_close_fd): handle EINTR
+	on close.
+
+	* src/linc-protocols.c (irda_find_device),
+	(linc_protocol_destroy_addr),
+	(linc_protocol_destroy_cnx): ditto.
+
+	* src/linc-server.c (linc_server_dispose),
+	(linc_server_accept_connection): ditto.
+
+	* src/linc-protocols.c (irda_getaddrinfo):
+	use g_strncpy not strcpy.
+
+2002-06-18  Michael Meeks  <michael@ximian.com>
+
+	* test/test-linc.c (test_local_ipv4): beef up &
+	(test_local_ipv6): split out of
+	(test_local): here.
+
+	* src/linc-protocols.c
+	(linc_protocol_get_sockaddr_ipv4): upd.
+	(ipv4_addr_from_addr): impl.
+	(LINC_RESOLV_CLEAR_IPV6): kill - horrible,
+	vile, out of spec. hack.
+	(linc_protocol_get_sockinfo_ipv46): upd.
+	(linc_protocol_is_local_ipv46): re-re-write.
+
+2002-06-17  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c
+	(linc_protocol_get_sockaddr_unix): beef up the
+	length of the linc socket name slightly.
+	(linc_protocol_is_local_ipv46): fix, so it works.
+	(cleanup_sweep): remove.
+	(linc_protocol_get_sockaddr_unix): hack cleanup
+	out of here.
+
+2002-06-12  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump version to 0.5.1
+
+	* src/linc-connection.c
+	(linc_connection_read): add paranoid assertion.
+
+2002-06-12  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c
+	(linc_get_tmpdir): implement new API in
+	accordance with release team approval for use
+	in bonobo-activation, for it's locking / IOR
+	exchange mechanism.
+
+	* src/linc-connection.c
+	(linc_connection_writev): split out
+	(linc_connection_should_block): this.
+
+2002-06-06  James M. Cape  <jcape@ignore-your.tv>
+
+	* include/linc/linc-connection.h
+	(LINC_CONNECTION_CLASS): fix typo in macro #84352
+
+2002-05-27  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.5.0
+
+2002-05-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_init): do a plain g_type_init
+	without adding the debug_flags, they're not
+	helping us enough for the pain.
+
+2002-05-21  Michael Meeks  <michael@ximian.com>
+
+	* src/cleanup.c: make it work for the simple
+	cases for now.
+
+2002-05-21  Michael Meeks  <michael@ximian.com>
+
+	* src/Makefile.am: add linc-cleanup-sockets.
+
+	* src/cleanup.c: add.
+
+	* src/linc-connection.c
+	(linc_connection_writev): make status an int,
+	so we return the enum more pleasantly.
+
+2002-05-20  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.22
+
+2002-05-17  Jacob Berkman  <jacob@ximian.com>
+
+	* src/linc-protocols.c: check for RES_USE_INET6 for
+	OS/X. define in6addr_any for broken Mac OS/X's.
+
+2002-05-09  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c: fix 'extern' static linc_protocols
+	bug #80955 - thanks Jean-Pierre Dion
+
+2002-04-18  Michael Meeks  <michael@ximian.com>
+
+	* src/Makefile.am: add G_DISABLE_DEPRECATED
+
+2002-04-15  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.21
+
+2002-04-15  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-private.h: fix prototypes,
+	s/socklen_t/LincSockLen/
+
+2002-04-11  Michael Meeks  <michael@ximian.com>
+
+	* test/Makefile.am (test_linc_LDADD):
+	add various libs.
+
+2002-04-10  Michael Meeks  <michael@ximian.com>
+
+	* src/*,
+	* docs/*: update
+
+2002-04-09  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-private.h: hoist SSL includes,
+	(thanks to Colin Campbell).
+
+2002-04-08  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.[ch],
+	* src/linc-server.c (linc_server_setup): use
+	LincSockLen instead of socklen_t so that we can
+	build on systems without it, (thanks to Garth Pearce).
+
+	* src/linc-compat.h: hide the evil compat mess into here.
+
+	* src/linc-server.c: include linc-hacks.h
+
+	* test/test-linc.c
+	(test_blocking_cnx_handle_input),
+	(test_blocking_cnx_handle_input): use
+	guint32 not glong.
+
+	* configure.in: use --with-openssl #77962
+
+2002-04-08  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (cleanup_sweep): disable,
+	it seems that this is a source of evil lockups;
+	really we need to do this in a non-blocking way,
+	and idly unlink things that look bad.
+
+2002-04-02  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (cleanup_sweep): impl to
+	solve the leftover unix domain socket problem.
+	(linc_protocol_get_sockaddr_unix): do the sweep.
+
+2002-03-21  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.20
+
+2002-03-21  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_handle_io): fix
+	warning spew.
+
+	* src/linc-protocols.c (linc_protocol_destroy_addr):
+	check family for AF_UNIX.
+
+2002-03-20  Gregory Leblanc  <gleblanc@linuxweasel.com>
+
+	* configure.in: Adding missing AC_SUBST
+	* linc.spec.in: rewrite
+
+2002-03-20  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (linc_protocol_destroy_cnx): impl.
+	(linc_protocol_destroy_saddr): impl with nasty hacks for UDS.
+
+	* src/linc-server.c (linc_server_dispose): use it.
+	(linc_server_setup): on error unlink the UDS & fix fd
+	leak.
+
+2002-03-20  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_accept_connection):
+	always initialize the connection - thanks again Havoc.
+
+	* src/linc-connection.c (linc_connection_initiate):
+	fix fd leak - thanks Havoc.
+
+2002-03-04  Mark McLoughlin  <mark@skynet.ie>
+
+	* configure.in: Version 0.1.19
+
+2002-02-26  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_class_state_changed): only emit
+	'broken' when the state actually changes - ie. once.
+
+2002-02-17  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_accept_connection):
+	close the fd in case linc_connection_from_fd might
+	fail some day.
+
+2002-02-11  Mark McLoughlin  <mark@skynet.ie>
+
+	* configure.in: Version 0.1.18
+
+2002-02-11  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: update OpenSSL check, and default to no
+	OpenSSL checking - OpenSSL has a pants license, do not
+	use it.
+
+2002-02-11  Mark McLoughlin  <mark@skynet.ie>
+
+	* configure.in: Version 0.1.17
+
+2002-02-06  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c: define NI_MAXHOST to
+	MAXHOSTNAMELEN if we just can't find it, include
+	sys/param.h explicitely for that, define NI_MAXSERV
+	to 64 in case we can't get that either.
+
+2002-02-05  Sebastian Wilhelmi  <wilhelmi@ira.uka.de>
+
+	* src/linc-connection.c (write_data): Do not use
+	WRITEV_IOVEC_LIMIT as the maximal iovec count, but determine it by
+	some architecture dependent preprocessor constants. This prevents
+	using the fallback implementation of writev. (if the count is too
+	big, the kernel returns an error and libc might provide a fallback
+	by alloca'ing the necessary mem, copying the iovec's content there
+	and writing that out, which in turn might produce a segmentation
+	fault for lots of data on a small stacks, like in multithreaded
+	programs)
+
+	* configure.in, acconfig.h: Removed the test for
+	WRITEV_IOVEC_LIMIT form configure.in and WRITEV_IOVEC_LIMIT from
+	acconfig.h.
+
+2002-01-28  Mark McLoughlin  <mark@skynet.ie>
+
+	* configure.in: Version 0.1.16
+
+2002-01-21  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (write_data): don't signal
+	and return the no. of bytes written.
+	(linc_connection_writev): map to the return enum.
+	(linc_connection_io_handler): move the queue signal
+	here after we've updated the queue list.
+	(write_data): stop running over the end of the
+	array.
+
+2002-01-18  Mark McLoughlin  <mark@skynet.ie>
+
+	* src/linc-connection.c: (linc_connection_read): disconnect
+	on receipt of EOF.
+
+	* test/test-linc.c: (broken_cb), (test_server_create_connection),
+	(create_client), (test_broken_cnx_handle_input),
+	(test_broken_cnx_class_init), (test_get_broken_cnx_type),
+	(test_broken), (test_blocking_cnx_handle_input),
+	(test_blocking_cnx_class_init), (test_get_blocking_cnx_type),
+	(test_blocking): re-jig the 'broken' test to test this code
+	path.
+
+2002-01-17  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.15
+
+	* src/linc-protocols.c: remove debug.
+
+	* Version 0.1.14
+	
+2002-01-17  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump version to 0.1.14 for ORBit2
+	dependency / build reasons.
+
+	* test/test-linc.c (test_protos): impl.
+	(main): call it.
+
+2002-01-16  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (get_local_hostname): impl. so
+	we can call it lots.
+	(linc_protocol_get_sockinfo_ipv46): upd.
+	(linc_protocol_get_sockinfo_unix): upd.
+	(linc_protocol_is_local): impl.
+	(linc_protocol_unix_is_local): impl.
+	(linc_protocol_is_local_ipv46): impl.
+
+	* src/linc-server.c (linc_server_accept_connection):
+	check for remote connections - if in local only mode,
+	using new is_local API.
+
+	* include/linc/linc-protocol.h: add is_local.
+
+	* include/linc/linc-types.h: add local only flag.
+
+2002-01-17  Laszlo Peter  <laca@ireland.sun.com>
+
+	* src/linc-connection.c (write_data): fix writev loop conditions
+	when nvecs > WRITEV_IOVEC_LIMIT.
+
+2002-01-10  Roland Juelich <rj@atecom.com>
+
+	* src/linc-source.c (linc_io_add_watch): create our own
+	LincWatch and pass the channel on to 
+	(linc_source_create_watch): here, store the channel for
+	the callback.
+
+	* src/linc-private.h: store GIOChannel in watch for use
+	in source dispatcher.
+
+2002-01-09  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.13
+
+2002-01-04  Dave Camp  <dave@ximian.com>
+
+	* src/linc-connection.c (linc_connection_class_init): Use the
+	'blocking' struct member for the blocking signal rather than the
+	'broken' member.
+
+2002-01-04  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-source.c (linc_io_remove_watch): clobber
+	the source so we can't get any events on the source -
+	even if glib does strange things.
+
+	* src/linc-server.c (linc_server_dispose): re-order
+	the watch removal process.
+
+	* test/test-linc.c (test_blocking): release the
+	write options.
+
+	* src/linc-source.c (linc_source_finalize): impl.
+	for debug.
+
+2002-01-04  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_io_handler):
+	allow handling both input and output in the same poll,
+	to stop re-enterancy hell in the ORB.
+	(queue_signal): special case a '0' byte max_buffer ==
+	no maximum, thanks to Dave Camp.
+
+2002-01-03  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.12
+
+2002-01-03  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_setup): set
+	FD_CLOEXEC - on the server's connection.
+
+2002-01-03  Laszlo Peter  <laca@ireland.sun.com>
+
+	* configure.in: add check for -lresolv
+
+2001-12-31  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_io_handler): continue writing the queue
+	if we didn't flush it all (doh).
+
+	* test/test-linc.c (test_blocking),
+	(blocking_cb, knobble_watch): impl.
+	(test_server_create_connection): impl.
+	(test_cnx_handle_input): impl.
+
+	* src/linc-connection.c: (queue_signal): add ref. guards.
+	& signal half full buffer as specified.
+
+	* src/linc-server.c, src/linc-source.c,
+	* src/linc-connection.c: move private struct defs into
+
+	* src/linc-private.h: here.
+
+	* test/Makefile.am: upd. include path.
+
+	* test/test-linc.c (create_server),
+	(create_client, test_broken): split out of (main).
+
+2001-12-31  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump version to 0.1.12
+
+2001-12-28  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (calc_size): split out of
+	(queue_flattened): here.
+
+	* include/linc/linc-server.h,
+	* include/linc/linc-connection.h
+	(LINC_IS_CONNECTION): re-write macros, slower,
+	but functional.
+
+	* src/linc-connection.c (linc_connection_class_init):
+	add the 'blocking' signal.
+	(queue_signal): impl.
+	(linc_connection_class_state_changed): free the queue
+	on disconnect.
+	(linc_connection_io_handler): do an unchecked class
+	cast for speed.
+
+2001-12-27  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_write):
+	re-express in terms of writev - this should always have
+	been so.
+	(linc_connection_writev): fix iov_base arithemetic.
+	merge in the SSL code from writev.
+	(queue_flattened, queue_free): impl.
+	(linc_connection_dispose): release the queue.
+	(write_data): split this out of
+	(linc_connection_writev): here & upd to handle queue.
+	(linc_connection_connected): rename to
+	(linc_connection_io_handler): this.
+	(linc_source_add): upd.
+	(queued_write_free): impl.
+	(linc_connection_writev): don't belt round a
+	non-blocking loop on EAGAIN even if we block.
+
+2001-12-19  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_setup): upd.
+
+	* src/linc-connection.c: kill wasteful GIOChannel.
+	(linc_source_add): upd.
+	(linc_connection_dispose): upd.
+	(linc_connection_from_fd): upd.
+	(linc_source_unwatch_out): kill.
+	(linc_connection_connected): upd.
+	(linc_connection_class_state_changed): upd.
+
+	* src/linc-source.c: add.
+	(linc_io_add_watch_fd): impl.
+	(linc_watch_set_condition): impl.
+
+	* src/linc.c (linc_io_add_watch): move this
+
+2001-12-14  Roland Juelich <rj@atecom.com>
+
+	* src/linc-server.c (linc_server_setup): if we are
+	passed local_host_info, then use it instead.
+
+2001-12-14  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c: include netdb.h if we're
+	missing some NI_ defines.
+
+2001-12-14  David Haverkamp  <dahaverk@rockwellcollins.com>
+
+	* src/linc-protocols.c: include arpa/nameser.h before
+	resolv.h for Solaris systems.
+
+2001-12-11  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.11
+
+2001-12-08  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_write),
+	(linc_connection_writev): handle the connection
+	dying in mid-write, it seems EAGAIN gets fired to
+	distinguish from a 0 length write == an error conditon (?)
+
+2001-12-07  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_class_state_changed): change status
+	early so we're consistant by the time 'broken' is
+	emitted.
+
+2001-12-06  Laszlo Peter  <laca@ireland.sun.com>
+
+	* configure.in: Fix detection of WRITEV_IOVEC_LIMIT.
+
+2001-12-05  Kristian Rietveld  <kris@gtk.org>
+
+	* src/linc-protocols.c: Move down resolve.h for better
+	FreeBSD build.
+
+2001-12-01  Theo van Klaveren  <t.vanklaveren@student.utwente.nl>
+
+	* src/linc-protocols.c: Add <netinet/in.h> to includes.
+	Fixes build on FreeBSD.
+
+2001-11-26  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.10
+
+2001-11-23  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_io_add_watch): fixup debugging.
+
+2001-11-25  Havoc Pennington  <hp@redhat.com>
+
+	* src/Makefile.am (liblinc_la_SOURCES): add linc-debug.h
+
+2001-11-22  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_io_add_watch): remove
+	g_warning debug; doh.
+
+2001-11-22  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_source_unwatch_out): fix
+	brainless not listening for input.
+
+	* src/linc.c (linc_io_add_watch): beef up
+	watch debug.
+
+	* src/linc-connection.c (linc_source_add): impl.
+	(linc_connection_class_state_changed),
+	(linc_source_unwatch_out): use it.
+
+	* src/linc-private.h (LINC_IN_CONDS,
+	LINC_ERR_CONDS): move here.
+
+	* src/linc-connection.c: update IO conditions.
+
+	* src/linc-server.c
+	(linc_server_handle_io): accept G_IO_PRI
+	(linc_server_handle): kill, not used.
+	(linc_server_setup): take note of G_IO_PRI
+
+	* src/linc-protocols.c
+	(linc_protocol_get_sockaddr_unix): make the UDS name
+	more random; include the pid when debugging.
+
+	* src/linc-connection.c: instrument more.
+
+	* src/linc-server.c (linc_server_setup): convert
+	to new debug framework.
+
+	* src/linc-debug.h: add.
+
+2001-11-22  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c
+	(linc_connection_connected): split out re-connect
+	(linc_source_unwatch_out): this to clarify.
+	add dprintf debugging throught.
+
+2001-11-19  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_object_get_mutex): 
+	(linc_init): setup the lifecycle mutex.
+	(linc_object_ref, linc_main_get_loop),
+	(linc_object_unref): impl - sucky locking
+	for now.
+
+	* src/linc-server.c (linc_server_finalize),
+	(linc_server_init): manage private structure.
+	Privatize fd, mutex, tag, connections
+
+	* src/linc-connection.c (linc_connection_finalize),
+	(linc_connection_init): manage private structure.
+	Privatize fd, tag, gioc, ssl.
+	(linc_connection_initiate): upd.
+
+2001-11-19  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_accept_connection): 
+	kill bogus get_sockinfo - we don't need this
+	information whatsoever.
+
+	* src/linc-connection.c (linc_connection_from_fd):
+	this method has at least 2 totaly bogus arguments,
+	host, service - the joys of frozen APIs.
+
+	* src/linc-connection.c
+	(linc_connection_dispose): split
+	(linc_connection_finalize): impl.
+	(linc_connection_class_init): upd.
+
+2001-11-18  Miles Lane  <miles@megapathdsl.net>
+
+	* include/linc/linc-types.h: replace include of 
+	gobject/gobject.h with glib-object.h, due to a 
+	change in gobject/gobject.h that forces an #error 
+	for all direct includes.
+	This checkin was approved by Havoc.
+
+2001-11-16  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump ver to 0.1.9
+
+	* src/linc-server.c (linc_server_accept_connection):
+	keep track of the connections we accept - hopefully if
+	we re-use them, there won't be many.
+	(linc_server_dispose): protect vs. double dispose &
+	unref. connections.
+	(linc_server_finalize): impl.
+	(linc_server_class_init): hook up.
+
+	* src/linc-connection.c (linc_source_remove): remove
+	bogus self unref.
+	(linc_connection_dispose),
+	(linc_connection_class_state_changed): upd.
+
+2001-11-15  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_from_fd): assign
+	the protocol.
+
+	* src/linc-server.c (linc_server_dispose): protect vs.
+	double dispose's
+
+2001-11-13  jacob berkman  <jacob@ximian.com>
+
+	* docs/Makefile.am (dist-hook): depend on docs being built
+
+	* docs/linc-sections.txt:
+	* docs/linc.types: these files are needed to dist
+
+2001-11-13  Michael Meeks  <michael@ximian.com>
+
+	* docs/Makefile.am (IGNORE_HFILES): add config.h, acconfig.h
+
+	* src/linc-server.c (linc_server_handle): privatize,
+	unused & redundant.
+
+	* docs/tmpl/linc-types.sgml: document LINC_MUTEX_LOCK /
+	UNLOCK.
+
+	* src/linc-protocols.c (linc_set_tmpdir): fix docs.
+
+	* src/linc.c (linc_io_add_watch, linc_io_remove_watch),
+	(linc_main_iteration, linc_main_pending, linc_mutex_new),
+	(linc_main_loop_run): document.
+
+2001-11-13  Michael Meeks  <michael@ximian.com>
+
+	* docs/linc-sections.txt: remove config, acconfig,
+	linc-config, linc-private sections.
+
+2001-11-12 John Fleck <jfleck@inkstain.net>
+
+	* added docs/Makefile.am
+	        docs/linc-docs.sgml
+		docs/tmpl/acconfig.sgml, linc-connection.sgml,
+	        linc-server.sgml, linc-unused.sgml, config.sgml,
+	        linc-private.sgml, linc.sgml, linc-config.sgml,
+	        linc-protocol.sgml, linc-types.sgml
+        modified ./Makefile.am, configure.in
+        add gtk-doc build system
+
+2001-11-12  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_accept_connection): 
+	set O_NONBLOCK on connections we accept; also set
+	FD_CLOEXEC - doh.
+
+2001-11-12  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_read),
+	(linc_connection_write, linc_connection_writev),
+	catch and warn on EBADF.
+
+2001-11-12  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump version to 0.1.8
+
+	* src/linc-connection.c
+	(linc_connection_read): set fatal error on
+	0 length reads, don't re-enter foolishly in
+	various places, return bytes_read on EAGAIN,
+	don't loop re-entering while waiting for
+	connected.
+
+2001-11-08  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.7
+
+2001-11-08  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_io_add_watch): setup sources as
+	recursive sources - so we can recurse !
+	(linc_main_iteration, linc_io_remove_watch),
+	(linc_io_add_watch): add conditional watch debugging.
+
+2001-11-08  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_writev): remove
+	'register' optimization :-) fix SSL path, make the code
+	legible, handle EINTR, don't skip partialy written
+	iovecs in a totaly bogus way.
+	(linc_connection_write): handle EINTR.
+	(linc_connection_read): rename 'written' 'bytes_read'
+	Document all methods.
+
+2001-11-06  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_init): init with G_TYPE_DEBUG_OBJECTS.
+
+2001-10-30  Mark McLoughlin  <mark@skynet.ie>
+
+	* configure.in: version 0.1.6.
+
+2001-10-29  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: require glib >= 1.3.10
+
+2001-10-26  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_mutex_new): flag that we have been
+	called.
+	(linc_set_threaded): add protection for people setting
+	the threaded-ness late.
+
+2001-10-24  Ross Golder  <rossg@durban.golder.org>
+
+	* Makefile.am (EXTRA_DIST): Added spec file, and removed
+	floating tab
+
+2001-10-25  Michael Meeks  <michael@ximian.com>
+
+	* AUTHORS: update,
+
+	* *.[ch]: Add copyright headers.
+
+2001-10-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_class_init): 
+	fix ref counting on parent type.
+
+2001-10-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_init): fix brainlessness.
+
+2001-10-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc.c (linc_init): upd.
+	(linc_set_threaded): impl.
+	(linc_mutex_new): only return a mutex if linc_threaded
+	is TRUE, _and_ g_thread_supported.
+
+2001-10-18  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_connected):
+	simplify flow, ignore handle_input's return value,
+	always return TRUE, we remove ourself from both main
+	contexts elsewhere.
+
+2001-10-16  Mark McLoughlin <mark@skynet.ie>
+
+	* Makefile.am (EXTRA_DIST): kill linc-config.in,
+	linc.pc.in, linc.spec and linc.spec.in. Add HACKING
+	and MAINTAINERS.
+
+2001-10-10  Abel Cheung  <maddog@linux.org.hk>
+
+	* linc-config.in(cflags): move headers to subdir
+
+	* linc.spec.in(%files): ditto, for spec file.
+
+2001-10-09  Havoc Pennington  <hp@redhat.com>
+
+	* linc.pc.in (Cflags): headers in a subdir
+
+	* include/linc/Makefile.am (lincincludedir): put headers in a
+	subdir
+
+2001-09-26  Mark McLoughlin <mark@skynet.ie>
+
+	* configure.in: add --enable-compile-warnings option.
+
+	* src/Makefile.am: use $(WARN_CFLAGS)
+
+	* src/linc-protocols.c
+	(linc_protocol_get_sockinfo_ipv6): initialise host.
+	include linc-private.h.
+
+2001-09-25  Mark McLoughlin <mark@skynet.ie>
+
+	* Version 0.1.5.
+
+2001-09-24  Mark McLoughlin <mark@skynet.ie>
+
+	* linc/configure.in: clean up libtool versioning. Use
+	pkg-config to check for libs. Kill unused vprintf and
+	alloca check.
+
+	* linc.pc.in, linc.spec.in: update.
+
+	* linc/src/Makefile.am: update and include libtool 
+	version-info.
+
+2001-09-20  Mark McLoughlin <mark@skynet.ie>
+
+	Patch from Frank Belew <frb@ximian.com>.
+
+	* src/linc-protocols.c (static_linc_protocols):
+	don't use 'designated initializers' style of initialization.
+	Allowed by C99, but Sun's Forte compiler does't allow it.
+
+2001-09-20  Mark McLoughlin <mark@skynet.ie>
+
+	* src/linc-connection.c
+	(linc_connection_real_state_changed): rename to...
+	(linc_connection_class_state_changed): document and tidy.
+	(linc_connection_from_fd): ditto.
+	(linc_connection_initiate): ditto.
+	(linc_connection_state_changed): ditto.
+	(linc_connection_read): return 0 if passed 0 or if the
+	connection has been closed.
+
+2001-09-18  Jens Finke <jens@gnome.org>
+
+	* linc.spec.in: New file.
+	
+	* Makefile.am (EXTRA_DIST): Added linc.spec and linc.spec.in.
+
+	* configure.in (AC_OUTPUT): Create linc.spec.
+
+2001-09-13  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (linc_protocol_get_sockinfo_ipv46):
+	use guint instead of in_port_t to fix the issue differently.
+
+	* configure.in: remove bogus in_port_t define.
+
+2001-09-12 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+
+	* configure.in; compile fix: define in_port_t if it isn't
+
+2001-09-11  Mark McLoughlin <mark@skynet.ie>
+
+	* src/linc-protocol.c: fix typo.
+
+2001-09-11  Mark McLoughlin <mark@skynet.ie>
+
+	* include/linc/linc-protocol.h,
+	  src/linc-protocols.c
+	(LINCProtocolGetAddrInfoFunc, LINCProtocolGetNameInfoFunc):
+	killed.
+	(LINCProtocolGetSockInfoFunc): added.
+	(LINCProtocolInfo): added get_sockinfo. killed getaddrinfo and
+	getnameinfo.
+	(linc_getaddrinfo, linc_getnameinfo, sys_getaddrinfo,
+	 sys_getnameinfo): killed.
+	(tcp_setup): renamed to linc_protocol_tcp_setup.
+	(af_unix_destroy): renamed to linc_protocol_unix_destroy.
+	(protocol_ents): renamed to static_linc_protocols.
+	(linc_protocol_get_sockinfo_ipv46, 
+	 linc_protocol_get_sockinfo_ipv4,
+	 linc_protocol_get_sockinfo_ipv6,
+	 linc_protocol_get_sockinfo_unix,
+	 linc_protocol_get_sockinfo_irda, linc_protocol_get_sockinfo):
+	implemented.
+	Finished documenting.
+	NOTE: get_sockinfo_irda and get_sockaddr_irda are not working.
+
+	* src/linc-private.h: added linc_protocol_get_sockinfo.
+
+	* src/linc-server.c(linc_server_accept_connection): use
+	get_sockinfo instead of getnameinfo.
+	(linc_server_setup): ditto.
+
+	* include/linc/linc-connection.h,
+	  src/linc-connection.c(linc_connection_from_fd):
+	don't dup remote_host_info and remote_serv_info.
+
+2001-09-10  Mark McLoughlin <mark@skynet.ie>
+
+	* linc/src/linc-protocols.c: 
+	(linc_protocol_get_sockaddr_ipv4): set resolver options.
+	(linc_protocol_get_sockaddr_ipv6): impl.
+	(linc_protocol_get_sockaddr_unix): kill silly saddr_len bug.
+	(irda_getaddrinfo): use new IRDA_PREFIX_LEN define.
+	Move protocol_ents definition to bottom and kill prototypes. 
+	Api-doc most functions.
+
+2001-09-09  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_setup): remove
+	bogus g_free (saddr)
+
+2001-09-07  Mark McLoughlin <mark@skynet.ie>
+
+	* acconfig.h, configure.in: add check for
+	sockaddr's sa_len member.
+
+	* src/linc-protocols.c(linc_protocol_get_sockaddr,
+	linc_protocol_get_sockaddr_ipv4,
+	linc_protocol_get_sockaddr_ipv6,
+	linc_protocol_get_sockaddr_unix,
+	linc_protocol_get_sockaddr_irda): impl. get_sockaddr
+	will replace getaddrinfo soon. getaddrinfo is a waste
+	of time - we don't need most of the data it returns,
+	and it is non-portable for unix sockets, ipv6 and irda.
+	Indeed older unices don't even have an implementation for 
+	ipv4.
+	*NOTE*: irda and ipv6 are not working with this yet. But
+	        I doubt anyone is actually using these...
+
+	* src/linc-private.h: add linc_protocol_get_sockaddr.
+
+	* src/linc-connection.c(linc_connection_initiate): use
+	linc_protocol_get_sockaddr instead of linc_getaddrinfo.
+
+	* src/linc-server.c(linc_server_setup): ditto.
+
+	* include/linc/linc-types.h: moved LINCProtocolInfo here.
+
+	* include/linc/linc-protocol.h
+	(LINCProtocolInfo): added get_sockname. Impl typedefs
+	for functions types.
+
+2001-09-07  Mark McLoughlin <mark@skynet.ie>
+
+	* src/linc-protocols.c: Warning killers - include string.h
+	and don't prototype IRDA functions if IRDA defines not
+	available.
+
+2001-08-31  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (ERR_CONDS): hack off G_IO_PRI
+	(IN_CONDS): PRI|IN
+	(linc_connection_connected),
+	(linc_connection_real_state_changed): use it.
+
+2001-08-27  Mark McLoughlin <mark@skynet.ie>
+
+	* linc.pc.in: require gobject and gthread.
+
+2001-08-24  Mark McLoughlin <mark@skynet.ie>
+	
+	* configure.in: remove unused --enable-linc-threadsafe
+	option. Removed pthread.h check - we always want to
+	link against gthread.
+
+2001-08-23  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.4
+
+2001-08-21 Dirk-Jan C. Binnema <djcb@djcbsoftware.nl>
+
+	* src/linc.c (main): ignore SIGPIPE, handle this
+	here instead of in libbonobo
+
+2001-08-20  Theo van Klaveren  <t.vanklaveren@student.utwente.nl>
+
+	* include/linc/linc-protocol.h: Include <sys/types.h> to
+	fix build on FreeBSD.
+
+2001-08-18  Cody Russell  <bratsche@gnome.org>
+
+	* linc.pc.in: Added.
+
+	* configure.in, Makefile.am: Build and install linc.pc
+
+2001-08-18  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump version to 0.1.3
+
+	* src/linc.c (linc_mutex_attrs): kill.
+	(linc_init): kill pthread specific bits, take
+	gboolean 'init_threads'
+	(linc_mutex_new): impl. to hide conditional mess.
+
+	* src/linc-server.c (linc_server_accept_connection):
+	split out of
+	(linc_server_handle_io): here & update locking.
+
+2001-08-17  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_init): use g_thread
+	stuff straight - no need for a recursive mutex - set
+	to NULL if threads not initialized.
+
+	* include/linc: homogenise header guard style, add
+	G_BEGIN/END_DECLS
+
+	* include/linc/linc-types.h:
+	s/LINC_THREADSAFE/G_THREADS_ENABLED/ kill whacked out
+	threading macro overload.
+	(LINC_MUTEX_[UN]LOCK): don't inexplicably steal
+	chunks of the O_ namespace.
+	kill extreme strangeness with defining wierd system bits.
+
+	* Revert Mark's patch.
+
+2001-08-18  Mark McLoughlin <mark@skynet.ie>
+
+	* configure.in: added --enable-linc-threadsafe
+	option. Defaults to yes.
+
+	* include/linc/linc-config.h.in: added
+	LINC_ENABLE_THREADSAFE def.
+
+	* include/linc/linc-connection.h,
+	  include/linc/linc-server.h,
+	  include/linc/linc-server.h,
+	  include/linc/linc-types.h,
+	  include/linc/linc-threads.h,
+	  include/linc/linc.h: split out threaded
+	stuff into linc-threads.h. Removed _GNU_SOURCE,
+	_XOPEN_SOURCE and _REENTRANT defines. Cleaned
+	up a little.
+
+	* linc/include/linc/Makefile.am: added linc-threads.h.
+
+	* src/Makefile.am: add -D_GNU_SOURCE for
+	PTHREAD_MUTEX_RECURSIVE.
+
+2001-08-16  Mark McLoughlin <mark@skynet.ie>
+
+	* configure.in: Cache ACLOCAL_FLAGS.
+
+2001-08-16  Michael Meeks  <michael@ximian.com>
+
+	* configure.in: bump version to 0.1.2
+
+	* src/linc-connection.c (linc_connection_get_type): don't
+	use the base_init - but the instance_init to set fd == -1
+	so we don't close (0), doh.
+	(linc_connection_connected): update to call the
+	handle_input virtual method on input.
+
+2001-08-14  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (irda_getaddrinfo): kill another
+	heinous srand idiocy.
+
+2001-08-13  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_close_fd): split out.
+	(linc_connection_dispose): use.
+	(linc_connection_real_state_changed): ditto.
+
+2001-08-13  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_init): impl,
+	to init cnx->fd = -1.
+	(linc_connection_get_type): upd. - thanks to Martin Baulig.
+
+2001-08-10  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (linc_set_tmpdir): kill gratuitous evil
+	(make_local_tmpdir): copy from ORBit-stable.
+	(linc_set_tmpdir): actualy ensure that we have a valid
+	working directory.
+
+2001-07-30  Michael Meeks  <michael@ximian.com>
+
+	* Version 0.1.1
+
+2001-07-30  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_class_init):
+	remove redundant static prototypes.
+	(linc_connection_class_init): init 'broken' signal.
+	(linc_connection_real_state_changed): emit the 'broken'
+	signal.
+
+2001-07-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_real_state_changed): 
+	make it unref the connection on disconnect ...
+
+2001-07-18  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_writev):
+	s/g_main_iteration/linc_main_iteration/.
+
+	* src/linc.c (linc_main_iteration): impl.
+	(linc_init): make the linc_loop run.
+	(linc_main_pending): impl.
+	(linc_main_loop_run): impl.
+
+	* src/linc-server.c (linc_server_dispose): upd.
+	(linc_server_setup): upd.
+	(linc_server_get_type): re-order to kill redundant
+	prototypes.
+
+	* src/linc-connection.c (linc_source_remove): upd.
+	(linc_connection_init): remove; redundant.
+	(linc_connection_real_state_changed): upd.
+	(linc_connection_connected): upd.
+
+	* src/linc.c (linc_io_add_watch): impl.
+	(linc_io_remove_watch): impl.
+
+	* include/linc/linc-types.h: add LincWatch type.
+
+	* src/*.c: s/g_io_add_watch/linc_io_add_watch/
+
+2001-07-16  Darin Adler  <darin@bentspoon.com>
+
+	* include/linc/linc-types.h: Fix order of includes to
+	keep Linux happy -- the Solaris change let to a compile
+	failure on Linux.
+
+	* src/linc.c: (linc_init): Add a missing ifdef.
+
+2001-07-16  Laszlo Peter  <laca@ireland.sun.com>
+
+	* src/linc-protocols.c: set fakelen to 0 when fakehost is NULL
+        to avoid core dump on Solaris.
+
+	* include/linc/linc-types.h: include <sys/types.h> to
+	keep Solaris happy.
+
+2001-07-13  Darin Adler  <darin@bentspoon.com>
+
+	* configure.in: Remove duplicate macros, and fix one of
+	the test invocations that was not using the x prefix
+	technique correctly.
+
+2001-07-13  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_initiate): add
+	more error checking on fcntls.
+
+2001-07-08  Seth Nickell  <snickell@stanford.edu>
+
+	* src/linc.c: (linc_init):
+
+	Only call g_thread_init if the threading system hasn't
+	already been activated.
+
+2001-07-03  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-protocols.c (linc_getaddrinfo): don't re-seed the
+	random number generator with the time in seconds !
+	don't use "%d%d", rand (), rand () - it gains us nothing,
+	add gettimeofday ^ instead.
+
+	* src/linc-connection.c (linc_connection_dispose):
+	s/shutdown/dispose.
+
+	* src/linc.c (linc_init): fix g_type_init.
+
+2001-07-02  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_setup): regenerate the
+	UDS' name on EINVAL from bind.
+
+2001-06-21  Martin Baulig  <baulig@suse.de>
+
+	* configure.in: Make this work if SSL is not installed.
+
+2001-05-25  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_source_remove): split from
+	(linc_connection_shutdown): here, and release the self
+	reference whilst watching.
+	(linc_connection_real_state_changed): use linc_source_remove.
+	(linc_connection_connected): hold a ref over the state_changed
+	emissions.
+
+2001-05-24  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_connected):
+	unref the connection object on disconnection.
+
+	* src/linc-server.c (linc_server_destroy):
+	protect against multiple shutdowns, and rename to
+
+	* src/linc-connection.c (linc_connection_destroy): 
+	protect against multiple shutdowns, and rename to
+	(linc_connection_shutdown): this.
+	(linc_connection_real_state_changed): add assertions
+	on source removal.
+
+2001-05-18  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-connection.c (linc_connection_destroy): check
+	the io channel is valid before the unref - happens in
+	some error cases.
+
+2001-05-18  Michael Meeks  <michael@ximian.com>
+
+	* src/linc-server.c (linc_server_class_init): actualy
+	make the signal run.
+
+2001-05-18  Michael Meeks  <michael@ximian.com>
+
+	* autogen.sh: update for libtool 1.4
+
+	* src/linc-connection.c (linc_connection_destroy): unref
+	the IO channel on destroy - doh.
+
+2000-10-27  Michael Meeks  <michael@helixcode.com>
+
+	* src/linc-server.c (linc_server_get_type): type_register_static
+	fix.
+
+	* src/linc-connection.c (linc_connection_writev): use cnx->fd.
+	(linc_connection_get_type): add '0' parameter for head glib.
+

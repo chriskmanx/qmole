@@ -1,0 +1,238 @@
+
+
+				rap
+				===
+		
+
+0.  Description.
+
+	RAP is a 1:1 adap connection gadget.
+
+1.  Operation.
+
+	RAP defines a connection between exactly two A processes.
+	One of these processes is designated the server, and the
+	other the client.
+
+	A RAP connection is either synchronous or asynchronous.
+	The mode of the connection is determined by the mode of
+	the client side.
+
+	In asynchronous mode, the server process acts as a remote
+	execution machine:  an executable character vector is sent
+	from the client to the server, executed there, and the 
+	result - always a two-item nested vector of (return_code;
+	execution_value) - is returned to the client:
+
+	         A
+
+		 Õ
+
+	   client._Sûx	          ý	server._Rû_client._S
+
+					         Õ
+
+	   client._Rûserver._S    û	server._Sûdoâserver._R
+
+		 Õ
+
+		 B (via dependency or set callback)
+
+	See example (1).
+
+	In synchronous mode, the client process acts as a checkpoint
+	for messages sent synchronously from the server process.
+
+	The client initiates synchronous mode by assignment to _S:
+
+		client._Sû`sync
+
+	This and all subsequent messages, up to but not including the
+	message to enter asynchronous mode, are sent synchronously to 
+	the server.
+
+	The result of the synchronous send is assigned to the client
+	result variable client._R.
+
+	Once in synchronous mode, the server sends arrays to the client
+	by assignment to _S:
+
+		server._Sûarray
+
+	The server then waits in an exchange loop until either the client 
+	releases it by sending it a symbolic system command, or an error is
+	encountered (e.g., by timing out of the exchange).
+
+	Each message received from the client is assigned to the result
+	variable server._R.
+
+	Here is an example:
+
+		server._Sûx
+
+		[preset callback on _S entered]
+
+		  [server waits]
+				    ý	client._Rûx
+					
+					A
+	
+				    û	client._Sûy
+
+		  y is executable:
+
+		  z0ûdo ây
+				    ý	client._Rûz0
+
+					B
+			
+				    û	client._Sû`async
+
+		  z1 is a symbolic system command:
+
+		  [z1 is buffered]
+		  [preset callback exits, returning z0]
+
+		_Sûz0
+
+		[set callback on _S is entered]
+
+		  _Rûbuffered z1
+		  _MODEû`async
+
+		[server returns]
+
+	Note that the client-side sequences marked A and B consist of
+	application code.  I.e., assignments to client._S are initiated
+	by the application, not the gadget.
+
+	See example (2).
+
+	To designate an instance of RAP a server:
+
+		x._LISTENû1
+
+	To designate an instance of RAP a client:
+	
+		x._CONNECTû1
+
+	To shutdown a RAP server:
+		
+		x._LISTENû0
+
+	To shutdown a RAP client:
+
+		x._LISTENû0
+
+	Symbolic system commands:
+
+		`sync
+		`async
+		`continue
+		`abort
+
+	To make the RAP connection asynchronous:
+
+		client._Sû`async	(default)
+
+	To make the RAP connection synchronous:
+
+		client._Sû`sync
+
+	To complete synchronous exchange loop:
+
+		client._Sû`continue
+
+	To abort a cascade of synchronous exchanges:
+
+		client._Sû`abort
+
+	The variable x._EVENT contains a symbol of the most recent
+	event.
+
+2.  zûdefine cx
+
+	cx = target context of RAP tool
+	z = cx
+
+	Define a RAP gadget in the specified context.
+
+3.  Variables
+
+	_HOSTû		`localhost
+	_PORTû		12321
+	_PROTOCOLû	`A
+	_NAMEû		`rap
+	_DESCRIPTOR:	(`host;_HOST;`port;_PORT;`protocol;_PROTOCOL;`name;_NAME)
+
+	_TIMEOUTû	1000
+	_LISTEN_HANDLEû	0
+	_HANDLEû	0
+
+	_LISTENû	0
+	_CONNECTû	0
+
+	_MODEû		`async
+
+	_Sû		()
+	_Rû		()
+
+	_EVENTû		()
+	
+4.  Restrictions
+
+	Preset callbacks on _LISTEN and _CONNECT
+	Set and preset callbacks on _S
+
+	Server side only:  set callback on _R
+	
+5.  Example
+
+	(1)		$load rap
+			rap.define `sv
+			sv._LISTENû1
+
+			$load rap
+			rap.define `cl
+			cl._CONNECTû1
+
+			cl._Sû'2+2'
+			cl._R
+		< 0
+		< 4
+
+	(2)		$load rap
+			rap.define `sv
+			sv._TYPEû`server
+
+			$load rap
+			rap.define `cl
+			cl._TYPEû`client
+
+			cl._Sû`sync
+
+			aûÉ3
+			sv._Sû'.a+2'
+
+		[server waits]
+
+			cl._R
+		.a+2
+			cl._Sû'.a'	ã what is the value of .a?
+			cl._R
+		< 0
+		< 0 1 2
+			
+			aû1Øcl._R
+			cl._Sûdo `continue	
+
+		[server returns]
+
+			cl._S		ã last message sent to client
+		< 0
+		< 0 1 2
+
+			cl._R		ã result-message from client
+		< 0
+		< 2 3 4
+

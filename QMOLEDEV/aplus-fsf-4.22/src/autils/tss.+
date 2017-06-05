@@ -1,0 +1,205 @@
+ãã Copyright (c) 1990-2008 Morgan Stanley All rights reserved.
+ãã See .../src/LICENSE for terms of distribution.
+
+$cx tss
+
+if( ()½scriptsDirûsys.readenv{"UTILS_DIR"} ) {
+  scriptsDirû"/usr/local/aplus-fsf-4.22/autils";
+}
+
+_load{scriptsDir,"/act"}
+_load{scriptsDir,"/sst"}
+_load{scriptsDir,"/box"}
+
+define{cx}:
+	{
+	scxûÂ(Îcx),'_sst';
+	Ý sst.define{scx};
+
+	acxûÂ(Îcx),'_act';
+	Ý act.define{acx};
+	(acx%`_FONT)ûs.FONT;
+	(acx%`_LOCATE)ûcxÖ`_TSS;
+	(acx%`_SHELLS)ûcxÖ`_TSS;
+
+	(cx%`_SST)ûscx;
+	(cx%`_ACT)ûacx;
+
+	(cx%`_DO)û();
+	(cx,`_DO) _spcb (preset_do;);
+	(cx,`_DO) _scb (set_do;);
+
+	WSûs.autows{()};
+
+	(cx%`_DIR)û();
+	(cx,`_DIR) .is `scalar;
+	(cx,`_DIR) .has (`title;'';`out;out_dir;`in;in_dir;`preset;preset_dir;`set;set_dir);
+
+	(cx%`_SOURCE)ûÂ(Îcx),'_SOURCE';
+	(cx%`_TARGET)ûÂ(Îcx),'_TARGET';
+
+	(cx%`_ACTION)û(`Open `Close `Order `Sort;(;;;));
+	(cx%`_MSG)û'';
+	(cx%`_CMD)û'';
+	(cx%`_FIX)û(`Fix;<0);
+	(cx%`_TABLE)û();
+	(cx%`_TSS)û(`_ACTION;`_MSG;`_TABLE;`_CMD `_FIX);
+
+	(cx,`_ACTION) .is `action;
+	(cx,`_MSG) .is `label;
+	(cx,`_CMD) .is `scalar;
+	(cx,`_FIX) .is `check;
+	(cx,`_TABLE) .is `layout;
+	(cx,`_TSS) .is `layout;
+
+	(cx,`_ACTION) .has (`title;'';`geometry;`horizontal;`set;set_action;`acceptfocus;0;`C;1);
+	(cx,`_MSG) .has (`resize;'hH');
+	(cx,`_CMD) .has (`title;'Select:';`in;in_cmd);
+	(cx,`_FIX) .has (`title;'';`resize;'wWr';`set;set_fix);
+	(cx,`_TABLE) .has (`title;'';`reshow;0;`reparent;0;`newshow;1);
+	(cx,`_TSS) .has (`title;'');
+
+	s.autows{WS};
+
+	cxÖ`_TSS
+	}
+
+msg{c;x}:Ý(c%`_MSG)ûif (()½x) ' ' else x
+err{c;x}:msg{c;'!! ',x,' !!'}
+warn{c;x}:msg{c;'! ',x,' !'}
+
+paired{y;x}:r©¢1÷rû2|+\y=x
+quoted{x}:paired{'"';x}©paired{'''';x}
+deb{x}:(quoted{x}©(x¨' ')©x¨1÷x)/x
+dltb{x}:((÷©\÷x¨' ')^©\x¨' ')/x
+db{x}:dltb{deb{x}}
+
+in_dir{s;d;i;p;c;v}:(d¨' ')/d
+out_dir{s;d;i;p;c;v}:if (()½d) '' else d
+preset_dir{s;d;i;p;c;v}:if (0<#d) d
+set_dir{s;d;i;p;c;v}:((c%`_SST)%`_LIST)û()
+
+in_cmd{s;d;i;p;c;v}:
+	{
+		if (()½t Ý tûc%`_TARGET) 	d Ý warn{c;'No table'}
+	else 	if (^/d=' ') 			d Ý msg{c;}
+	else
+		{
+		eûdb{d};
+		(f;r)û(ÂiÙe;(i+1)Õe) Ý iûeÉ' ';
+		(rc;z)ûdo case (f)
+			{
+			`all;		t.only{t;};
+			`only;		t.only{t;r};
+			`also;		t.also{t;r};
+			`not;		t.not{t;r};
+					t.only{t;e}
+			};
+		if (rc=0) d Ý msg{c;(1Õîz),' records selected'} else err{c;z}
+		}
+	}
+
+set_fix{s;d;i;p;c;v}:if (()½t Ý tûc%`_TABLE) warn{c;'No table'} else msg{c;dØ('Unfixed';'Fixed')} Ý t.fix{c%`_TARGET;d}
+
+browse{c}:
+	{
+		if (()½dir Ý dirûc%`_DIR)			msg{c;}
+	else 	if (rc¨0 Ý (rc;z)ûdo open{dir;c%`_SOURCE}) 	msg{c;z}
+	else	{
+		rû''Òtable{dir;c%`_SOURCE;c%`_TARGET};
+		msg{c;'Opened'};
+		r
+		}
+	}
+
+open{dir;z}:
+	{
+	t.close{z;};
+	t.open{(dir;z);}
+	}
+
+table{dir;z;zz}:
+	{
+	wsûs.autows{()};
+	t.only{z,zz;};
+	t.send{z,zz;};
+	t.table{zz};
+	s.autows{ws};
+	tûzzÖ`_T_;
+	t .has (`title;dir;`reshow;0);
+	t
+	}
+
+Open{c}:
+	{
+	acxûc%`_ACT;
+	(acx%`_STUFF)ûcÖ`_DIR;
+	(acx,`_Z) .has (`set;(Open_Z;c));
+	(acx%`_MSG)û'Directory to open ...';
+	}
+
+Close{c}:Close_do{c}
+Order{c}:sort_or_order{c;Order_Z;0;'Specify field order ...'}
+Sort{c}:sort_or_order{c;Sort_Z;1;'Specify sort order ...'}
+
+Open_Z{s;d;i;p;c;v}:if (`apply¨d) msg{s;} else Open_do{s}
+Order_Z{s;d;i;p;c;v}:if (`apply¨d) msg{s;} else Order_do{s}
+Sort_Z{s;d;i;p;c;v}:if (`apply¨d) msg{s;} else Sort_do{s}
+
+Open_do{s}:
+	{
+		if (0=#dir Ý dirûs%`_DIR) 	warn{s;'No directory specified'}
+	else 	if (0=#sys.agetdents{dir}) 	warn{s;'Directory is empty'}
+	else 	{
+		(s%`_DIR)ûdir;
+		(s%`_TABLE)ûbrowse{s};
+		msg{s;'Opened'}
+		}
+	}
+
+Close_do{c}:msg{c;'Closed'} Ý t.close{c%`_SOURCE;} Ý (c%`_DIR)û()
+Order_do{s}:msg{s;'Ordered'} Ý (%s%`_TABLE)û(s%`_SST)%`_RIGHT
+Sort_do{s}:if (()½o Ý oû(s%`_SST)%`_UPDOWN) warn{s;'Sort not specified'} else msg{s;'Sorted'} Ý t.sort{s%`_TARGET;o}
+
+sort_or_order{c;func;flag;msg}:
+	{
+	if (()½t Ý tûc%`_TABLE) warn{c;'No table'}
+	else if (()½tt Ý ttû%t) warn{c;'No fields'}
+	else
+		{
+		fldsû(c%`_TARGET)%`_T;
+		scxûc%`_SST;
+		(scx%`_LIST)ûflds;
+		(scx%`_R)ûif (flag) É0 else fldsÉtt;
+		(scx%`_SORT)ûflag;
+		acxûc%`_ACT;
+		(acx%`_STUFF)ûscxÖ`_SST;
+		(acx,`_Z) .has (`set;(func;c));
+		(acx%`_MSG)ûmsg;
+		}
+	}
+
+preset_do{s;d;i;p;c;v}:if (~()½d) if (dÅ0Øc%`_ACTION) d 
+
+set_do{s;d;i;p;c;v}:
+	{
+	case (d)
+		{
+		`Open;		Open_do{c};
+		`Close;		Close_do{c};
+		`Order;		Order_do{c};
+		`Sort;		Sort_do{c};
+		}
+	}
+
+set_action{s;d;i;p;c;v}:
+	{
+	case (p)
+		{
+		`Open;		Open{c};
+		`Close;		Close{c};
+		`Order;		Order{c};
+		`Sort;		Sort{c};
+		}
+	}
+

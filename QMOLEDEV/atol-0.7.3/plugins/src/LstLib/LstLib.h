@@ -1,0 +1,11 @@
+////////////////////////////////////////////////////////////////////////////
+// Atol file manager project <http://atol.sf.net>
+//
+// This code is licensed under BSD license.See "license.txt" for more details.
+//
+// File: Implements Atol plugin interface for LstLib plugin 
+////////////////////////////////////////////////////////////////////////////
+
+#include "../plugin_int.h"
+
+//TOFIX remove this interface

@@ -1,0 +1,624 @@
+(***********************************************************************)
+(*                                                                     *)
+(*                         Applied Type System                         *)
+(*                                                                     *)
+(*                              Hongwei Xi                             *)
+(*                                                                     *)
+(***********************************************************************)
+
+(*
+** ATS - Unleashing the Power of Types!
+**
+** Copyright (C) 2002-2007 Hongwei Xi, Boston University
+**
+** All rights reserved
+**
+** ATS is  free software;  you can redistribute it and/or modify it under
+** the  terms of the  GNU General Public License as published by the Free
+** Software Foundation; either version 2.1, or (at your option) any later
+** version.
+** 
+** ATS is distributed in the hope that it will be useful, but WITHOUT ANY
+** WARRANTY; without  even  the  implied  warranty  of MERCHANTABILITY or
+** FITNESS FOR A PARTICULAR PURPOSE.  See the  GNU General Public License
+** for more details.
+** 
+** You  should  have  received  a  copy of the GNU General Public License
+** along  with  ATS;  see  the  file  COPYING.  If not, write to the Free
+** Software Foundation, 51  Franklin  Street,  Fifth  Floor,  Boston,  MA
+** 02110-1301, USA.
+*)
+
+(* ****** ****** *)
+
+//
+// Author: Hongwei Xi (hwxi AT cs DOT bu DOT edu)
+// Time: July 2007
+//
+
+(* ****** ****** *)
+
+(*
+**
+** A simple calculator for evaluating arithmetic expressions.
+** This example shows how lexical analysis can be done in ATS.
+** Also, it shows some typical uses of dataviewtypes, a.k.a.
+** linear datatypes.
+**
+*)
+
+(*
+
+The formats of supported commands:
+
+[var] = [exp]
+print [exp]
+quit
+
+Here is a session:
+
+./calc
+<< x = 1 + 2
+<< y = x + x
+<< print x
+>> 3
+<< print y
+>> 6
+<< quit
+
+*)
+
+%{
+
+// preamble
+
+staload "libc/SATS/stdio.sats"
+staload "libats/lex/lexing.sats"
+
+(* ****** ****** *)
+
+exception UncloseCommentException
+
+fun comment_is_unclosed (): void = begin
+  exit_errmsg {void} (1, "unclosed comment\n") ;
+end // end of [comment_is_unclosed]
+
+dataviewtype token =
+  | TOKid of string
+  | TOKint of int
+  | TOKop_add | TOKop_sub | TOKop_mul | TOKop_div
+  | TOKparen_l | TOKparen_r | TOKeq | TOKeof
+// end of [token]
+
+fun free_token (tok: token): void = case+ tok of
+  | ~TOKid id => ()
+  | ~TOKint i => ()
+  | ~TOKop_add () => ()
+  | ~TOKop_sub () => ()
+  | ~TOKop_mul () => ()
+  | ~TOKop_div () => ()
+  | ~TOKparen_l () => ()
+  | ~TOKparen_r () => ()
+  | ~TOKeq () => ()
+  | ~TOKeof () => ()
+// end of [free_token]
+
+extern fun fprint_token {m:file_mode}
+  (pf_mod: file_mode_lte (m, w) | fil: &FILE m, tok: !token): void
+
+implement fprint_token
+  (pf_mod | fil, tok): void = case+ tok of
+  | TOKid s =>
+      (fprintf (pf_mod | fil, "TOKid(%s)", @(s)); fold@ tok)
+  | TOKint i =>
+      (fprintf (pf_mod | fil, "TOKint(%i)", @(i)); fold@ tok)
+  | TOKop_add () =>
+      (fprint_string (pf_mod | fil, "+"); fold@ tok)
+  | TOKop_sub () =>
+      (fprint_string (pf_mod | fil, "-"); fold@ tok)
+  | TOKop_mul () =>
+      (fprint_string (pf_mod | fil, "*"); fold@ tok)
+  | TOKop_div () =>
+      (fprint_string (pf_mod | fil, "/"); fold@ tok)
+  | TOKparen_l () =>
+      (fprint_string (pf_mod | fil, "("); fold@ tok)
+  | TOKparen_r () =>
+      (fprint_string (pf_mod | fil, ")"); fold@ tok)
+  | TOKeq () =>
+      (fprint_string (pf_mod | fil, "="); fold@ tok)
+  | TOKeof () =>
+      (fprint_string (pf_mod | fil, "EOF"); fold@ tok)
+// end of [fprint_token]
+
+extern fun print_token (tok: !token): void
+
+implement print_token (tok) = let
+  val (pf_stdout | stdout) = stdout_get ()
+in
+  fprint_token (file_mode_lte_w_w | !stdout, tok);
+  stdout_view_set (pf_stdout | (*none*))
+end // end of [print_token]
+
+extern fun prerr_token (tok: !token): void
+
+implement prerr_token (tok) = let
+  val (pf_stderr | stderr) = stderr_get ()
+in
+  fprint_token (file_mode_lte_w_w | !stderr, tok);
+  stderr_view_set (pf_stderr | (*none*))
+end // end of [prerr_token]
+
+(* ****** ****** *)
+
+%{^
+
+extern long int
+strtol (const char *nptr, char **endptr, int base) ;
+
+ats_int_type __strtoi
+  (ats_ptr_type str, ats_int_type base) {
+  return strtol ((char*)str, (char**)0, base) ;
+} // end of [__strtoi]
+
+%}
+
+fun lexeme_int (base: int): int = let
+  val str = lexeme_string () in __strtoi (str, base)
+end where {
+  extern fun __strtoi (str: string, base: int): int = "__strtoi"
+} // end of [lexeme_int]
+
+(* ****** ****** *)
+
+extern fun TOKEN (): token
+fn TOKEN_lexing_error {a:viewt@ype} (): a = lexing_error ()
+
+extern fun COMMENT (level: int): void
+fn COMMENT_lexing_error {a:viewt@ype} (level: int): a = lexing_error ()
+
+extern fun COMMENT_LINE (): void
+fn COMMENT_LINE_lexing_error {a:viewt@ype} (): a = lexing_error ()
+
+extern fun COMMENT_REST (): void
+fn COMMENT_REST_lexing_error {a:viewt@ype} (): a = lexing_error ()
+
+(* ****** ****** *)
+
+%}
+
+// definition of constants of regular expressions
+
+(* 011: \t; \014: \f; \015: \r *)
+blank = [ '\f' '\r' '\t' ' ' ] +
+
+xdigit = [ '0'-'9' 'a'-'f' 'A'-'F' ]
+
+ident_fst = [ 'A'-'Z' 'a'-'z' '_' ]
+ident_rst = [ '0'-'9' 'A'-'Z' 'a'-'z' '_' '\'' ]
+
+ident = $ident_fst $ident_rst *
+
+sgn = ['+' '-']?
+int8 = $sgn '0' ['0'-'7']*
+int10 = $sgn ['1'-'9'] ['0'-'9']*
+int16 = $sgn '0' [ 'x' 'X'] $xdigit+
+
+newline = '\n'
+
+%%
+
+TOKEN =
+  | $blank { TOKEN () }
+  | $newline { TOKEN () }
+  | "(*" { COMMENT (0); TOKEN () }
+  | "//" { COMMENT_LINE (); TOKEN () }
+  | "////" { COMMENT_REST (); TOKeof () }
+  | $ident { TOKid (lexeme_string ()) }
+  | $int8 { TOKint (lexeme_int (8)) }
+  | $int10 { TOKint (lexeme_int (10)) }
+  | $int16 { TOKint (lexeme_int (16)) }
+  | '=' { TOKeq () }
+  | '+' { TOKop_add () }
+  | '-' { TOKop_sub () }
+  | '*' { TOKop_mul () }
+  | '/' { TOKop_div () }
+  | '(' { TOKparen_l () }
+  | ')' { TOKparen_r () }
+  | $EOF { TOKeof () }
+
+COMMENT (level) =
+  | "(*" { COMMENT (level+1) }
+  | "*)" { if level > 0 then COMMENT (level-1) else () }
+  | $newline { COMMENT (level) }
+  | $EOF { comment_is_unclosed () }
+  | [^] { COMMENT (level) }
+
+COMMENT_LINE =
+  | [^ '\n']* { () }
+
+COMMENT_REST =
+  | [^]* { () }
+
+%%
+
+%{^
+#include "libc/CATS/stdio.cats"
+%} // end of [%{^]
+
+// postamble in the lexer.sats
+
+dataviewtype exp =
+  | EXPint of int
+  | EXPadd of (exp, exp)
+  | EXPsub of (exp, exp)
+  | EXPmul of (exp, exp)
+  | EXPdiv of (exp, exp)
+  | EXPid of string
+  | EXPerr
+
+fun free_exp (e0: exp): void = case+ e0 of
+  | ~EXPint i => ()
+  | ~EXPadd (e1, e2) => (free_exp e1; free_exp e2)
+  | ~EXPsub (e1, e2) => (free_exp e1; free_exp e2)
+  | ~EXPmul (e1, e2) => (free_exp e1; free_exp e2)
+  | ~EXPdiv (e1, e2) => (free_exp e1; free_exp e2)
+  | ~EXPid id => ()
+  | ~EXPerr () => ()
+// end of [free_exp]
+
+fun print_exp (e0: !exp): void = case+ e0 of
+  | EXPint i => begin
+      print "EXPint("; print i; print ")"; fold@ e0
+    end
+  | EXPadd (!p_e1, !p_e2) => begin
+      print "EXPadd("; print_exp !p_e1; print ", "; print_exp !p_e2; print ")"; fold@ e0
+    end
+  | EXPsub (!p_e1, !p_e2) => begin
+      print "EXPsub("; print_exp !p_e1; print ", "; print_exp !p_e2; print ")"; fold@ e0
+    end
+  | EXPmul (!p_e1, !p_e2) => begin
+      print "EXPmul("; print_exp !p_e1; print ", "; print_exp !p_e2; print ")"; fold@ e0
+    end
+  | EXPdiv (!p_e1, !p_e2) => begin
+      print "EXPdiv("; print_exp !p_e1; print ", "; print_exp !p_e2; print ")"; fold@ e0
+    end
+  | EXPid id => (print "EXPid("; print id; print ")"; fold@ e0)
+  | EXPerr () => (print "EXPerr("; print ")"; fold@ e0)
+// end of [print_exp]
+
+dataviewtype cmd =
+  | CMDassgn of (string, exp)
+  | CMDerror
+  | CMDprint of exp
+  | CMDquit
+
+fun free_cmd
+  (cmd: cmd): void = begin case+ cmd of
+  | ~CMDassgn (id, e) => free_exp e
+  | ~CMDerror () => ()
+  | ~CMDprint e => free_exp e
+  | ~CMDquit () => ()
+end // end of [free_cmd]
+
+//
+
+exception EvalErrorException
+
+(*
+
+[var] := [identifier]
+[exp0] :=  [var] | [integer] | ( [exp2] )
+[exp0_r] := * [exp0] | / [exp0] | (* empty *)
+[exp1] := [exp0] [exp1_r]
+[exp1_r] := + [exp1] | - [exp1] | (* empty *)
+[exp2] := [exp1] [exp1_r]
+
+*)
+
+fun parse_paren_r
+  (tok: &token, err: &int): void =
+  case+ tok of
+  | ~TOKparen_r () => (tok := TOKEN ())
+  | tok_v => (tok := tok_v; err := err + 1)
+// end of [parse_paren_r]
+
+fun parse_exp_0
+  (tok: &token, err: &int): exp =
+  case tok of
+  | ~TOKint i => (tok := TOKEN (); EXPint i)
+  | ~TOKid id => (tok := TOKEN (); EXPid id)
+  | ~TOKparen_l () => let
+      val () = tok := TOKEN ()
+      val e = parse_exp_2 (tok, err)
+    in
+      parse_paren_r (tok, err); e
+    end
+  | tok_v => begin
+      free_token tok_v; err := err + 1; tok := TOKEN (); EXPerr
+    end
+// end of [parse_exp_0]
+
+and parse_exp_0_r
+  (tok: &token, err: &int, e0: exp): exp =
+  case tok of
+  | ~TOKop_mul () => let
+      val () = tok := TOKEN ()
+      val e1 = parse_exp_0 (tok, err)
+    in
+      parse_exp_0_r (tok, err, EXPmul (e0, e1))
+    end
+  | ~TOKop_div () => let
+      val () = tok := TOKEN ()
+      val e1 = parse_exp_0 (tok, err)
+    in
+      parse_exp_0_r (tok, err, EXPdiv (e0, e1))
+    end
+  | tok_v => (tok := tok_v; e0)
+// end of [parse_exp_0_r]
+
+and parse_exp_1
+  (tok: &token, err: &int): exp = let
+  val e0 = parse_exp_0 (tok, err) in parse_exp_0_r (tok, err, e0)
+end // end of [parse_exp_1]
+
+and parse_exp_1_r
+  (tok: &token, err: &int, e0: exp): exp =
+  case tok of
+  | ~TOKop_add () => let
+      val () = tok := TOKEN ()
+      val e1 = parse_exp_1 (tok, err)
+    in
+      parse_exp_1_r (tok, err, EXPadd (e0, e1))
+    end
+  | ~TOKop_sub () => let
+      val () = tok := TOKEN ()
+      val e1 = parse_exp_1 (tok, err)
+    in
+      parse_exp_1_r (tok, err, EXPsub (e0, e1))
+    end
+  | tok_v => (tok := tok_v; e0)
+// end of [parse_exp_1_r]
+
+and parse_exp_2 (tok: &token, err: &int): exp =
+  let val e0 = parse_exp_1 (tok, err) in parse_exp_1_r (tok, err, e0) end
+// end of [parse_exp_2]
+
+//
+
+fun parse_eq
+  (tok: &token, err: &int): void =
+  case+ tok of
+  | ~TOKeq () => (tok := TOKEN ())
+  | tok_v => (tok := tok_v; err := err + 1)
+// end of [parse_eq]
+
+//
+
+(*
+
+[cmd] := [var] = [exp2] | print [exp2] | quit
+
+*)
+
+fun parse_cmd
+  (tok: &token, err: &int): cmd = begin
+  case+ tok of
+    | ~TOKid id when id = "print" => let
+        val () = tok := TOKEN ()
+        val e = parse_exp_2 (tok, err)
+      in
+        CMDprint e
+      end
+    | ~TOKid id when id = "quit" =>
+      (tok := TOKEN (); CMDquit ())
+    | ~TOKid id => let
+        val () = tok := TOKEN ()
+        val () = parse_eq (tok, err)
+        val e = parse_exp_2 (tok, err)
+      in
+        CMDassgn (id, e)
+      end
+(*
+    | ~TOKid id => begin case+ id of
+         | "print" => let
+             val () = tok := TOKEN ()
+             val e = parse_exp_2 (tok, err)
+           in
+             CMDprint e
+           end
+         | "quit" => (tok := TOKEN (); CMDquit ())
+         | _ => let
+             val () = tok := TOKEN ()
+             val () = parse_eq (tok, err)
+             val e = parse_exp_2 (tok, err)
+           in
+             CMDassgn (id, e)
+           end
+      end
+*)
+    | tok_v => (tok := tok_v; CMDerror ())
+end // end of [parse_cmd]
+
+//
+
+datatype env = ENVnil | ENVcons of (string, int, env)
+
+fun print_env (env: env): void = case+ env of
+  | ENVcons (id, i, env) =>
+    (print id; print " = "; print i; print_newline (); print_env env)
+  | ENVnil () => ()
+
+fun env_find
+  (env: env, id0: string): int =
+  case+ env of
+  | ENVcons (id, i, env) =>
+      if id0 = id then i else env_find (env, id0)
+  | ENVnil () => 0
+// end of [eval_find]
+
+fun eval_exp (env: &env, e0: exp): int = let
+(*
+  val () = begin
+    print "eval_exp: e0 = "; print_exp e0; print_newline ()
+  end // end of [val]
+*)
+in
+  case+ e0 of
+  | ~EXPint i => i
+  | ~EXPadd (e1, e2) => eval_exp (env, e1) + eval_exp (env, e2)
+  | ~EXPsub (e1, e2) => eval_exp (env, e1) - eval_exp (env, e2)
+  | ~EXPmul (e1, e2) => eval_exp (env, e1) * eval_exp (env, e2)
+  | ~EXPdiv (e1, e2) => eval_exp (env, e1) / eval_exp (env, e2)
+  | ~EXPid (id) => env_find (env, id)
+  | ~EXPerr () => $raise EvalErrorException
+end // end of [eval_exp]
+
+fun eval_cmd (env: &env, cmd: cmd): int =
+  case+ cmd of
+    | ~CMDassgn (id, e) =>
+      let val i = eval_exp (env, e) in
+(*
+        print "eval_cmd: before:\n"; print_env env;
+*)
+        env := ENVcons (id, i, env);
+(*
+        print "eval_cmd: after:\n"; print_env env;
+*)
+        0
+      end
+    | ~CMDprint e => let
+        val i = eval_exp (env, e) in
+        print ">> "; print i; print_newline (); 0
+      end // end of [CMDprint]
+    | ~CMDquit () => 1
+    | ~CMDerror () => begin
+        print "The command is illegal; please try again:\n"; 0
+      end // end of [CMDerror]
+// end of [eval_cmd]
+
+extern fun getline (): string
+
+fun eval_string
+  (env: &env, input: string): int = let
+  val (pf_infil | p_infil) = infile_make_string input
+  val (pf_lexbuf | lexbuf) = lexbuf_make_infile (pf_infil | p_infil)
+  val () = lexing_lexbuf_set (pf_lexbuf | lexbuf)
+  var tok: token = TOKEN ()
+  var err: int =  (0: int)
+  val cmd = parse_cmd (tok, err)
+(*
+  val () = begin
+    print "eval_string: err = "; print err; print_newline ()
+  end // end of [val]
+*)
+  val cmd = (
+    if err > 0 then (free_cmd cmd; CMDerror ()) else cmd
+  ) : cmd
+(*
+  val () = begin
+    print "eval_string: tok = "; print_token tok; print_newline ()
+  end // end of [val]
+*)
+  val cmd = (case+ tok of
+    | ~TOKeof () => cmd
+    | tok_v => (free_token tok_v; free_cmd cmd; CMDerror ())
+  ) : cmd
+in
+  eval_cmd (env, cmd)
+end // end of [eval_string]
+
+(* ****** ****** *)
+
+dynload "libats/lex/lexing.dats"
+
+(* ****** ****** *)
+
+implement
+main (argc, argv) = let
+//
+var env0: env = ENVnil ()
+//
+fun read_eval_print
+  (env: &env): void = let
+  val () = print "<< "
+  val () = fflush_stdout ()
+  val input = getline ()
+  val i = eval_string (env, input)
+  val () = lexing_lexbuf_free ()
+in    
+  if i = 0 then read_eval_print (env) else ()
+end // end of [read_eval_print]
+//
+in
+//
+read_eval_print (env0)
+//
+end // end of [main]
+
+(* ****** ****** *)
+
+dataviewtype charlst (int) =
+  | charlst_nil (0)
+  | {n:nat} charlst_cons (n+1) of (char, charlst n)
+// end of [charlst]
+
+#define nil charlst_nil
+#define :: charlst_cons
+#define cons charlst_cons
+
+extern fun
+charlst_is_nil {n:nat} (cs: !charlst n): bool (n == 0) =
+  "charlst_is_nil"
+
+implement
+charlst_is_nil (cs) = case+ cs of
+  | nil _ => (fold@ cs; true) | cons _ => (fold@ cs; false)
+// end of [charlst_is_nil]
+
+extern fun
+charlst_uncons {n:pos} (cs: &charlst n >> charlst (n-1)): char =
+  "charlst_uncons"
+
+implement charlst_uncons (cs) =
+  let val ~(c :: cs_r) = cs in cs := cs_r; c end
+// end of [charlst_uncons]
+
+extern fun
+string_make_charlst_int {n:nat} (cs: charlst n, n: int n): string n =
+  "string_make_charlst_int"
+
+%{$
+ats_ptr_type
+string_make_charlst_int (
+  ats_ptr_type cs, const ats_int_type n
+) {
+  char *s0, *s;
+  s0 = ats_malloc_gc(n+1) ;
+  s = s0 + n ;
+  *s = '\0' ; --s ;
+  while (!charlst_is_nil(cs)) { *s = charlst_uncons(&cs) ; --s ; }
+  return s0 ;
+} // end of [string_make_charlst_int]
+%} // end of [%{$]
+
+implement getline () = let
+  fun loop {n:nat} (
+    cs: charlst n, n: int n
+  ) : string =
+    let val c = getchar () in
+      if c >= 0 then begin
+        case+ char_of_int c of
+          | '\n' => string_make_charlst_int (cs, n)
+          | c => loop (charlst_cons (c, cs), n+1)
+      end else begin
+        string_make_charlst_int (cs, n)
+      end
+    end // end of [let]
+  // end of [loop]
+in
+  loop (charlst_nil (), 0)
+end // end of [getline]
+
+(* ****** ****** *)
+
+(* end of [calc.lats] *)

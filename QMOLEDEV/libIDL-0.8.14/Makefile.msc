@@ -1,0 +1,73 @@
+## -*- mode: makefile -*-
+## Makefile for building the libIDL dll with Microsoft C
+## Use: nmake -f Makefile.msc
+
+# As far as I can see a MSVC-built libIDL DLL is binary compatible
+# with a gcc-built one, except for the IDL_tree_to_IDL() function
+# which has a FILE* parameter. (FILE structs are meaningless in a
+# module that uses a different C runtime.) That function is not used
+# by ORBit2 at least, though. Thus use the same name for the DLL. Keep
+# this in sync with current and age in LT_VERSION (0:0:0).
+CURRENT_MINUS_AGE = 0
+
+IDL_DLL = libIDL-2-$(CURRENT_MINUS_AGE).dll
+
+all: __glib_cflags.mk $(IDL_DLL) tstidl.exe
+
+LDOPT = -debug
+CCOPT = 
+
+CC = cl -GF $(CCOPT) -MD -W3 -nologo
+
+MT = mt
+
+LDFLAGS = -link -incremental:no -libpath:c:/opt/proxy-libintl/lib $(LDOPT)
+
+# Indirect file with GLib cflags
+__glib_cflags.mk:
+	pkg-config --msvc-syntax --cflags glib-2.0 >$@
+
+# And libs
+__glib_libs.mk:
+	for /F "delims==" %i in ('pkg-config --msvc-syntax --libs glib-2.0') \
+		do echo $(LDFLAGS) %i >$@
+
+CFLAGS = -Iinclude -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_WARNINGS @__glib_cflags.mk
+
+# All .c files go into the DLL except tstidl.c, so we can use _DLIBIDL_COMPILATION
+# in general, correspondingly then build tstidl.exe directly from tstidl.c
+DEFS = -DLIBIDL_VERSION=\"0.8.14\" \
+       -DCPP_PROGRAM="\"cl.exe /E /nologo\"" \
+       -DSTDC_HEADERS -DHAVE_POPEN -DHAVE_STDDEF_H -DHAVE_WCHAR_H \
+       -DYYTEXT_POINTER -DYYDEBUG \
+       -DG_LOG_DOMAIN=\"libIDL\" \
+       -DLIBIDL_COMPILATION
+
+libIDL_OBJECTS =	\
+	parser.obj	\
+	lexer.obj	\
+	ns.obj		\
+	util.obj
+
+$(IDL_DLL): $(libIDL_OBJECTS) libIDL.def __glib_libs.mk
+        $(CC) $(CFLAGS) -LD -Fe$@ $(libIDL_OBJECTS) libIDL.def @__glib_libs.mk -link -implib:libIDL-2.lib
+	$(MT) -manifest $@.manifest -outputresource:$@;2
+
+.c.obj:
+        $(CC) $(CFLAGS) $(DEFS) -c $<
+
+tstidl.exe: $(IDL_DLL) tstidl.c
+        $(CC) $(CFLAGS) -Fe$@ tstidl.c libIDL-2.lib @__glib_libs.mk
+	$(MT) -manifest $@.manifest -outputresource:$@;1
+
+clean:
+	del *.exe
+	del *.obj
+	del *.dll
+	del *.lib
+	del *.err
+	del *.map
+	del *.exp
+	del *.pdb
+	del *.manifest
+	del __*.mk

@@ -1,0 +1,868 @@
+[UNDER CONSTRUCTION]
+[This is Daniel's documentation, and is covered by his copyright:
+
+ Permission to use, copy, modify, distribute, and sell this software
+ for any purpose is hereby granted without fee, provided that the above
+ copyright notice appear in all copies and that both that copyright
+ notice and this permission notice appear in supporting documentation,
+ and that the name of Daniel Dardailler not be used in advertising or
+ publicity pertaining to distribution of the software without specific,
+ written prior permission.  Daniel Dardailler makes no representations
+ about the suitability of this software for any purpose.  It is
+ provided "as is" without express or implied warranty.
+]
+
+Motif Drag And Drop Protocol
+----------------------------
+
+
+1.1	Introduction
+
+This document describes the protocol used to implement Drag and Drop 
+in existing versions of the Motif toolkit (since version 1.2, and any 
+subsequent release).
+
+This protocol is based on X Client Messages, Properties and 
+Selections, and its public specification should allow any X based 
+toolkit or application to interoperate with any applications that use 
+Motif Drag&Drop.
+
+1.2	Description
+
+Drag and Drop is an interactive technique which allows transfer of 
+information through a simple metaphor: the user picks an object on 
+the display with the pointer, drags it across the screen while 
+maintaining the pointer button pressed, and drops the object on some 
+other place. Subsequently, the application where the object was 
+dropped usually does some data transfer corresponding to the object.
+
+A Drag and Drop operation starts in a window called the source 
+window. The client owner of this window is called the initiator 
+client. The drop operation occurs in a window called the destination 
+window. The client owner of this window is called the receiver 
+client. A client can be both initiator and receiver for an operation. 
+A client can contain both the source and destination windows for an 
+operation.  The source window may also be the destination window. 
+There are no particular requirements on what the client should do or 
+not do in those specific cases.
+
+In many cases, the drop will occur on some area called a drop site, 
+for example a printer icon or a trash can icon. A drop site may be 
+drawn in its own window or may be simply drawn by the receiver 
+application in a larger window. The protocol does not require to have 
+one window per drop site.
+
+During the drag, both the initiator client and the potential receiver 
+clients may want to provide visual feed back to the user. The feed 
+back provided by the initiator is called drag-over. The feed back 
+provided by a receiver is called drag-under: typically doing some 
+animation in the destination window under the drag icon.
+
+The feedback may consist in
+
+    -	an icon representing the data being dragged, called the source 
+	icon 
+
+    -   showing the existence of a drop site. Both initiator and
+	receiver might want to provide feedback whether or not a drop
+	is possible.  For example, the receiver can be highlighting the drop
+	site and the initiator showing a specific icon: the state icon.
+
+    -	a side effect icon indicating the side effect that would occur 
+	if a drop were made.
+
+    -	In the case where a drop is possible, both initiator and 
+	receiver may want to provide feedback indicating the validity of 
+	the operation for this particular drop. For example, if it is 
+	known that the object being dragged cannot be processed by the 
+	receiver.
+
+Implementing Drag and Drop requires multiple conventions:
+
+    -	Potential receivers need to signal that they contain one or more 
+	drop sites on their top level windows.
+
+    -	When a drag operation starts, the initiator client needs to 
+	obtain  from a service all windows where data can be dropped. 
+	This may be obtained by querying an external service (e.g.  the 
+	Window Manager).  If such a service does not exist, the 
+	initiator will have to determine when the pointer enters a new 
+	top level window,  if that window is a potential receiver. Refer 
+	to the ICCCM 2.0  manual for WM_STATE property that identifies 
+	toplevel window in clients. 
+
+    -	During the drag, the initiator send messages to the potential 
+	receivers, and expect responses from them. The set of states and 
+	messages exchanged during a drag define the Drag Protocol.
+
+    -	 The set of states and messages exchanged with and after the 
+	drop event define the Drop Protocol.
+
+The Drag protocol and the Drop protocol are independent. During a 
+drag a client is at liberty to not use the drag protocol. For example 
+because there is known latency or thrashing and using the drag 
+protocol would be much too slow to provide accurate feedback. Hence a 
+drag and drop operation may actually involve only the Drop protocol. 
+This style of interaction is called "Drop Only" in the Motif toolkit.
+
+The data is transfered through some action that may have side 
+effects. For example in a file management system, when a file is 
+transferred it can be physically moved from a directory to another 
+one, or copied, or linked.  The Motif protocol supports three pre-
+defined side effects named Copy (the initiator data is not altered 
+after the drop), Move (the initiator data is removed after the drop) 
+and Link (a reference to the initiator data has been made by the 
+receiver). The Motif drag and drop dynamic protocol uses X11 Client 
+Messages as the underlying transport mechanism and also exchanges 
+data through X properties.
+
+1.3	 The Drag Protocol
+
+In order to provide accurate feed back both the initiator and the 
+receiver need information from the other side.  The messages from the 
+drag protocol serve that purpose.  
+
+The messages are X client messages sent from the source window to the 
+destination window, and back.  
+
+As the pointer moves, the initiator sends messages indicating the new 
+pointer position and properties of the drag (targets, possible side 
+effects, recommended side effects). From this message, the receiver 
+obtains necessary information to achieve drag under feedback. The 
+receiver then replies by providing information to the initiator about 
+the existence, validity and side effects of the drop, so that the 
+initiator can achieve proper drag over feedback.
+
+Some data is stored on window properties of a persistent, override-
+redirect, InputOnly child window of the display's default root 
+window: the motif Drag Window.  A client looks for the motif Drag 
+Window id on the _MOTIF_DRAG_WINDOW property of its display's default 
+root window. If the window id is NULL or invalid, a client may create 
+this Window itself (using SetCloseDownMode RetainPermanent, so that 
+other clients don't have to create it).
+
+Several sets of data are stored on the motif Drag Window properties. 
+Of interest for the Dynamic Drag protocol is a targets list table.
+
+The _MOTIF_DRAG_TARGETS property on the motif Drag Window (type 
+_MOTIF_DRAG_TARGETS) contains a targets table, consisting of a 
+sequence of target lists to be shared among clients.  In other words, 
+this property is a list of lists. These target lists are sorted into 
+ascending order to avoid permutations of otherwise compatible target 
+list(e.g. client1 supports target list B,C,A and client2 C,B,A: they 
+should both rely on A,B,C).  By sharing the targets table, clients 
+may pass target lists between themselves by exchanging only the 
+corresponding target list index in the protocol messages (X Client 
+Message are limited in size). Note that the targets TARGETS and 
+MULTIPLE, which are mandatory per ICCCM requirement, are not 
+mentioned in this list.
+
+To add a target list to the table, a client must first sorts its 
+target list into ascending order, then search the targets table for a 
+match. If it finds a match, it may use the index of the matching 
+targets table entry in the drag protocol (starting at 0).  Otherwise, 
+it adds the sorted target list to the table, anywhere, but atomically 
+(e.g. under ServerGrab) updates the _MOTIF_DRAG_TARGETS property on 
+motif Drag Window, and uses the index of the new targets table entry.
+
+Since the protocol uses X client messages of fixed size, limited to 
+20 bytes:
+
+    -	the protocol uses properties on the source and destination 
+	windows to exchange extra information that would not fit in the 
+	available bytes. The property name is indicated in the message 
+	data.
+
+    -	every X client message has an XClientMessageEvent message_type 
+	that uses the Atom _MOTIF_DRAG_AND_DROP_MESSAGE.  The actual 
+	type of the request or reply is indicated in a byte in the data 
+	buffer called the Reason. Thus every client message from the 
+	protocol contains:
+
+    -	window          the window receiving the event            
+
+    -	message_type    the atom _MOTIF_DRAG_AND_DROP_MESSAGE           
+
+    -	format  8       (no byte swapping done by X Server)            
+
+    -	data.b[0]       one byte for the reason (type of 
+				request/reply + originator)            
+
+    -	data.b[1]       byte order of the data buffer
+
+    -	data.b[...]     rest of the message content
+
+    -	the protocol uses bit fields within bytes to transmit 
+	information (see exact encoding section).
+
+A receiver is a top level window that contains drop sites. A receiver 
+advertises itself by placing a property on its top level window
+
+    -	property name _MOTIF_DRAG_RECEIVER_INFO 
+
+    -	property type   _MOTIF_DRAG_RECEIVER_INFO 
+
+    -	property format 8
+
+The property is at least 16 bytes and contains:
+
+    -	BYTE    byte order of data in property 
+
+    -	BYTE    protocol version of receiver 
+
+    -	BYTE    protocol style == Dynamic, DropOnly, None 
+
+    -	BYTE    unspecified 
+
+    -	CARD32  unspecified 
+
+    -	CARD32  unspecified 
+
+    -	CARD32  unspecified
+
+A style of Dynamic means that the receiver will accept and answer 
+Drag Protocol X Client Messages sent by the source.
+
+A style of DropOnly means that the source should not send any message 
+to the receiver, except for DROP_START, and that drop will be 
+accepted in the receiver toplevel. The default drag-over will 
+indicate such a possibility to the user, anywhere in the target 
+window. It acts as if a single drop-site was associated with the 
+receiver toplevel window, accepting all possible targets and 
+operations.
+
+A style of None means that drops are not allowed anywhere in the 
+receiver window, and will automatically fail. Drag-over feedback 
+should indicate such an impossibility.
+
+When starting a drag, the initiator creates a property on the source 
+window, of type _MOTIF_DRAG_INITIATOR_INFO, containing information 
+about the drag, of which the target index, i.e. the index in the 
+target list table described above. The name of that property is 
+passed in the drag protocol requests.
+
+This source window property indicates:
+
+    -	BYTE      byte order of data in the property 
+
+    -	BYTE      protocol version 
+
+    -	CARD16  an index in the pre-converted TARGETS table described 
+	        above 
+
+    -	CARD32  the selection Atom for the data transfer at drop time 
+	        (itself., see below)
+
+
+
+The drag protocol messages are the following (all timestamps are set 
+to the corresponding X Event triggering the message: crossing event, 
+mouse motion, button release, etc):
+
+When entering a new top level, the initiator sends TOP_LEVEL_ENTER 
+message (XClientMessage type _MOTIF_DRAG_AND_DROP_MESSAGE) 
+containing:
+
+    -	BYTE         reason = TOP_LEVEL_ENTER 
+
+    -	BYTE         byte order 
+
+    -	CARD16	     0 
+
+    -	CARD32       timestamp 
+
+    -	CARD32       source window id
+
+    -	CARD32       Atom == initiator property on the source window and 
+                     selection Atom for the data transfer at  drop time
+
+The selection Atom in the above property must be unique for the 
+duration of the Drag&Drop transaction, and the 
+initiator must own the selection and be ready to convert data for its 
+target from the start of the gesture, since the 
+receiver may want to do a conversion dynamically to validate an 
+operation.
+
+The receiver does not reply to this message
+
+When leaving a top level window the initiator sends a TOP_LEVEL_LEAVE 
+message containing:
+
+    -	BYTE         reason = TOP_LEVEL_LEAVE 
+
+    -	BYTE         byte order 
+
+    -	CARD16	     0 
+
+    -	CARD32       timestamp 
+
+    -	CARD32       source window 
+
+The receiver does not reply to this message.
+
+After entering a top level window, when the pointer moves, the 
+initiator sends a DRAG_MOTION message:
+
+    -	BYTE           reason = DRAG_MOTION 
+
+    -	BYTE           byte order 
+
+    -	CARD16         one recommended and a set of possible side 
+			effects (move,copy,link,noop) 
+
+    -	CARD32          timestamp 
+
+    -	CARD16          x relative to rootwindow 
+
+    -	CARD16          y relative to rootwindow
+
+The operation and operations fields of the side effect CARD16 bit 
+field are used to convey, resp., the recommended and possible side 
+effects. 
+
+If the pointer enters a drop site the receiver replies with a 
+DROP_SITE_ENTER message:
+
+    -	BYTE         reason = DROP_SITE_ENTER 
+
+    -	BYTE         byte order 
+
+    -	CARD16       one selected and a set of possible side effect, +
+			status (valid-drop-site, invalid-drop-site) 
+
+    -	CARD32        timestamp 
+
+    -	CARD16        better-x  relative to rootwindow 
+
+    -	CARD16        better-y  relative to rootwindow
+
+The `better' position is set by the receiver as a hint for the source 
+on where the drag-over icon should be placed during the gesture (the 
+source can warp the pointer to that location). "operations" plural is 
+the list of operations that the receiver supports,  "operation" 
+singular is the one retained so far by the drag source and 
+acknowledged by the receiver.
+
+If the pointer leaves a drop site the receiver replies with a 
+DROP_SITE_LEAVE message:
+
+    -	BYTE         reason = DROP_SITE_LEAVE 
+
+    -	BYTE         byte order 
+
+    -	CARD32       timestamp
+
+If the pointer does not enter or leave a drop site the receiver 
+echoes a DRAG_MOTION message
+
+    -	BYTE         byte order 
+
+    -	BYTE         reason = DRAG_MOTION 
+
+    -	CARD16       one selected and a set of  possible side effect, + 
+			status 
+
+    -	CARD32        timestamp 
+
+    -	CARD16        better-x  relative to rootwindow 
+
+    -	CARD16        better-y  relative to rootwindow
+
+The user may change the recommended side effect during the drag (e.g. 
+using modifier key). The initiator then sends an OPERATION_CHANGED 
+message:
+
+    -	BYTE          reason = OPERATION_CHANGED 
+
+    -	BYTE          byte order 
+
+    -	CARD16        one recommended and a set of possible side effect 
+
+    -	CARD32        timestamp
+
+The receiver echoes the message with the selected side effect:
+
+    -	BYTE         byte order 
+
+    -	BYTE         reason = OPERATION_CHANGED 
+
+    -	CARD16       the selected and the set of possible side effect, 
+			+  status 
+
+    -	CARD32       timestamp
+
+1.4	The Drop protocol
+
+The drop protocol may be used independently of the drag protocol 
+(i.e. in DropOnly mode). The drop protocol consists of a single 
+message that is echoed by the receiver. After that message, if the 
+drop is not cancelled or postponed, the receiver proceeds with an X 
+selection transfer to transfer the data.
+
+The initiator sends a drop message, which indicates:
+
+    -	BYTE          reason = DROP_START 
+
+    -	BYTE          byte order 
+
+    -	CARD16        one recommended and a set of possible side effects 
+
+    -	CARD32        timestamp 
+
+    -	CARD16        x relative to rootwindow 
+
+    -	CARD16        y relative to rootwindow 
+
+    -	CARD32        Atom == property on the source window 
+
+    -	CARD32        source Window 
+
+The atom indicates the name of the property described above (in the 
+drag protocol) that the initiator sets up when the drag starts, 
+containing the target index and the selection atom to be used for 
+selection requests.
+
+The receiver echoes the message with:
+
+    -	BYTE          reason = DROP_START
+
+    -	BYTE          byte order 
+
+    -	CARD16        selected and set of possible side effect, status, 
+			and drop action: (drop, drop-help, drop-cancel) 
+
+    -	CARD16        better-x 
+
+    -	CARD16        better-y
+
+
+
+If the drop is Valid and the action is drop, the receiver will 
+achieve a selection transfer, using the atom in the source window 
+property. The initiator should select for DestroyNotify on the 
+destination window such that it is aware of a potential receiver 
+crash.
+
+Similarly, the receiver should select for DestroyNotify on the source 
+window if it intends to proceed with the drop.
+
+1.4.1	 Data transfer and termination on the initiator side
+
+The receiver may request for as many transfer as it wants to, using X 
+selection requests to the selected targets. On each conversion 
+request, the initiator replies using the ICCCM selection.
+
+The resources allocated during the Drag should not be released until 
+the Drop is finished, i.e., the initiator must not release any 
+resources concerning the drop until it receives a conversion request 
+for the drop selection to either target XmTRANSFER_SUCCESS or 
+XmTRANSFER_FAILURE.
+
+When it receives such a conversion request it must reply with a empty 
+value.
+
+1.4.2	 Data transfer and termination on the receiver side
+
+The receiver may proceed with multiple selection requests on the drop 
+selection.
+
+When it is finished, it must issue a conversion request to either 
+XmTRANSFER_SUCCESS or XmTRANSFER_FAILURE. The receiver should release 
+all resources about the drop. only when it receives acknowledgment of 
+that. 
+
+That's also when the melting or failure/snapback visual effect should 
+occur.
+
+
+1.5	Encoding 
+
+In addition to the above byte size level description, this section 
+gives detailed value encoding for most fields.
+
+1.5.1	byte_order
+
+The value of the byte must be 	octal 102 or 154 (same as X Protocol)	.  
+
+    -	the value 102 (ASCII uppercase B) means	values are transmitted 
+	most-significant byte first, 
+
+    -	the value 154 (ASCII lowercase l) means values are transmitted
+	least-significant byte first.
+
+1.5.2	protocol version         
+
+    -	byte value: 0 
+
+1.5.3	protocol style
+
+    -	drag_none: 0 	
+
+    -	drag_drop_only: 1, ==3 	
+
+    -	drag_dynamic: 5 ==2, ==4 	
+
+The first number is the value a receiver should set. == points to 
+additional values that must be interpreted as meaning the same for 
+the source (i.e. is the protocol_style speficied by a receiver is 3, 
+it means the source must act as if it had indicated drop-only: 1). 
+
+1.5.4	target table
+
+As indicated above, it's list of atom list, sorted in ascending order 
+(smaller atom value first).
+
+The property starts with: 	    
+
+    -	BYTE       byte order of data 	    
+
+    -	BYTE       protocol version 	    
+
+    -	CARD16     num_target_lists 	    
+
+    -	CARD32     data_size 	 
+
+data_size is the total size in bytes of the property: 	 the above 8 
+bytes + num_target_lists * (2 + num_target_in_each_list * 4). Each 
+list starts with number of target in the list, on 2 bytes, and then 
+the atoms. 	 
+
+1.5.5	reason field
+
+The 8 bits of the reason (message type) field are allocated as 
+follows:
+
+                Low order   X  |
+
+                            X  | 
+
+                            X  |
+
+                            X  |    reason     
+
+                            X  |   
+
+                            X  | 
+
+                            X  |
+
+
+
+                High order  X  |    originator
+
+
+
+	The reason codes are:
+
+    -	top-level-enter: 0 	   
+
+    -	top-level-leave: 1 	   
+
+    -	drag-motion: 2 	   
+
+    -	drop-site-enter: 3 	   
+
+    -	drop-site-leave: 4 	   
+
+    -	operation-changed: 8 	   
+
+    -	drop-start: 5
+
+The originator bit indicates where the message originated from:
+
+    -	0 for initiator, 
+
+    -	1 for receiver
+
+1.5.6	side effect bitfield
+
+	The 16 bits of the flag field are allocated as follows:
+
+                Low order   X  |
+
+                            X  |  Operation mask (4 bits)
+
+                            X  |
+
+                            X  |
+
+
+
+                            X  |
+
+                            X  |  Drop Site Status (4 bits)
+
+                            X  |
+
+                            X  |
+
+
+
+                            X  |
+
+                            X  |  Operations mask (4 bits)
+
+                            X  |
+
+                            X  |
+
+
+
+                            X  |
+
+                            X  |  Drop Action (Completion) (4 bits)
+
+                            X  |
+
+                High order  X  |
+
+
+
+The operation is the recommended or selected side-effect, and 
+operations is the set of possible alternatives.
+
+1.5.7	operation(s)
+
+The valid value are in mask:
+
+    -	noop    0 	
+
+    -	move 	(1L << 0)         
+
+    -	copy  	(1L << 1)         
+
+    -	link	(1L << 2)
+
+1.5.8	status
+
+The valid values are:
+
+    -	no-drop-site: 1 	
+
+    -	invalid-drop-site: 2 	
+
+    -	valid-drop-site: 3
+
+1.5.9	drop action
+
+The valid values are:
+
+    -	drop: 0 	   
+
+    -	drop-help: 1 	   
+
+    - 	drop-cancel: 2
+PRE_REGISTER
+------------
+
+Motif D&D supports two modes of operations. Dynamic, which is the one
+standardized with CDE2, and pre_register, which we decided not to
+document for various reasons, even though it is the default mode.
+
+This document is just a dump of what I know about this pre-register
+mode, it's not really accurate or complete.
+
+In pre-register, the source grabs the server when the drag starts, and
+whenever it enters a new top-level, it reads all the drop site
+information it needs for doing its tracking, visual feedback, etc,
+from a pre-registered database attached to the
+_MOTIF_DRAG_RECEIVER_INFO of each participating client top-level.
+
+Obviously, no _MOTIF_DRAG_AND_DROP_MESSAGE XClientMessages are sent,
+since no one is listening to them (i.e. the X server is grabbed).
+
+The server gets ungrabbed when the user drops the object, at which
+point the documented drop protocol comes in effect (together with the
+convention for transfer_success or failure).
+
+The same _MOTIF_DRAG_INITIATOR_INFO is used, and the
+_MOTIF_DRAG_RECEIVER_INFO semantics are extended as follow:
+
+BYTE    byte order of data in property
+BYTE    protocol version of receiver
+BYTE    protocol style == Dynamic, DropOnly, None, PreRegister
+BYTE    pad
+CARD32  proxy_window
+CARD16  num_drop_sites
+CARD16  pad
+CARD32  total_size
+
+following these 16 bytes header, comes 'num_drop_sites' drop site blocks.
+
+Each block starts with a 8 bytes DSHeader, is followed by a visual
+info block and a series of boxes giving geometry information.
+
+DSHeader:
+
+ * the flags field contains the following:
+ *
+ *      0003    traversalType (t_close - last in what?)
+ *      000C    dropActivity  (active, inactive, ignore)
+ *      00F0    dropType      (simple, composite, clip_only?,
+ *			       |with leaf?, internal?, has_region?)
+ *      0F00    operations    (same meaning as in Dynamic)
+ *      F000    animationStyle (none, pixmap, shadow_in, shadow_out, highlight)
+
+    CARD16      flags 
+	    CARD16      import_targets_id (same meaning as in Dynamic)
+    CARD32      n_boxes
+
+
+Depending on animationStyle in the flags, visual information about the
+drop site follows:
+
+animationStyle = none
+    CARD16      borderWidth 
+    CARD16      pad1 
+    CARD32      pad2 
+
+animationStyle = highlight
+    CARD16      borderWidth 
+    CARD16      highlightThickness 
+    CARD32      background 
+    CARD32      highlightColor 
+    CARD32      highlightPixmap 
+
+animationStyle = shadow_in and out
+    CARD16      borderWidth 
+    CARD16      highlightThickness 
+    CARD16      shadowThickness 
+    CARD16      pad1 
+    CARD32      foreground 
+    CARD32      topShadowColor 
+    CARD32      bottomShadowColor 
+    CARD32      topShadowPixmap 
+    CARD32      bottomShadowPixmap 
+    CARD32      pad2 
+
+animationStyle = pixmap
+    CARD16      borderWidth 
+    CARD16      highlightThickness 
+    CARD16      shadowThickness 
+    CARD16      animationPixmapDepth    
+    CARD32      foreground 
+    CARD32      background 
+    CARD32      animationPixmap 
+    CARD32      animationMask 
+
+
+and then a serie a N box, as indicated in the DSHeader (has_region?).
+
+each Box
+    INT16       x1
+    INT16       x2
+    INT16       y1
+    INT16       y2
+
+
+Encoding
+--------
+
+TDB: PreRegister, DSHeader flags. 
+
+
+------ from programmers' reference
+
+     XmNdropSiteActivity
+               Indicates whether a drop site is active  or  inac-
+               tive.     The   values   are   XmDROP_SITE_ACTIVE,
+               XmDROP_SITE_INACTIVE, and XmDROP_SITE_IGNORE.   An
+               active  drop  site  can receive a drop, whereas an
+               inactive drop site is dormant.  An  inactive  drop
+               site is treated as if it was not a registered drop
+               site and any drag-under  visuals  associated  with
+               entering  or  leaving  the drop site do not occur.
+               However, it is still used for clipping  drag-under
+               effects.   A value of XmDROP_SITE_IGNORE indicates
+               that a drop site should be ignored  for  all  pur-
+               poses.
+
+     XmNanimationStyle
+               Specifies the drag-under animation style used when
+               a  drag  enters  a  valid drop site.  The possible
+               values are
+
+               XmDRAG_UNDER_HIGHLIGHT
+                         The drop site uses highlighting effects.
+
+               XmDRAG_UNDER_SHADOW_OUT
+                         The drop site uses an outset shadow.
+
+               XmDRAG_UNDER_SHADOW_IN
+                         The drop site uses an inset shadow.
+
+               XmDRAG_UNDER_PIXMAP
+                         The drop site uses the pixmap  specified
+                         by  XmNanimationPixmap  to indicate that
+                         it can receive the drop.
+
+               XmDRAG_UNDER_NONE
+                         The drop site  does  not  use  animation
+                         effects.   A client using a dynamic pro-
+                         tocol, may provide drag-under effects in
+                         its XmNdragProc routine.
+
+     XmNdropSiteType
+               Specifies the type of the drop site. The  possible
+               values are
+
+               XmDROP_SITE_SIMPLE
+                         The widget does not have any  additional
+                         children  that  are  registered  as drop
+                         sites.
+
+               XmDROP_SITE_COMPOSITE
+                         The widget will have children  that  are
+                         registered as drop sites.
+
+
+------------------------------------------
+
+drag_simple:
+
+    DrawingArea's inputCallback calls drag_bitmap() on button down on a bitmap:
+	- this set's the convertProc to export_bitmap.
+	- the clientData to the bitmap
+	- the operation to DROP_COPY.
+	- and calls XmDragStart(), which creates the DragContext.
+
+    When XmDragStart() is called, the grab is added
+	- dragging is begun.
+
+    When dragging, DropSMgr (if local) is informed of the drag motion.
+	- if the dragProc has been set, animation effects can be controlled
+	  (at least, when the protocolStyle is XmDRAG_DYNAMIC).
+
+    When the drop occurs (here's where it get's complicated):
+	- if we're in a valid drop site (targets are compatible):
+	  o we invoke the dropProc.
+	    . in drag_simple, this is import_bitmap().  It invokes
+	      XmDropTransferStart(), with dropTransfers set to a good list,
+	      and numDropTransfer set to non-zero.  This causes DropTrans to
+	      add its own drop_timer().
+	    . This causes:
+		> drop_timer() sees that numDropTransferLists() isn't zero.
+		  This causes the entry_transfer() method to be invoked.
+		> entry_transfer() calls XtGetSelectionValues().
+
+	  o  As a result, DragContext's drop_convert_callback() is invoked for
+	     the selection conversion; since this is not the end of a transfer,
+	     this causes the convertProc() [export_bitmap()] to be invoked.
+	  o  After that happens, DropTransfer's select_callback is invoked, and
+	     this causes the transferProc that was set on DropTransfer to be
+	     invoked (transfer_bitmap()).  This set's the new bitmap for the
+	     pushbutton....
+
+	     And voila'!  The pushbutton has the new bitmap...  Otherwise:
+
+	- if we're not in a valid drop site (or targets aren't compatible):
+	  o we XmDropTransferStart, with no dropTransfers, and the
+	    transferStatus is FAILURE.  This causes an immediate invocation
+	    of XtGetSelectionValue() with the callback set to the
+	    notified_callback(), and the selection set to the result.
+	    The notified_callback kills the DropTransfer.
+	    DragContext's drop_convert_callback() is invoked by
+	    XtGetSelectionValue(), and no transfer has occurred.  The
+	    convert proc is therefore not successfully invoked (it goes
+	    directly to the failure case [*select is XmTRANSFER_FAILURE];
+	    the transfer has failed).

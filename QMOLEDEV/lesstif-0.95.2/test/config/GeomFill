@@ -1,0 +1,56 @@
+#!/bin/sh 
+
+#
+#  This script fills in the geometry for all tests in the directorise
+#  listed on the command line by building and running a motif version of
+#  the test. 
+#
+
+if [ $# = 0 ]
+then
+	echo "usage: $0 dirlist"
+	exit
+fi
+
+echo dirs: $*
+
+for dir in $*
+do
+   if test -d $dir
+   then
+      here=`pwd`
+      cd $dir
+      echo =========== Adding geometry stubs in $dir =============
+#
+#     c source files
+#
+      for each in *.c
+      do
+	 if grep PrintDetails $each | grep NULL > /dev/null
+	 then
+           echo "Found a PrintDetails(x,NULL) call in $each, filling it in."
+	   cp $each $each.bak.fill
+	   if make `basename $each .c`.motif
+	   then
+  	      ./`basename $each .c`.motif -xrm "*geometry: +50+50" -xrm "*autoExit: true" > $each.tmp
+	      sed  -e 's%/%\\\/%g'  -e "s/\(.*\)/\1\\\/" $each.tmp >$each.tmp.2
+	      geom=`grep CWWidth $each.tmp.2`
+	      cat <<EOF > $each.sed
+s/PrintDetails(\([^,]*\),\ *NULL);/\\
+{\\
+    static XtWidgetGeometry Expected[] = {\\
+$geom \\
+    };\\
+    PrintDetails(\1,Expected);\\
+};/
+EOF
+	      sed -f $each.sed $each.bak.fill > $each
+	      /bin/rm $each.tmp $each.sed $each.tmp.2 $each.bak.fill
+           else
+	      echo Problems making $each
+           fi
+        fi
+      done
+      cd $here
+   fi
+done

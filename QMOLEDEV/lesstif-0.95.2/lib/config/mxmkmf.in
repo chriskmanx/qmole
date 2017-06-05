@@ -1,0 +1,92 @@
+#!/bin/sh
+#
+# LessTif version of xmkmf - make a Makefile from an Imakefile
+# 
+# by Carlos A. M. dos Santos, based on the original "xmkmf" script.
+#
+# Copyright © 1999 by Carlos A M dos Santos.
+#
+# Permission to use, copy, modify, distribute, and sell this software
+# for any purpose is hereby granted without fee, provided that the above
+# copyright notice appear in all copies.
+#
+# No representations are made about the suitability of this software for
+# any purpose. It is provided "as is" without express or implied
+# warranty. [Yes, I'm a copyright paranoid]
+
+usage="usage:  $0 [-a] [top_of_sources_pathname [current_directory]]"
+
+xprefix="$(dirname $(dirname $(which imake)))"
+xcfgdir="${xprefix}/lib/X11/config"
+
+lprefix="$(dirname $(dirname $(which mxmkmf)))"
+lcfgdir="${lprefix}/lib/LessTif/config"
+
+if [ "${lcfgdir}" = "${xcfgdir}" ]; then
+    # LessTif in the standard X diretory tree
+    cfgspec="-I${xcfgdir}"
+else
+    # LessTif out of the standard X diretory tree
+    cfgspec="-I${lcfgdir} -I${xcfgdir} -DMotifProjectRoot=${lprefix}"
+fi
+
+topdir=
+curdir=.
+do_all=
+
+verspec=""
+ok=false
+until [ "${ok}" = "true" ]; do
+    case "$1" in
+    -a) do_all="yes"
+        shift
+        ;;
+    -1) verspec="-DLessTifXmVersion=1"
+        shift
+        ;;
+    -2) verspec="-DLessTifXmVersion=2"
+        shift
+        ;;
+    --) ok=true
+        shift
+        ;;
+    *)  ok=true
+        ;;
+    esac
+done
+
+case $# in 
+    0) ;;
+    1) topdir=$1 ;;
+    2) topdir=$1  curdir=$2 ;;
+    *) echo "$usage" 1>&2; exit 1 ;;
+esac
+
+case "$topdir" in
+    -*) echo "$usage" 1>&2; exit 1 ;;
+esac
+
+if [ -f Makefile ]; then 
+    echo mv -f Makefile Makefile.bak
+    mv -f Makefile Makefile.bak
+fi
+
+if [ "$topdir" = "" ]; then
+    args="-DUseInstalled ${cfgspec} ${verspec}"
+else
+    args="-I$topdir/config/cf -DTOPDIR=$topdir -DCURDIR=$curdir"
+fi
+
+if [ "$do_all" = "yes" ]; then
+    echo imake $args &&
+    imake $args && 
+    echo "make Makefiles" &&
+    make Makefiles &&
+    echo "make includes" &&
+    make includes &&
+    echo "make depend" &&
+    make depend
+else
+    echo imake $args &&
+    imake $args
+fi

@@ -1,0 +1,347 @@
+diff -cr xlab-980917/common.c xlab/common.c
+*** xlab-980917/common.c	Fri Jul 31 15:00:25 1998
+--- xlab/common.c	Fri Oct  2 10:17:12 1998
+***************
+*** 10,15 ****
+--- 10,16 ----
+   */
+  #include <stdlib.h>
+  #include <fcntl.h>
++ #include <errno.h>
+  #include "scope.h"
+  
+  /*----------------------------------------------------------------------*/
+***************
+*** 165,171 ****
+  	perror("socket");
+  	exit(-1);
+      }
+!     (void) setsockopt(ConnectionSocket, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, 0);
+  #ifndef linux
+      (void) setsockopt(ConnectionSocket, SOL_SOCKET, SO_USELOOPBACK, (char *) NULL, 0);
+  #endif
+--- 166,178 ----
+  	perror("socket");
+  	exit(-1);
+      }
+!     
+!     if (setsockopt(ConnectionSocket, SOL_SOCKET, SO_REUSEADDR,
+! 		   (void*)&reuse_addr, sizeof(reuse_addr)) == -1) {
+!       fprintf(stderr, "Error setting socket option REUSEADDR\n");
+!       exit(errno);
+!     }
+! 
+  #ifndef linux
+      (void) setsockopt(ConnectionSocket, SOL_SOCKET, SO_USELOOPBACK, (char *) NULL, 0);
+  #endif
+diff -cr xlab-980917/doc/xlab.man xlab/doc/xlab.man
+*** xlab-980917/doc/xlab.man	Sat Aug 15 03:32:29 1998
+--- xlab/doc/xlab.man	Fri Oct  2 10:17:12 1998
+***************
+*** 138,143 ****
+--- 138,168 ----
+  xlab program terminates, releasing the grab.  This feature
+  is handy for use in debugging situations in which grabs deadlock the
+  server.
++ .PP
++ .TP 10
++ .B \-e
++ Turns on auto-exit.  If auto-exit is in effect, xlab will terminate when
++ the first client connection terminates, or when playback completes.  This
++ makes it easier to use xlab in automated tests.
++ .PP
++ .TP 10
++ .B \-T<tolerance>
++ Sets the tolerance value for window matching during playback.  Normally,
++ xlab requires window geometries to match exactly.  However on different
++ systems windows may be off by a few pixels.  This tolerance tells xlab to
++ be a bit more relaxed about matching window geometries.  If the difference
++ in width and/or height between what xlab expects and what it finds is less
++ than or equal to the tolerance, xlab will consider the windows to have
++ matched.  You should use this option with caution, as it may lead to false
++ positive matches, so it would be best to use this option only if xlab
++ fails to match windows when no tolerance value is specified.  The default
++ tolerance value is 0.
++ .PP
++ .TP 10
++ .B \-M 
++ Tells xlab to ignore the mask value when matching windows.  This may be
++ necessary in heterogenous environments (i.e. playing back a script on a
++ different machine than the one it was recorded on).
+  .SH COMMANDS
+  \fIxlab\fP has a command interpreter, which allows to read commands at any
+  time from the keyboard, a pipe (for GUI interaction) or a file (for complete
+Only in xlab/doc: xlab.man.orig
+diff -cr xlab-980917/record.c xlab/record.c
+*** xlab-980917/record.c	Sat Aug 15 02:17:25 1998
+--- xlab/record.c	Fri Oct  2 10:17:12 1998
+***************
+*** 16,21 ****
+--- 16,23 ----
+  #include "record.h"
+  #include "x11.h"
+  
++ #define COMPLETION_DELAY 1000
++ 
+  extern Display *Dpy;
+  
+  static char script_line[256];	 /* stored script line */
+***************
+*** 570,575 ****
+--- 572,580 ----
+  	if (replay_counter > 0) {
+  	    warn("Activate next playback event");
+  	    start_replay(PlaybackFileName);
++ 	} else {
++ 	  if (AutoExit)
++ 	    ReportAndExit();
+  	}
+      }
+  
+***************
+*** 598,605 ****
+  	     * windows closing.
+  	     * Mark playback as complete 
+  	     */
+! 	    warn("Playback completion in 5s");
+! 	    CreateTimer(5000, end_replay, (void *) 0);
+  	} else {
+  	    /* 
+  	     * Process next event from file. 
+--- 603,613 ----
+  	     * windows closing.
+  	     * Mark playback as complete 
+  	     */
+! 	    char buf[256];
+! 	    sprintf(buf,"Playback completion in %f seconds",
+! 		    (float)(COMPLETION_DELAY)/1000.0);
+! 	    warn(buf);
+! 	    CreateTimer(COMPLETION_DELAY, end_replay, (void *) 0);
+  	} else {
+  	    /* 
+  	     * Process next event from file. 
+***************
+*** 776,782 ****
+  	for (i = 0; i < maxwtab; i++) {
+  	    if (parent == wintab[i].parent &&
+  		depth == wintab[i].depth &&
+! 		mask == wintab[i].mask &&
+  		x == wintab[i].x &&
+  		y == wintab[i].y &&
+  		width == wintab[i].width &&
+--- 784,790 ----
+  	for (i = 0; i < maxwtab; i++) {
+  	    if (parent == wintab[i].parent &&
+  		depth == wintab[i].depth &&
+! 		mask == wintab[i].mask &&  
+  		x == wintab[i].x &&
+  		y == wintab[i].y &&
+  		width == wintab[i].width &&
+***************
+*** 1366,1372 ****
+  
+  	if (first == 1) {
+  	    first = 0;
+! 	    /* treat the case of root window (parent of the 1st XCreateWindow) */
+  	    SetNewParent(wintab[0].parent, parent);
+  	}
+  	/* 
+--- 1374,1381 ----
+  
+  	if (first == 1) {
+  	    first = 0;
+! 	    /* treat the case of root window (parent of the 1st
+! 	       XCreateWindow) */ 
+  	    SetNewParent(wintab[0].parent, parent);
+  	}
+  	/* 
+***************
+*** 1380,1390 ****
+  
+  	    if (parent == wintab[i].newpar &&
+  		depth == wintab[i].depth &&
+! 		mask == wintab[i].mask &&
+! 		x == wintab[i].x &&
+! 		y == wintab[i].y &&
+! 		width == wintab[i].width &&
+! 		height == wintab[i].height) {
+  		wintab[i].newid = wid;
+  		SetNewParent(wintab[i].wid, wintab[i].newid);
+  		found = 1;
+--- 1389,1399 ----
+  
+  	    if (parent == wintab[i].newpar &&
+  		depth == wintab[i].depth &&
+! 		(mask == wintab[i].mask || IgnoreMask) &&
+! 		(x - wintab[i].x) <= Tolerance &&
+! 		(y - wintab[i].y) <= Tolerance &&
+! 		(width - wintab[i].width) <= Tolerance &&
+! 		(height - wintab[i].height) <= Tolerance) {
+  		wintab[i].newid = wid;
+  		SetNewParent(wintab[i].wid, wintab[i].newid);
+  		found = 1;
+***************
+*** 1401,1418 ****
+  	    if (wintab[i].newid != 0)
+  		continue;
+  	    if (depth == wintab[i].depth &&
+! 		mask == wintab[i].mask &&
+! 		x == wintab[i].x &&
+! 		y == wintab[i].y &&
+! 		width == wintab[i].width &&
+! 		height == wintab[i].height) {
+  		wintab[i].newid = wid;
+  		SetNewParent(wintab[i].parent, parent);
+  		found = 1;
+  		return;
+  	    }
+  	}
+! 	warn("if nothing else helps.....\n");
+  	/* 
+  	 * If previous search doesn't match, assume it is a top window
+  	 * (don't try to match parent), do the search again.
+--- 1410,1427 ----
+  	    if (wintab[i].newid != 0)
+  		continue;
+  	    if (depth == wintab[i].depth &&
+! 		(mask == wintab[i].mask || IgnoreMask) &&
+! 		(x - wintab[i].x) <= Tolerance &&
+! 		(y - wintab[i].y) <= Tolerance &&
+! 		(width - wintab[i].width) <= Tolerance &&
+! 		(height - wintab[i].height) <= Tolerance) {
+  		wintab[i].newid = wid;
+  		SetNewParent(wintab[i].parent, parent);
+  		found = 1;
+  		return;
+  	    }
+  	}
+! 	/* warn("if nothing else helps.....\n"); */
+  	/* 
+  	 * If previous search doesn't match, assume it is a top window
+  	 * (don't try to match parent), do the search again.
+***************
+*** 1424,1432 ****
+  
+  	    if (parent == wintab[i].newpar &&
+  		depth == wintab[i].depth &&
+! 		mask == wintab[i].mask &&
+! 		width == wintab[i].width &&
+! 		height == wintab[i].height) {
+  		wintab[i].newid = wid;
+  		SetNewParent(wintab[i].wid, wid);
+  		found = 1;
+--- 1433,1441 ----
+  
+  	    if (parent == wintab[i].newpar &&
+  		depth == wintab[i].depth &&
+! 		(mask == wintab[i].mask || IgnoreMask) &&
+! 		(width - wintab[i].width) <= Tolerance &&
+! 		(height - wintab[i].height) <= Tolerance) {
+  		wintab[i].newid = wid;
+  		SetNewParent(wintab[i].wid, wid);
+  		found = 1;
+diff -cr xlab-980917/scope.c xlab/scope.c
+*** xlab-980917/scope.c	Fri Jul 31 15:01:34 1998
+--- xlab/scope.c	Fri Oct  2 10:17:12 1998
+***************
+*** 45,50 ****
+--- 45,53 ----
+  short Verbose;			/* quiet (0) or increasingly verbose  ( > 0) */
+  int ScopePort;
+  char *ScopeHost;
++ int AutoExit=False;
++ int Tolerance=0;
++ int IgnoreMask=False;
+  
+  /* path name of file to record, if any */
+  char RecordFileName[MAXPATHLEN];
+***************
+*** 140,145 ****
+--- 143,153 ----
+      fprintf(stderr, "               [-S<n>] -- start/stop on SIGUSR1\n");
+      fprintf(stderr, "               [-G<timeout>] -- grab timeout in seconds\n");
+  
++     fprintf(stderr, "\n\n  Options added by LessTif team\n");
++     fprintf(stderr, "               [-T<n>] -- Window Matching tolernace\n");
++     fprintf(stderr, "               [-M] -- Ignore mask in window matching\n");
++     fprintf(stderr, "               [-e] -- exit after playback\n\n");
++ 
+      fprintf(stderr, "To record a session, do this:\n");
+      fprintf(stderr, "    (1)  setenv DISPLAY `hostname`:0\n");
+      fprintf(stderr, "    (2)  %s -rscript-file&\n", xscript);
+***************
+*** 303,308 ****
+--- 311,334 ----
+  		debug(1, (stderr, "DoubleClickTime = %ld\n", DoubleClickTime));
+  		break;
+  
++ 	    case 'e':
++ 	        AutoExit = True;
++ 		debug(1, (stderr, "AutoExit = True\n"));
++ 		break;
++ 
++ 	    case 'T':
++ 		Tolerance = atoi(++*argv);
++ 		if (Tolerance < 0)
++ 		    Tolerance = 0;
++ 		debug(1, (stderr, "Window matching tolerance = %ld\n", 
++ 			  Tolerance));
++ 		break;
++ 
++ 	    case 'M':
++ 		IgnoreMask = True;
++ 		debug(1, 
++ 		      (stderr, "Ignoring mask value for window matching\n"));
++ 		break;
+  	    default:
+  		fprintf(stderr, "Unknown option %c\n", **argv);
+  		Usage(xscript);
+diff -cr xlab-980917/scope.h xlab/scope.h
+*** xlab-980917/scope.h	Fri Jul 24 06:59:18 1998
+--- xlab/scope.h	Fri Oct  2 10:17:12 1998
+***************
+*** 31,36 ****
+--- 31,39 ----
+  extern short   Verbose;	  /* quiet (0) or increasingly verbose  ( > 0) */
+  extern int     ScopePort;
+  extern char   *ScopeHost;
++ extern int     AutoExit;
++ extern int     Tolerance;
++ extern int     IgnoreMask;
+  
+  /*----------------------------------------------------------------------*/
+  /* need to change the MaxFD to allow larger number of fd's */
+diff -cr xlab-980917/server.c xlab/server.c
+*** xlab-980917/server.c	Thu Aug  6 12:38:58 1998
+--- xlab/server.c	Fri Oct  2 10:17:12 1998
+***************
+*** 502,507 ****
+--- 502,509 ----
+  	Free((char *) CS[fd].SavedBytes);
+  	CS[fd].SizeofSavedBytes = 0;
+      }
++     if (AutoExit)
++       ReportAndExit();
+  }
+  
+  long StartSetUpReply(fd, buf, n)
+diff -cr xlab-980917/x11.h xlab/x11.h
+*** xlab-980917/x11.h	Fri Jul 24 06:59:20 1998
+--- xlab/x11.h	Fri Oct  2 10:17:12 1998
+***************
+*** 9,15 ****
+   */
+  
+  #ifndef _x11_H_
+! #define _x11_H
+  
+  /* Some field contents are constants, not just types */
+  
+--- 9,15 ----
+   */
+  
+  #ifndef _x11_H_
+! #define _x11_H_
+  
+  /* Some field contents are constants, not just types */
+  

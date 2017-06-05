@@ -1,0 +1,73 @@
+#!/bin/sh
+
+#
+#  This script creates a geometry stub for all the test files in the
+#  directories listed on the command line.
+#
+
+
+if [ $# = 0 ]
+then
+	echo "usage: $0 dirlist"
+	exit
+fi
+
+for dir in $*
+do
+   if test -d $dir
+   then
+      here=`pwd`
+      cd $dir
+      echo =========== Adding geometry stubs in $dir =============
+#
+#     c source files
+#
+      for each in *.c
+      do
+	 if grep main $each > /dev/null
+	 then
+           if grep XtAppMainLoop $each > /dev/null
+           then
+	   if grep PrintDetails $each > /dev/null
+           then
+	      echo PrintDetails found, skipping $each
+           else            
+              echo Adding stub for $each
+     	      topname = "toplevel"
+	      topname=`sed -n -e 's/\([^=]*\)=.*AppInitialize.*/\1/p' $each`
+	      if [ "x$topname" = "x" ]
+	      then
+		 topname = "toplevel"
+	      fi
+	      cat <<EOF >$each.sed
+s/XtAppMainLoop(\([^)]*\))/PrintDetails($topname,NULL);\\
+   LessTifTestMainLoop($topname)/g
+EOF
+	      cp $each $each.orig
+     	      sed -f $each.sed $each.orig > $each
+	      /bin/rm $each.sed
+           fi
+           fi
+	 fi
+      done
+
+#
+#     makefiles
+#
+	 if grep LTTEST Makefile.am > /dev/null
+         then
+	   echo Makefile.am Ok
+         else
+	   echo Updating Makefile.am
+	   cp Makefile.am Makefile.am.bak
+  	   sed -e 's/LDADD\(.*\)/LTTEST= \$(top_builddir)\/test\/common\/libLtTest.a\
+LDADD\1/' -e 's/-lXm/\$(LTTEST) -lXm/' Makefile.am.bak > Makefile.am
+         fi
+      cd $here
+   fi
+done
+
+
+
+
+

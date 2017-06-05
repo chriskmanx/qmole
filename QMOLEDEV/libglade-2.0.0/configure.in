@@ -1,0 +1,137 @@
+-*- mode: autoconf -*-
+AC_PREREQ(2.52)
+AC_INIT(libglade, 2.0.0,
+        [http://bugzilla.gnome.org/enter_bug.cgi?product=libglade])
+
+AC_CONFIG_SRCDIR([test-libglade.c])
+AM_CONFIG_HEADER(config.h)
+
+AM_INIT_AUTOMAKE(AC_PACKAGE_NAME, AC_PACKAGE_VERSION)
+
+AC_ARG_ENABLE(debug,
+  AC_HELP_STRING([--enable-debug], [check LIBGLADE_DEBUG env var]),,
+  [enable_debug=yes])
+
+AC_MSG_CHECKING([if debuging support was requested])
+if test "x$enable_debug" != xno; then
+  AC_DEFINE(DEBUG,, [enable use of LIBGLADE_DEBUG environment variable])
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+
+AC_PROG_CC
+AC_ISC_POSIX
+AC_HEADER_STDC
+
+AM_PROG_LIBTOOL
+
+AM_PATH_GTK_2_0(2.0.0)
+
+save_LIBS=$LIBS
+LIBS="$GTK_LIBS $LIBS"
+AC_CHECK_FUNC(gtk_plug_get_type,
+  AC_DEFINE(HAVE_GTK_PLUG,1,[gtk has GtkPlug/GtkSocket implementation]))
+LIBS=$save_LIBS
+
+AC_PATH_PROG(PKG_CONFIG, pkg-config, no)
+
+PKG_CHECK_MODULES(LIBGLADE, libxml-2.0 >= 2.4.10 atk >= 1.0.0 gtk+-2.0 >= 2.0.0)
+AC_SUBST(LIBGLADE_LIBS)
+AC_SUBST(LIBGLADE_CFLAGS)
+
+dnl should gtk-doc stuff be rebuilt?
+AC_ARG_ENABLE(gtk-doc,
+  AC_HELP_STRING([--enable-gtk-doc], [use gtk-doc to build documentation]),
+  enable_gtk_doc="$enableval", enable_gtk_doc=no)
+
+AC_CHECK_PROG(GTKDOC, gtkdoc-mkdb, true, false)
+if test x$enable_gtk_doc = xyes; then
+  if test x$GTKDOC != xtrue; then
+    enable_gtk_doc=no
+  fi
+fi
+AM_CONDITIONAL(ENABLE_GTK_DOC, test x$enable_gtk_doc = xyes)
+
+dnl gettext stuff ... there is no message catalog for libglade -- libglade
+dnl provides translation for the XML files it reads in.
+GETTEXT_PACKAGE=libglade-2.0
+AC_SUBST(GETTEXT_PACKAGE)
+
+ALL_LINGUAS=""
+AM_GLIB_GNU_GETTEXT
+
+dnl stuff to go in the config.h file
+AH_TOP(
+[#ifndef GLADE_CONFIG_H
+#define GLADE_CONFIG_H])
+AH_BOTTOM(
+[#endif /* GLADE_CONFIG_H */])
+
+dnl check for a copy of python >= 2.0 with the xml.parsers.expat module.
+AC_MSG_CHECKING([for Python >= 2.0 with expat support])
+JH_PYTHON_CHECK(
+(2,0,0),
+[try:
+    import xml.parsers.expat
+except ImportError:
+    sys.exit(1)],
+[AC_MSG_RESULT([$PYTHON])
+have_python=true],
+[AC_MSG_RESULT([not found.])
+have_python=false])
+
+AM_CONDITIONAL(HAVE_PYTHON, $have_python)
+AC_SUBST(PYTHON)
+
+dnl add debugging options ...
+changequote(,)dnl
+if test "x$GCC" = xyes; then
+  case " $CFLAGS " in
+  *[\	\ ]-Wall[\	\ ]*) ;;
+  *) CFLAGS="$CFLAGS -Wall" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\	\ ]-std=c9x[\	\ ]*) ;;
+  *) CFLAGS="$CFLAGS -std=c9x" ;;
+  esac
+fi
+changequote([,])dnl
+
+dnl hack to get aclocal to use the ACLOCAL_FLAGS env var
+ACLOCAL_AMFLAGS=\${ACLOCAL_FLAGS}
+AC_SUBST(ACLOCAL_AMFLAGS)
+
+AC_OUTPUT([
+Makefile
+libglade.spec
+glade/Makefile
+doc/Makefile
+tests/Makefile
+libglade-2.0.pc
+libglade-convert
+])
+
+rm -f po/po2tbl.sed
+
+echo
+echo "This is the development branch of libglade"
+echo "If you want something that works with gtk+ 1.2, checkout the"
+echo "libglade-1-0 branch with the following command"
+echo "  cvs update -r libglade-1-0 ."
+echo
+
+if test -z "$jh_cv_path_python"; then
+  echo "*****************************************************"
+  echo "  A usable version of python was not found, so the"
+  echo "  libglade-convert program was not installed.  This"
+  echo "  script requires Python >= 2.0 with expat support."
+  echo
+  echo "  Some packages require libglade-convert to build"
+  echo "  correctly.  If you wish to build one of these"
+  echo "  packages, you must install expat and python,"
+  echo "  and then rebuild libglade."
+  echo "*****************************************************"
+  echo
+fi

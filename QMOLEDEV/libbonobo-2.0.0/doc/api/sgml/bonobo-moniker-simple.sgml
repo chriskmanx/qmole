@@ -1,0 +1,301 @@
+<refentry id="libbonobo-bonobo-moniker-simple">
+<refmeta>
+<refentrytitle>BonoboMonikerSimple</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBBONOBO Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>BonoboMonikerSimple</refname><refpurpose>A super easy to use moniker implementation wrapper</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+
+
+#define     <link linkend="BONOBO-MONIKER-SIMPLE-TYPE-CAPS">BONOBO_MONIKER_SIMPLE_TYPE</link>
+#define     <link linkend="BONOBO-TYPE-RESOLVE-FLAG-CAPS">BONOBO_TYPE_RESOLVE_FLAG</link>
+#define     <link linkend="BONOBO-RESOLVE-FLAG-TYPE-CAPS">BONOBO_RESOLVE_FLAG_TYPE</link>
+struct      <link linkend="BonoboMonikerSimple">BonoboMonikerSimple</link>;
+struct      <link linkend="BonoboMonikerSimplePrivate">BonoboMonikerSimplePrivate</link>;
+<link linkend="Bonobo-Unknown">Bonobo_Unknown</link> (<link linkend="BonoboMonikerSimpleResolveFn">*BonoboMonikerSimpleResolveFn</link>)
+                                            (<link linkend="BonoboMoniker">BonoboMoniker</link> *moniker,
+                                             const <link linkend="Bonobo-ResolveOptions">Bonobo_ResolveOptions</link> *options,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *requested_interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev);
+typedef     <link linkend="BonoboMonikerSimpleClass">BonoboMonikerSimpleClass</link>;
+<link linkend="GType">GType</link>       <link linkend="bonobo-moniker-simple-get-type">bonobo_moniker_simple_get_type</link>  (void);
+<link linkend="BonoboMoniker">BonoboMoniker</link>* <link linkend="bonobo-moniker-simple-construct">bonobo_moniker_simple_construct</link>
+                                            (<link linkend="BonoboMonikerSimple">BonoboMonikerSimple</link> *moniker,
+                                             const char *name,
+                                             <link linkend="GClosure">GClosure</link> *resolve_closure);
+<link linkend="BonoboMoniker">BonoboMoniker</link>* <link linkend="bonobo-moniker-simple-new">bonobo_moniker_simple_new</link>    (const char *name,
+                                             <link linkend="BonoboMonikerSimpleResolveFn">BonoboMonikerSimpleResolveFn</link> resolve_fn);
+<link linkend="BonoboMoniker">BonoboMoniker</link>* <link linkend="bonobo-moniker-simple-new-closure">bonobo_moniker_simple_new_closure</link>
+                                            (const char *name,
+                                             <link linkend="GClosure">GClosure</link> *resolve_closure);
+
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+BonoboMonikerSimple makes writing monikers really extremely
+easy. To implement a moniker you only have to write 1 function.
+To register create the moniker object you have to use only 1
+call. It can't get much simpler. If you want to use monikers
+instead of implementing them, you probably want to see
+<link linkend="bonobo-moniker-util">bonobo-moniker-util</link> instead.
+</para>
+
+<para>
+Few people need to implement monikers, but if they do, this
+is how they should do it:
+  <example>
+    <title>A cut down file: moniker implementation</title>
+    <programlisting>
+Bonobo_Unknown
+bonobo_moniker_file_resolve (BonoboMoniker               *moniker,
+			     const Bonobo_ResolveOptions *options,
+			     const CORBA_char            *requested_interface,
+			     CORBA_Environment           *ev)
+{
+	const char    *fname = bonobo_moniker_get_name (moniker);
+	Bonobo_Unknown retval;
+
+	g_warning ("Fname '<literal>s</literal>'", fname);
+
+	if (!strcmp (requested_interface, "IDL:Bonobo/Stream:1.0")) {
+		BonoboStream *stream;
+
+		stream = bonobo_stream_open ("fs", fname,
+					     Bonobo_Storage_READ, 0664);
+
+		if (!stream) {
+			g_warning ("Failed to open stream '<literal>s</literal>'", fname);
+			CORBA_exception_set (ev, CORBA_USER_EXCEPTION,
+					     ex_Bonobo_Moniker_InterfaceNotFound, NULL);
+			return CORBA_OBJECT_NIL;
+		}
+
+		return CORBA_Object_duplicate (BONOBO_OBJREF (stream), ev);
+	}
+	
+	return CORBA_OBJECT_NIL;
+}
+    </programlisting>
+  </example>
+  After implementing the resolve function, you need to create the new moniker
+in your standard factory:
+  <example>
+    <title>Creating a new simple moniker</title>
+    <programlisting>
+static BonoboObject *
+bonobo_std_moniker_factory (BonoboGenericFactory *this,
+			    const char           *object_id,
+			    void                 *data)
+{
+	g_return_val_if_fail (object_id != NULL, NULL);
+
+	if (!strcmp (object_id, "OAFIID:Bonobo_Moniker_File"))
+
+		return BONOBO_OBJECT (bonobo_moniker_simple_new (
+			"file:", bonobo_moniker_file_resolve));
+	else
+		return NULL;
+}
+    </programlisting>
+  </example>
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="BONOBO-MONIKER-SIMPLE-TYPE-CAPS">BONOBO_MONIKER_SIMPLE_TYPE</title>
+<programlisting>#define BONOBO_MONIKER_SIMPLE_TYPE        BONOBO_TYPE_MONIKER_SIMPLE /* deprecated, you should use BONOBO_TYPE_MONIKER_SIMPLE */
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BONOBO-TYPE-RESOLVE-FLAG-CAPS">BONOBO_TYPE_RESOLVE_FLAG</title>
+<programlisting>#define BONOBO_TYPE_RESOLVE_FLAG          (bonobo_resolve_flag_get_type ())
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BONOBO-RESOLVE-FLAG-TYPE-CAPS">BONOBO_RESOLVE_FLAG_TYPE</title>
+<programlisting>#define BONOBO_RESOLVE_FLAG_TYPE        BONOBO_TYPE_RESOLVE_FLAG /* deprecated, you should use BONOBO_TYPE_RESOLVE_FLAG */
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboMonikerSimple">struct BonoboMonikerSimple</title>
+<programlisting>struct BonoboMonikerSimple {
+        BonoboMoniker                moniker;
+
+	BonoboMonikerSimplePrivate  *priv;
+};
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboMonikerSimplePrivate">struct BonoboMonikerSimplePrivate</title>
+<programlisting>struct BonoboMonikerSimplePrivate;</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboMonikerSimpleResolveFn">BonoboMonikerSimpleResolveFn ()</title>
+<programlisting><link linkend="Bonobo-Unknown">Bonobo_Unknown</link> (*BonoboMonikerSimpleResolveFn)
+                                            (<link linkend="BonoboMoniker">BonoboMoniker</link> *moniker,
+                                             const <link linkend="Bonobo-ResolveOptions">Bonobo_ResolveOptions</link> *options,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *requested_interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>moniker</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>options</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>requested_interface</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>ev</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BonoboMonikerSimpleClass">BonoboMonikerSimpleClass</title>
+<programlisting>typedef struct {
+	BonoboMonikerClass parent_class;
+} BonoboMonikerSimpleClass;
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="bonobo-moniker-simple-get-type">bonobo_moniker_simple_get_type ()</title>
+<programlisting><link linkend="GType">GType</link>       bonobo_moniker_simple_get_type  (void);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-moniker-simple-construct">bonobo_moniker_simple_construct ()</title>
+<programlisting><link linkend="BonoboMoniker">BonoboMoniker</link>* bonobo_moniker_simple_construct
+                                            (<link linkend="BonoboMonikerSimple">BonoboMonikerSimple</link> *moniker,
+                                             const char *name,
+                                             <link linkend="GClosure">GClosure</link> *resolve_closure);</programlisting>
+<para>
+Constructs a simple moniker</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>moniker</parameter>&nbsp;:</entry>
+<entry> the moniker to construct
+</entry></row>
+<row><entry align="right"><parameter>name</parameter>&nbsp;:</entry>
+<entry> the name of the moniker eg. 'file:'
+</entry></row>
+<row><entry align="right"><parameter>resolve_closure</parameter>&nbsp;:</entry>
+<entry> the closure used to resolve the moniker
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> the constructed moniker or NULL on failure.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-moniker-simple-new">bonobo_moniker_simple_new ()</title>
+<programlisting><link linkend="BonoboMoniker">BonoboMoniker</link>* bonobo_moniker_simple_new    (const char *name,
+                                             <link linkend="BonoboMonikerSimpleResolveFn">BonoboMonikerSimpleResolveFn</link> resolve_fn);</programlisting>
+<para>
+Create a new instance of a simplified moniker.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>name</parameter>&nbsp;:</entry>
+<entry> the display name for the moniker
+</entry></row>
+<row><entry align="right"><parameter>resolve_fn</parameter>&nbsp;:</entry>
+<entry> a resolve function for the moniker
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> the moniker object
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-moniker-simple-new-closure">bonobo_moniker_simple_new_closure ()</title>
+<programlisting><link linkend="BonoboMoniker">BonoboMoniker</link>* bonobo_moniker_simple_new_closure
+                                            (const char *name,
+                                             <link linkend="GClosure">GClosure</link> *resolve_closure);</programlisting>
+<para>
+Create a new instance of a simplified moniker.
+</para>
+<para>
+Instead of the Bonobo_ResolveOptions struct, the closure takes its
+contents as two arguments: BONOBO_TYPE_RESOLVE_FLAG and G_TYPE_LONG.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>name</parameter>&nbsp;:</entry>
+<entry> the display name for the moniker
+</entry></row>
+<row><entry align="right"><parameter>resolve_closure</parameter>&nbsp;:</entry>
+<entry> a closure for the resolve process.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> the moniker object
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+<refsect1>
+<title>See Also</title>
+<para>
+<link linkend="BonoboMoniker">BonoboMoniker</link>, <link linkend="BonoboMonikerSimple">BonoboMonikerSimple</link>, <link linkend="bonobo-moniker-util">bonobo-moniker-util</link>, <link linkend="BonoboMonikerExtender">BonoboMonikerExtender</link>
+</para>
+</refsect1>
+
+</refentry>

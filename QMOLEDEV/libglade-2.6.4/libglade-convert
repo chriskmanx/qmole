@@ -1,0 +1,1212 @@
+#!/usr/bin/python
+# -*- mode: python -*-
+
+# yes, this requires python 2.x and an XML parser module (eg. PyExpat)
+
+import re
+import sys
+import string
+import getopt
+import xml.dom.minidom
+
+translatable_properties = [
+    'label', 'title', 'text', 'format', 'copyright', 'comments',
+    'preview_text', 'tooltip'
+]
+
+# --- Code to represent a widget in memory, and dump it to stdout ---
+
+upgrade = 1
+verbose = 0
+
+class WidgetDef:
+    def __init__(self, parent=None):
+        self.wclass = None
+        self.name = None
+        self.property_names = [ ]
+        self.properties = { }
+        self.signals = []
+        self.accels = []
+        self.children = []
+        self.parent = parent
+
+    def __getitem__(self, name):
+        if name == 'name':
+            return self.name
+        if name == 'class':
+            return self.wclass
+        if name == 'parent':
+            return self.parent
+        return self.properties[name]
+    def __setitem__(self, name, value):
+        if name == 'name':
+            self.name = value
+            return
+        if name == 'class':
+            self.wclass = value
+            return
+        if self.properties.has_key(name):
+            self.property_names.remove(name)
+            del self.properties[name]
+        if value == 'True': value = 'yes'
+        if value == 'False': value = 'no'
+        self.property_names.append(name)
+        self.properties[name] = value
+    def __delitem__(self, name):
+        if self.properties.has_key(name):
+            self.property_names.remove(name)
+            del self.properties[name]
+        else:
+            raise KeyError, "unknown property `%s'" % name
+    def has_prop(self, name):
+        return self.properties.has_key(name)
+    def rename_prop(self, old_name, new_name):
+        if self.has_prop(old_name):
+            self[new_name] = self[old_name]
+            del self[old_name]
+    def remove_prop(self, name):
+        if self.properties.has_key(name):
+            self.property_names.remove(name)
+            del self.properties[name]
+            
+    def mark_obsolete (self):
+        self.properties ['obsolete'] = 'yes'
+    def add_signal(self, name, handler, object=None, after=0):
+        self.signals.append((name, handler, object, after))
+    def add_accel(self, key, modifiers, signal):
+        self.accels.append((key, modifiers, signal))
+
+    class ChildDef:
+        def __init__(self, widget, internal_child=None):
+            self.internal_child = internal_child
+            self.property_names = []
+            self.properties = {}
+            self.widget = widget
+        def __getitem__(self, name):
+            return self.properties[name]
+        def __setitem__(self, name, value):
+            if self.properties.has_key(name):
+                self.property_names.remove(name)
+                del self.properties[name]
+            if value == 'True': value = 'yes'
+            if value == 'False': value = 'no'
+            self.property_names.append(name)
+            self.properties[name] = value
+        def __delitem__(self, name):
+            if self.properties.has_key(name):
+                self.property_names.remove(name)
+                del self.properties[name]
+            else:
+                raise KeyError, "unknown property `%s'" % name
+        def has_prop(self, name):
+            return self.properties.has_key(name)
+        def rename_prop(self, old_name, new_name):
+            if self.has_prop(old_name):
+                self[new_name] = self[old_name]
+                del self[old_name]
+        def remove_prop(self, name):
+            if self.properties.has_key(name):
+                self.property_names.remove(name)
+                del self.properties[name]
+                
+        def dump(self, indent):
+            if self.widget.has_prop('obsolete'):
+                return
+
+            if self.internal_child:
+                print '%s<child internal-child="%s">' % \
+                      (indent, self.internal_child)
+            else:
+                print '%s<child>' % indent
+            if self.widget.wclass == 'Placeholder':
+                print '%s  <placeholder />' % indent
+            else:
+                self.widget.dump(indent + '  ')
+            if self.properties:
+                print '%s  <packing>' % indent
+                for name in self.property_names:
+                    attrs = ''
+                    if name in translatable_properties:
+                        attrs += ' translatable="yes"'
+                    if name[:3] == 'cxx':
+                        attrs += ' agent="glademm"'
+                    print '%s    <property name="%s"%s>%s</property>' % \
+                          (indent, name, attrs,
+                           self.properties[name].encode('utf-8'))
+                print '%s  </packing>' % indent
+            print '%s</child>' % indent
+
+    def add_child(self, widget, internal_child=None):
+        child = self.ChildDef(widget, internal_child)
+        self.children.append(child)
+        return child
+
+    def dump(self, indent):        
+        print '%s<widget class="%s" id="%s">' %(indent, self.wclass, self.name)
+        want_newline = 0
+        for name in self.property_names:
+            attrs = ''
+            translatable = name in translatable_properties
+            if name == 'label' and \
+               self.has_prop('use_stock') and self['use_stock'] == 'yes':
+                translatable = 0
+            if translatable:
+                attrs += ' translatable="yes"'
+            if name[:3] == 'cxx':
+                attrs += ' agent="glademm"'
+            print '%s  <property name="%s"%s>%s</property>' % \
+                  (indent, name, attrs, self.properties[name].encode('utf-8'))
+            want_newline = 1
+        if want_newline and (self.signals or self.accels or self.children):
+            print
+
+        want_newline = 0
+        for name, handler, object, after in self.signals:
+            print '%s  <signal name="%s" handler="%s"' % (indent, name,
+                                                          handler),
+            if object: print 'object="%s"' % object,
+            if after: print 'after="yes"',
+            print '/>'
+            want_newline = 1
+        if want_newline and (self.accels or self.children): print
+
+        want_newline = 0
+        for key, modifiers, signal in self.accels:
+            print '%s  <accelerator key="%s" modifiers="%s" signal="%s" />' % \
+                  (indent, key, modifiers, signal)
+            want_newline = 1
+        if want_newline and self.children: print
+
+        want_newline = 0
+        for child in self.children:
+            if want_newline: print
+            child.dump(indent + '  ')
+            want_newline = 1
+        print '%s</widget>' % indent
+
+
+# --- Code to parse the glade1 XML files into WidgetDef instances ---
+
+def totext(nodelist):
+    return string.join(map(lambda node: node.toxml(), nodelist), '')
+
+def handle_signal(widget, signalnode):
+    name = None
+    handler = None
+    object = None
+    after = 0
+    for node in signalnode.childNodes:
+	if node.nodeType != node.ELEMENT_NODE:
+	    continue
+	if node.nodeName == 'name':
+	    name = totext(node.childNodes)
+	elif node.nodeName == 'handler':
+	    handler = totext(node.childNodes)
+	elif node.nodeName == 'object':
+	    object = totext(node.childNodes)
+	elif node.nodeName == 'after':
+	    after = (totext(node.childNodes) == 'True')
+    widget.add_signal(name, handler, object, after)
+
+def handle_accel(widget, accelnode):
+    key = None
+    modifiers = None
+    signal = None
+    for node in accelnode.childNodes:
+	if node.nodeType != node.ELEMENT_NODE:
+	    continue
+	if node.nodeName == 'key':
+	    key = totext(node.childNodes)
+	    if key[:4] == 'GDK_': key = key[4:]
+	elif node.nodeName == 'modifiers':
+	    modifiers = totext(node.childNodes)
+	elif node.nodeName == 'signal':
+	    signal = totext(node.childNodes)
+    widget.add_accel(key, modifiers, signal)
+
+def get_child_props(childdef, widgetnode):
+    for node in widgetnode.childNodes:
+	if node.nodeType != node.ELEMENT_NODE:
+	    continue
+	if node.nodeName == 'child':
+	    child = node
+	    break
+    else:
+	return []
+    for node in child.childNodes:
+	if node.nodeType != node.ELEMENT_NODE:
+	    continue
+        childdef[node.nodeName] = totext(node.childNodes)
+
+def handle_widget(widgetnode, parent=None):
+    widget = WidgetDef(parent)
+    properties = []
+    signals = []
+    accels = []
+    children = []
+    for node in widgetnode.childNodes:
+	if node.nodeType != node.ELEMENT_NODE:
+	    continue
+	if node.nodeName == 'widget':
+            child_widget = handle_widget(node, widget)
+            childdef = widget.add_child(child_widget)
+            get_child_props(childdef, node)
+	elif node.nodeName in ('signal', 'Signal'):
+	    handle_signal(widget, node)
+	elif node.nodeName in ('accelerator', 'Accelerator'):
+	    handle_accel(widget, node)
+	elif node.nodeName == 'child':
+	    pass # handled by the parent widget
+	else:
+            widget[node.nodeName] = totext(node.childNodes)
+    return widget
+
+
+# --- Code to do widget type specific cleanups ---
+
+name_counter = 0
+def make_name():
+    global name_counter
+    name_counter = name_counter + 1
+    return 'convertwidget' + str(name_counter)
+
+# properties to change on all widgets
+global_obsolete_props = [
+    'child_min_width',
+    'child_min_height',
+    'child_ipad_x',
+    'child_ipad_y'
+]
+global_renamed_props = [
+    ('width', 'width-request'),
+    ('height', 'height-request'),
+]
+
+# properties to change on specific widgets
+obsolete_props = {
+    'GtkWindow': [ 'auto_shrink' ],
+    'GnomePropertyBox': [ 'auto_shrink' ],
+    'GtkMenuItem': [ 'right_justify' ],
+    'GtkGammaCurve': [ 'curve_type', 'min_x', 'max_x', 'min_y', 'max_y' ],
+    'GtkHPaned': [ 'handle_size', 'gutter_size' ],
+    'GtkVPaned': [ 'handle_size', 'gutter_size' ],
+    'GtkHScale': [ 'policy' ],
+    'GtkVScale': [ 'policy' ],
+    'GtkHScrollbar': [ 'policy' ],
+    'GtkVScrollbar': [ 'policy' ],
+    'GtkHRuler': [ 'metric' ],
+    'GtkVRuler': [ 'metric' ],
+    'GnomeFileEntry' : [ 'max_saved' ],
+    'GnomeEntry' : [ 'max_saved' ],
+    'GtkMenuBar' : [ 'shadow_type' ],
+    'GtkToolbar' : [ 'space_size', 'space_style', 'relief', 'tooltips' ],
+    'GtkImage' : [ 'image_width', 'image_height', 'image_visual', 'image_type'],
+    'GtkColorSelection' : [ 'policy' ],
+    'GtkColorSelectionDialog' : [ 'policy' ],
+    'GnomeIconEntry': [ 'max_saved' ],
+}
+
+renamed_props = {
+    'GtkWindow': [ ('position', 'window-position') ],    
+    'GtkEntry': [ ('text_max_length', 'max-length'),
+                  ('text_visible', 'visibility') ],
+    'GtkFrame': [ ('shadow_type', 'shadow') ],
+    'GtkHandleBox': [ ('shadow_type', 'shadow') ],
+    'GtkNotebook': [ ('popup_enable', 'enable-popup') ],
+    'GtkRange': [ ('policy', 'update-policy') ],
+    'GtkTable': [ ('rows', 'n-rows'), ('columns', 'n-columns') ],
+    'GtkSpinButton' : [ ('snap', 'snap_to_ticks') ],
+    'GtkCombo' : [ ('use_arrows', 'enable_arrow_keys'),
+                   ('use_arrows_always', 'enable_arrows_always'),
+                   ('ok_if_empty', 'allow_empty') ],
+    'GnomeFileEntry' : [ ('directory', 'directory_entry'),
+                         ('title', 'browse_dialog_title'),
+                         ],
+    'GnomeIconEntry' : [ ('title', 'browse_dialog_title') ],
+    'GnomePixmapEntry' : [ ('title', 'browse_dialog_title') ],
+    'GtkLabel' : [ ('default_focus_target', 'mnemonic_widget'), ('focus_target', 'mnemonic_widget')],
+    'GtkCList' : [ ('columns', 'n_columns') ],
+    'GtkCTree' : [ ('columns', 'n_columns') ],
+    'GtkToolbar': [ ('type', 'toolbar-style') ],
+    'GtkOptionMenu' : [ ('initial_choice', 'history') ],
+    'GtkLayout' : [ ('area_width', 'width'), ('area_height', 'height') ],
+    'GtkFileSelection' : [ ('show_file_op_buttons', 'show-fileops') ],
+    'GnomeDruidPageStandard' : [ ('title_color', 'title_foreground'),
+                                 ('background_color', 'background'),
+                                 ('logo_background_color', 'logo_background'),
+                                 ('logo_image', 'logo'),
+                                 ],
+    'GnomeFontPicker': [ ('use_font_size', 'label-font-size'),
+                         ('use_font', 'use-font-in-label'),
+                         ],
+}
+
+# child properties to change on specific widgets
+global_renamed_child_props = [
+    ('pack', 'pack_type'),
+    ('child_ipad_x', 'child_internal_pad_x'),
+    ('child_ipad_y', 'child_internal_pad_y')
+]
+obsolete_child_props = {
+}
+renamed_child_props = {
+    'GtkTable' : [ ('xpad', 'x_padding'), ('ypad', 'y_padding') ],
+}
+
+def collect_adjustment(widgetdef, prop_prefix, new_name):
+    value, lower, upper, step, page, page_size = (0, 0, 100, 1, 10, 10)
+    adj_set = 0
+    if widgetdef.has_prop(prop_prefix + 'value'):
+        value = widgetdef[prop_prefix + 'value']
+        del widgetdef[prop_prefix + 'value']
+        adj_set = 1
+    if widgetdef.has_prop(prop_prefix + 'lower'):
+        lower = widgetdef[prop_prefix + 'lower']
+        del widgetdef[prop_prefix + 'lower']
+        adj_set = 1
+    if widgetdef.has_prop(prop_prefix + 'upper'):
+        upper = widgetdef[prop_prefix + 'upper']
+        del widgetdef[prop_prefix + 'upper']
+        adj_set = 1
+    if widgetdef.has_prop(prop_prefix + 'step'):
+        step = widgetdef[prop_prefix + 'step']
+        del widgetdef[prop_prefix + 'step']
+        adj_set = 1
+    if widgetdef.has_prop(prop_prefix + 'page'):
+        page = widgetdef[prop_prefix + 'page']
+        del widgetdef[prop_prefix + 'page']
+        adj_set = 1
+    if widgetdef.has_prop(prop_prefix + 'page_size'):
+        page_size = widgetdef[prop_prefix + 'page_size']
+        del widgetdef[prop_prefix + 'page_size']
+        adj_set = 1
+    if adj_set:
+        widgetdef[new_name] = '%s %s %s %s %s %s' % (value, lower, upper,
+                                                     step, page, page_size)
+
+
+parent_table = {
+    'GtkContainer'      : 'GtkWidget',
+    'GtkBin'            : 'GtkContainer',
+    'GtkDialog'         : 'GtkWindow',
+    'GnomePropertyBox'  : 'GnomeDialog',
+    'GnomeAbout'        : 'GtkDialog',
+    'GnomeApp'          : 'GtkWindow',
+    'GnomeScores'       : 'GnomeDialog',
+    'GnomeDialog'       : 'GtkWindow',
+    'GnomeMessageBox'   : 'GnomeDialog',
+    'GnomeDruid'        : 'GtkContainer',
+    'GnomeEntry'        : 'GtkCombo',
+    'GtkCheckMenuItem'  : 'GtkMenuItem',
+    'GtkRadioMenuItem'  : 'GtkMenuItem',
+    'GtkImageMenuItem'  : 'GtkMenuItem',
+    'GtkFileSelection'  : 'GtkDialog',
+    'GtkFontSelectionDialog' : 'GtkDialog',
+    'GnomeColorPicker'  : 'GtkButton',
+    'GtkToggleButton'   : 'GtkButton',
+    'GtkCheckButton'    : 'GtkToggleButton',
+    'GtkRadioButton'    : 'GtkToggleButton',
+    'GtkColorSelectionDialog': 'GtkDialog',
+    'GtkFontSelectionDialog': 'GtkDialog',
+
+}
+
+global_group_map = { }
+
+def find_parent(type):
+    if parent_table.has_key(type):
+        return parent_table[type]
+    return ''
+
+# fix up attribute naming, and possibly adding missing children.
+def fixup_widget(widget):
+
+    type = widget['class']
+    while (type and not fixup_as_type (widget, type)):
+        type = find_parent (type)
+        
+    for childdef in widget.children:
+        fixup_widget(childdef.widget)
+
+def new_label(class_type, text, accel_object):
+    label = WidgetDef()
+    label['class'] = class_type
+    label['name'] = make_name()
+    label['label'] = text;
+    if '_' in text:
+        label['use-underline'] = 'yes'
+
+    if not class_type == 'GtkMenuItem':
+        label['xalign'] = '0.0'
+
+    if class_type == 'GtkAccelLabel':
+        label['accel-widget'] = accel_object
+        label['use-underline'] = 'yes'        
+
+    return label
+
+stock_pixmaps = {
+    'REVERT':      'gtk-revert-to-saved',
+    'SCORES':      'gnome-stock-scores',
+    'SEARCH':      'gtk-find',
+    'SEARCHRPL':   'gtk-find-and-replace',
+    'BACK':        'gtk-go-back',
+    'FORWARD':     'gtk-go-forward',
+    'FIRST':       'gtk-goto-first',
+    'LAST':        'gtk-goto-last',
+    'TIMER':       'gnome-stock-timer',
+    'TIMER_STOP':  'gnome-stock-timer-stop',
+    'MAIL':        'gnome-stock-mail',
+    'MAIL_RCV':    'gnome-stock-mail-rcv',
+    'MAIL_SND':    'gnome-stock-mail-send',
+    'MAIL_RPL':    'gnome-stock-mail-rply',
+    'MAIL_FWD':    'gnome-stock-mail-fwd',
+    'MAIL_NEW':    'gnome-stock-mail-new',
+    'TRASH':       'gnome-stock-trash',
+    'TRASH_FULL':  'gnome-stock-trash-full',
+    'SPELLCHECK':  'gtk-spell-check',
+    'MIC':         'gnome-stock-mic',
+    'LINE_IN':     'gnome-stock-line-in',
+    'VOLUME':      'gnome-stock-volume',
+    'MIDI':        'gnome-stock-midi',
+    'BOOK_RED':    'gnome-stock-book-red',
+    'BOOK_GREEN':  'gnome-stock-book-green',
+    'BOOK_BLUE':   'gnome-stock-book-blue',
+    'BOOK_YELLOW': 'gnome-stock-book-yellow',
+    'BOOK_OPEN':   'gnome-stock-book-open',
+    'ABOUT':       'gnome-stock-about',
+    'MULTIPLE':    'gnome-stock-multiple-file',
+    'NOT':         'gnome-stock-not',
+    'UP':          'gtk-go-up',
+    'DOWN':        'gtk-go-down',
+    'TOP':         'gtk-goto-top',
+    'BOTTOM':      'gtk-goto-bottom',
+    'ATTACH':      'gnome-stock-attach',
+    'FONT':        'gtk-select-font',
+    'EXEC':        'gtk-execute',
+
+    'ALIGN_LEFT':    'gtk-justify-left',
+    'ALIGN_RIGHT':   'gtk-justify-right',
+    'ALIGN_CENTER':  'gtk-justify-center',
+    'ALIGN_JUSTIFY': 'gtk-justify-fill',
+
+    'TEXT_BOLD':      'gtk-bold',
+    'TEXT_ITALIC':    'gtk-italic',
+    'TEXT_UNDERLINE': 'gtk-underline',
+    'TEXT_STRIKEOUT': 'gtk-strikethrough',
+
+    'TEXT_INDENT':    'gnome-stock-text-indent',
+    'TEXT_UNINDENT':  'gnome-stock-text-unindent',
+    'EXIT':           'gtk-quit',
+    'COLORSELECTOR':  'gtk-select-color',
+
+    'TABLE_BORDERS':  'gnome-stock-table-borders',
+    'TABLE_FILL':     'gnome-stock-table-fill',
+
+    'TEXT_BULLETED_LIST': 'gnome-stock-text-bulleted-list',
+    'TEXT_NUMBERED_LIST': 'gnome-stock-text-numbered-list',
+
+    'NEXT': 'gtk-go-forward',
+    'PREV': 'gtk-go-back'
+    }
+
+def stock_icon_translate(old_name):
+    if re.match ('GNOME_STOCK_MENU_.*', old_name):
+        name = re.sub('GNOME_STOCK_MENU_', '', old_name, 1)
+        try:
+            return stock_pixmaps[name]
+        except KeyError:
+            name = re.sub('_', '-', name)
+            return 'gtk-' + name.lower ()
+    else:
+        return old_name
+
+def stock_button_translate(old_name):
+    if re.match ('GNOME_STOCK_BUTTON_.*', old_name):
+        name = re.sub('GNOME_STOCK_BUTTON_', '', old_name)
+        try:
+            return stock_pixmaps[name]
+        except KeyError:
+            name = re.sub('_', '-', name)
+            return 'gtk-' + name.lower ()
+    else:
+        return old_name
+
+def stock_pixmap_translate(old_name):
+    if re.match ('GNOME_STOCK_PIXMAP_.*', old_name):
+        name = re.sub('GNOME_STOCK_PIXMAP_', '', old_name)
+        try:
+            return stock_pixmaps[name]
+        except KeyError:
+            name = re.sub('_', '-', name)
+            return 'gtk-' + name.lower ()
+
+stock_menu_items = {
+    'GNOMEUIINFO_MENU_NEW_ITEM': (1, 'gtk-new'),
+    'GNOMEUIINFO_MENU_NEW_SUBTREE': (1, 'gtk-new'),
+    'GNOMEUIINFO_MENU_OPEN_ITEM': (1, 'gtk-open'),
+    'GNOMEUIINFO_MENU_SAVE_ITEM': (1, 'gtk-save'),
+    'GNOMEUIINFO_MENU_SAVE_AS_ITEM': (1, 'gtk-save-as'),
+    'GNOMEUIINFO_MENU_REVERT_ITEM': (1, 'gtk-revert-to-saved'),
+    'GNOMEUIINFO_MENU_PRINT_ITEM': (1, 'gtk-print'),
+    'GNOMEUIINFO_MENU_PRINT_SETUP_ITEM': (0, 'Print S_etup...'),
+    'GNOMEUIINFO_MENU_CLOSE_ITEM': (1, 'gtk-close'),
+    'GNOMEUIINFO_MENU_EXIT_ITEM': (1, 'gtk-quit'),
+    'GNOMEUIINFO_MENU_CUT_ITEM': (1, 'gtk-cut'),
+    'GNOMEUIINFO_MENU_COPY_ITEM': (1, 'gtk-copy'),
+    'GNOMEUIINFO_MENU_PASTE_ITEM': (1, 'gtk-paste'),
+    'GNOMEUIINFO_MENU_SELECT_ALL_ITEM': (0, '_Select All'),
+    'GNOMEUIINFO_MENU_CLEAR_ITEM': (1, 'gtk-clear'),
+    'GNOMEUIINFO_MENU_UNDO_ITEM': (1, 'gtk-undo'),
+    'GNOMEUIINFO_MENU_REDO_ITEM': (1, 'gtk-redo'),
+    'GNOMEUIINFO_MENU_FIND_ITEM': (1, 'gtk-find'),
+    'GNOMEUIINFO_MENU_FIND_AGAIN_ITEM': (0, 'Find _Again'),
+    'GNOMEUIINFO_MENU_REPLACE_ITEM': (1, 'gtk-find-and-replace'),
+    'GNOMEUIINFO_MENU_PROPERTIES_ITEM': (1, 'gtk-properties'),
+    'GNOMEUIINFO_MENU_PREFERENCES_ITEM': (1, 'gtk-preferences'),
+    'GNOMEUIINFO_MENU_NEW_WINDOW_ITEM': (0, 'Create New _Window'),
+    'GNOMEUIINFO_MENU_CLOSE_WINDOW_ITEM': (0, '_Close This Window'),
+    'GNOMEUIINFO_MENU_ABOUT_ITEM': (1, 'gnome-stock-about'),
+    'GNOMEUIINFO_MENU_NEW_GAME_ITEM': (0, '_New game'),
+    'GNOMEUIINFO_MENU_PAUSE_GAME_ITEM': (0, '_Pause game'),
+    'GNOMEUIINFO_MENU_RESTART_GAME_ITEM': (0, '_Restart game'),
+    'GNOMEUIINFO_MENU_UNDO_MOVE_ITEM': (0, '_Undo move'),
+    'GNOMEUIINFO_MENU_REDO_MOVE_ITEM': (0, '_Redo move'),
+    'GNOMEUIINFO_MENU_HINT_ITEM': (0, '_Hint'),
+    'GNOMEUIINFO_MENU_SCORES_ITEM': (0, '_Scores...'),
+    'GNOMEUIINFO_MENU_END_GAME_ITEM': (0, '_End game'),
+    'GNOMEUIINFO_MENU_FILE_TREE': (0, '_File'),
+    'GNOMEUIINFO_MENU_EDIT_TREE': (0, '_Edit'),
+    'GNOMEUIINFO_MENU_VIEW_TREE': (0, '_View'),
+    'GNOMEUIINFO_MENU_SETTINGS_TREE': (0, '_Settings'),
+    'GNOMEUIINFO_MENU_FILES_TREE': (0, 'Fi_les'),
+    'GNOMEUIINFO_MENU_WINDOWS_TREE': (0, '_Windows'),
+    'GNOMEUIINFO_MENU_HELP_TREE': (0, '_Help'),
+    'GNOMEUIINFO_MENU_GAME_TREE': (0, '_Game'),
+}
+def stock_menu_translate(old_name):
+    if stock_menu_items.has_key(old_name):
+        return stock_menu_items[old_name]
+    else:
+        return (0, old_name)
+
+def translate_color (color):
+    c = string.split (color, ',')
+    return '#%.2x%.2x%.2x' % (int (c[0]), int (c[1]), int (c[2]))
+
+
+def fixup_as_type(widget, type):
+
+    if verbose:
+        print >> sys.stderr, 'Fixing', widget['name'], 'up as', type
+
+    # table based property removals/renames
+    for name in global_obsolete_props:
+        widget.remove_prop(name)
+    for old, new in global_renamed_props:
+        widget.rename_prop(old, new)
+
+    if obsolete_props.has_key(type):
+        for name in obsolete_props[type]:
+            widget.remove_prop(name)
+
+    if renamed_props.has_key(type):
+        for old, new in renamed_props[type]:
+            widget.rename_prop(old, new)
+
+    for old, new in global_renamed_child_props:
+        for childdef in widget.children:
+            childdef.rename_prop(old, new)
+
+    if obsolete_child_props.has_key(type):
+        for name in obsolete_child_props[type]:
+            for childdef in widget.children:
+                childdef.remove_prop(name)
+
+    if renamed_child_props.has_key(type):
+        for old, new in renamed_child_props[type]:
+            for childdef in widget.children:
+                childdef.rename_prop(old, new)
+
+    # add the visible property if missing:
+    if not widget.has_prop('visible'):
+        widget['visible'] = 'yes'
+
+    # fix up child packing properties for tables
+    if type == 'GtkTable':
+        for childdef in widget.children:
+            options = []
+            if childdef.has_prop('xexpand'):
+                if childdef['xexpand'] == 'yes':
+                    options.append('expand')
+                del childdef['xexpand']
+            if childdef.has_prop('xshrink'):
+                if childdef['xshrink'] == 'yes':
+                    options.append('shrink')
+                del childdef['xshrink']
+            if childdef.has_prop('xfill'):
+                if childdef['xfill'] == 'yes':
+                    options.append('fill')
+                del childdef['xfill']
+            if options:
+                childdef['x_options'] = string.join(options,'|')
+            else: # Gtk+ has some wierd defaults here clobber them
+                childdef['x_options'] = ''
+            
+            options = []
+            if childdef.has_prop('yexpand'):
+                if childdef['yexpand'] == 'yes':
+                    options.append('expand')
+                del childdef['yexpand']
+            if childdef.has_prop('yshrink'):
+                if childdef['yshrink'] == 'yes':
+                    options.append('shrink')
+                del childdef['yshrink']
+            if childdef.has_prop('yfill'):
+                if childdef['yfill'] == 'yes':
+                    options.append('fill')
+                del childdef['yfill']
+            if options:
+                childdef['y_options'] = string.join(options,'|')
+            else: # Gtk+ has some wierd defaults here clobber them
+                childdef['y_options'] = ''
+
+    # fixup GtkFixed child packing options
+    if type == 'GtkFixed':
+        for childdef in widget.children:
+            if childdef.widget.has_prop ('x'):
+                childdef['x'] = childdef.widget['x']
+                del childdef.widget['x']
+            if childdef.widget.has_prop ('y'):
+                childdef['y'] = childdef.widget['y']
+                del childdef.widget['y']
+
+    # fixup GtkNotebook child tab widgets.
+    if type == 'GtkNotebook':
+        for childdef in widget.children:
+            if childdef.widget.has_prop ('child_name'):
+                if childdef.widget['child_name'] == 'Notebook:tab':
+                    del childdef.widget['child_name']
+                    childdef['type'] = 'tab'
+                else:
+                    print >> sys.stderr , 'Unknown child_name', \
+                          childdef.widget['child_name']
+
+    if type == 'GtkFileSelection':
+        for childdef in widget.children:
+            if childdef.widget.has_prop ('child_name'):
+                if re.match ('FileSel:.*', childdef.widget['child_name']):
+                    name = re.sub ('FileSel:', '', childdef.widget['child_name'])
+                    del childdef.widget['child_name']
+                    childdef.internal_child = name
+
+    if type == 'GtkColorSelectionDialog':
+        for childdef in widget.children:
+            if childdef.widget.has_prop ('child_name'):
+                if re.match ('ColorSel:.*', childdef.widget['child_name']):
+                    name = re.sub ('ColorSel:', '', childdef.widget['child_name'])
+                    del childdef.widget['child_name']
+                    childdef.internal_child = name
+
+    if type == 'GtkFontSelectionDialog':
+        for childdef in widget.children:
+            if childdef.widget.has_prop ('child_name'):
+                if re.match ('FontSel:.*', childdef.widget['child_name']):
+                    name = re.sub ('FontSel:', '', childdef.widget['child_name'])
+                    del childdef.widget['child_name']
+                    childdef.internal_child = name
+
+    # fix up adjustment properties
+    if type in ('GtkHScale', 'GtkHScrollbar',
+                           'GtkVScale', 'GtkVScrollbar',
+                           'GtkSpinButton'):
+        collect_adjustment(widget, 'h', 'adjustment') # compat
+        collect_adjustment(widget, 'v', 'adjustment') # compat
+        collect_adjustment(widget, '', 'adjustment')
+    if type in ('GtkViewport', 'GtkLayout', 'GtkScrolledWindow'):
+        collect_adjustment(widget, 'h', 'hadjustment')
+        collect_adjustment(widget, 'v', 'vadjustment')
+        if widget.has_prop('width'):
+            width = widget['width']
+            del widget['width']
+            widget['width'] = width
+        if widget.has_prop('height'):
+            height = widget['height']
+            del widget['height']
+            widget['height'] = height
+    if type in ('GtkProgressBar', ):
+        collect_adjustment(widget, '', 'adjustment')
+
+    # add label children to menu items.
+    if type == 'GtkMenuItem':
+        if widget.has_prop('stock_item'):
+            use_stock, stock = stock_menu_translate(widget['stock_item'])
+            widget['label'] = stock
+            widget['use_stock'] = use_stock and 'yes' or 'no'
+            widget['use_underline'] = 'yes'
+            del widget['stock_item']
+
+    if type == 'GtkImageMenuItem':
+        if widget.has_prop('stock_icon'):
+            icon = WidgetDef()
+            icon['class'] = 'GtkImage'
+            icon['name'] = make_name ()
+            icon['stock'] = stock_icon_translate (widget['stock_icon'])
+            widget.add_child (icon, 'image')
+            del widget['stock_icon']
+
+    if type == 'GtkButton':
+        if widget.has_prop('stock_button'):
+            widget['label'] = stock_button_translate (widget['stock_button'])
+            widget['use_stock'] = 'yes'
+            widget['use_underline'] = 'yes'
+            del widget['stock_button']
+
+        # GnomeDialog sucks, and this is tricky to get right so just
+        # ignore the pixmap for now
+        if widget.has_prop('stock_pixmap'):
+            del widget['stock_pixmap']
+
+    if type == 'GtkDialog':
+        if widget.children:
+            childdef = widget.children[0]
+            if childdef.widget.has_prop ('child_name'):
+                childdef.internal_child = 'vbox'
+                del childdef.widget['child_name']
+                
+                try:
+                    childdef = filter(lambda x: x.widget.has_prop('child_name'),
+                                      childdef.widget.children)[0]
+                except IndexError:
+                    return 0
+                childdef.widget['class'] = 'GtkHButtonBox'
+                childdef.internal_child = 'action_area'
+                del childdef.widget['child_name']
+
+    if type == 'GnomeDialog':
+        if widget.children:
+            childdef = widget.children[0]
+            if childdef.widget.has_prop ('child_name'):
+                childdef.internal_child = 'vbox'
+                del childdef.widget['child_name']
+                
+            try:
+                childdef = filter(lambda x: x.widget.has_prop('child_name'),
+                                  childdef.widget.children)[0]
+            except IndexError:
+                return 0
+            childdef.widget['class'] = 'GtkHButtonBox'
+            childdef.internal_child = 'action_area'
+            del childdef.widget['child_name']
+
+    if type == 'GtkOptionMenu':
+        menu = WidgetDef()
+        menu['class'] = 'GtkMenu'
+        menu['name'] = make_name ()
+        widget.add_child (menu, 'menu')
+
+        if widget.has_prop('items'):
+            # FIXME: this needs continuing, we need a GtkMenu
+            # item, and a hacked up special case to do the
+            # set_menu on the optionmenu with it, then we need
+            # to pack these ( working ) MenuItems into it
+            if not widget['items'] == '':
+                items = widget['items'].split ('\n')
+                for item in items:
+                    if not item == '':
+                        menu.add_child ( \
+                            new_label ('GtkMenuItem', \
+                                       item, widget['name']))
+            del widget['items']
+            
+
+    if type == 'GtkScrolledWindow':
+        if widget.has_prop ('hupdate_policy'):
+            scroll = WidgetDef ()
+            scroll['class'] = 'GtkHScrollbar'
+            scroll['name'] = make_name ()
+            scroll['update_policy'] = widget['hupdate_policy']
+            widget.add_child(scroll, 'hscrollbar')
+            del widget['hupdate_policy']
+        if widget.has_prop ('vupdate_policy'):
+            scroll = WidgetDef ()
+            scroll['class'] = 'GtkVScrollbar'
+            scroll['name'] = make_name ()
+            scroll['update_policy'] = widget['vupdate_policy']
+            widget.add_child(scroll, 'vscrollbar')
+            del widget['vupdate_policy']
+
+
+    if type == 'GtkCombo':
+        childdef = widget.children[0]
+        childdef.internal_child = 'entry'
+        del childdef.widget['child_name']
+
+        if widget.has_prop('items'):
+            items = widget['items'].split('\n')
+            del widget['items']
+            list = WidgetDef()
+            list['class'] = 'GtkList'
+            list['name'] = make_name()
+            widget.add_child(list, 'list')
+            for item in items:
+                listitem = WidgetDef()
+                listitem['class'] = 'GtkListItem'
+                listitem['name'] = make_name()
+                list.add_child(listitem)
+                listitem.add_child (new_label ('GtkLabel', item, ''))
+
+    if type in ('GtkCList', 'GtkCTree'):
+        for childdef in widget.children:
+            del childdef.widget['child_name']
+
+    if type in ('GtkLabel', 'GtkButton', 'GtkMenuItem'):
+        if widget.has_prop('label'):
+            if re.match('.*_.*', widget['label']):
+                widget['use_underline'] = 'yes'
+
+    if type == 'GnomeFileEntry':
+        childdef = widget.children[0]
+        childdef.internal_child = 'entry'
+        del childdef.widget['child_name']
+
+    if type == 'GnomePropertyBox':
+        childdef = widget.children[0]
+        childdef.internal_child = 'notebook'
+        del childdef.widget['child_name']
+        fixup_as_type (widget, 'GtkWindow')
+        return 1
+
+    # Fixup radio groups, the 'group' property has to
+    # have the glade id of the root group widget.
+    if type == 'GtkRadioButton' or type == 'GtkRadioMenuItem':
+        if widget.has_prop ('group'):
+            if global_group_map.has_key (widget['group']):
+                widget['group'] = global_group_map[widget['group']]
+            else:
+                global_group_map[widget['group']] = widget['name']
+                del widget['group']
+
+    if type == 'GtkToolbar':
+        for childdef in widget.children:
+            if childdef.widget.has_prop('child_name'):
+                if childdef.widget['child_name'] == 'Toolbar:button':
+                    if childdef.widget['class'] == 'GtkButton':
+                        childdef.widget['class'] = 'button'
+                    elif childdef.widget['class'] == 'GtkToggleButton':
+                        childdef.widget['class'] = 'toggle'
+                    elif childdef.widget['class'] == 'GtkRadioButton':
+                        childdef.widget['class'] = 'radio'
+                        if childdef.widget.has_prop('group'):
+                            if global_group_map.has_key (childdef.widget['group']):
+                                childdef.widget['group'] = global_group_map[childdef.widget['group']]
+                            else:
+                                global_group_map[childdef.widget['group']] = childdef.widget['name']
+                                del childdef.widget['group']
+                    del childdef.widget['child_name']
+                if childdef.widget.has_prop('stock_pixmap'):
+                    name = stock_pixmap_translate (childdef.widget['stock_pixmap'])
+                    childdef.widget['stock_pixmap'] = name
+
+    if type == 'GtkCalendar':
+        options = []
+        if widget.has_prop('show_heading'):
+            if widget['show_heading'] == 'yes':
+                options.append('GTK_CALENDAR_SHOW_HEADING')
+            del widget['show_heading']
+        if widget.has_prop('show_day_names'):
+            if widget['show_day_names'] == 'yes':
+                options.append('GTK_CALENDAR_SHOW_DAY_NAMES')
+            del widget['show_day_names']
+        if widget.has_prop('no_month_change'):
+            if widget['no_month_change'] == 'yes':
+                options.append('GTK_CALENDAR_NO_MONTH_CHANGE')
+            del widget['no_month_change']
+        if widget.has_prop('show_week_numbers'):
+            if widget['show_week_numbers'] == 'yes':
+                options.append('GTK_CALENDAR_SHOW_WEEK_NUMBERS')
+            del widget['show_week_numbers']
+        if widget.has_prop('week_start_monday'):
+            if widget['week_start_monday'] == 'yes':
+                options.append('GTK_CALENDAR_WEEK_START_MONDAY')
+            del widget['week_start_monday']
+        if options:
+            widget['display_options'] = string.join(options, '|')
+        else:
+            widget['display_options'] = ''
+
+    if type == 'GnomeApp':
+        for childdef in widget.children:
+            if childdef.widget.has_prop('child_name'):
+                if childdef.widget['child_name'] == 'GnomeApp:dock':
+                    del childdef.widget['child_name']
+                    childdef.internal_child = 'dock'
+                elif childdef.widget['child_name'] == 'GnomeApp:appbar':
+                    del childdef.widget['child_name']
+                    childdef.internal_child = 'appbar'
+                    
+    if type == 'BonoboDock':
+        for childdef in widget.children:
+            if childdef.widget.has_prop('child_name'):
+                if childdef.widget['child_name'] == 'GnomeDock:contents':
+                    del childdef.widget['child_name']
+
+            if childdef.widget['class'] == 'BonoboDockItem':
+                behavior = []
+                if childdef.widget.has_prop('placement'):
+                    name = childdef.widget['placement']
+                    if re.match ('GNOME_.*', name):
+                        name = re.sub('GNOME_', 'BONOBO_', name, 1)
+                    childdef['placement'] = name
+                    del childdef.widget['placement']
+                if childdef.widget.has_prop('band'):
+                    childdef['band'] = childdef.widget['band']
+                    del childdef.widget['band']
+                if childdef.widget.has_prop ('position'):
+                    childdef['position'] = childdef.widget['position']
+                    del childdef.widget['position']
+                if childdef.widget.has_prop ('offset'):
+                    childdef['offset'] = childdef.widget['offset']
+                    del childdef.widget['offset']
+                                    
+                if childdef.widget.has_prop ('locked'):
+                    if childdef.widget['locked'] == 'yes':
+                        behavior.append ('BONOBO_DOCK_ITEM_BEH_LOCKED')
+                    del childdef.widget['locked']
+                if childdef.widget.has_prop ('exclusive'):
+                    if childdef.widget['exclusive'] == 'yes':
+                        behavior.append ('BONOBO_DOCK_ITEM_BEH_EXCLUSIVE')
+                    del childdef.widget['exclusive']
+                if childdef.widget.has_prop ('never_floating'):
+                    if childdef.widget['never_floating'] == 'yes':
+                        behavior.append ('BONOBO_DOCK_ITEM_BEH_NEVER_FLOATING')
+                    del childdef.widget['never_floating']
+                if childdef.widget.has_prop ('never_vertical'):
+                    if childdef.widget['never_vertical'] == 'yes':
+                        behavior.append ('BONOBO_DOCK_ITEM_BEH_NEVER_VERTICAL')
+                    del childdef.widget['never_vertical']
+                if childdef.widget.has_prop ('never_horizontal'):
+                    if childdef.widget['never_horizontal'] == 'yes':
+                        behavior.append ('BONOBO_DOCK_ITEM_BEH_NEVER_HORIZONTAL')
+                    del childdef.widget['never_horizontal']
+                if behavior:
+                    childdef['behavior'] = string.join(behavior, '|')
+                else:
+                    childdef['behavior'] = 'BONOBO_DOCK_ITEM_BEH_NORMAL'
+
+    if type == 'GnomeDateEdit':
+        flags = []
+        if widget.has_prop('show_time'):
+            if widget['show_time'] == 'yes':
+                flags.append ('GNOME_DATE_EDIT_SHOW_TIME')
+            del widget['show_time']
+        if widget.has_prop('use_24_format'):
+            if widget['use_24_format'] == 'yes':
+                flags.append ('GNOME_DATE_EDIT_24_HR')
+            del widget['use_24_format']
+        if widget.has_prop('week_start_monday'):
+            if widget['week_start_monday'] == 'yes':
+                flags.append ('GNOME_DATE_EDIT_WEEK_STARTS_ON_MONDAY')
+            del widget['week_start_monday']
+        if flags:
+            widget['dateedit_flags'] = string.join(flags, '|')
+        else:
+            widget['dateedit_flags'] = '0'
+
+    if type == 'GnomeMessageBox':
+        try:
+            name = widget['message_box_type']
+        except KeyError:
+            name = 'GNOME_MESSAGE_BOX_GENERIC'
+        name = re.sub ('GNOME_MESSAGE_BOX_', '', name)
+        widget['message_box_type'] = name.lower ()
+
+    if type == 'GnomeDruidPageEdge':
+        for color in ( 'title_color', 'text_color', 'background_color', 'logo_background_color', 'textbox_color' ):
+            if widget.has_prop (color):
+                widget[color] = translate_color (widget[color])
+
+    if type == 'GnomeDruidPageStandard':
+        for color in ( 'title_foreground', 'background', 'logo_background' ):
+            if widget.has_prop (color):
+                widget[color] = translate_color (widget[color])
+        if widget.children:
+            if widget.children[0].widget.has_prop ('child_name'):
+                widget.children[0].internal_child = 'vbox'
+                del widget.children[0].widget['child_name']
+
+    return 0
+
+# upgrade widgets to their gtk/gnome 2.0 equivalents
+def upgrade_widget(widget):
+    do_children = 1
+
+    # some widgets are totally removed, so upgrade anyway
+    if widget['class'] == 'GnomeDockItem':
+        widget['class'] = 'BonoboDockItem'
+    elif widget['class'] == 'GnomeDock':
+        widget['class'] = 'BonoboDock'
+    elif widget['class'] == 'GnomeAnimator':
+        widget['class'] = 'GtkImage'
+        if widget.has_prop ('loop_type'):
+            del widget['loop_type']
+        if widget.has_prop ('playback_direction'):
+            del widget['playback_direction']
+        if widget.has_prop ('playback_speed'):
+            del widget['playback_speed']
+    elif widget['class'] == 'GnomeDruidPageStart':
+        widget['class'] = 'GnomeDruidPageEdge'
+        widget['position'] = 'GNOME_EDGE_START'
+    elif widget['class'] == 'GnomeDruidPageFinish':
+        widget['class'] = 'GnomeDruidPageEdge'
+        widget['position'] = 'GNOME_EDGE_FINISH'
+    elif widget['class'] == 'GtkPixmapMenuItem':
+        widget['class'] = 'GtkImageMenuItem'
+
+    if not upgrade:
+        if do_children:
+            for childdef in widget.children:
+                upgrade_widget(childdef.widget)
+        return
+
+    # use GtkImage for image display now.
+    if widget['class'] == 'GtkPixmap':
+        widget['class'] = 'GtkImage'
+        widget.rename_prop('filename', 'pixbuf')
+        widget.remove_prop('build_insensitive')
+    elif widget['class'] == 'GnomeFontSelector':
+        widget['class'] = 'GtkFontSelectionDialog'
+    elif widget['class'] == 'GnomePixmap':
+        widget['class'] = 'GtkImage'
+        widget.rename_prop('filename', 'pixbuf')
+
+    elif widget['class'] == 'GtkText':
+        widget['class'] = 'GtkTextView'
+        widget['wrap_mode'] = 'GTK_WRAP_WORD'
+        parent = widget['parent']
+        if parent['class'] == 'GtkScrolledWindow':
+            parent['shadow_type'] = 'GTK_SHADOW_IN'
+
+    elif widget['class'] in ('GtkCList', 'GtkCTree', 'GtkList', 'GtkTree'):
+        widget['class'] = 'GtkTreeView'
+        parent = widget['parent']
+        if parent['class'] == 'GtkScrolledWindow':
+            parent['shadow_type'] = widget['shadow_type']
+            widget.remove_prop('shadow_type')
+        widget.rename_prop('show_titles', 'headers-visible')
+        widget.remove_prop('columns')
+        widget.remove_prop('column_widths')
+        widget.remove_prop('selection_mode')
+        widget.remove_prop('view_mode')
+        widget.remove_prop('view_line')
+
+    elif widget['class'] == 'GnomeDialog':
+        widget['class'] = 'GtkDialog'
+        if widget.has_prop ('auto_close'):
+            del widget['auto_close']
+        if widget.has_prop ('hide_on_close'):
+            del widget['hide_on_close']
+
+    if do_children:
+        for childdef in widget.children:
+            upgrade_widget(childdef.widget)
+
+# warn about removed widgets, and build a list of libraries used
+bad_widgets = {
+    'GtkText': 'broken',
+    'GtkList': 'broken',
+    'GtkTree': 'broken',
+    'GtkTreeItem': 'broken',
+    'GtkCList': 'deprecated',
+    'GtkCTree': 'deprecated',
+    'GtkPixmap': 'deprecated',
+    'GnomePixmap': 'deprecated',
+#    'GnomeFontPicker': 'removed',
+    'GtkPixmapMenuItem': 'removed',
+    'GtkPacker': 'removed',
+    'GnomeDialog': 'deprecated',
+    'GnomeNumberEntry': 'removed',
+    'GtkDial': 'removed',
+    'GtkClock': 'removed',
+    'GnomeCalculator': 'removed',
+    'GnomeLess': 'removed',
+    'GnomeSpell': 'removed',
+}
+def check_widget(widget, requirelist=[]):
+    try:
+        error = bad_widgets[widget['class']]
+        print >> sys.stderr , 'widget %s of class %s is %s.' % \
+              (widget['name'], widget['class'], error)
+        if error == 'removed':
+                widget.mark_obsolete ()
+    except KeyError:
+        pass
+
+    if widget['class'] == 'GnomeCanvas':
+        if 'canvas' not in requirelist:
+            requirelist.append('canvas')
+    elif widget['class'][:5] == 'Gnome' and 'gnome' not in requirelist:
+        requirelist.append('gnome')
+    elif widget['class'][:6] == 'Bonobo' and 'bonobo' not in requirelist:
+        requirelist.append('bonobo')
+
+    for childdef in widget.children:
+        check_widget(childdef.widget, requirelist)
+
+# --- parse the file for widget definitions, fixup problems and dump.
+
+def handle_file(filename):
+    document = xml.dom.minidom.parse(filename)
+    
+    widgets = []
+    for node in document.documentElement.childNodes:
+	if node.nodeType == node.ELEMENT_NODE and \
+	   node.nodeName == 'widget':
+            widgets.append(handle_widget(node))
+
+    requireslist = []
+
+    for widgetdef in widgets:
+        upgrade_widget(widgetdef)
+        fixup_widget(widgetdef)
+        check_widget(widgetdef, requireslist)
+
+    print '<?xml version="1.0" standalone="no"?> <!--*- mode: nxml -*-->'
+    print '<!DOCTYPE glade-interface SYSTEM "http://glade.gnome.org/glade-2.0.dtd" >'
+    print
+    print '<glade-interface>'
+
+    for requirement in requireslist:
+        print '  <requires lib="%s" />' % requirement
+    if requireslist:
+        print
+
+    indent = '  '
+    for widgetdef in widgets:
+        widgetdef.dump(indent)
+
+    print '</glade-interface>'
+    document.unlink() # only needed for python interpreters without cyclic gc
+
+usage = 'usage: libglade-convert [--no-upgrade] [--verbose] oldfile.glade'
+
+def main():
+    global upgrade, verbose
+    opts, args = getopt.getopt(sys.argv[1:], '',
+                               ['no-upgrade', 'verbose', 'help'])
+    
+    for opt, arg in opts:
+        if opt == '--no-upgrade':
+            upgrade = 0
+        elif opt == '--verbose':
+            verbose = 1
+        elif opt == '--help':
+            print usage
+            sys.exit(0)
+    if len(args) != 1:
+	print >> sys.stderr, usage
+	sys.exit(1)
+    handle_file(args[0])
+
+if __name__ == '__main__':
+    main()

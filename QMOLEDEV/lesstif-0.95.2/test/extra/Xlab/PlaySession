@@ -1,0 +1,90 @@
+#!/bin/sh
+#
+# Play back an xlab-recorded session.
+# JAC Sept 26 1998
+#
+
+if [ $# -lt 1 ] 
+then
+   echo "usage: $0 [-T tolerance] [-D debug] test [motif]"
+   exit
+fi
+
+if test x$XLAB = x
+then
+        XLAB=xlab
+fi
+
+Tolerance='-T0'
+Debug=" "
+
+#
+# check args
+#
+while (test $1 = '-T' || test $1 = '-D')
+do
+   if test $1 = '-T'
+   then
+     shift
+     Tolerance='-T'$1
+     shift
+   fi
+	    
+   if test $1 = '-D'
+   then
+     shift
+     Debug='-D'$1
+     shift
+  fi
+done
+
+#
+# Check for saved session in directory
+#
+dir=`dirname $1`/xlab
+if (test ! -d $dir)
+then
+   echo "There is no xlab directory, can't play back session"
+   exit
+fi
+
+#
+# start the xlab server (in autoexit, playback mode)
+#
+
+$XLAB $Debug -e -w1 $Tolerance -M -p$dir/$1.xcalls 2> $dir/$1.pxlog > $dir/$1.pxlog &
+tail -f $dir/$1.pxlog &
+tailpid=$!
+
+#
+# start the specified test
+#
+if test x$2 = xmotif
+then
+   version=.motif
+fi
+make ./$1$version
+./$1$version -display localhost:1 2> $dir/$1.plog > $dir/$1.plog
+
+#
+# clean up
+#
+kill $tailpid
+sleep 1
+
+#
+# see how we did
+#
+echo "XLAB_DONE"
+echo "------------------------------------------------"
+echo "Diff report of test program's output:"
+in=`wc $dir/$1.rlog | awk '{print $1}'`
+out=`wc $dir/$1.plog | awk '{print $1}'`
+echo "Lines in: "$in" out: "$out
+echo "------------------------------------------------"
+diff -s $dir/$1.rlog $dir/$1.plog
+
+
+
+
+

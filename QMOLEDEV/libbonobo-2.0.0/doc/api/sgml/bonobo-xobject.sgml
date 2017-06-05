@@ -1,0 +1,324 @@
+<refentry id="libbonobo-bonobo-xobject">
+<refmeta>
+<refentrytitle>BonoboXObject</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBBONOBO Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>BonoboXObject</refname><refpurpose>a simplified CORBA server object wrapper</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+
+
+#define     <link linkend="BONOBO-X-OBJECT-TYPE-CAPS">BONOBO_X_OBJECT_TYPE</link>
+#define     <link linkend="BONOBO-X-OBJECT-HEADER-SIZE-CAPS">BONOBO_X_OBJECT_HEADER_SIZE</link>
+#define     <link linkend="BONOBO-X-OBJECT-GET-SERVANT-CAPS">BONOBO_X_OBJECT_GET_SERVANT</link>     (o)
+#define     <link linkend="BONOBO-X-SERVANT-GET-OBJECT-CAPS">BONOBO_X_SERVANT_GET_OBJECT</link>     (o)
+#define     <link linkend="BonoboXObject">BonoboXObject</link>
+#define     <link linkend="BonoboXObjectClass">BonoboXObjectClass</link>
+#define     <link linkend="bonobo-x-object">bonobo_x_object</link>
+#define     <link linkend="BonoboXObjectPOAFn">BonoboXObjectPOAFn</link>
+#define     <link linkend="bonobo-x-type-unique">bonobo_x_type_unique</link>
+#define     <link linkend="bonobo-x-type-setup">bonobo_x_type_setup</link>
+#define     <link linkend="BONOBO-X-TYPE-FUNC-FULL-CAPS">BONOBO_X_TYPE_FUNC_FULL</link>         (class_name, corba_name, parent, prefix)
+#define     <link linkend="BONOBO-X-TYPE-FUNC-CAPS">BONOBO_X_TYPE_FUNC</link>              (class_name, parent, prefix)
+
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+BonoboXObject provides an easy to use way of writing CORBA servers. However,
+for libbonobo-2.0, all its functionality has been merged with
+<link linkend="BonoboObject">BonoboObject</link>, which is the one that should be used for writing
+Bonobo/CORBA servers.
+</para>
+
+<para>
+The CORBA methods are associated with a Gtk class in the same
+way that standard Gtk+ methods and signals are. We insert the
+CORBA generated Entry Point Vector (epv) struct as the first
+element of the derived class eg.
+  <example>
+     <title>Setting up the GtkClass data</title>
+     <programlisting>
+typedef struct {
+	BonoboXObject base;
+
+	BonoboControlPrivate *priv;
+} BonoboControl;
+
+typedef struct {
+	BonoboXObjectClass      parent_class;
+
+	POA_Bonobo_Control__epv epv;
+
+	/* Signals. */
+	void (*set_frame)      (BonoboControl *control);
+	void (*activate)       (BonoboControl *control, gboolean state);
+} BonoboControlClass;
+     </programlisting>
+  </example>
+</para>
+
+<para>
+Then we set up the type using the <function>bonobo_x_type_unique</function>
+function instead of gtk_type_unique ( but otherwise in the standard Gtk+
+fashion ).
+  <example>
+     <title>Registering the type with bonobo</title>
+     <programlisting>
+GtkType
+bonobo_control_get_type (void)
+{
+	GtkType ptype;
+	static GtkType type = 0;
+
+	if (type == 0) {
+		static GtkTypeInfo info = {
+			"BonoboControl",
+			sizeof (BonoboControl),
+			sizeof (BonoboControlClass),
+			(GtkClassInitFunc)bonobo_control_class_init,
+			(GtkObjectInitFunc)bonobo_control_init,
+			NULL, NULL, (GtkClassInitFunc) NULL
+		};
+		ptype = (parent);
+		type = bonobo_x_type_unique (ptype,
+			POA_Bonobo_Control__init, NULL,
+			GTK_STRUCT_OFFSET (BonoboControlClass, epv),
+			&amp;info);
+	}
+	return type;
+}
+     </programlisting>
+  </example>
+  Alternatively one can use the simpler BONOBO_X_TYPE_FUNC_FULL
+macros to achieve the same thing thus:
+  <example>
+     <title>Registering the type more simply</title>
+     <programlisting>
+BONOBO_X_TYPE_FUNC_FULL (BonoboControl, Bonobo_Control,
+                         PARENT_TYPE, bonobo_control);
+     </programlisting>
+  </example>
+
+  The POA_Bonobo_Control__init function is used to construct the CORBA object
+and the GTK_STRUCT_OFFSET tells Bonobo where your epv structure is
+in the Class data, so it can build your epv for you.
+  The fini_fn function is not used in ORBit, so it is faster to use NULL here.
+</para>
+<para>
+After registering the type in the class initialization function, we
+must fill out the epv with our entry points, similar to the way we
+hook up virtual class functions. It may also be necessary to override
+the parent's epv's; this can be done by accessing the epv pointer for
+the parent class.
+  <example>
+     <title>Setting up the class' methods</title>
+     <programlisting>
+static void
+bonobo_control_class_init (BonoboControlClass *klass)
+{
+	GtkObjectClass *object_class = (GtkObjectClass *)klass;
+	POA_Bonobo_Control__epv *epv = &amp;klass->epv;
+
+	bonobo_control_parent_class = gtk_type_class (PARENT_TYPE);
+
+	...
+
+	object_class->destroy  = bonobo_control_destroy;
+	object_class->finalize = bonobo_control_finalize;
+
+	epv->activate       = impl_Bonobo_Control_activate;
+	epv->setSize        = impl_Bonobo_Control_setSize;
+	...
+	epv->realize        = impl_Bonobo_Control_realize;
+	epv->unrealize      = impl_Bonobo_Control_unrealize;
+}
+     </programlisting>
+  </example>
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="BONOBO-X-OBJECT-TYPE-CAPS">BONOBO_X_OBJECT_TYPE</title>
+<programlisting>#define BONOBO_X_OBJECT_TYPE        BONOBO_TYPE_X_OBJECT /* deprecated, you should use BONOBO_TYPE_X_OBJECT */
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BONOBO-X-OBJECT-HEADER-SIZE-CAPS">BONOBO_X_OBJECT_HEADER_SIZE</title>
+<programlisting>#define BONOBO_X_OBJECT_HEADER_SIZE BONOBO_OBJECT_HEADER_SIZE
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BONOBO-X-OBJECT-GET-SERVANT-CAPS">BONOBO_X_OBJECT_GET_SERVANT()</title>
+<programlisting>#define BONOBO_X_OBJECT_GET_SERVANT(o) ((PortableServer_Servant)&amp;(o)-&gt;servant)
+</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>o</parameter>&nbsp;:</entry>
+<entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BONOBO-X-SERVANT-GET-OBJECT-CAPS">BONOBO_X_SERVANT_GET_OBJECT()</title>
+<programlisting>#define     BONOBO_X_SERVANT_GET_OBJECT(o)</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>o</parameter>&nbsp;:</entry>
+<entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BonoboXObject">BonoboXObject</title>
+<programlisting>#define BonoboXObject            BonoboObject
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboXObjectClass">BonoboXObjectClass</title>
+<programlisting>#define BonoboXObjectClass       BonoboObjectClass
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="bonobo-x-object">bonobo_x_object</title>
+<programlisting>#define bonobo_x_object          bonobo_object
+</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BonoboXObjectPOAFn">BonoboXObjectPOAFn</title>
+<programlisting>#define BonoboXObjectPOAFn       BonoboObjectPOAFn
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="bonobo-x-type-unique">bonobo_x_type_unique</title>
+<programlisting>#define bonobo_x_type_unique     bonobo_type_unique
+</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-x-type-setup">bonobo_x_type_setup</title>
+<programlisting>#define bonobo_x_type_setup      bonobo_type_setup
+</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BONOBO-X-TYPE-FUNC-FULL-CAPS">BONOBO_X_TYPE_FUNC_FULL()</title>
+<programlisting>#define     BONOBO_X_TYPE_FUNC_FULL(class_name, corba_name, parent, prefix)</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>class_name</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>corba_name</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>parent</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>prefix</parameter>&nbsp;:</entry>
+<entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BONOBO-X-TYPE-FUNC-CAPS">BONOBO_X_TYPE_FUNC()</title>
+<programlisting>#define     BONOBO_X_TYPE_FUNC(class_name, parent, prefix)</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>class_name</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>parent</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>prefix</parameter>&nbsp;:</entry>
+<entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+<refsect1>
+<title>See Also</title>
+<para>
+<link linkend="BonoboObject">BonoboObject</link>
+</para>
+</refsect1>
+
+</refentry>

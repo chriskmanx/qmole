@@ -1,0 +1,157 @@
+# -*-tcl-*-
+
+#
+# procedure to verify a geometry record
+#
+proc lt_verify_geometry { str test_seq } {
+
+
+    if { [scan $str "%s" str1] != 1 } {
+	send_user "Error in geometry scan\n"
+	return "error";
+    }
+
+    if { $str1 == "GEOMETRY_RESULT" } {
+	return "end";
+    }
+
+    if { [scan $str "%s x %i (%i) y %i (%i) w %i (%i) h %i (%i)" \
+	    str1 x1 x2 y1 y2 w1 w2 h1 h2] != 9 } {
+	return "error";
+    }
+#   send_user $str1\t$x1\t$y1\t$w1\t$h1\n
+
+    if { $x1 == $x2 } {
+	set fail false
+    } else {
+	puts "incorrect x position"
+	set fail true
+    }
+
+    if { $y1 != $y2 } {
+	puts "incorrect y position"
+	set fail true
+    }
+
+    if { $w1 != $w2 } {
+	puts "incorrect width"
+	set fail true
+    }
+
+    if { $h1 != $h2 } {
+	puts "incorrect height"
+	set fail true
+    }
+
+    if { $fail == "true" } {
+	fail "geometry, line: $test_seq"
+    } else {
+	pass "geometry, line: $test_seq"
+    }
+}
+
+proc lt_process_geom_line {i} {
+    global expect_out
+    set status false
+
+    expect {
+	-re "\[^\r]*\n" {
+#	    send_user "Got geometry $i: $expect_out(buffer)"
+            if { [lt_verify_geometry $expect_out(buffer) $i] == "end" } {
+		return "end";
+	    }
+	}
+	timeout {
+	    send_user "Timed out normally\n"
+	    pass "Timeout"
+	    return "end";
+	}
+	eof {
+    	    send_user "Terminated by user\n"
+	    fail "terminated"
+	    return "end";
+	}
+    }
+}
+
+#
+# basically just make sure we don't dump core
+#
+
+proc lt_basic_test {} {
+    set status false        
+    expect {
+	"BEGIN_GEOMETRY\r\n" { 
+#	    send_user "Getting geometry\n"
+	    lt_geometry_test 
+	}
+	"\n" { exp_continue }
+	timeout {
+	    set status true;
+	    pass "Timed out normally\n"
+	}
+	eof {
+	    set status false;
+    	    fail "Terminated by user\n"
+	}
+    }
+}
+
+proc lt_geometry_test {} {
+   expect "Shell class >ApplicationShell<\r\n" {}
+   global lt_exit
+   for {set i 1} {1} {incr i} {
+       if { [lt_process_geom_line $i] == "end" } {
+	   break;
+       }
+   }
+
+}
+
+#
+# scan for diff output from PlaySession.  This depends on your version of
+# diff using the string "are identical" when two files match.
+#
+proc lt_xlab_diff {} { 
+    expect {
+	"are identical\r\n" {
+	    pass "Identical to saved output"
+	} 
+	timeout {
+	    fail "Timed out waiting for diff output from xlab test."
+	}
+	eof {
+	    fail "Output was different from saved xlab session's output."
+	}
+    }
+}
+
+#
+# wait for XLAB_DONE in an xlab test, then scan for errors in the diff output
+#
+proc lt_xlab_test {} { 
+    expect {
+	"XLAB_DONE\r\n" {
+	    send_user "Xlab test finished, scanning for differences.\n"
+	    lt_xlab_diff
+	} 
+	timeout {
+	    fail "Timed out waiting for xlab to finish."
+	}
+	eof {
+	    fail "EOF waiting for xlab to finish."
+	}
+    }
+}
+
+proc LessTif_exit {} {}
+proc LessTif_version {} {}
+proc LessTif_start {} {}
+LessTif_start
+
+
+
+
+
+
+

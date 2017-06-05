@@ -1,0 +1,186 @@
+/*
+ * bonobo-persist.idl: Bonobo::Persist interfaces
+ *
+ * Copyright (C) 1999, 2000  Helix Code, Inc.
+ *
+ * Authors:
+ *    Miguel de Icaza (miguel@gnu.org)
+ *    Dan Winship     (danw@helixcode.com)
+ */
+
+#ifndef BONOBO_PERSIST_IDL
+#define BONOBO_PERSIST_IDL
+
+#include "Bonobo_Unknown.idl"
+#include "Bonobo_Storage.idl"
+#include "Bonobo_Exception.idl"
+
+module Bonobo {
+
+	interface Persist : Unknown {
+		enum Status {
+			SAVE_OK,
+			SAVE_CANCEL,
+			SAVE_FAILED
+		};
+
+		exception WrongDataType {};
+		exception FileNotFound {};
+
+		typedef string                ContentType;
+		typedef sequence<ContentType> ContentTypeList;
+		
+		/**
+		 * getContentTypes:
+		 *
+		 *  Gets a list of supported mime types that this
+		 * persistor can save its data in. The default /
+		 * preferred type being the first element.
+		 */
+		ContentTypeList getContentTypes ();
+
+		typedef string                IID;
+		
+		/**
+		 * getIId:
+		 *
+		 * Get the IID necessary to recreate the object whose
+		 * internal state this interface represents
+		 */
+		IID getIId ();
+
+		/**
+		 * isDirty:
+		 * 
+		 * Indicates if a save is necessary.
+		 */
+		boolean isDirty ();
+	
+		void unImplemented1 ();
+		void unImplemented2 ();
+	};
+	
+	/*
+	 * The PersistFile interface is somewhat mis-named it
+	 * should be PersistURI.
+	 *
+	 * This allows applications to load and save documents
+	 * via the Gnome VFS.
+	 */
+	interface PersistFile : Persist {
+
+	        exception NoCurrentName {
+			string extension;
+		};
+
+		/**
+		 * load:
+		 * @uri: URI to load from
+		 * 
+		 * Loads the document object from the file
+		 * pointed in by @path
+		 */
+		void load (in string uri)
+			raises (IOError, NotSupported,
+				WrongDataType, FileNotFound);
+
+		/**
+		 * save:
+		 * @uri: the URI to save to
+		 * saves the document object to the file 
+		 * pointed in by @path
+		 */
+		void save (in string uri)
+			raises (IOError, NotSupported);
+	
+		/**
+		 * getCurrentFile:
+		 * 
+		 * Returns the URI of the current file. 
+		 */
+		string getCurrentFile ()
+			raises (NoCurrentName);
+
+		void unImplemented3 ();
+		void unImplemented4 ();
+	};
+
+	/*
+	 * PersistStorage is implemented by BonoboObjects.
+	 * 
+	 * The methods are used by Bonobo and the container
+	 * applications to manipulate the storage of a componet
+	 */
+	interface PersistStorage : Persist {
+		
+		/**
+		 * load:
+		 * @storage: The storage to load the state from
+		 *
+		 * The bonobo_object should load its state from the
+		 * @storage provided
+		 */
+		void load (in Bonobo::Storage storage)
+			raises (IOError, NotSupported,
+				WrongDataType);
+
+		/**
+		 * save:
+		 * @storage: The storage in which to save the state
+		 * of the bonobo_object
+		 * @same_as_loaded: if TRUE, this means the object
+		 * is being saved to the same source used to load the object
+		 *
+		 * BonoboObjects should save their sate in the @storage
+		 */
+		void save (in Bonobo::Storage storage,
+			   in boolean same_as_loaded)
+			raises (IOError, NotSupported);
+	};
+	
+	/*
+	 * This interface is used by items which only need to store 
+	 * information in a Stream ( monikers are the primary
+	 * users of this ).  
+	 *
+	 * Unlike PersistStorage, the Stream passed is only valid
+	 * during these calls (ie, you should not incref these
+	 * and used them after this).
+	 */
+	interface PersistStream : Persist {
+		
+		/**
+		 * load:
+		 * @stream: Where to load the state from
+		 * @type: the MIME content type of the data, or ""
+		 * if it is unknown.
+		 *
+		 * Loads the status of the object from @stream
+		 */
+		void load (in Bonobo::Stream stream, in ContentType type)
+			raises (IOError, NotSupported,
+				WrongDataType);
+
+		/**
+		 * save:
+		 * @stream: Where to save the state to.
+		 * @type: the MIME content type to save the data in,
+		 * or "" if any type is acceptable.
+		 *
+		 * If no exception was thrown the data in the stream has
+		 * the requested content type; if no type was requested
+		 * the first entry from getContentTypes is returned.
+		 * Hence no return value is needed.
+		 * 
+		 * Saves the state of the object to the @stream
+		 */
+		void save (in Bonobo::Stream stream, in ContentType type)
+			raises (IOError, NotSupported,
+				WrongDataType);
+
+		void unImplemented3 ();
+		void unImplemented4 ();
+	};
+};
+
+#endif /* BONOBO_PERSIST_IDL */

@@ -1,0 +1,363 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html>
+<!-- $Id: bugs.html,v 1.23 2003/10/24 11:21:12 amai Exp $ -->
+
+<head>
+     <META NAME="AUTHOR"      CONTENT="LessTif Core Team">
+     <META NAME="COPYRIGHT"   CONTENT="LessTif Core Team">
+     <META NAME="DESCRIPTION" CONTENT="Reporting Bugs within LessTif">
+     <META NAME="KEYWORDS"    CONTENT="LessTif, Bugs, Pathes, Bug Report"> 
+     
+     <title>Reporting Bugs and Submitting Fixes</title>
+</head>
+
+<body bgcolor="#ffffff" text="#000000">
+
+<H1 ALIGN=CENTER>
+Reporting Bugs and Submitting Fixes
+</H1>
+
+
+<H2>Table of Contents</H2>
+
+<ul>
+<li><A HREF="#Introduction">Introduction</A></li>
+<li><A HREF="#What">What you'll need to find bugs</A></li>
+<li><A HREF="#Reading">Recommended reading</A></li>
+<li><A HREF="#IsolatingBugs">Isolating bugs</A></li>
+<li><A HREF="#Protocol">X Protocol Errors</A></li>
+<li><A HREF="#SubmittingBugs">Submitting bug reports</A></li>
+<li><A HREF="#SubmittingPatches">Submitting patches</A></li>
+<li><A HREF="#WhereToSend">Where to send bug reports and fixes</A></li>
+</ul>
+
+<H2><A NAME="Introduction">Introduction</A></H2>
+<P>
+Bug hunting in LessTif isn't really all that different from bug hunting
+in arbitrary X application code, with a few notable exceptions.
+<P>
+We encourage users to help us make LessTif a better product
+by doing some preliminary ground-work
+for the developers when you find a bug in the library.
+Of course, what we really want is a patch that fixes the bug,
+but we'll settle for some help.
+
+<H2><A NAME="What">What you'll need</A></H2>
+
+Let's see:
+<ul>
+<li>a computer (Ta-dah!)</li>
+<li>the X Window System, at release level R5 or above</li>
+<li>a compiler/assembler/linker</li>
+<li>a debugger</li>
+<li>some test code</li>
+</ul>
+<P>
+Of course, if you don't have that, you probably don't need to read this, do you?
+
+
+<H2><A NAME="Reading">Recommended Reading</A></H2>
+
+First of all you should check our own tutorial on
+<A HREF="BUG-HUNTING.html"><STRONG>Bug Hunting</STRONG></A>!
+It explains in detail the built-in debugging facilities within
+the LessTif libraries.
+<P>
+The following list of books are nice to have,
+especially the Intrinsics and the Motif books,
+but you can probably get away without them if you have a full set of man pages.
+<P>
+One thing, though: if you want to understand what widget methods do,
+and how a widget works, they are an absolute necessity.
+<P>
+The O'Reilly books "The Definitive Guide to the X Window System".
+Of these, you'll want:
+<ul>
+<li>Volume 1: Xlib Programming Manual</li>
+<li>Volume 2: Xlib Reference Manual</li>
+<li>Volume 4: X Toolkit Intrinsics Programming Manual</li>
+<li>Volume 5: X Toolkit Intrinsics Reference Manual</li>
+<li>Volume 6A: Motif Programming Manual</li>
+<li>Volume 6B: Motif Reference Manual</li>
+</ul>
+If you have R6 (Linux, *BSD, others), you'll want:
+<ul>
+<li>Programmer's Supplement for Release 6</li>
+</ul>
+From the OSF, you'll want
+<ul>
+<li>OSF/Motif Programmer's Reference (for 1.2)</li>
+<li>OSF/Motif Programmer's Guide (for 1.2)</li>
+</ul>
+The style guide is nice, but not required.
+<P>
+Further details on debugging X11 apps can be found at these
+writings:
+<UL>
+<li>
+<a href="http://www.openmotif.org/tnt/#Debug_Breakpoints">
+www.openmotif.org/tnt/#Debug_Breakpoints</A>
+<li>
+<a href="http://www.rahul.net/kenton/perrors.html">
+www.rahul.net/kenton/perrors.html</A>
+</UL>
+
+
+<H2><A NAME="IsolatingBugs">Isolating bugs</A></H2>
+
+Ok, your favorite Motif program is barfing on LessTif, and you're so
+inclined to help us fix the problem.  Problems generally fall into four
+broad categories:
+<BR>
+<ul>
+<li>Behavior
+<li>Visual
+<li>X Protocol Error
+<li>Core dump
+</ul>
+
+<P>
+Of these, the first two are more trivial,
+and (as of now, anyway) are allocated somewhat lower priority,
+while we work on implementing *missing* behaviors.
+X Errors and core dumps have a higher priority.
+
+<P>
+One thing to keep in mind is that the location that the problem occurs in
+not necessarily the same as the location that caused the problem; this is
+due to the (normally) asynchronous nature of X applications.  When your
+application has a problem, the first thing to do is run the application
+synchronously, to see if the location of the error changes (you'll be
+surprised how often it will).  Here's how to do it with gdb:
+<BR>
+<PRE>
+root@zeek:/var/root/lesstif/testXm/filesb# gdb ./test1
+GDB is free software and you are welcome to distribute copies of it
+ under certain conditions; type "show copying" to see the conditions.
+There is absolutely no warranty for GDB; type "show warranty" for details.
+GDB 4.14 (i586-unknown-linux), Copyright 1995 Free Software Foundation, Inc...
+(no debugging symbols found)...
+(gdb) run -sync
+Starting program: /var/root/lesstif/testXm/filesb/./test1 -sync
+</PRE>
+It'll probably spit out a bunch of debug messages (especially if you set
+the DEBUG_SOURCES environment variable).  Note that the commands passed to
+the run command are actually command line arguments to the program.
+<P>
+On some systems, you may find that you can't set breakpoints at the start
+if you use shared libraries.  That's because the symbols won't be resolved
+until a process image exists.  To work around this, set a breakpoint at
+<CODE>main()</CODE>, and run.  Once the breakpoint at main is reached, 
+you'll find that you can set the other breakpoints.
+<P>
+Once you've had your program dump core, just say "where".
+This also works if your program just crashed when not running
+within a debugger but it created a core dump. Then just
+start
+<BR>
+<CODE>gdb program core</CODE>
+<BR>
+and type "where".
+<BR>
+Again from gdb:
+<BR>
+<PRE>
+Program received signal SIGSEGV, Segmentation fault.
+0x40076918 in __XmStringGetNextComponent (context=0x8081de0) at XmString.c:68
+68          if (context-&gt;current_segment &lt; context-&gt;string-&gt;number_of_segments)
+(gdb) where
+#0  0x40076918 in __XmStringGetNextComponent (context=0x8081de0)
+    at XmString.c:68
+#1  0x40077ea7 in XmStringGetLtoR (string=0x30, 
+    tag=0x804dc68 "FONTLIST_DEFAULT_TAG_STRING", text=0xbffffa00)
+    at XmString.c:869
+#2  0x8049793 in cb (w=0x8062c00, a=0x0, b=0xbffffa64) at test1.c:32
+#3  0x400aa718 in XtCallCallbackList ()
+#4  0x4005e7f0 in _XmSbButton (w=0x806cb00, client=0x0, call=0xbffffac0)
+    at SelectionBox.c:467
+#5  0x400aa743 in XtCallCallbackList ()
+#6  0x4004e5a0 in Activate (w=0x806cb00, event=0xbffffce4, params=0x0, 
+    num_params=0x0) at PushBG.c:1014
+#7  0x4004f10b in input_dispatch (gadget=0x806cb00, event=0xbffffce4, 
+    event_mask=64) at PushBG.c:1360
+#8  0x40035ad6 in _XmDispatchGadgetInput (w=0x806cb00, event=0xbffffce4, 
+    mask=64) at GadgetUtil.c:205
+#9  0x40045492 in _XmGadgetActivate (w=0x8062c00, event=0xbffffce4, 
+    params=0x0, num_params=0x8059668) at Manager.c:795
+#10 0x400d2ceb in HandleActions ()
+#11 0x400d35ae in HandleComplexState ()
+#12 0x400d365b in _XtTranslateEvent ()
+#13 0x400b412f in XtDispatchEventToWidget ()
+#14 0x400b4aa9 in _XtDefaultDispatcher ()
+---Type &lt;return&gt; to continue, or q &lt;return&gt; to quit---
+#15 0x400b4ce3 in XtDispatchEvent ()
+#16 0x400b4fd9 in XtAppMainLoop ()
+#17 0x80498f1 in main (argc=1, argv=0xbffffd78) at test1.c:69
+#18 0x80495a4 in ___crt_dummy__ ()
+</PRE>
+
+Note the line numbers.  Please do NOT send a trace without having compiled
+with debug (the -g option).
+
+
+<H2><A NAME="Protocol">About X Protocol Errors</A></H2>
+
+Sometimes the program will fail with:
+<PRE>
+X Error: Bad Drawable
+  (other stuff)
+</PRE>
+or something similar.
+This is a problem with something that got sent to the X server.
+<P>
+    This isn't hard to track down if you've run in synchronous mode.  Just set
+  a breakpoint at the exit() function, run with the -sync option, and you'll
+  get a trace from the point where the error occurred, plus some other
+  information.  These are crucial to proper LessTif functionality -- these
+  must be stamped out.
+
+
+<H2><A NAME="SubmittingBugs">Submitting bug reports</A></H2>
+
+  When (not if) you find a problem with LessTif, we really want to know.
+  In first place we need a detailed description of the problem
+  and you specific system.
+  Try to be as complete as you can - if you
+  send just a description like
+<BR><CITE>
+   Well, I ran an app, and the thingie at the bottom of the wossname didn't
+   look right
+</CITE><BR>
+    you are in all likelihood going to be ignored.
+<P>
+  On the application side specify which program version (including
+  a reference where to get it if it's a "free" application)
+  and how to reproduce the bug. Sometimes one will ran into
+  non-reproducible ones. You should also report them, but due to their
+  somewhat obscure nature they're hard to track down perhaps.
+  Further we need details about the version of LessTif you have installed.
+  These include:
+  <UL>
+  <LI>
+  version number
+  <LI>
+  distribution (a binary package, or did you build from sources)
+  <LI>
+  if being built from sources the configuration options may be of interest
+  </UL>
+  Finally we need to know about your system: which hardware platform
+  (no details about specific hardware, but name the CPU architecture)
+  and which operating system. On un*x <CODE>uname -a</CODE> gives
+  helpful information.
+<P>
+  Ideally, a patch is what we would prefer to receive.
+  Failing that, we need sample code,
+  and a stack trace of the problem (even if it was an X Error).  If it was
+  a behavioral or visual problem, just a description will do, although some
+  code that exhibits the behavior would be nice. 
+<P>
+    We also need the version number of the file that had the problem.  If you
+  prefer, and you are using lesstif-current, you can tell us the date you
+  noticed the problem.  Please do not tell us the problem two months after
+  you saw it, the code base changes too rapidly for us to be able to make
+  anything meaningful out of a bug report that old.
+
+
+<H2><A NAME="SubmittingPatches">Submitting patches</A></H2>
+
+    Patches are the preferred form of bug report, as it lessens our efforts
+  to track down where the bugs are.  If you do submit a patch, please try to
+  keep a few rules in mind.
+<BR>
+First the most important ones:  
+<BR>
+<UL>
+<LI>
+Explain what the changes should do and why they improve things!
+<LI>
+Always create patches against the latest official source release
+or even our code as in our public
+<A HREF="cvs.html">CVS repository</A>!
+<LI>
+Specify exactly against which version of the code the diff was created!
+<LI>
+We can only accept patches in the "unified diff" format (with GNU diff,
+this is "diff -u").
+If you want to, you can send a "context diff" ("diff -c").
+<LI>
+Always ensure that the code still builds and links completly
+(use dependency tracking or "make clean" to be sure). Also
+the resulting binary should still work, and even better then
+before, so please run more than one test only!
+<BR>
+A good idea is to run our examples within our
+<A HREF="BUG-HUNTING.html#testing">test/</A>
+tree.
+</UL>
+
+<P>
+Some more things to consider:
+<BR>
+<ul>
+<li> When writing your fix, please try to follow the coding style of the file
+      you are fixing.  We are currently debating coding standards, so expect to
+      see one soon.
+
+<li> Try not to submit a fix that creates dead code.  Using "#if 0" or
+      commented code is discouraged.  We can do that (because, after all, we
+      are the elitist core team;), but you are discouraged from that, because
+      it makes the patches hard to read.
+
+<li> Do not be discouraged if your patch is not accepted verbatim.  Often
+      people submit patches that one or more of the core team will recognize
+      as identifying a problem, but the core member will recognize that your
+      fix will break some other piece of functionality.  We'll try to tell
+      you, but we're human, so we may forget.
+
+<li> Remember that relay mailers are free to alter the content of text
+      messages, and often do so.  Lines should always be less than
+      80 characters in length.
+
+<li> If you are working on a non-un*x platform take care of the
+      different text format (e.g. &lt;carriage-return&gt;&lt;line-feed&gt; vs.
+      &lt;line-feed&gt; on DOS-related platforms)!
+
+</ul>
+<P>
+
+<H2 ALIGN=CENTER>
+<A NAME="WhereToSend">Where to send bug reports and fixes</A>
+</H2>
+<P>
+We have a working bugs database at SourceForge.net !
+<br>
+You may add bugs by using <A HREF="http://sourceforge.net/tracker/?atid=108596&amp;group_id=8596">
+http://sourceforge.net/tracker/?atid=108596&amp;group_id=8596</A>.
+<p>
+Patches can be sent to our
+<A HREF="lists.html">mailinglist</A> if they are quite small.
+If they are big you should ask first where to send them.
+Patches of any size are also accepted (probably the best method)
+on our Patch Manager at
+<A HREF="http://sourceforge.net/tracker/?atid=308596&amp;group_id=8596&amp;func=browse">http://sourceforge.net/tracker/?atid=308596&amp;group_id=8596&amp;func=browse</A>.
+
+<P>
+Thanks, and remember:
+<BR>
+<STRONG>All help is appreciated!</STRONG>
+
+<!-- +++++++++++++++++++++++ Generic HTML footer +++++++++++++++++++++++ -->
+
+<HR>
+<address>                                                                              
+  <a href="http://validator.w3.org/check/referer"><img                                 
+     src="images/vh32.jpg" height=31 width=88                      
+     align=right border=0 alt="Valid HTML 3.2!"></a>                                   
+  <a href="feedback.html">Feedback</a><br>
+  <SMALL>
+  Last modified on $Date: 2003/10/24 11:21:12 $
+ </SMALL>
+</address>
+
+</BODY>
+</HTML>

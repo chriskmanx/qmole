@@ -1,0 +1,348 @@
+<refentry id="libbonobo-bonobo-persist-file">
+<refmeta>
+<refentrytitle>BonoboPersistFile</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBBONOBO Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>BonoboPersistFile</refname><refpurpose>Interface for anything that can save / load itself from a file.</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+
+
+#define     <link linkend="BONOBO-PERSIST-FILE-TYPE-CAPS">BONOBO_PERSIST_FILE_TYPE</link>
+struct      <link linkend="BonoboPersistFilePrivate">BonoboPersistFilePrivate</link>;
+struct      <link linkend="BonoboPersistFile">BonoboPersistFile</link>;
+int         (<link linkend="BonoboPersistFileIOFn">*BonoboPersistFileIOFn</link>)        (<link linkend="BonoboPersistFile">BonoboPersistFile</link> *pf,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *filename,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev,
+                                             void *closure);
+typedef     <link linkend="BonoboPersistFileClass">BonoboPersistFileClass</link>;
+<link linkend="BonoboPersistFile">BonoboPersistFile</link>* <link linkend="bonobo-persist-file-new">bonobo_persist_file_new</link>  (<link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> load_fn,
+                                             <link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> save_fn,
+                                             const <link linkend="gchar">gchar</link> *iid,
+                                             void *closure);
+<link linkend="BonoboPersistFile">BonoboPersistFile</link>* <link linkend="bonobo-persist-file-construct">bonobo_persist_file_construct</link>
+                                            (<link linkend="BonoboPersistFile">BonoboPersistFile</link> *ps,
+                                             <link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> load_fn,
+                                             <link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> save_fn,
+                                             const <link linkend="gchar">gchar</link> *iid,
+                                             void *closure);
+
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+The PersistFile interface is a useful interface for Bonoboizing
+legacy applications, however, for new / correct applications it
+is far preferable to implement the <link linkend="BonoboPersistStream">BonoboPersistStream</link> interface,
+since this will not only result in a nice clean to your application
+architecture, but also allow the transparent use of local, remote,
+and synthetic streams.
+</para>
+
+<para>
+This interface works by connecting callbacks to the methods, in
+a pretty deprecated fashion, it is probably better nowadays to
+simply sub-class the BonoboXObject and override the epv methods.
+Either way, after all the caveats here is an example use:
+  <example>
+    <title>Persist file implementation</title>
+    <programlisting>
+static gint
+load_from_file (BonoboPersistFile *pf,
+                const CORBA_char  *filename,
+		CORBA_Environment *ev,
+                void              *closure)
+{
+	EogImageData *image_data = closure;
+
+	g_warning ("Load from '<literal>s</literal>'", filename);
+
+	return 0; /* Return 0 on success */
+}
+
+static gint
+save_to_file (BonoboPersistFile *pf,
+              const CORBA_char  *filename,
+              CORBA_Environment *ev,
+              void              *closure)
+{
+	EogImageData *image_data = closure;
+
+	g_warning ("Save to '<literal>s</literal>'", filename);
+
+	return 0; /* Return 0 on success */
+}
+    </programlisting>
+  </example>
+Having implemented the callbacks we then have to register them
+and aggregate the interface to our object:
+  <example>
+     <title>Aggregating a new PersistFile</title>
+    <programlisting>
+EogImageData *
+eog_image_data_construct (EogImageData *image_data)
+{
+	BonoboObject        *retval;
+	BonoboPersistFile   *file;
+
+	file = bonobo_persist_file_new (
+		load_from_file, save_to_file, image_data);
+
+	if (file == NULL) {
+		bonobo_object_unref (BONOBO_OBJECT (image_data));
+		return NULL;
+	}
+
+	bonobo_object_add_interface (BONOBO_OBJECT (image_data),
+				     BONOBO_OBJECT (file));
+
+	return image_data;
+}
+    </programlisting>
+  </example>
+Note again, that you should be writing a BonoboPersistStream
+interface, however if you have already done this you might like
+to just have hooks through so that old apps can use the PersistFile
+interface:
+  <example>
+     <title>Chaining to a <link linkend="PersistStream">PersistStream</link> implementation</title>
+     <programlisting>
+static gint
+load_from_file (BonoboPersistFile *pf,
+                const CORBA_char  *filename,
+		CORBA_Environment *ev,
+                void              *closure)
+{
+	Bonobo_PersistStream ps = closure;
+	BonoboStream *stream;
+	
+	stream = bonobo_stream_open (
+		BONOBO_IO_DRIVER_FS,
+		filename, Bonobo_STORAGE_READ,
+		0);
+
+	if (!stream)
+		return 0;
+
+	.. extract content type from file ...
+
+	Bonobo_PersistStream_load (ps, type, ev);
+
+	return 0; /* Return 0 on success */
+}
+
+static gint
+save_to_file (BonoboPersistFile *pf,
+              const CORBA_char  *filename,
+              CORBA_Environment *ev,
+              void              *closure)
+{
+	Bonobo_PersistStream ps = closure;
+	BonoboStream *stream;
+	
+	stream = bonobo_stream_open (
+		BONOBO_IO_DRIVER_FS,
+		filename, Bonobo_STORAGE_WRITE | Bonobo_STORAGE_CREATE,
+		S_IRUSR | S_IWUSR | S_IRGRP);
+
+	if (!stream)
+		return 0;
+
+	.. work out content type we want to save ...
+
+	Bonobo_PersistStream_save (ps, type, ev);
+
+	return 0; /* Return 0 on success */
+}
+     </programlisting>
+  </example>
+  The mime type data can be extracted from gnome-vfs or gnome-mime.
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="BONOBO-PERSIST-FILE-TYPE-CAPS">BONOBO_PERSIST_FILE_TYPE</title>
+<programlisting>#define BONOBO_PERSIST_FILE_TYPE        BONOBO_TYPE_PERSIST_FILE /* deprecated, you should use BONOBO_TYPE_PERSIST_FILE */
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboPersistFilePrivate">struct BonoboPersistFilePrivate</title>
+<programlisting>struct BonoboPersistFilePrivate;</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboPersistFile">struct BonoboPersistFile</title>
+<programlisting>struct BonoboPersistFile {
+	BonoboPersist persist;
+
+	char *filename;
+
+	/*
+	 * For the sample routines, NULL if we use the ::save and ::load
+	 * methods from the class
+	 */
+	BonoboPersistFileIOFn  save_fn;
+	BonoboPersistFileIOFn  load_fn;
+	void *closure;
+
+	BonoboPersistFilePrivate *priv;
+};
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboPersistFileIOFn">BonoboPersistFileIOFn ()</title>
+<programlisting>int         (*BonoboPersistFileIOFn)        (<link linkend="BonoboPersistFile">BonoboPersistFile</link> *pf,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *filename,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev,
+                                             void *closure);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>pf</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>filename</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>ev</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>closure</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BonoboPersistFileClass">BonoboPersistFileClass</title>
+<programlisting>typedef struct {
+	BonoboPersistClass parent_class;
+
+	POA_Bonobo_PersistFile__epv epv;
+
+	/* methods */
+	int   (*load)             (BonoboPersistFile *ps,
+				   const CORBA_char  *filename,
+				   CORBA_Environment *ev);
+
+	int   (*save)             (BonoboPersistFile *ps,
+				   const CORBA_char  *filename,
+				   CORBA_Environment *ev);
+
+	char *(*get_current_file) (BonoboPersistFile *ps,
+				   CORBA_Environment *ev);
+
+} BonoboPersistFileClass;
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="bonobo-persist-file-new">bonobo_persist_file_new ()</title>
+<programlisting><link linkend="BonoboPersistFile">BonoboPersistFile</link>* bonobo_persist_file_new  (<link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> load_fn,
+                                             <link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> save_fn,
+                                             const <link linkend="gchar">gchar</link> *iid,
+                                             void *closure);</programlisting>
+<para>
+Creates a BonoboPersistFile object.  The <parameter>load_fn</parameter> and <parameter>save_fn</parameter>
+parameters might be NULL.  If this is the case, the load and save 
+operations are performed by the class load and save methods</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>load_fn</parameter>&nbsp;:</entry>
+<entry> Loading routine
+</entry></row>
+<row><entry align="right"><parameter>save_fn</parameter>&nbsp;:</entry>
+<entry> Saving routine
+</entry></row>
+<row><entry align="right"><parameter>iid</parameter>&nbsp;:</entry>
+<entry> OAF IID of the object this interface is aggregated to
+</entry></row>
+<row><entry align="right"><parameter>closure</parameter>&nbsp;:</entry>
+<entry> Data passed to IO routines.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-persist-file-construct">bonobo_persist_file_construct ()</title>
+<programlisting><link linkend="BonoboPersistFile">BonoboPersistFile</link>* bonobo_persist_file_construct
+                                            (<link linkend="BonoboPersistFile">BonoboPersistFile</link> *ps,
+                                             <link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> load_fn,
+                                             <link linkend="BonoboPersistFileIOFn">BonoboPersistFileIOFn</link> save_fn,
+                                             const <link linkend="gchar">gchar</link> *iid,
+                                             void *closure);</programlisting>
+<para>
+Initializes the BonoboPersistFile object.  The <parameter>load_fn</parameter> and <parameter>save_fn</parameter>
+parameters might be NULL.  If this is the case, the load and save 
+operations are performed by the class load and save methods</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>ps</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>load_fn</parameter>&nbsp;:</entry>
+<entry> Loading routine
+</entry></row>
+<row><entry align="right"><parameter>save_fn</parameter>&nbsp;:</entry>
+<entry> Saving routine
+</entry></row>
+<row><entry align="right"><parameter>iid</parameter>&nbsp;:</entry>
+<entry> OAF IID of the object this interface is aggregated to
+</entry></row>
+<row><entry align="right"><parameter>closure</parameter>&nbsp;:</entry>
+<entry> Data passed to IO routines.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+<refsect1>
+<title>See Also</title>
+<para>
+<link linkend="BonoboPersistStream">BonoboPersistStream</link>, <link linkend="BonoboPersist">BonoboPersist</link>
+</para>
+</refsect1>
+
+</refentry>

@@ -1,0 +1,53 @@
+LIBGLADE
+========
+
+Author: James Henstridge <james@daa.com.au>
+
+This library allows you to load glade interface files in a program at
+runtime.  It doesn't require GLADE to be used, but GLADE is by far the
+easiest way to create the interface files.
+
+For an idea of how to use the library, see test-libglade.c and
+glade/glade-xml.h.
+
+To compile, you will need the libxml2 package (aka the gnome-xml
+module in CVS) which can be found on the GNOME FTP site or its
+mirrors.  If you want GNOME support, you will also need the gnome-libs
+package installed.
+
+
+LIBGLADE INTERNALS
+==================
+
+If you are interested in how libglade works, here is a small
+description:
+
+When glade_xml_new is called, the XML file is loaded using libxml.
+Libglade uses the SAX interface because it is faster and allows me to
+store the data in a more compact representation.  The data in the XML
+file is cached, so that if you load the interface again, the file does
+not need to be reparsed.  If the file has changed though, it will be
+reparsed.
+
+Now glade_xml_build_widget is called for all the toplevel widgets in
+the interface (or if the second argument to glade_xml_new was non
+NULL, the widget it refers to is treated as the toplevel).
+
+For each of these widgets, they are created by a function specific to
+the widget type, and then glade_xml_build_widget is called for each
+child widget, which is then packed into its parent.  This is done
+recursively, so the whole interface is constructed.
+
+New widget types are added to the widget class hash with the
+glade_register_widgets function.  For an example, see the end of
+glade-gtk.c.
+
+The automatic signal connection system uses the introspective
+capabilities of dynamic linking.  By openning a handle on NULL, we can
+get at all the global symbols (global functions, global variables) in
+the executable, and the libraries it is linked against.  This is used
+to find the address of a signal handler from its name, so that
+gtk_signal_connect can be called automatically for you.
+
+Of course, there are other ways of connecting the signals if your
+platform doesn't support this feature.

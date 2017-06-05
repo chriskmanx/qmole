@@ -1,0 +1,198 @@
+/*
+ * Canvas-based rendering of views
+ *
+ * Author:
+ *    Miguel de Icaza (miguel@kernel.org)
+ *
+ * Copyright (C) 1999, 2000 Ximian, Inc.
+ */
+
+#ifndef BONOBO_CANVAS_IDL
+#define BONOBO_CANVAS_IDL
+
+#include "Bonobo_Unknown.idl"
+#include "Bonobo_Gdk.idl"
+#include "Bonobo_UI.idl"
+
+module Bonobo {
+
+module Canvas {
+	typedef sequence<octet> pixbuf;
+	typedef unsigned long window_id;
+
+	/* At least 32 bits */
+	typedef long int32;
+
+	struct IRect {
+		long x0, y0, x1, y1;
+	};
+
+	struct DRect {
+		double x0, y0, x1, y1;
+	};
+
+	const short IS_BG  = 1;
+	const short IS_BUF = 2;
+
+	typedef double affine [6];
+
+	/*
+	 * See gnome-canvas.h:GnomeCanvasBuf for an explanation
+	 */
+	struct Buf {
+		pixbuf rgb_buf;
+		long   row_stride;
+		IRect  rect;
+		int32  bg_color;
+		short  flags;
+	};
+
+	struct Point {
+		double x, y;
+	};
+
+	typedef sequence<Point> Points;
+
+	struct SVPSegment {
+		boolean up;     /* up or down */
+	        DRect   bbox;
+		Canvas::Points  points;
+	};
+			  
+	typedef sequence<SVPSegment> SVP;
+      
+	struct ArtUTA {
+		short   x0, y0;
+		short   width, height;
+		sequence<int32> utiles;
+	};
+
+	struct State {
+		affine item_aff;
+		double pixels_per_unit;
+		double canvas_scroll_x1;
+		double canvas_scroll_y1;
+		long   zoom_xofs, zoom_yofs;
+		long   xoffset, yoffset;
+	};
+
+	interface Component : Bonobo::Unknown {
+
+		/** 
+		 * update:
+		 * 
+		 * Returns the update region.
+		 */
+		ArtUTA update  (in Canvas::State state,
+				in affine aff, in SVP clip_path, in long flags,
+				out double x1, out double y1, out double x2, out double y2);
+
+		void realize (in window_id drawable);
+		void unrealize ();
+		void map ();
+		void unmap ();
+
+		void draw   (in Canvas::State state,
+			     in window_id drawable, 
+			     in short x, in short y, 
+			     in short width, in short height);
+
+		/**
+		 * render:
+		 * @buf: The render control buffer.
+		 * 
+		 * This version of render has buf->flags & IS_BUF == FALSE, 
+		 * so we avoid sending the buffer out, we just return it.
+		 *
+		 */
+		void render (inout Canvas::Buf buf);
+
+		/**
+		 * contains:
+		 * @x: x coordinate 
+		 * @y: y coordinate
+		 *
+		 * Returns true if the point at @x, @y is contained inside
+		 * the item
+		 */
+		boolean contains (in double x, in double y);
+
+		void bounds (in Canvas::State state, 
+			     out double x1, out double x2, 
+			     out double y1, out double y2);
+
+		boolean event (in Canvas::State state, 
+			       in Bonobo::Gdk::Event event);
+
+		/**
+		 * setCanvasSize:
+		 *
+		 * Notifies this item about the size of the Canvas size on the 
+		 * canvas
+		 */
+		void setCanvasSize (in short x, in short y, in short width, in short height);
+
+		/**
+		 * setBounds:
+		 * @bbox: the requested bounding box.
+		 *
+		 * Sets the bounding box of the item to (x1,y1)-(x2,y2)
+		 */
+		void setBounds (in DRect bbox);
+
+		void unImplemented1 ();
+		void unImplemented2 ();
+		void unImplemented3 ();
+		void unImplemented4 ();
+	};
+
+	/*
+	 * This interface is used on the container side to forward
+	 * events to the real containing canvas and the item
+	 */
+	
+	interface ComponentProxy {
+		/**
+		 * requestUpdate:
+		 *
+		 * Requests an update of the client side canvas.
+		 */
+		void requestUpdate ();
+		
+		/**
+		 * grabFocus:
+		 * @mask: Gdk Event mask to grab.
+		 * @cursor: GdkCursorType to display during grab.
+		 * @time: time of last event before grab.
+		 *
+	 	 * Grabs the mouse focus.
+		 */
+		void grabFocus (in unsigned long mask,
+				in long cursor,
+				in unsigned long time);
+		
+		/**
+		 * ungrabFocus:
+		 * @time: time of last event before ungrab.
+		 *
+	 	 * Ungrabs the mouse focus.
+		 */
+		void ungrabFocus (in unsigned long time);
+		
+		/**
+		 * getUIContainer:
+		 *
+	 	 * Returns: an associated UI component or NIL.
+		 */
+		UIContainer getUIContainer ();
+
+		void unImplemented1 ();
+		void unImplemented2 ();
+		void unImplemented3 ();
+		void unImplemented4 ();
+	};
+};
+
+};
+
+#endif /* BONOBO_CANVAS_IDL */

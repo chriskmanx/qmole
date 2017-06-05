@@ -1,0 +1,2538 @@
+
+
+
+                      Fun and Pain with the GeoUtils
+                      ==============================
+
+
+
+1.0 Introduction
+================
+
+Recreating the behavior implemented in the GeoUtils was a) not fun, and
+b) really, really not fun.  They are totally undocumented.  What really
+kicked off the implementation of the GeoUtils was my discovery of
+John Cwikla's SmartMessageBox; without this gem, this work would have
+been impossible.  A round of applause for this guy, please, and his
+intentions of "Furthering 'open software' into reality...".
+
+The GeoUtils provide a mechanism by which BulletinBoard subclasses can
+automatically inherit geometry management for laying out their children.
+The good thing about the GeoUtils is that you get to specify XtInherit*
+for most of the class methods for a BulletinBoard subclass; the drawback
+is that you lose some flexibility (a good tradeoff, because many of these
+functions are extremely difficult to write).
+
+The mechanism provides for
+  o layout changes as a result of a child being managed or unmanaged
+    (the BulletinBoard change_managed() method)
+  o layout at realize
+    (the BulletinBoard realize() method)
+  o layout for a resize
+    (the BulletinBoard resize() method)
+  o a way to generically handle geometry queries from a parent
+    (the BulletinBoard query_geometry() method)
+  o a way to generically handle geometry change requests from a child
+    (the BulletinBoard geometry_manager() method)
+  o a way to re-layout due to changes caused by a call to Xt[Va]SetValues
+    (the subclass set_values() method).
+
+The GeoUtils functions typically begin with _XmGeo (but not all do), whereas
+the corresponding BulletinBoard methods for what the GeoUtils do typically
+begin with _XmGM.
+
+
+
+2.0 The Trivial Manager Class
+=============================
+
+Before I talk about the GeoUtils themselves, let me present a trivialized
+example of a BulletinBoard subclass.  This will both show you what you need
+to know to implement such a subclass, as well as illustrate when, where, and
+which GeoUtils functions are of concern to a subclass.  This will be the
+XmTrivialWidget class.  It doesn't implement anything more than even layout
+of buttons.  The behavior of the widget lays out the button children as
+if they were action buttons in a dialog; the order of the buttons in the
+layout is the same as the creation order.  In order to keep it simple, there
+are no new Xt or Synthetic resources beyond those covered by BulletinBoard.
+
+Pay particular attention to those areas in the code surrounded by
+/*@@@@@@@@@ SPECIAL @@@@@@@@@*/ comments; as I talk about various parts
+of the GeoUtils, you should probably look back to this code to see how
+and where each part is used.  If you are looking for a convenient place
+to find the real code for printing, the tested implementation lives in
+$(LESSTIF_ROOT)/testXm/geometry.
+
+Here's the public header (Trivial.h):
+
+----------------------------
+#ifndef TRIVIAL_H
+#define TRIVIAL_H
+
+#include <Xm/Xm.h>
+#include <Xm/BulletinB.h>
+
+extern WidgetClass xmTrivialWidgetClass;
+
+typedef struct _XmTrivialRec *XmTrivialWidget;
+typedef struct _XmTrivialConstraintRec *XmTrivialConstraint;
+
+#ifndef XmIsTrivial
+#define XmIsTrivial(a) (XtIsSubclass(a, xmTrivialWidgetClass))
+#endif
+
+Widget XmCreateCreateTrivial(Widget _p, char *_n, ArgList _a, Cardinal _narg);
+
+#endif
+----------------------------
+
+Now, the private header (TrivialP.h):
+
+----------------------------
+#ifndef TRIVIAL_P_H
+#define TRIVIAL_P_H
+
+#include <Xm/XmP.h>
+#include <Xm/BulletinBP.h>
+#include "Trivial.h"
+
+typedef struct _XmTrivialClassPart {
+	int duh;
+} XmTrivialClassPart;
+
+typedef struct _XmSmartMessageBoxClassRec {
+	CoreClassPart core_class;
+	CompositeClassPart composite_class;
+	ConstraintClassPart constraint_class;
+	XmManagerClassPart manager_class;
+	XmBulletinBoardClassPart bulletin_board_class;
+	XmTrivialClassPart trivial_class;
+} XmTrivialClassRec, *XmTrivialWidgetClass;
+
+typedef struct _XmTrivialPart {
+	int gaah;
+} XmTrivialPart;
+
+typedef struct _XmTrivialRec {
+	CorePart core;
+	CompositePart	 composite;
+	ConstraintPart constraint;
+	XmManagerPart manager;
+	XmBulletinBoardPart bulletin_board;
+	XmTrivialPart trivial;
+} XmTrivialRec, *XmTrivialPtr;
+
+#endif
+---------------------------
+
+And finally, the implementation (Trivial.c):
+
+---------------------------
+#include <LTconfig.h>
+#include <Xm/XmP.h>
+#include <Xm/XmI.h>
+#include <Xm/BulletinBP.h>
+#include <Xm/PushBP.h>
+#include <Xm/PushBGP.h>
+#include <Xm/DebugUtil.h>
+#include "TrivialP.h"
+
+/*
+ * Forward Declarations
+ */
+static void class_initialize();
+static void class_part_initialize(WidgetClass class);
+static void initialize(Widget request, Widget new,
+		       ArgList args, Cardinal *num_args);
+static void destroy(Widget w);
+static Boolean set_values(Widget current, Widget request, Widget new,
+			  ArgList args, Cardinal *num_args);
+ 
+/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+XmGeoMatrix trivial_matrix_create(Widget _w, Widget _from,
+				  XtWidgetGeometry *_pref);
+Boolean trivial_NoGeoRequest(XmGeoMatrix _geoSpec);
+/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+static XmBaseClassExtRec _XmTrivialCoreClassExtRec = {
+    /* next_extension            */ NULL,
+    /* record_type               */ NULLQUARK,                             
+    /* version                   */ XmBaseClassExtVersion,
+    /* size                      */ sizeof(XmBaseClassExtRec),
+    /* initialize_prehook        */ NULL,
+    /* set_values_prehook        */ NULL,
+    /* initialize_posthook       */ NULL,
+    /* set_values_posthook       */ NULL,
+    /* secondary_object_class    */ NULL,
+    /* secondary_object_create   */ NULL,
+    /* get_secondary_resources   */ NULL,
+    /* fast_subclass             */ { 0 },
+    /* get_values_prehook        */ NULL,
+    /* get_values_posthook       */ NULL,
+    /* class_part_init_prehook   */ NULL,
+    /* class_part_init_posthook  */ NULL,
+    /* ext_resources             */ NULL,
+    /* compiled_ext_resources    */ NULL,
+    /* num_ext_resources         */ 0,
+    /* use_sub_resources         */ FALSE,
+    /* widget_navigable          */ NULL,
+    /* focus_change              */ NULL,
+    /* wrapper_data              */ NULL
+};
+
+static XmManagerClassExtRec _XmTrivialMClassExtRec = {
+    /* next_extension            */ NULL,
+    /* record_type               */ NULLQUARK,
+    /* version                   */ XmManagerClassExtVersion,
+    /* record_size               */ sizeof(XmManagerClassExtRec),
+    /* traversal_children        */ NULL /* FIXME */
+};
+
+XmTrivialClassRec xmTrivialClassRec = {
+    /* Core class part */
+    {
+	/* superclass            */ (WidgetClass)&xmBulletinBoardClassRec,
+        /* class_name            */ "XmTrivial",
+	/* widget_size           */ sizeof(XmBulletinBoardRec),
+	/* class_initialize      */ class_initialize,
+	/* class_part_initialize */ class_part_initialize,
+	/* class_inited          */ FALSE,
+	/* initialize            */ initialize,
+	/* initialize_hook       */ NULL,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* realize               */ XtInheritRealize,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* actions               */ NULL,
+	/* num_actions           */ 0,
+	/* resources             */ NULL,
+	/* num_resources         */ 0,
+	/* xrm_class             */ NULLQUARK,
+	/* compress_motion       */ TRUE,
+	/* compress_exposure     */ XtExposeCompressMaximal,
+	/* compress_enterleave   */ TRUE,
+	/* visible_interest      */ FALSE,
+	/* destroy               */ destroy,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* resize                */ XtInheritResize,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* expose                */ XtInheritExpose,
+	/* set_values            */ set_values,
+	/* set_values_hook       */ NULL,
+	/* set_values_almost     */ XtInheritSetValuesAlmost,
+	/* get_values_hook       */ NULL,
+	/* accept_focus          */ NULL,
+	/* version               */ XtVersion,
+	/* callback offsets      */ NULL,
+	/* tm_table              */ NULL,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* query_geometry        */ XtInheritQueryGeometry,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* display_accelerator   */ NULL,
+	/* extension             */ (XtPointer)&_XmTrivialCoreClassExtRec
+    },
+    /* Composite class part */
+    {
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* geometry manager */ XtInheritGeometryManager, 
+        /* change_managed   */ XtInheritChangeManaged, 
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+        /* insert_child     */ XtInheritInsertChild,
+        /* delete_child     */ XtInheritDeleteChild,
+        /* extension        */ NULL
+    },
+    /* Constraint class part */
+    {
+	/* subresources      */ NULL,
+        /* subresource_count */ 0,
+        /* constraint_size   */ 0,
+        /* initialize        */ NULL,
+        /* destroy           */ NULL,
+        /* set_values        */ NULL,
+        /* extension         */ NULL
+    },
+    /* XmManager class part */
+    {
+        /* translations                 */ XtInheritTranslations,
+        /* syn_resources                */ NULL,
+        /* num_syn_resources            */ 0,
+        /* syn_constraint_resources     */ NULL,
+        /* num_syn_constraint_resources */ 0,
+        /* parent_process               */ XmInheritParentProcess,
+        /* extension                    */ (XtPointer)&_XmTrivialMClassExtRec
+    },
+    /* XmBulletinBoard Area part */
+    {
+	/* always_install_accelerators  */ False,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* geo_matrix_create            */ trivial_matrix_create,
+	/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+	/* focus_moved_proc             */ XmInheritFocusMovedProc,
+	/* extension                    */ NULL
+
+    },
+    /* XmTrivial Class Part */
+    {
+	/* extension */	0
+    }
+};
+
+WidgetClass xmTrivialWidgetClass = (WidgetClass)&xmTrivialClassRec;
+
+static void 
+class_initialize()
+{
+    _XmTrivialCoreClassExtRec.record_type = XmQmotif;
+}
+
+static void
+class_part_initialize(WidgetClass widget_class)
+{
+}
+
+static void
+initialize(Widget request,
+	   Widget new,
+	   ArgList args,
+	   Cardinal *num_args)
+{
+}
+
+static void
+destroy(Widget w)
+{
+}
+
+static Boolean
+set_values(Widget old,
+	   Widget request,
+	   Widget new,
+	   ArgList args,
+	   Cardinal *num_args)
+{
+    Boolean refresh_needed = False;
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    BB_InSetValues(new) = True;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /* do any class specific stuff */
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    BB_InSetValues(new) = False;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    if (refresh_needed && (XtClass(new) == xmTrivialWidgetClass))
+    {
+	_XmBulletinBoardSizeUpdate(new);
+	return False;
+    }
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    return True;
+}
+
+/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+XmGeoMatrix
+trivial_matrix_create(Widget _w, Widget _from, XtWidgetGeometry *_pref)
+{
+    XmGeoMatrix geoSpec;
+    register XmGeoRowLayout layoutPtr;
+    register XmKidGeometry boxPtr;
+    Cardinal numKids;
+    int i, nrows;
+    Widget child;
+
+    numKids = MGR_NumChildren(_w);
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    /* compute the number of rows you want here.  Trivial only has one */
+    nrows = 1;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    geoSpec = _XmGeoMatrixAlloc(nrows, numKids, 0);
+    geoSpec->composite = (Widget)_w;
+    geoSpec->instigator = (Widget)_from;
+    if (_pref)
+        geoSpec->instig_request = *_pref;
+    geoSpec->margin_w = BB_MarginWidth(_w) + MGR_ShadowThickness(_w);
+    geoSpec->margin_h = BB_MarginHeight(_w) + MGR_ShadowThickness(_w);
+    geoSpec->no_geo_request = trivial_NoGeoRequest;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    layoutPtr = &(geoSpec->layouts->row);
+    boxPtr = geoSpec->boxes;
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /* row 1 */
+    layoutPtr->fill_mode = XmGEO_CENTER;
+    layoutPtr->fit_mode = XmGEO_WRAP;
+    layoutPtr->even_width = 1;
+    layoutPtr->even_height = 1;
+    layoutPtr->space_above = BB_MarginHeight(_w);
+    for (i = 0; i < numKids; i++) {
+
+	child = MGR_Children(_w)[i];
+
+	if ((XmIsPushButton(child) || XmIsPushButtonGadget(child)) &&
+	    XtIsManaged(child) && _XmGeoSetupKid(boxPtr, child))
+	{
+	    boxPtr++;
+	}
+    }
+    layoutPtr++;
+
+    /* end marker */
+    layoutPtr->space_above = 0;
+    layoutPtr->end = TRUE;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    return(geoSpec);
+}
+
+Boolean
+trivial_NoGeoRequest(XmGeoMatrix geo)
+{
+    if (BB_InSetValues(geo->composite) &&
+	XtClass(geo->composite) == xmTrivialWidgetClass)
+	return TRUE;
+
+    return FALSE;
+}
+/*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+--------------------------
+
+                                ---------
+
+Not bad, only around 350 lines of code.  This is about the mininum you
+can get away with if you write a manager widget anyway.  Now that you've
+seen a bit of totally random code, lets look into the underpinnings of the
+GeoUtils.  Don't worry, though, we'll come back to this code in a later
+section and explain how things are hooked up.  But first, you need some
+more background -- the key to how the GeoUtils work is really the
+BulletinBoard class.
+
+
+
+
+3.0 The BulletinBoard Class
+===========================
+
+There is one and only one clue in a BulletinBoard subclass that indicates
+that that class wants to use the GeoUtils -- the geo_matrix_create method
+in the BulletinBoard class part (see BulletinBP.h).  This member, if not
+NULL, indicates that this class wants to use the GeoUtils.  The prototype
+for this method looks like:
+
+typedef XmGeoMatrix (*XmGeoCreateProc)(Widget composite,
+				       Widget instigator,
+				       XtWidgetGeometry *desired);
+
+The "composite" is (obviously) the BB subclass.  The "instigator" is used in
+the geometry_manager and query_geometry methods, as is the "desired" geometry
+(more on the use of those later).
+
+
+3.1 The change_mangaged() and realize() Methods
+===============================================
+
+Let's start with the two most similar cases: change_managed() and realize().
+Take a look at BulletinBoard's change_managed() method, for example:
+
+--------------
+static void
+change_managed(Widget w)
+{
+    Widget p;
+    XmBulletinBoardClassRec *bb = (XmBulletinBoardClassRec *)XtClass(w);
+
+    XdbDebug(__FILE__, w, "ChangeManaged\n");
+
+    if (bb->bulletin_board_class.geo_matrix_create) {
+	handle_change_managed(w, bb->bulletin_board_class.geo_matrix_create);
+	return;
+    }
+
+    _XmGMEnforceMargin(w, BB_MarginWidth(w), BB_MarginHeight(w), False);
+
+    _XmClearShadowType(w, BB_OldWidth(w), BB_OldHeight(w),
+		       BB_OldShadowThickness(w), 0);
+
+    BB_OldShadowThickness(w) = 0;
+
+    if (XtIsRealized(w) || XtWidth(w) == 0 || XtHeight(w) == 0) {
+	_XmGMDoLayout(w, BB_MarginWidth(w), BB_MarginHeight(w),
+		      BB_ResizePolicy(w), False);
+    }
+
+    if ((XtWidth(w) < BB_OldWidth(w) || XtHeight(w) < BB_OldHeight(w)) &&
+	XtIsRealized(w)) {
+	_XmDrawShadows(XtDisplay(w), XtWindow(w),
+		       MGR_TopShadowGC(w), MGR_BottomShadowGC(w),
+		       0, 0, XtWidth(w), XtHeight(w),
+		       MGR_ShadowThickness(w), BB_ShadowType(w));
+    }
+
+    BB_OldWidth(w) = XtWidth(w);
+    BB_OldHeight(w) = XtHeight(w);
+    BB_OldShadowThickness(w) = MGR_ShadowThickness(w);
+
+    _XmNavigChangeManaged(w);
+}
+----------------------------
+
+Note that the first thing we do after we enter this method is look to see
+if the class record for the widget has a geo_matrix_create() member.  If there
+is one, we call handle_change_managed() and return (more on this later).
+If there isn't one, we proceed with generic BulletinBoard rules.
+
+    if (bb->bulletin_board_class.geo_matrix_create) {
+	handle_change_managed(w, bb->bulletin_board_class.geo_matrix_create);
+	return;
+    }
+
+Next, we call a _XmGMEnforceMargin().  This function ensures that the default
+BulletinBoard behavior of forcing children to be with the BB margins is
+applied.
+
+    _XmGMEnforceMargin(w, BB_MarginWidth(w), BB_MarginHeight(w), False);
+
+Then we clear the last shadow, as what we may do could alter the way the shadow
+looks.
+
+    _XmClearShadowType(w, BB_OldWidth(w), BB_OldHeight(w),
+		       BB_OldShadowThickness(w), 0);
+
+    BB_OldShadowThickness(w) = 0;
+
+If we are realized, or our width or height is zero (usually indicating
+that this is the first child to be added), we call _XmGMDoLayout.  This
+function implements the generic BulletinBoard layout method.
+
+    if (XtIsRealized(w) || XtWidth(w) == 0 || XtHeight(w) == 0) {
+	_XmGMDoLayout(w, BB_MarginWidth(w), BB_MarginHeight(w),
+		      BB_ResizePolicy(w), False);
+    }
+
+If we shrank, redraw the shadow (the expose method does this too, but...)
+
+    if ((XtWidth(w) < BB_OldWidth(w) || XtHeight(w) < BB_OldHeight(w)) &&
+	XtIsRealized(w)) {
+	_XmDrawShadows(XtDisplay(w), XtWindow(w),
+		       MGR_TopShadowGC(w), MGR_BottomShadowGC(w),
+		       0, 0, XtWidth(w), XtHeight(w),
+		       MGR_ShadowThickness(w), BB_ShadowType(w));
+    }
+
+Then, we record our width/height/shadow thickness.
+
+    BB_OldWidth(w) = XtWidth(w);
+    BB_OldHeight(w) = XtHeight(w);
+    BB_OldShadowThickness(w) = MGR_ShadowThickness(w);
+
+And finally, the required call to _XmNavigChangedManaged that all Manager
+subclasses must do.
+
+    _XmNavigChangeManaged(w);
+
+
+If you read the code for realize(), you'll see identical code.
+
+Now, let's take a look at the handle_change_managed() method:
+
+---------------------------------------
+static void
+handle_change_managed(Widget w, XmGeoCreateProc mat_make)
+{
+    Dimension wd, ht, retw, reth;
+    XmGeoMatrix geo;
+    XtGeometryResult result;
+
+    if (!XtIsRealized(w))
+	wd = ht = 0;
+
+    else if (BB_ResizePolicy(w) != XmNONE)
+	wd = ht = 0;
+
+    else {
+	wd = XtWidth(w);
+	ht = XtHeight(w);
+    }
+
+    geo = mat_make(w, NULL, NULL);
+
+    _XmGeoMatrixGet(geo, XmGET_PREFERRED_SIZE);
+
+    _XmGeoArrangeBoxes(geo, 0, 0, &wd, &ht);
+
+    if (BB_ResizePolicy(w) == XmRESIZE_GROW) {
+	/* check the return against the original.  If the procedure would
+	 * like the BB to shrink, call again */
+	if (wd < XtWidth(w) || ht < XtHeight(w)) {
+	    wd = XtWidth(w);
+	    ht = XtHeight(w);
+	    _XmGeoArrangeBoxes(geo, 0, 0, &wd, &ht);
+	}
+    }
+
+    if (wd == XtWidth(w) && ht == XtHeight(w)) {
+	_XmGeoMatrixFree(geo);
+	_XmNavigChangeManaged(w);
+	return;
+    }
+
+    retw = wd;
+    reth = ht;
+    do {
+	result = XtMakeResizeRequest((Widget)w, retw, reth, &retw, &reth);
+    } while (result == XtGeometryAlmost);
+
+    if (retw != wd || reth != ht)
+	_XmGeoArrangeBoxes(geo, 0, 0, &retw, &reth);
+
+    _XmGeoMatrixSet(geo);
+
+    if (XtIsRealized(w)) {
+	_XmClearShadowType(w, BB_OldWidth(w), BB_OldHeight(w),
+			   BB_OldShadowThickness(w), 0);
+
+	_XmDrawShadows(XtDisplay(w), XtWindow(w),
+		       MGR_TopShadowGC(w), MGR_BottomShadowGC(w),
+		       0, 0, XtWidth(w), XtHeight(w),
+		       MGR_ShadowThickness(w), BB_ShadowType(w));
+    }
+
+    _XmGeoMatrixFree(geo);
+
+    BB_OldWidth(w) = XtWidth(w);
+    BB_OldHeight(w) = XtHeight(w);
+    BB_OldShadowThickness(w) = MGR_ShadowThickness(w);
+
+    _XmNavigChangeManaged(w);
+}
+---------------------------------
+
+We start this function by check for if we are realized, or if our resize
+policy allows us to resize (i.e., not XmNONE).  If either case is true,
+we set our desired width/height to zero;  this is a cue to GeoUtils to
+compute the desired size of this manager.  If either case is false, we set
+the desired width/height to our current width/height; this cues the GeoUtils
+to layout the manager to the current geometry (if possible).
+
+    if (!XtIsRealized(w))
+	wd = ht = 0;
+
+    else if (BB_ResizePolicy(w) != XmNONE)
+	wd = ht = 0;
+
+    else {
+	wd = XtWidth(w);
+	ht = XtHeight(w);
+    }
+
+We then call the matrix create function.  This function is crucial, as the
+data structures created tell the GeoUtils how to layout this particular
+widget.
+
+    geo = mat_make(w, NULL, NULL);
+
+Next, we call _XmGeoMatrixGet().  This function essentially iterates through
+all the children we want to manage, querying each child (except the instigator)
+for the geometry the child desires.  NOTE: this is *not* the same as all the
+managed children of this manager.  If you forget to represent a child in
+the data structures when you create the matrix, that child won't be
+represented when you lay out the manager; instead, at least in the case
+of SelectionBox and friends, the results are as specified in those class's
+documentation -- usually "undefined" (in practice, they'll probably get
+piled up in the top lefthand corner of the manager).
+
+    _XmGeoMatrixGet(geo, XmGET_PREFERRED_SIZE);
+
+Now the real work-horse routine in the GeoUtils is invoked --
+_XmGeoArrangeBoxes().  This function "parses" the data structure (the
+GeoMatrix) and lays out the children according to the rules defined by
+the matrix.  Caveat: this function does *NOT* alter the children's geometry,
+but instead records the new geometry information in the XmKidGeometry
+structure contained by the GeoMatrix.
+
+    _XmGeoArrangeBoxes(geo, 0, 0, &wd, &ht);
+
+At this point, _XmGeoArrangeBoxes() has computed the size of the manager
+as it would ideally like to be.  The next code fragment checks the
+BB_ResizePolicy() for a value of XmRESIZE_GROW.  If the ideal size
+is less than the current size, we reject the change (because that would
+involve shrinking, and we should only grow).  We then must re-layout the
+manager, by calling _XmGeoArrangeBoxes() with our current width and height.
+
+    if (BB_ResizePolicy(w) == XmRESIZE_GROW) {
+	/* check the return against the original.  If the procedure would
+	 * like the BB to shrink, call again */
+	if (wd < XtWidth(w) || ht < XtHeight(w)) {
+	    wd = XtWidth(w);
+	    ht = XtHeight(w);
+	    _XmGeoArrangeBoxes(geo, 0, 0, &wd, &ht);
+	}
+    }
+
+Now we look to see if any of the above calculations has indicated that the
+manager wants to resize (by comparing the computed width and height with
+the manager XtWidth and XtHeight).  If no change is forthcoming, we just
+free the matrix and return.  Otherwise we continue on.
+
+    if (wd == XtWidth(w) && ht == XtHeight(w)) {
+	_XmGeoMatrixFree(geo);
+	_XmNavigChangeManaged(w);
+	return;
+    }
+
+Ok, the manager wants to change size.  We call XtMakeResizeRequest, and
+ask our parent if we can change size; eventually, the parent will respond
+with the size we can be (hopefully the size the manager wants, but we can
+compromise here).
+
+    retw = wd;
+    reth = ht;
+    do {
+	result = XtMakeResizeRequest((Widget)w, retw, reth, &retw, &reth);
+    } while (result == XtGeometryAlmost);
+
+The next fragment of code checks for if a compromise was necessary, by
+evaluating whether what size our parent said we can be is the same as
+what we want to be.  If the two don't match, we end up calling
+_XmGeoArrangeBoxes() yet again, to arrange our children to suit our parent.
+
+    if (retw != wd || reth != ht)
+	_XmGeoArrangeBoxes(geo, 0, 0, &retw, &reth);
+
+Now that all the geometry calculation has been done, our parent is happy, and
+the manager is happy, we can go ahead an do _XmConfigureObject calls on all
+our children.  That particular job goes to the function _XmGeoMatrixSet(), 
+which basically processes each XmKidGeometry box and configures the widget
+that box represents.
+
+    _XmGeoMatrixSet(geo);
+
+If we've gotten this far, then we are pretty sure the manager's size has
+changed.  If the manager has a shadow, now is the time to draw it (after
+erasing the old one).
+
+    if (XtIsRealized(w)) {
+	_XmClearShadowType(w, BB_OldWidth(w), BB_OldHeight(w),
+			   BB_OldShadowThickness(w), 0);
+
+	_XmDrawShadows(XtDisplay(w), XtWindow(w),
+		       MGR_TopShadowGC(w), MGR_BottomShadowGC(w),
+		       0, 0, XtWidth(w), XtHeight(w),
+		       MGR_ShadowThickness(w), BB_ShadowType(w));
+    }
+
+We're done with the GeoUtils for now, so we can deallocate the matrix.
+
+    _XmGeoMatrixFree(geo);
+
+We record our new width/height/shadow thickness.
+
+    BB_OldWidth(w) = XtWidth(w);
+    BB_OldHeight(w) = XtHeight(w);
+    BB_OldShadowThickness(w) = MGR_ShadowThickness(w);
+
+And finally, the required call to _XmNavigChangedManaged that all Manager
+subclasses must do.
+
+    _XmNavigChangeManaged(w);
+
+The realize() case is identical to this one.
+
+
+3.2 The resize() Method
+=======================
+
+The resize() method is _almost_ identical to the two describe above.  The
+most significant difference is that we aren't supposed to talk back in this
+method, but accept whatever size we currently are, and lay ourselves out
+accordingly.  Thus, that method is missing the calls that request the manager
+ideal size, and just does layout.  Compare the resize() method to the
+change_managed() method above:
+
+---------------------------------------
+static void
+resize(Widget w)
+{
+    XmBulletinBoardClassRec *bb = (XmBulletinBoardClassRec *)XtClass(w);
+    Widget p;
+
+    XdbDebug(__FILE__, NULL, "resize\n");
+
+    if (bb->bulletin_board_class.geo_matrix_create) {
+	handle_resize(w, bb->bulletin_board_class.geo_matrix_create);
+	return;
+    }
+
+    _XmGMEnforceMargin(w, BB_MarginWidth(w), BB_MarginHeight(w), False);
+
+    _XmClearShadowType(w, BB_OldWidth(w), BB_OldHeight(w),
+		       BB_OldShadowThickness(w), 0);
+
+    BB_OldShadowThickness(w) = 0;
+
+    if (XtIsRealized(w) || XtWidth(w) == 0 || XtHeight(w) == 0) {
+	_XmGMDoLayout(w, BB_MarginWidth(w), BB_MarginHeight(w),
+		      BB_ResizePolicy(w), True);
+    }
+
+    if ((XtWidth(w) < BB_OldWidth(w) || XtHeight(w) < BB_OldHeight(w)) &&
+	XtIsRealized(w)) {
+	_XmDrawShadows(XtDisplay(w), XtWindow(w),
+		       MGR_TopShadowGC(w), MGR_BottomShadowGC(w),
+		       0, 0, XtWidth(w), XtHeight(w),
+		       MGR_ShadowThickness(w), BB_ShadowType(w));
+    }
+
+    BB_OldWidth(w) = XtWidth(w);
+    BB_OldHeight(w) = XtHeight(w);
+    BB_OldShadowThickness(w) = MGR_ShadowThickness(w);
+}
+---------------------------------------
+
+You can also see the similarities in handle_resize() to
+handle_change_managed():
+
+---------------------------------------
+static void
+handle_resize(Widget w, XmGeoCreateProc mat_make)
+{
+    Dimension wd, ht;
+    XmGeoMatrix geo;
+
+    wd = XtWidth(w);
+    ht = XtHeight(w);
+
+    geo = mat_make(w, NULL, NULL);
+
+    _XmGeoMatrixGet(geo, XmGET_PREFERRED_SIZE);
+
+    _XmGeoArrangeBoxes(geo, 0, 0, &wd, &ht);
+
+    _XmGeoMatrixSet(geo);
+
+    if (XtIsRealized(w)) {
+	_XmClearShadowType(w, BB_OldWidth(w), BB_OldHeight(w),
+			   BB_OldShadowThickness(w), 0);
+
+	_XmDrawShadows(XtDisplay(w), XtWindow(w),
+		       MGR_TopShadowGC(w), MGR_BottomShadowGC(w),
+		       0, 0, XtWidth(w), XtHeight(w),
+		       MGR_ShadowThickness(w), BB_ShadowType(w));
+    }
+
+    _XmGeoMatrixFree(geo);
+
+    BB_OldWidth(w) = XtWidth(w);
+    BB_OldHeight(w) = XtHeight(w);
+    BB_OldShadowThickness(w) = MGR_ShadowThickness(w);
+}
+--------------------------------------
+
+
+3.3 The query_geometry() method
+===============================
+
+For BulletinBoard, the query_geometry() method is probably the simplest --
+it does nothing on it's own behalf, but uses either the GeoMatrix (if a 
+geo_matrix_create() method exists), or the generic method.  This simplicity
+is deceiving; the complexity isn't visible in BulletinBoard -- it's been
+shifted elsewhere.
+
+-------------------------------
+static XtGeometryResult 
+query_geometry(Widget w, XtWidgetGeometry *proposed, XtWidgetGeometry *answer)
+{
+    XmBulletinBoardWidgetClass bbc = (XmBulletinBoardWidgetClass)XtClass(w);
+    XtGeometryResult res;
+
+    XdbDebug(__FILE__, w, "QueryGeometry\n");
+
+    if (bbc->bulletin_board_class.geo_matrix_create) {
+	return _XmHandleQueryGeometry(w, proposed, answer, BB_ResizePolicy(w),
+				      bbc->bulletin_board_class.geo_matrix_create);
+    }
+
+    res = _XmGMHandleQueryGeometry(w, proposed, answer,
+				   BB_MarginWidth(w), BB_MarginHeight(w),
+				   BB_ResizePolicy(w));
+    XdbDebug(__FILE__, w, "BB wants %d %d\n", answer->width, answer->height);
+
+    return res;
+}
+-------------------------------
+
+
+3.4 The geometry_manager() method
+=================================
+
+Similar to the query_geometry() method, the geometry_manager() method passes
+the buck on complexity.  It looks somewhat like the change_managed(), resize(),
+and realize() methods, but does both less and more.  It does less in terms of
+code in BulletinBoard, but the code in the GeoUtils is much more complex, and
+uses little of the code that the other three methods use.  Also, the
+geometry_manager() method uses the "cache" variable in the BulletinBoard Widget
+instance, for repeated calls to geometry_mananger() when geometry_manager
+return XtGeometryAlmost.
+
+-------------------------------
+static XtGeometryResult
+geometry_manager(Widget w, XtWidgetGeometry *desired, XtWidgetGeometry *allowed)
+{
+    Widget bb = XtParent(w);
+    XmBulletinBoardWidgetClass bbc = (XmBulletinBoardWidgetClass)XtClass(bb);
+
+    if (bbc->bulletin_board_class.geo_matrix_create) {
+	return handle_geometry_manager(w, desired, allowed,
+				       bbc->bulletin_board_class.geo_matrix_create);
+    }
+    return _XmGMHandleGeometryManager(bb, w, desired, allowed,
+				      BB_MarginWidth(bb), BB_MarginHeight(bb),
+				      BB_ResizePolicy(bb), BB_AllowOverlap(bb));
+}
+-------------------------------
+
+If you read the handle_geometry_manager() code below, you'll see a similarity
+to the change_managed(), realize(), and resize() code above.
+
+-------------------------------
+static XtGeometryResult
+handle_geometry_manager(Widget w,
+			XtWidgetGeometry *desired, XtWidgetGeometry *allowed,
+			XmGeoCreateProc mat_make)
+{
+    Widget bb = XtParent(w);
+    XmBulletinBoardWidgetClass bbc = (XmBulletinBoardWidgetClass)XtClass(bb);
+    XtGeometryResult res;
+
+    XdbDebug2(__FILE__, bb, w,
+	      "handle_geometry_manager\n");
+
+    if (!(desired->request_mode & (CWWidth|CWHeight)))
+	return XtGeometryYes;
+
+    if (BB_OldShadowThickness(bb) != 0 ||
+	BB_ResizePolicy(bb) != XmRESIZE_NONE) {
+	_XmClearShadowType(bb, BB_OldWidth(bb), BB_OldHeight(bb),
+			   BB_OldShadowThickness(bb), 0);
+	BB_OldShadowThickness(bb) = 0;
+    }
+
+    res = _XmHandleGeometryManager(bb, w, desired, allowed,
+				   BB_ResizePolicy(bb), &BB_GeoCache(bb),
+				   bbc->bulletin_board_class.geo_matrix_create);
+
+    if (!BB_InSetValues(bb) ||
+	XtWidth(bb) > BB_OldWidth(bb) || XtHeight(bb) > BB_OldHeight(bb)) {
+	if (XtIsRealized(bb)) {
+	    _XmDrawShadows(XtDisplay(bb), XtWindow(bb),
+			 MGR_TopShadowGC(bb), MGR_BottomShadowGC(bb),
+			 0, 0, XtWidth(bb), XtHeight(bb),
+			 MGR_ShadowThickness(bb), BB_ShadowType(bb));
+	}
+    }
+    BB_OldWidth(bb) = XtWidth(bb);
+    BB_OldHeight(bb) = XtHeight(bb);
+
+    return res;
+}
+-------------------------------
+
+Finally, we should discuss the set_values() method.
+
+
+3.5 The set_values() method
+===========================
+
+The set_values method is probably the most straight-forward BulletinBoard
+method there is.  We aren't concerned about children wanting to change
+(the Intrinsics toolkit will use our geometry_manager() method if that is
+the case), we're only concerned with the user changing _us_.  There is
+one issue, though -- set_values() changes that change our geometry.
+
+The reason for all this is that BulletinBoard, and subclasses of
+BulletinBoard, have a reasonably high number of children that are
+specified in instance variables.  Rather than "ripple" the parent's
+geometry handler as children are changed, BulletinBoard and subclasses
+save them up until the set_values() method in the class of the widget
+being changed is called.  The designers of Motif couldn't stop the
+geometry_manager() method from being called, but they added a mechanism
+that can control when the negotiation actually occurs.
+
+The BulletinBoard widget has an instance variable called "in_set_values".
+This is a Boolean that is set when a set_values() method is invoked (keep
+in mind that the set_values() method is chained in super- to sub-class
+order), and cleared *almost* at the exit of the method.  Right before
+the exit, the variable is cleared, and a test is used to see if a size
+update should be performed.  If you look in BB and subclasses in the
+set_values method, you'll see the following code fragment:
+
+    if (need_refresh == True && XtClass(new) == xmBulletinBoardWidgetClass)
+    {
+        _XmBulletinBoardSizeUpdate(new);
+        return False;
+    }
+
+For subclasses, replace the class check with a match for the subclass.
+
+This trigger, in conjunction with an exception proc (the no_geo_request()
+field in the GeoMatrix), keeps the geometry_manager() from handling possibly
+conflicting changes in the widget.  During the _XmHandleGeometryManager()
+call, the no_geo_request() call is made to see if geometry negotiation should
+happen.   Take a look at the no_geo_request() in SelectionBox:
+
+Boolean
+_XmSelectionBoxNoGeoRequest(XmGeoMatrix _geoSpec)
+{
+    if (BB_InSetValues(_geoSpec->composite) && 
+        XtClass(_geoSpec->composite) == xmSelectionBoxWidgetClass)
+	return TRUE;
+
+    return FALSE;
+}
+
+Should a geometry request come from a child during set_values(),
+BB_InSetValues() will be True, and the negotiation will be delayed.
+
+-------------------------------
+static Boolean
+set_values(Widget old, Widget request, Widget new,
+	   ArgList args, Cardinal *num_args)
+{
+    BB_InSetValues(new) = True;
+
+    /* code block to handle set_values changes */
+
+    BB_InSetValues(new) = False;
+
+    if (XtWidth(new) != XtWidth(old) || XtHeight(new) != XtHeight(old)) {
+	need_refresh = True;
+    }
+
+    if (need_refresh == True && XtClass(new) == xmBulletinBoardWidgetClass)
+    {
+	_XmBulletinBoardSizeUpdate(new);
+	return False;
+    }
+    return need_refresh;
+}
+--------------------------------
+
+Note especially the call to _XmBulletinBoardSizeUpdate().  This should be done
+IN EVERY BULLETINBOARD SUBCLASS THAT USES THE GEOUTILS.  This gives the manager
+class the opportunity to handle geometry changes in an instance's children
+that have occurred as a result of set_values().
+
+The code for _XmBulletinBoardSizeUpdate is as follows:
+
+-------------------------------
+void
+_XmBulletinBoardSizeUpdate(Widget w)
+{
+    XmBulletinBoardWidgetClass bbc = (XmBulletinBoardWidgetClass)XtClass(w);
+
+    if (!XtIsRealized(w))
+	return;
+
+    if (bbc->bulletin_board_class.geo_matrix_create == NULL) {
+	BB_OldWidth(w) = XtWidth(w);
+	BB_OldHeight(w) = XtHeight(w);
+	return;
+    }
+    if (!BB_OldShadowThickness(w) && BB_ResizePolicy(w) != XmRESIZE_NONE) {
+	_XmClearShadowType(w, BB_OldWidth(w), BB_OldHeight(w),
+			   BB_OldShadowThickness(w), 0);
+	BB_OldShadowThickness(w) = 0;
+    }
+
+    _XmHandleSizeUpdate(w, BB_ResizePolicy(w),
+			bbc->bulletin_board_class.geo_matrix_create);
+
+    if ((XtWidth(w) < BB_OldWidth(w) || XtHeight(w) < BB_OldHeight(w)) &&
+	XtIsRealized(w)) {
+	_XmDrawShadows(XtDisplay(w), XtWindow(w),
+		       MGR_TopShadowGC(w), MGR_BottomShadowGC(w),
+		       0, 0, XtWidth(w), XtHeight(w),
+		       MGR_ShadowThickness(w), BB_ShadowType(w));
+    }
+
+    BB_OldWidth(w) = XtWidth(w);
+    BB_OldHeight(w) = XtHeight(w);
+    BB_OldShadowThickness(w) = MGR_ShadowThickness(w);
+}
+-------------------------------
+
+The function _XmHandleSizeUpdate() is very similar to the change_managed()
+method, in that it does layout computation, and requests a size change from
+the parent.
+
+
+
+
+4.0 The Data Structures
+=======================
+
+Now that you're passingly familiar with the basics, let's digress for a time
+and take a look at the data structures involved in the GeoUtils, as they
+should be understood before we talk about the implementation.
+
+
+4.1 The GeoMatrix
+=================
+
+The layout of the GeoMatrix structure is as follows:
+
+--------------------------------------
+typedef struct _XmGeoMatrixRec {
+    Widget composite;
+    Widget instigator;
+    XtWidgetGeometry instig_request;
+    XtWidgetGeometry parent_request;
+    XtWidgetGeometry *in_layout;
+    XmKidGeometry boxes;  /* there is a NULL pointer add the end of each row */
+    XmGeoMajorLayout layouts;
+    Dimension margin_w;
+    Dimension margin_h;
+    Boolean stretch_boxes;
+    Boolean uniform_border;
+    Dimension border;
+    Dimension max_major;
+    Dimension boxed_minor;
+    Dimension fill_minor;
+    Dimension width;
+    Dimension height;
+    XmGeoExceptProc set_except;
+    XmGeoExceptProc almost_except;
+    XmGeoExceptProc no_geo_request;
+    XtPointer extension;
+    XmGeoExtDestructorProc ext_destructor;
+    XmGeoArrangeProc arrange_boxes;
+    unsigned char major_order;
+} XmGeoMatrixRec;
+
+typedef struct _XmGeoMatrixRec *XmGeoMatrix;
+
+typedef void (*XmGeoArrangeProc)(XmGeoMatrix matrix,
+				 Position x, Position y,
+                                 Dimension *width_inout,
+				 Dimension *height_inout);
+typedef Boolean (*XmGeoExceptProc)(XmGeoMatrix matrix);
+typedef void (*XmGeoExtDestructorProc)(XtPointer extension);
+typedef void (*XmGeoSegmentFixUpProc)(XmGeoMatrix matrix, int command,
+                                      XmGeoMajorLayout row_layout,
+				      XmKidGeometry kid_info);
+
+enum {
+    XmGEO_ROW_MAJOR,
+    XmGEO_COLUMN_MAJOR
+};
+---------------------------------------------
+
+The GeoMatrix is the mother of all GeoUtils structures.  In it, we have control
+information for how the layout is to be performed, info on each child, margin
+information, etc.  Also, when you look at the GeoUtils, keep in mind that
+the developers intended for it to work both in row major and column major
+layout (i.e., up to down rows, and side to side columns).  The comments
+in XmP.h indicate that they didn't get any farther than row major layout,
+though.
+
+Let's look at each member:
+    Widget composite;
+	o the BB subclass instance that's currently using the GeoUtils.
+
+    Widget instigator;
+	o if from geometry_manager, the child that requested a geom change,
+	  or NULL.
+
+    XtWidgetGeometry instig_request;
+	o if from geometry_manager, the change that the instigator requested,
+	  or NULL.
+
+    XtWidgetGeometry parent_request;
+	o if from query_geometry, the way our parent wants us to look, or NULL
+
+    XtWidgetGeometry *in_layout;
+	o used in the cases where multiple calls are made to
+	  XtMakeResizeRequest or XtMakeGeometryRequest from one of the
+	  children.  There is a GeoMatrix "cache" instance variable in the
+	  BulletinBoard Widget structure that gets used also.  I don't think
+	  LessTif's usage of this variable, and instig_request, is _quite_
+	  the same as Motif's.
+
+    XmKidGeometry boxes;  /* there is a NULL widget add the end of each row */
+	o this is used to keep layout information for each of the children
+	  of this manager.  It is sort of a "cache" for the current and
+	  proposed geometry of each child.  It is an array of structures; one
+	  structure for each child, each row of children separated by a
+	  structure whose child pointer is NULL.
+
+    XmGeoMajorLayout layouts;
+	o this is used to keep layout information for each row of children
+	  (especially things like whether each child in the row should be
+	   the same height, or the same width, or both, etc.  More on this
+	   when we go throught the structure involved).
+
+    Dimension margin_w;
+	o the margin width of the manager.
+
+    Dimension margin_h;
+	o the margin width of the manager.
+
+    Boolean stretch_boxes;
+	o whether or not childrent should be stretched to fill in voids
+	  in the layout.
+
+    Boolean uniform_border;
+	o whether or not the children should have the same XtBorderWidth
+	  this can also be controlled on a row basis (the XmGeoMajorLayout
+	  has a uniform_border field, too.  This value, if set, overrides
+	  the Layout structure's variable).
+
+    Dimension border;
+	o if uniform_border is true, the value that should be used for
+	  XtBorderWidth.
+
+    Dimension max_major;
+	o the maximum value of the major layout dimension.  For row major
+	  layout, this would be the maximum computed width of all rows.
+
+    Dimension boxed_minor;
+	o for row major layout, this is the cumulative height of all the rows,
+	  not including fill.
+
+    Dimension fill_minor;
+	o for row major layout, this is the amount of fill space needed.  In
+	  other words, the amount of "fill space" needed vertically between
+	  the rows.
+
+    Dimension width;
+	o this will hold the computed width of the manager.
+
+    Dimension height;
+	o this will hold the computed height of the manager.
+
+    XmGeoExceptProc set_except;
+	o a manager can override how the geometry of children are set by
+	  providing an override method here.
+
+    XmGeoExceptProc almost_except;
+	o I have no clue.  Maybe a method that can be used if a parent says
+	  XtGeometryAlmost to a resize request?
+
+    XmGeoExceptProc no_geo_request;
+	o there are certain times when you want to avoid geometry negotiation
+	  for a while; usually in set_values().  This function is called
+	  from _XmHandleGeometryManager to determine if negotiation should
+	  really happen.
+
+    XtPointer extension;
+	o extension data for use by the override methods.  The GeoUtils don't
+	  do anything with this member directly.
+
+    XmGeoExtDestructorProc ext_destructor;
+	o a function that gets invoked when a GeoMatrix is freed, if the matrix
+	  has a non-NULL extension.
+
+    XmGeoArrangeProc arrange_boxes;
+	o an override method for arranging the children.  If this is non-NULL,
+	  most of the GeoUtils will not be used.
+
+    unsigned char major_order;
+	o an indicator for whether this matrix is row- or column- major.
+	  Currently only row_major is implemented; the values allowed here
+	  are XmGEO_ROW_MAJOR and XmGEO_COLUMN_MAJOR.
+
+
+4.2 The MajorLayoutRec
+======================
+
+The next level of structures (actually, a union) control how the individual
+rows or columns are layed out.
+
+-------------------------------------------
+typedef union _XmGeoMajorLayoutRec {
+    XmGeoRowLayoutRec row;
+    XmGeoColumnLayoutRec col;
+} XmGeoMajorLayoutRec;
+
+typedef union _XmGeoMajorLayoutRec *XmGeoMajorLayout;
+-------------------------------------------
+
+The only member of interest is the XmGeoRowLayoutRec.  Here's the layout for
+both; below, I'll describe what the fields mean for the RowLayoutRec -- the
+Column (should it ever get implemented) are similar.
+
+
+-------------------------------------------
+typedef struct {
+    Boolean end;
+    XmGeoSegmentFixUpProc fix_up;
+    Dimension even_width;
+    Dimension even_height;
+    Dimension min_height;
+    Boolean stretch_height;
+    Boolean uniform_border;
+    Dimension border;
+    unsigned char fill_mode;
+    unsigned char fit_mode;
+    Boolean sticky_end;
+    Dimension space_above;
+    Dimension space_end;
+    Dimension space_between;
+    Dimension max_box_height;
+    Dimension boxes_width;
+    Dimension fill_width;
+    Dimension box_count;
+} XmGeoRowLayoutRec, *XmGeoRowLayout;
+
+typedef struct {
+    Boolean end;
+    XmGeoSegmentFixUpProc fix_up;
+    Dimension even_height;
+    Dimension even_width;
+    Dimension min_width;
+    Boolean stretch_width;
+    Boolean uniform_border;
+    Dimension border;
+    unsigned char fill_mode;
+    unsigned char fit_mode;
+    Boolean sticky_end;
+    Dimension space_left;
+    Dimension space_end;
+    Dimension space_between;
+    Dimension max_box_width;
+    Dimension boxed_height;
+    Dimension fill_height;
+    Dimension box_count;
+} XmGeoColumnLayoutRec, *XmGeoColumnLayout;
+
+enum{
+    XmGET_ACTUAL_SIZE = 1,
+    XmGET_PREFERRED_SIZE,
+    XmGEO_PRE_SET,
+    XmGEO_POST_SET
+};
+
+/* fill modes for the GeoLayoutRec's below */
+enum {
+    XmGEO_EXPAND,
+    XmGEO_CENTER,
+    XmGEO_PACK
+};
+
+/* fit modes for the GeoLayoutRec's below */
+enum {
+    XmGEO_PROPORTIONAL,
+    XmGEO_AVERAGING,
+    XmGEO_WRAP
+};
+-------------------------------------------
+
+Now for a description of the XmGeoRowLayoutRec:
+
+    Boolean end;
+	o if we have processed all the rows, this end flag will be true.  In
+	  other words, if your widget has n rows of widgets, your matrix
+	  will have (n + 1) row layout recs, with the (n + 1) row having
+	  the end flag true.  All other rows will have end set to False.
+
+    XmGeoSegmentFixUpProc fix_up;
+	o some rows might need special fixing after they've been laid out.
+	  For example, a separator in the SelectionBox should go the full
+	  width of the SelectionBox (as opposed to going from margin to
+	  margin).  This fix_up() method allows such special cases to be
+	  handled.  The only other special cases that I know about is a
+	  fixup for the MenuBar in SelectionBox and friends (extending the
+	  width so that it stretches for the full width of the parent,
+	  much like what is done for Separators).
+
+    Dimension even_width;
+    Dimension even_height;
+	o these two members are overloaded.  At the beginning of matrix
+	  processing, they are used as Booleans to indicate whether the
+	  children in this row should end up having the same width and
+	  height across the row.  If they are True, they end up containing
+	  the max width and height of all the children in a given row,
+	  and then applied to each child after the max is computed.
+
+    Dimension min_height;
+	o the minimum height for any given child in a row.
+
+    Boolean stretch_height;
+	o indicates if we can stretch (or shrink) the widgets in a row if
+	  the manager isn't quite the size we want.
+
+    Boolean uniform_border;
+	o assuming that the GeoMatrix didn't set its uniform_border member,
+	  this field indicates that this row should have a uniform border.
+
+    Dimension border;
+	o assuming that uniform_border (above) is true, the value of
+	  XtBorderWidth for the widgets in this row.
+
+    unsigned char fill_mode;
+	o one of XmGEO_EXPAND, XmGEO_CENTER, or XmGEO_PACK.  The only one
+	  of these I've seen used is XmGEO_CENTER.  I suspect that the
+	  other two might be used by RowColumn, and possibly Form.  What
+	  happens if the fill_mode is XmGEO_CENTER is that extra fill
+	  space is distributed between the children in a row; if not
+	  XmGEO_CENTER, the children are resized proportionally.
+
+    unsigned char fit_mode;
+	o one of XmGEO_PROPORTIONAL, XmGEO_AVERAGING, or XmGEO_WRAP.
+	  XmGEO_PROPORTIONAL means layout the widgets in this row in proportion
+	  to the individual sizes of each widget.  XmGEO_AVERAGING means
+	  layout the children based on the average dimensions of all children.
+	  XmGEO_WRAP means if we can't fit the children on one line, wrap
+	  them around to what is effectively another row.  You can see this
+	  behavior when you resize a Motif Dialog to be taller and narrower
+	  than it wants to be.
+
+    Boolean sticky_end;
+	o indicates that the last box in the row should be as close to the
+	  right margin as possible.
+
+    Dimension space_above;
+	o indicates the amount of space that should be left above this row.
+	  if the top row's space_above is less than the requested margin,
+	  the margin is used.
+
+    Dimension space_end;
+	o indicates the amount of space that should be left at the ends of
+	  the row.
+
+    Dimension space_between;
+	o indicates how much space should be between the widgets in a row.
+
+    Dimension max_box_height;
+	o indicates the hight of the largest box in the row.
+
+    Dimension boxes_width;
+	o indicates the cumulative width of all the widgets in a row.
+
+    Dimension fill_width;
+	o indicates the cumulative fill space in a row, both between widgets
+	  and at the row end.
+
+    Dimension box_count;
+	o the number of boxes in the row.
+
+In general, the user is only interested in fields up to (and including)
+space_between.  The remaining fields are used during the calculations.
+
+
+4.3 The KidGeometryRec
+======================
+
+The final structure is the most important one: the XmKidGeometry structure.
+This structure contains the geometry for a child, and provides a storage
+place during the layout calculations for that geometry while the algorithms
+proceed.
+
+--------------------------------------
+typedef struct _XmKidGeometryRec {
+    Widget kid;
+    XtWidgetGeometry box;
+} XmKidGeometryRec, *XmKidGeometry;
+--------------------------------------
+
+
+4.4 The "Big Picture"
+=====================
+
+The hierarchy of structures is something like the following:
+
+XmGeoMatrix---->(layout)(layout)(...)(layout with end == True)
+     |              |       |
+     |------------(kid)     |
+     |------------(...)     |
+     |------------(NULL)    |
+     |                      |
+     |--------------------(kid)
+     |--------------------(...)
+     |--------------------(NULL)
+   (...)
+
+The boxes member in the GeoMatrix is an array of XmKidGeometry structures,
+with the kid->widget that delimits the end of each row set to NULL.
+There is an XmGeoMajorLayout record for each row, and one extra
+record (with the "end" member set to False) delimiting the end of rows.
+
+Note that the lines don't indicate pointers, only associations.
+
+
+
+
+5.0 The GeoUtils Functions
+==========================
+
+Let's examine the published interface first, as these are really the
+functions that must be understood if you want to understand BulletinBoard,
+and its GeoUtils using subclasses.  By the way, in Motif, certain GeoUtils
+functions are also used by RowColumn.  I'll indicate these as each function
+is discussed (well, at least the ones I know about).
+
+
+5.1 The Allocation, Initialization, and Deallocation Functions
+==============================================================
+
+First, let's talk about the functions used when you want to allocate a
+GeoMatrix (i.e., the Widget method known as geo_matrix_create).  In that
+method, you have to compute the number of rows of children that you are
+going to layout, and the number of children (total) involved (more on
+this when we actually examine a subclass).
+
+The first function, which is actually called from subclass code, takes the
+information you've gathered about your children, and allocates the GeoMatrix,
+the XmGeoMajorLayout(s) structures, the XmKidGeometry(s) structures, and
+mallocs an extra 'extSize' bytes for any extension that will be used.
+It returns a pointer to the allocated structure.  Note that it doesn't fill
+in any information in the matrix; it just allocates it.
+
+XmGeoMatrix
+_XmGeoMatrixAlloc(unsigned int numRows,
+	          unsigned int numBoxes,
+	          unsigned int extSize);
+----------
+
+The next function verifies that the child being examined is valid, and
+sets up the XmKidGeometry structure to point at this kid.
+
+Boolean
+_XmGeoSetupKid(XmKidGeometry geo, Widget kidWid);
+
+For those of you interested in writing subclass widgets, those two functions
+are all you really need to know (well, except for knowing how to use them, of
+course).  The rest of the functions are either internal, or buried within
+the BulletinBoard class.
+----------
+
+Finally, when geometry management is complete, the following function
+deallocates the matrix.
+
+void
+_XmGeoMatrixFree(XmGeoMatrix geo_spec);
+----------
+
+
+5.2 Layout Management Functions
+===============================
+
+Layout management is essentially a five phase process: 
+ o we ask our children how they want to look.
+ o we figure out how that would make us look.
+ o we ask our parent if we can look that way.
+ o we take how our parent says we can look, and recompute how we want to
+   look.
+ o we apply the recomputed look to our children.
+
+5.2.1 Querying the Children
+===========================
+
+This first function queries all the manager's children for their geometry.
+geoType can actually be several different values, but in practice I've never
+seen the GeoUtils use anything other than XmGET_PREFERRED_SIZE.
+
+void
+_XmGeoMatrixGet(XmGeoMatrix geoSpec, int geoType);
+
+The pseudo code for this function is as follows:
+
+XmGeoMatrixGet()
+{
+    while (rows remaining) {
+	if (end of row)
+	    advance to next row
+	else
+	    _XmGeoLoadValues(kid);
+}
+----------
+
+_XmGeoMatrixGet uses a lower level function to ask children their preferred
+geometry.  The behavior of the function is slightly different when the
+child is the instigator of a geometry management conversation.
+
+void _XmGeoLoadValues(Widget wid, int geoType, Widget instigator, 
+		      XtWidgetGeometry *request,
+		      XtWidgetGeometry *geoResult);
+
+Testing indicates that this function is used by the RowColumn in Motif.
+----------
+
+
+5.2.2 Computing the Desired Size
+================================
+
+The next function is the real workhorse in layout computation.  Basically, it
+takes the information that was recorded from the previous step (5.2.1) and
+determines how that would make us look.  It uses values in the GeoMatrix,
+the MajorLayoutRec, and the KidGeometryRec to determine this.  It uses this
+information, in combination with the input parameters, to determine how the
+total composite should look.
+
+void
+_XmGeoArrangeBoxes(XmGeoMatrix geoSpec, Position x, Position y,
+		   Dimension *pW, Dimension *pH);
+
+The pseudo code for this function is as follows:
+
+_XmGeoArrangeBoxes()
+{
+    if (user specified an arrange procedure) {
+	call user's arrange
+	return
+    }
+
+    _XmGeoAdjustBoxes()
+
+    _XmGeoGetDimensions()
+
+    adjust the overall layout based on the input parameters
+
+    while (rows remaining)
+	_XmGeoArrangeList(row);
+
+    if (height needs adjusting) {
+	if (user allows stretching)
+	    _XmGeoStretchVertical()
+	else
+	    _XmGeoFillVertical()
+    }
+}
+-------------
+
+
+_XmGeoArrangeBoxes() calls this next function to determine the overall layout.
+In the current implementation, _XmGeoAdjustBoxes() loops through the rows in
+the composite, figuring out how each row would look.
+
+void
+_XmGeoAdjustBoxes(XmGeoMatrix geoSpec);
+
+The pseudo code for this function is as follows:
+
+XmGeoAdjustBoxes()
+{
+    while (rows remaining) {
+
+	if (children in row should be even width)
+	    _XmGeoBoxesSameWidth();
+
+	if (children in row should be even height)
+	    _XmGeoBoxesSameHeight();
+
+	if (children in row should have the same border)
+	    adjust the border
+    }
+}
+
+If the relevant flags are set in the MajorLayoutRec, _XmGeoAdjustBoxes()
+invokes the following two functions.
+
+Dimension
+_XmGeoBoxesSameWidth(XmKidGeometry rowPtr, Dimension width);
+Dimension
+_XmGeoBoxesSameHeight(XmKidGeometry rowPtr, Dimension height);
+-------------
+
+
+Next, _XmGeoArrangeBoxes() calls this next function to compute the
+total picture of the desired geometry.  This function takes the overal
+results computed above, and adjusts values in the Matrix and Layout
+data structures.
+
+void
+_XmGeoGetDimensions(XmGeoMatrix geoSpec);
+-------------
+
+
+5.2.3 Computing The Layout
+==========================
+
+This next function is responsible for actually laying out each row.  It is
+in this function that things like the fit_mode and fill_mode in the Layout
+structure are evaluated.
+
+Position
+_XmGeoArrangeList(XmKidGeometry boxes, XmGeoRowLayout layout,
+		  Position x, Position y,
+		  Dimension width, Dimension margin);
+
+The pseudo code for this function is as follows:
+
+_XmGeoArrangeList()
+{
+    figure out the width of our children
+
+    figure out the "fill" space wanted
+
+    figure out the amount of adjusting necessary
+
+    figure out the starting height of this row
+
+    if (things aren't going to fit, and layout fit_mode is XmGEO_WRAP) {
+	_XmGeoLayoutWrap()
+	return
+    }
+    else if (things aren't going to fit) {
+	if (fit_mode is Xm_GEO_AVERAGING)
+	    FitBoxesAveraging()
+	else
+	    FitBoxesProportional()
+    }
+    else if (the wanted width is wider than necessary) {
+	if (fill_mode is XmGEO_CENTER)
+	    _XmGeoCalcFill()
+	else
+	    FitBoxesProporitional()
+    }
+
+    _XmGeoLayoutSimple()
+}
+-------------
+
+Finally, after the rows have been laid out, the y offsets or the widget
+heights in each row may need adjusting, based on the actual height of the
+widget, and the value of stretch_height.  _XmGeoArrangeBoxes takes care of
+that with the following two functions.  The first stretches the rows to fit;
+the second inserts filler space.
+
+Dimension
+_XmGeoStretchVertical(XmGeoMatrix geoSpec, Dimension height, Dimension maxh);
+Dimension
+_XmGeoFillVertical(XmGeoMatrix geoSpec, Dimension height, Dimension maxh);
+----------
+
+I'll stop at this level.  If you want to know more, you'll need to delve
+into the code in GeoUtils.c;  what I've given should be enough for you to
+find your way around.
+
+
+5.2.4  Applying the Changes
+=========================
+
+If after all the above computations have happened, and our parent has agreed
+to our resize request, we call the following function:
+
+void
+_XmGeoMatrixSet(XmGeoMatrix geoSpec);
+
+The psuedo code for this is as follows:
+
+_XmGeoMatrixSet()
+{
+    for (each row) {
+	for (each child in row)
+	    _XmSetKidGeo()
+    }
+}
+
+The lower level function _XmSetKidGeo() usually calls _XmConfigureObject();
+the behavior is slightly different during geometry management conversations.
+
+void
+_XmSetKidGeo(XmKidGeometry kg, Widget instigator);
+----------
+
+
+5.3 The Method functions
+========================
+
+The method functions basically implement most of the behavior for certain
+Xt required methods;  the GeoUtils provide default implementations for
+set_values(), query_geometry(), and geometry_manager().
+
+The set_values() case (really, the implementation of
+_XmBulletinBoardSizeUpdate() -  see the section on BulletinBoard set_values())
+is handled by _XmHandleSizeUpdate().  This function is much like the
+change_managed() method in BulletinBoard (see the relevant section for
+details).
+
+void
+_XmHandleSizeUpdate(Widget wid, unsigned char policy,
+		    XmGeoCreateProc createMatrix);
+----------
+
+The query_geometry() method is handled by the following function.  Essentially,
+this function implements the geometry calculation without doing the layout
+common to the other methods.
+
+XtGeometryResult
+_XmHandleQueryGeometry(Widget wid,
+		       XtWidgetGeometry *intended,
+		       XtWidgetGeometry *desired, 
+		       unsigned char policy,
+		       XmGeoCreateProc createMatrix);
+----------
+
+The next function handles the geometry_manager() method.  It is truly
+a nasty function, and was very difficult to figure out.  This is the only
+place in the entire GeoUtils functionality that the cache is used (and
+really, it's the only place where it needs to be used).  There are some
+pretty good reasons for this -- manager children tend to loop around
+XtMakeResizeRequest(), or XtMakeGeometryRequest(), until their parent
+says yes or no.  By using a cache, you can eliminate at least one iteration
+of the negotiation (which is relatively expensive).  I don't really think
+most readers of this document are interested in the gory details.  If you
+are, reading through the code should give you the necessary information.
+
+XtGeometryResult
+_XmHandleGeometryManager(Widget wid, Widget instigator,
+			 XtWidgetGeometry *desired, 
+			 XtWidgetGeometry *allowed,
+			 unsigned char policy, 
+			 XmGeoMatrix *cachePtr,
+			 XmGeoCreateProc createMatrix);
+--------
+
+These next two functions do most of the default behavior for the BulletinBoard,
+when the widget class does not use the GeoUtils (unless, of course, the
+subclass overrides them).
+
+This first function is invoked when a parent queries a BulletinBoard widget
+for its preferred size.
+
+XtGeometryResult
+_XmGMHandleQueryGeometry(Widget w,
+			 XtWidgetGeometry *proposed, XtWidgetGeometry *answer,
+			 Dimension margin_width, Dimension margin_height,
+			 unsigned char resize_policy)
+--------
+
+The second function is invoked when a child queries a BulletinBoard parent
+for a resize.
+
+XtGeometryResult
+_XmGMHandleGeometryManager(Widget w, Widget instigator, 
+			   XtWidgetGeometry *desired, XtWidgetGeometry *allowed,
+			   Dimension margin_width, Dimension margin_height,
+			   unsigned char resize_policy, Boolean allow_overlap)
+--------
+
+
+5.4 Miscellaneous Functions
+===========================
+
+This function determines if two widget geometries are identical.
+
+Boolean
+_XmGeometryEqual(Widget wid, XtWidgetGeometry *geoA,
+			     XtWidgetGeometry *geoB);
+--------
+
+These next two functions are "fixup" functions.  They are invoked by
+_XmGeoMatrixSet(), to override the generic geometry computation with
+specific behavior.  _XmMenuBarFix() forces a menu bar to be the full
+width of its composite parent.  _XmSeparatorFix() does the same for
+separators.
+
+void
+_XmMenuBarFix(XmGeoMatrix geoSpec, int action,
+	      XmGeoMajorLayout layoutPtr, XmKidGeometry rowPtr);
+void
+_XmSeparatorFix(XmGeoMatrix geoSpec, int action,
+	        XmGeoMajorLayout layoutPtr, XmKidGeometry rowPtr);
+--------
+
+
+5.5 BulletinBoard helper functions
+==================================
+
+The next several functions implement bits of BulletinBoard behavior.
+
+This next function ensures that a BulletinBoard child is constrained within
+the margins of the BulletinBoard.
+
+void
+_XmGMEnforceMargin(Widget w,
+		   Dimension margin_width, Dimension margin_height,
+		   Boolean useSetValues)
+-------
+
+The next function implements the XmNallowOverlap behavior (or rather,
+if XmNallowOverlap is False, makes sure that children do not overlap).
+
+Boolean
+_XmGMOverlap(Widget w, Widget instigator,
+	     Position x, Position y, Dimension width, Dimension height)
+-------
+
+The next function computes the desired size of a BulletinBoard.
+
+void
+_XmGMCalcSize(Widget w, Dimension margin_w, Dimension margin_h,
+	      Dimension *retw, Dimension *reth)
+-------
+
+The next function performs the BulletinBoard layout behavior.
+
+void
+_XmGMDoLayout(Widget w, Dimension margin_w, Dimension margin_h,
+	      unsigned char resize_policy, short adjust)
+---------
+
+
+5.6 RowColumn specific functions
+================================
+
+The following functions are specific to RowColumn functionality, but reside
+in the GeoUtils implementation.
+
+I don't know what this first function does, but it looks suspiciously like
+a GeoMatrix allocation function, specialized for RCKidGeometry.
+
+XmKidGeometry
+_XmGetKidGeo(Widget wid, Widget instigator,
+	     XtWidgetGeometry *request, 
+	     int uniform_border, Dimension border,
+	     int uniform_width_margins, 
+	     int uniform_height_margins,
+	     Widget help, int geo_type);
+--------
+
+There is an undocumented function, XmRCGetKidGeo(), that I believe is similar
+to _XmGeoMatrixGet().  In LessTif, I believe this is implemented as
+initialize_boxes() in RowColumn.c.
+
+That function calls this next function, as well as _XmGeoLoadValues().
+
+int
+_XmGeoCount_kids(CompositeWidget c);
+--------
+
+
+5.7 Unkown
+==========
+I don't know what these functions do:
+
+Boolean
+_XmGeoReplyYes(Widget wid, XtWidgetGeometry *desired,
+			   XtWidgetGeometry *response);
+
+XtGeometryResult
+_XmMakeGeometryRequest(Widget w, XtWidgetGeometry *geom);
+
+void
+_XmGeoClearRectObjAreas(RectObj r, XWindowChanges *old);
+
+void
+_XmGMReplyToQueryGeometry(void);
+
+Anybody out there who does?
+---------
+
+
+
+6.0 How to Build a Subclass Using the GeoUtils
+==============================================
+
+At this point, we've come full circle.  Now that you know something about
+how the GeoUtils work, let's examine how a subclass can use them.  I'll
+now talk about the XmTrivial widget class.  BTW, if you are thinking
+about using the GeoUtils, the Trivial class makes a pretty good template.
+
+
+6.1 The Header Files
+====================
+
+There really isn't much to say about the header files.  They are pretty
+much standard headers for a widget implementation.
+
+
+6.2 The Implementation
+======================
+
+In this section I'll describe the various sections in Trivial.c that are
+important to the subclass.
+
+
+6.2.1 Extra Prototypes
+======================
+
+You'll need to provide two extra prototypes for a GeoUtils subclass - one
+for the geo_matrix_create() method, and one for the no_geo_request() method.
+These should match the types specified in XmP.h.  From Trivial:
+
+XmGeoMatrix trivial_matrix_create(Widget _w, Widget _from,
+				  XtWidgetGeometry *_pref);
+Boolean trivial_NoGeoRequest(XmGeoMatrix _geoSpec);
+
+
+6.2.2 The Class Structure
+=========================
+
+The first thing to know is how to type XtInherit.  Unless you really know
+what you are doing, and want to override specific behaviors, you should
+definitely specify XtInherit in the class structure of your subclass for
+the following methods:
+
+  o realize()
+  o resize()
+  o expose()
+  o query_geometry()
+  o geometry_manager()
+  o change_managed()
+
+Unless you are implementing a fairly trivial widget (such XmTrivial), you'll
+probably have to provide your own set_values() method.  That's ok, just
+make sure you follow the rules outlined in the BulletinBoard section above.
+
+Refer back to section 2 for where to plug these in.
+
+6.2.3 The set_values() method
+=============================
+
+In any interesting widget, the set_values() method will probably do something
+(but it doesn't in Trivial).  The code below can be considered boilerplate;
+you should probably base a subclass's set_values() method on this code.  Note
+especially the region reserved for setting class specific instance variables.
+
+-----------------
+static Boolean
+set_values(Widget old,
+	   Widget request,
+	   Widget new,
+	   ArgList args,
+	   Cardinal *num_args)
+{
+    Boolean refresh_needed = False;
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    BB_InSetValues(new) = True;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /* do any class specific stuff HERE */
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    BB_InSetValues(new) = False;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    if (refresh_needed && (XtClass(new) == xmTrivialWidgetClass))
+    {
+	_XmBulletinBoardSizeUpdate(new);
+	return False;
+    }
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    return refresh_needed;
+}
+-----------------
+
+
+6.2.4 The NoGeoRequest method
+=============================
+
+This method actually doesn't get placed in the class structure, but rather
+in the GeoMatrix during its creation.  Again, the implementation in Trivial
+is boilerplate; the only thing a subclass needs to do is change the tested
+widget class:
+
+-----------------
+Boolean
+trivial_NoGeoRequest(XmGeoMatrix geo)
+{
+    if (BB_InSetValues(geo->composite) &&
+	XtClass(geo->composite) == xmTrivialWidgetClass)
+	return TRUE;
+
+    return FALSE;
+}
+-----------------
+
+
+6.2.5 The GeoMatrixCreate method
+================================
+
+NOW we get to the interesting part of the implementation.  The
+geo_matrix_create() method in Trivial is NOT boilerplate, but it does show
+you what you need to do (well, actually, one small portion is boilerplate).
+
+Here's the routine:
+
+-----------------
+XmGeoMatrix
+trivial_matrix_create(Widget _w, Widget _from, XtWidgetGeometry *_pref)
+{
+    XmGeoMatrix geoSpec;
+    register XmGeoRowLayout layoutPtr;
+    register XmKidGeometry boxPtr;
+    Cardinal numKids;
+    int i, nrows;
+    Widget child;
+
+    numKids = MGR_NumChildren(_w);
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    /* compute the number of rows you want here.  Trivial only has one */
+    nrows = 1;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+    geoSpec = _XmGeoMatrixAlloc(nrows, numKids, 0);
+    geoSpec->composite = (Widget)_w;
+    geoSpec->instigator = (Widget)_from;
+    if (_pref)
+        geoSpec->instig_request = *_pref;
+    geoSpec->margin_w = BB_MarginWidth(_w) + MGR_ShadowThickness(_w);
+    geoSpec->margin_h = BB_MarginHeight(_w) + MGR_ShadowThickness(_w);
+    geoSpec->no_geo_request = trivial_NoGeoRequest;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    layoutPtr = &(geoSpec->layouts->row);
+    boxPtr = geoSpec->boxes;
+
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    /* row 1 */
+    layoutPtr->fill_mode = XmGEO_CENTER;
+    layoutPtr->fit_mode = XmGEO_WRAP;
+    layoutPtr->even_width = 1;
+    layoutPtr->even_height = 1;
+    layoutPtr->space_above = BB_MarginHeight(_w);
+    for (i = 0; i < numKids; i++) {
+
+	child = MGR_Children(_w)[i];
+
+	if ((XmIsPushButton(child) || XmIsPushButtonGadget(child)) &&
+	    XtIsManaged(child) && _XmGeoSetupKid(boxPtr, child))
+	{
+	    boxPtr++;
+	}
+    }
+    layoutPtr++;
+
+    /* end marker */
+    layoutPtr->space_above = 0;
+    layoutPtr->end = TRUE;
+    /*@@@@@@@@@ SPECIAL @@@@@@@@@*/
+
+    return(geoSpec);
+}
+-----------------
+
+Note that the function has essentially 3 sections.  In the first section,
+you need to loop through your children (or evaluate instance variables, as
+is done in SelectionBox), deciding on how many rows of children that need
+to be controlled.  Basically, what you are doing is evaluating how many
+MajorLayout structures you are going to need.  You can also choose to
+count the number of managed children you have (this may or may not be the
+same as the number of children you have); this is optional, as the wasted
+space is not very large, and it eventually gets deallocated anyway.
+
+In the second section, we have a small piece of boilerplate:  it is very
+important to duplicate this code exactly; while the _pref and _from fields
+are often NULL, they are NOT when this method is called from
+_XmHandleGeometryManager().  Make *sure* you copy this right.
+
+-----------------
+    geoSpec = _XmGeoMatrixAlloc(nrows, numKids, 0);
+    geoSpec->composite = (Widget)_w;
+    geoSpec->instigator = (Widget)_from;
+    if (_pref)
+        geoSpec->instig_request = *_pref;
+    geoSpec->margin_w = BB_MarginWidth(_w) + MGR_ShadowThickness(_w);
+    geoSpec->margin_h = BB_MarginHeight(_w) + MGR_ShadowThickness(_w);
+    geoSpec->no_geo_request = trivial_NoGeoRequest;
+-----------------
+
+You can be a little creative when you calculate the margin_w and margin_h
+variables.  Also, make sure that you hook up the no_geo_request() method.
+
+The third section of code is basically where the subclass needs to setup
+the MajorLayout structures with the desired information for controlling the
+layout, and setting the KidGeometry structures to point at the widget
+children that should appear.
+
+Trivial's implementation of this method is _very_ simplistic.  The following
+code is SelectionBox's version;  look for the boilerplate above to find
+the separation between the sections:
+
+------------------
+XmGeoMatrix
+_XmSelectionBoxGeoMatrixCreate(Widget _w, Widget _from, XtWidgetGeometry *_pref)
+{
+    XmGeoMatrix geoSpec;
+    register XmGeoRowLayout	layoutPtr;
+    register XmKidGeometry boxPtr;
+    Cardinal numKids;
+    Boolean newRow;
+    int nrows, i, nextras;
+    Widget *extras;
+
+    numKids = MGR_NumChildren(_w);
+
+    nextras = 0;
+    extras = NULL;
+    for (i = 0; i < numKids; i++)
+    {
+	if (XtIsManaged(MGR_Children(_w)[i]) &&
+	    MGR_Children(_w)[i] != SB_ListLabel(_w) &&
+	    (SB_List(_w)
+		? MGR_Children(_w)[i] != XtParent(SB_List(_w))
+		: True) &&
+	    MGR_Children(_w)[i] != SB_SelectionLabel(_w) &&
+	    MGR_Children(_w)[i] != SB_Text(_w) &&
+	    MGR_Children(_w)[i] != SB_Separator(_w) &&
+	    MGR_Children(_w)[i] != SB_OkButton(_w) &&
+	    MGR_Children(_w)[i] != SB_ApplyButton(_w) &&
+	    MGR_Children(_w)[i] != SB_HelpButton(_w) &&
+	    MGR_Children(_w)[i] != BB_CancelButton(_w))
+	{
+	    nextras++;
+	}
+    }
+
+    if (nextras)
+	extras = (Widget *)XtMalloc(sizeof(Widget) * nextras);
+
+    nextras = 0;
+    for (i = 0; i < numKids; i++)
+    {
+	if (XtIsManaged(MGR_Children(_w)[i]) &&
+	    MGR_Children(_w)[i] != SB_ListLabel(_w) &&
+	    (SB_List(_w)
+		? MGR_Children(_w)[i] != XtParent(SB_List(_w))
+		: True) &&
+	    MGR_Children(_w)[i] != SB_SelectionLabel(_w) &&
+	    MGR_Children(_w)[i] != SB_Text(_w) &&
+	    MGR_Children(_w)[i] != SB_Separator(_w) &&
+	    MGR_Children(_w)[i] != SB_OkButton(_w) &&
+	    MGR_Children(_w)[i] != SB_ApplyButton(_w) &&
+	    MGR_Children(_w)[i] != SB_HelpButton(_w) &&
+	    MGR_Children(_w)[i] != BB_CancelButton(_w))
+	{
+	    extras[nextras] = MGR_Children(_w)[i];
+	    nextras++;
+	}
+    }
+
+    nrows = 0;
+
+    /* note the starting from one.  The zero'th child is the "work area" */
+    if (nextras > 0) {
+	for (i = 1; i < nextras; i++) {
+	    if (XmIsMenuBar(extras[i]) && XtIsManaged(extras[i]))
+		nrows++;
+	}
+	if (extras[0] && XtIsManaged(extras[0]))
+	    nrows++;
+    }
+
+    if (SB_ListLabel(_w) && XtIsManaged(SB_ListLabel(_w)))
+	nrows++;
+
+    if (SB_List(_w) && XtIsManaged(SB_List(_w)))
+	nrows++;
+
+    if (SB_SelectionLabel(_w) && XtIsManaged(SB_SelectionLabel(_w)))
+	nrows++;
+
+    if (SB_Text(_w) && XtIsManaged(SB_Text(_w)))
+	nrows++;
+
+    if (SB_Separator(_w) && XtIsManaged(SB_Separator(_w)))
+	nrows++;
+
+    if ((BB_CancelButton(_w) && XtIsManaged(BB_CancelButton(_w))) ||
+        (SB_OkButton(_w)     && XtIsManaged(SB_OkButton(_w))) ||
+        (SB_ApplyButton(_w)  && XtIsManaged(SB_ApplyButton(_w))) ||
+        (SB_HelpButton(_w)   && XtIsManaged(SB_HelpButton(_w))))
+	nrows++;
+    else {
+	for (i = i; i < nextras; i++) {
+	    if (extras[i] && XtIsManaged(extras[i]) &&
+		(XmIsPushButton(extras[i]) || XmIsPushButtonGadget(extras[i])))
+	    {
+		nrows++;
+		break;
+	    }
+	}
+    }
+
+    geoSpec = _XmGeoMatrixAlloc(nrows, numKids, 0);
+    geoSpec->composite = (Widget)_w;
+    geoSpec->instigator = (Widget)_from;
+    if (_pref)
+	geoSpec->instig_request = *_pref;
+    geoSpec->margin_w = BB_MarginWidth(_w) + MGR_ShadowThickness(_w);
+    geoSpec->margin_h = BB_MarginHeight(_w) + MGR_ShadowThickness(_w);
+    geoSpec->no_geo_request = _XmSelectionBoxNoGeoRequest;
+
+    layoutPtr = &(geoSpec->layouts->row);
+    boxPtr = geoSpec->boxes;
+
+    for (i = 1; i < nextras; i++) {
+	if (XmIsMenuBar(extras[i]) && XtIsManaged(extras[i]))
+	{
+	    layoutPtr->fix_up = _XmMenuBarFix;
+	    layoutPtr->space_above = 0;
+	    boxPtr += 2;
+	    layoutPtr++;
+	}
+    }
+
+    if (SB_ChildPlacement(_w) == XmPLACE_TOP && nextras &&
+	extras[0] && XtIsManaged(extras[0]) &&
+	_XmGeoSetupKid(boxPtr, extras[0]))
+    {
+	    layoutPtr->stretch_height = 1;
+	    layoutPtr->fill_mode = XmGEO_EXPAND;
+	    layoutPtr->even_width = 1;
+	    layoutPtr->even_height = 1;
+	    layoutPtr->space_above = BB_MarginHeight(_w);
+	    layoutPtr++;
+	    boxPtr += 2;
+	    nrows++;
+    }
+
+    if (SB_DialogType(_w) == XmDIALOG_PROMPT &&
+	SB_ChildPlacement(_w) == XmPLACE_ABOVE_SELECTION && nextras &&
+	extras[0] && XtIsManaged(extras[0]) &&
+	_XmGeoSetupKid(boxPtr, extras[0]))
+    {
+	    layoutPtr->stretch_height = 1;
+	    layoutPtr->fill_mode = XmGEO_EXPAND;
+	    layoutPtr->even_width = 1;
+	    layoutPtr->even_height = 1;
+	    layoutPtr->space_above = BB_MarginHeight(_w);
+	    layoutPtr++;
+	    boxPtr += 2;
+	    nrows++;
+    }
+
+    newRow = False;
+    if (SB_ListLabel(_w) && XtIsManaged(SB_ListLabel(_w)) &&
+	_XmGeoSetupKid(boxPtr, SB_ListLabel(_w)))
+    {
+	layoutPtr->fill_mode = XmGEO_EXPAND;
+	layoutPtr->fit_mode = XmGEO_PROPORTIONAL;
+	layoutPtr->even_width = 1;
+	layoutPtr->even_height = 1;
+	layoutPtr->space_above = BB_MarginHeight(_w);
+	layoutPtr->space_between = BB_MarginWidth(_w);
+	newRow = TRUE;
+	boxPtr++;
+    }
+
+    if (newRow)
+    {
+	layoutPtr++;
+	boxPtr++;
+    }
+
+    if (SB_DialogType(_w) == XmDIALOG_COMMAND &&
+	SB_ChildPlacement(_w) == XmPLACE_ABOVE_SELECTION && nextras &&
+	extras[0] && XtIsManaged(extras[0]) &&
+	_XmGeoSetupKid(boxPtr, extras[0]))
+    {
+	    layoutPtr->stretch_height = 1;
+	    layoutPtr->fill_mode = XmGEO_EXPAND;
+	    layoutPtr->even_width = 1;
+	    layoutPtr->even_height = 1;
+	    layoutPtr->space_above = BB_MarginHeight(_w);
+	    layoutPtr++;
+	    boxPtr += 2;
+	    nrows++;
+    }
+
+    newRow = FALSE;
+    if (SB_List(_w) && XtIsManaged(SB_List(_w)) &&
+	_XmGeoSetupKid(boxPtr, XtParent(SB_List(_w))))
+    {
+	layoutPtr->stretch_height = 1;
+	layoutPtr->fill_mode = XmGEO_EXPAND;
+	layoutPtr->fit_mode = XmGEO_PROPORTIONAL;
+	layoutPtr->even_width = 1;
+	layoutPtr->even_height = 1;
+	layoutPtr->space_above = 0; /* BB_MarginHeight(_w); */
+	layoutPtr->space_between = BB_MarginWidth(_w);
+	newRow = TRUE;
+	boxPtr++;
+    }
+
+    if (newRow)
+    {
+	layoutPtr++;
+	boxPtr++;
+    }
+
+    if (SB_DialogType(_w) != XmDIALOG_COMMAND &&
+	SB_DialogType(_w) != XmDIALOG_PROMPT &&
+	SB_ChildPlacement(_w) == XmPLACE_ABOVE_SELECTION && nextras &&
+	extras[0] && XtIsManaged(extras[0]) &&
+	_XmGeoSetupKid(boxPtr, extras[0]))
+    {
+	    layoutPtr->stretch_height = 1;
+	    layoutPtr->fill_mode = XmGEO_EXPAND;
+	    layoutPtr->even_width = 1;
+	    layoutPtr->even_height = 1;
+	    layoutPtr->space_above = BB_MarginHeight(_w);
+	    layoutPtr++;
+	    boxPtr += 2;
+	    nrows++;
+    }
+
+    if (SB_SelectionLabel(_w) && XtIsManaged(SB_SelectionLabel(_w)) &&
+	_XmGeoSetupKid(boxPtr, SB_SelectionLabel(_w)))
+    {
+	layoutPtr->fill_mode = XmGEO_EXPAND;
+	layoutPtr->even_width = 0;
+	layoutPtr->even_height = 1;
+	layoutPtr->space_above = BB_MarginHeight(_w);
+	layoutPtr++;
+	boxPtr += 2;
+    }
+
+    if (SB_Text(_w) && XtIsManaged(SB_Text(_w)) &&
+	_XmGeoSetupKid(boxPtr, SB_Text(_w)))
+    {
+	layoutPtr->fill_mode = XmGEO_EXPAND;
+	layoutPtr->stretch_height = 0;
+	layoutPtr->even_height = 1;
+	layoutPtr->even_width = 0;
+	layoutPtr->space_above = 0; /* BB_MarginHeight(_w); */
+	boxPtr += 2;
+	layoutPtr++;
+    }
+
+    if (SB_ChildPlacement(_w) == XmPLACE_BELOW_SELECTION && nextras &&
+	extras[0] && XtIsManaged(extras[0]) &&
+	_XmGeoSetupKid(boxPtr, extras[0]))
+    {
+	    layoutPtr->stretch_height = 1;
+	    layoutPtr->fill_mode = XmGEO_EXPAND;
+	    layoutPtr->even_width = 1;
+	    layoutPtr->even_height = 1;
+	    layoutPtr->space_above = BB_MarginHeight(_w);
+	    layoutPtr++;
+	    boxPtr += 2;
+	    nrows++;
+    }
+
+    if (SB_Separator(_w) && XtIsManaged(SB_Separator(_w)) &&
+	_XmGeoSetupKid( boxPtr, SB_Separator(_w)))
+    {
+	layoutPtr->fix_up = _XmSeparatorFix;
+	layoutPtr->space_above = BB_MarginHeight(_w);
+	boxPtr += 2;
+	layoutPtr++;
+    }
+
+    newRow = False;
+    if (SB_OkButton(_w)     && XtIsManaged(SB_OkButton(_w)) &&
+	_XmGeoSetupKid(boxPtr++, SB_OkButton(_w))) {
+	layoutPtr->fill_mode = XmGEO_CENTER;
+	layoutPtr->fit_mode = XmGEO_WRAP;
+	layoutPtr->even_width = 1;
+	layoutPtr->even_height = 1;
+	layoutPtr->space_above = BB_MarginHeight(_w);
+	newRow = True;
+    }
+    for (i = 1; i < nextras; i++)
+    {
+	if (extras[i] && XtIsManaged(extras[i]) &&
+	    (XmIsPushButton(extras[i]) || XmIsPushButtonGadget(extras[i])) &&
+	    _XmGeoSetupKid(boxPtr++, extras[i]))
+	{
+	    layoutPtr->fill_mode = XmGEO_CENTER;
+	    layoutPtr->fit_mode = XmGEO_WRAP;
+	    layoutPtr->even_width = 1;
+	    layoutPtr->even_height = 1;
+	    layoutPtr->space_above = BB_MarginHeight(_w);
+	    newRow = True;
+	}
+    }
+
+    if (SB_ApplyButton(_w)  && XtIsManaged(SB_ApplyButton(_w)) &&
+	_XmGeoSetupKid(boxPtr++, SB_ApplyButton(_w))) {
+	layoutPtr->fill_mode = XmGEO_CENTER;
+	layoutPtr->fit_mode = XmGEO_WRAP;
+	layoutPtr->even_width = 1;
+	layoutPtr->even_height = 1;
+	layoutPtr->space_above = BB_MarginHeight(_w);
+	newRow = True;
+    }
+    if (BB_CancelButton(_w) && XtIsManaged(BB_CancelButton(_w)) &&
+	_XmGeoSetupKid(boxPtr++, BB_CancelButton(_w))) {
+	layoutPtr->fill_mode = XmGEO_CENTER;
+	layoutPtr->fit_mode = XmGEO_WRAP;
+	layoutPtr->even_width = 1;
+	layoutPtr->even_height = 1;
+	layoutPtr->space_above = BB_MarginHeight(_w);
+	newRow = True;
+    }
+    if (SB_HelpButton(_w)   && XtIsManaged(SB_HelpButton(_w)) &&
+	_XmGeoSetupKid(boxPtr++, SB_HelpButton(_w))) {
+	layoutPtr->fill_mode = XmGEO_CENTER;
+	layoutPtr->fit_mode = XmGEO_WRAP;
+	layoutPtr->even_width = 1;
+	layoutPtr->even_height = 1;
+	layoutPtr->space_above = BB_MarginHeight(_w);
+	newRow = True;
+    }
+
+    if (newRow)
+    {
+	layoutPtr++;
+	boxPtr++;
+    }
+
+    layoutPtr->space_above = 0; /* BB_MarginHeight(_w); */
+    layoutPtr->end = TRUE;
+    return(geoSpec);
+}
+----------------
+
+While it may look scary, once you understand what it is doing, it really
+isn't.  You can see the advantage of using the GeoUtils in SelectionBox;
+other than the code above, there really isn't any trace of geometry management
+in SelectionBox -- it's all taken care of automagically.
+
+Another point to note is SelectionBox's no_geo_request() method -- it's
+slightly different, as the Command widget class doesn't even _have_ a
+geo_matrix_create() method -- instead, it inherits SelectionBox's.
+
+----------------
+Boolean
+_XmSelectionBoxNoGeoRequest(XmGeoMatrix _geoSpec)
+{
+    if (BB_InSetValues(_geoSpec->composite) && 
+	(XtClass(_geoSpec->composite) == xmSelectionBoxWidgetClass ||
+	 XtClass(_geoSpec->composite) == xmCommandWidgetClass))
+	return TRUE;
+
+    return FALSE;
+}
+-----------------
+
+
+
+7.0 Conclusion and Credits
+==========================
+
+Well, that about wraps things up.
+
+Please keep in mind when reading this document that I'm still discovering
+new things in the GeoUtils, and I may not be accurate in some places;  I'd
+dearly like feedback from those of you who really know the Motif
+implementation to point out where I'm wrong.  Also, if you know texinfo, and
+want to volunteer to convert this document, please send email to
+<miers@packet.net>.
+
+I'd like to thank John Cwikla (again), for providing sample code about how
+to subclass using the GeoUtils; Chris, for starting this project in the
+first place;  Danny, for motivating me to write this documentation (thin
+as it is) -- I guess it really IS a pain in the ass to have significant
+portions of your widgets based on somebody else's undocumented code (I think
+there may be two or three informational comments in GeoUtils;); and the rest
+of the core team (Rob, Peter, perhaps a few more) for helping out; the team
+as a whole, for putting up with my BS (what? me opinionated?  Nah).
+
+Mitch

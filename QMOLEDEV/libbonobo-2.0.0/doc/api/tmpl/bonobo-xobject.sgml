@@ -1,0 +1,237 @@
+<!-- ##### SECTION Title ##### -->
+BonoboXObject
+
+<!-- ##### SECTION Short_Description ##### -->
+a simplified CORBA server object wrapper
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+BonoboXObject provides an easy to use way of writing CORBA servers. However,
+for libbonobo-2.0, all its functionality has been merged with
+#BonoboObject, which is the one that should be used for writing
+Bonobo/CORBA servers.
+</para>
+
+<para>
+The CORBA methods are associated with a Gtk class in the same
+way that standard Gtk+ methods and signals are. We insert the
+CORBA generated Entry Point Vector (epv) struct as the first
+element of the derived class eg.
+  <example>
+     <title>Setting up the GtkClass data</title>
+     <programlisting>
+typedef struct {
+	BonoboXObject base;
+
+	BonoboControlPrivate *priv;
+} BonoboControl;
+
+typedef struct {
+	BonoboXObjectClass      parent_class;
+
+	POA_Bonobo_Control__epv epv;
+
+	/* Signals. */
+	void (*set_frame)      (BonoboControl *control);
+	void (*activate)       (BonoboControl *control, gboolean state);
+} BonoboControlClass;
+     </programlisting>
+  </example>
+</para>
+
+<para>
+Then we set up the type using the <function>bonobo_x_type_unique</function>
+function instead of gtk_type_unique ( but otherwise in the standard Gtk+
+fashion ).
+  <example>
+     <title>Registering the type with bonobo</title>
+     <programlisting>
+GtkType
+bonobo_control_get_type (void)
+{
+	GtkType ptype;
+	static GtkType type = 0;
+
+	if (type == 0) {
+		static GtkTypeInfo info = {
+			"BonoboControl",
+			sizeof (BonoboControl),
+			sizeof (BonoboControlClass),
+			(GtkClassInitFunc)bonobo_control_class_init,
+			(GtkObjectInitFunc)bonobo_control_init,
+			NULL, NULL, (GtkClassInitFunc) NULL
+		};
+		ptype = (parent);
+		type = bonobo_x_type_unique (ptype,
+			POA_Bonobo_Control__init, NULL,
+			GTK_STRUCT_OFFSET (BonoboControlClass, epv),
+			&amp;info);
+	}
+	return type;
+}
+     </programlisting>
+  </example>
+  Alternatively one can use the simpler BONOBO_X_TYPE_FUNC_FULL
+macros to achieve the same thing thus:
+  <example>
+     <title>Registering the type more simply</title>
+     <programlisting>
+BONOBO_X_TYPE_FUNC_FULL (BonoboControl, Bonobo_Control,
+                         PARENT_TYPE, bonobo_control);
+     </programlisting>
+  </example>
+
+  The POA_Bonobo_Control__init function is used to construct the CORBA object
+and the GTK_STRUCT_OFFSET tells Bonobo where your epv structure is
+in the Class data, so it can build your epv for you.
+  The fini_fn function is not used in ORBit, so it is faster to use NULL here.
+</para>
+<para>
+After registering the type in the class initialization function, we
+must fill out the epv with our entry points, similar to the way we
+hook up virtual class functions. It may also be necessary to override
+the parent's epv's; this can be done by accessing the epv pointer for
+the parent class.
+  <example>
+     <title>Setting up the class' methods</title>
+     <programlisting>
+static void
+bonobo_control_class_init (BonoboControlClass *klass)
+{
+	GtkObjectClass *object_class = (GtkObjectClass *)klass;
+	POA_Bonobo_Control__epv *epv = &amp;klass->epv;
+
+	bonobo_control_parent_class = gtk_type_class (PARENT_TYPE);
+
+	...
+
+	object_class->destroy  = bonobo_control_destroy;
+	object_class->finalize = bonobo_control_finalize;
+
+	epv->activate       = impl_Bonobo_Control_activate;
+	epv->setSize        = impl_Bonobo_Control_setSize;
+	...
+	epv->realize        = impl_Bonobo_Control_realize;
+	epv->unrealize      = impl_Bonobo_Control_unrealize;
+}
+     </programlisting>
+  </example>
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+#BonoboObject
+</para>
+
+<!-- ##### MACRO BONOBO_X_OBJECT_TYPE ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO BONOBO_X_OBJECT_HEADER_SIZE ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO BONOBO_X_OBJECT_GET_SERVANT ##### -->
+<para>
+
+</para>
+
+@o: 
+
+
+<!-- ##### MACRO BONOBO_X_SERVANT_GET_OBJECT ##### -->
+<para>
+
+</para>
+
+@o: 
+
+
+<!-- ##### MACRO BonoboXObject ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO BonoboXObjectClass ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO bonobo_x_object ##### -->
+<para>
+
+</para>
+
+@Returns: 
+<!-- # Unused Parameters # -->
+@p: 
+
+
+<!-- ##### MACRO BonoboXObjectPOAFn ##### -->
+<para>
+
+</para>
+
+<!-- # Unused Parameters # -->
+@servant: 
+@ev: 
+
+
+<!-- ##### MACRO bonobo_x_type_unique ##### -->
+<para>
+
+</para>
+
+@Returns: 
+<!-- # Unused Parameters # -->
+@parent_type: 
+@init_fn: 
+@fini_fn: 
+@epv_struct_offset: 
+@info: 
+
+
+<!-- ##### MACRO bonobo_x_type_setup ##### -->
+<para>
+
+</para>
+
+@Returns: 
+<!-- # Unused Parameters # -->
+@type: 
+@init_fn: 
+@fini_fn: 
+@epv_struct_offset: 
+
+
+<!-- ##### MACRO BONOBO_X_TYPE_FUNC_FULL ##### -->
+<para>
+
+</para>
+
+@class_name: 
+@corba_name: 
+@parent: 
+@prefix: 
+
+
+<!-- ##### MACRO BONOBO_X_TYPE_FUNC ##### -->
+<para>
+
+</para>
+
+@class_name: 
+@parent: 
+@prefix: 
+
+

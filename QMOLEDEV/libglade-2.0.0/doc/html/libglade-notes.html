@@ -1,0 +1,432 @@
+<HTML
+><HEAD
+><TITLE
+>Libglade Programming Notes</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.74b"><LINK
+REL="HOME"
+TITLE="Libglade Reference Manual"
+HREF="libglade.html"><LINK
+REL="PREVIOUS"
+TITLE="Libglade Reference Manual"
+HREF="libglade.html"><LINK
+REL="NEXT"
+TITLE="Libglade Modules"
+HREF="libglade-modules.html"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+WIDTH="100%"
+BORDER="0"
+BGCOLOR="#000000"
+CELLPADDING="1"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+><FONT
+COLOR="#FFFFFF"
+SIZE="5"
+>Libglade Reference Manual</FONT
+></TH
+></TR
+><TR
+><TD
+WIDTH="25%"
+BGCOLOR="#C00000"
+ALIGN="left"
+><A
+HREF="libglade.html"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>&#60;&#60;&#60; Previous Page</B
+></FONT
+></A
+></TD
+><TD
+WIDTH="25%"
+BGCOLOR="#0000C0"
+ALIGN="center"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+><A
+HREF="libglade.html"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>Home</B
+></FONT
+></A
+></B
+></FONT
+></TD
+><TD
+WIDTH="25%"
+BGCOLOR="#00C000"
+ALIGN="center"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>&nbsp;</B
+></FONT
+></TD
+><TD
+WIDTH="25%"
+BGCOLOR="#C00000"
+ALIGN="right"
+><A
+HREF="libglade-modules.html"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>Next Page &#62;&#62;&#62;</B
+></FONT
+></A
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="LIBGLADE-NOTES"
+>Libglade Programming Notes</A
+></H1
+><DIV
+CLASS="TOC"
+><DL
+><DT
+><B
+>Table of Contents</B
+></DT
+><DT
+><A
+HREF="libglade-notes.html#LIBGLADE-BASICS"
+>Libglade Programming Basics</A
+></DT
+><DT
+><A
+HREF="libglade-modules.html"
+>Libglade Modules</A
+></DT
+><DT
+><A
+HREF="libglade-i18n.html"
+>Internationalisation with Libglade</A
+></DT
+><DT
+><A
+HREF="libglade-extending.html"
+>Extending Libglade</A
+></DT
+><DT
+><A
+HREF="libglade-embedding.html"
+>Embedding Libglade Interfaces</A
+></DT
+></DL
+></DIV
+><P
+>Libglade is an alternative to using Glade's code generation.
+    Instead of generating code from the XML interface description,
+    libglade loads and parses the description at runtime.  It also
+    provides functions that can be used to connect signal handlers to
+    parts of the interface.</P
+><P
+>In this way, it allows you to separate your program code
+    from the interface code.  In fact, if you use the
+    glade_xml_signal_autoconnect() function, the GUI code could be as
+    simple as the <TT
+CLASS="FILENAME"
+>test-libglade.c</TT
+> example that
+    comes with libglade.  Of course, you would also add your own
+    signal handlers to the code.  Note that the signals are connected
+    the same way as if you had hand coded the interface.  There is no
+    extra overhead to user interfaces constructed by libglade (after
+    the initial generating of course, and this is not much of an
+    overhead) when compared to a hand crafted interface.</P
+><BR
+CLEAR="all"><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="LIBGLADE-BASICS"
+>Libglade Programming Basics</A
+></H1
+><P
+>Your basic libglade program will look something like this:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#D6E8FF"
+WIDTH="100%"
+CELLPADDING="6"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>#include &#60;gtk/gtk.h&#62;
+#include &#60;glade/glade.h&#62;
+
+void some_signal_handler_func(GtkWidget *widget, gpointer user_data) {
+  /* do something useful here */
+}
+
+int main(int argc, char *argv[]) {
+    GladeXML *xml;
+
+    gtk_init(&#38;argc, &#38;argv);
+
+    /* load the interface */
+    xml = glade_xml_new("filename.glade", NULL, NULL);
+
+    /* connect the signals in the interface */
+    glade_xml_signal_autoconnect(xml);
+
+    /* start the event loop */
+    gtk_main();
+
+    return 0;
+}</PRE
+></TD
+></TR
+></TABLE
+><P
+>This will create the interface from the file
+      <TT
+CLASS="FILENAME"
+>filename.glade</TT
+>, then connect all the
+      signals in the interface.  The automatic signal connection is
+      done by looking up function names in the global symbol table
+      using gmodule.  This means that the interface file can use
+      standard GTK functions such as
+      <TT
+CLASS="FUNCTION"
+>gtk_widget_show</TT
+>, or
+      <TT
+CLASS="FUNCTION"
+>gtk_main_quit</TT
+>, or others in the interface
+      and not have to write any code to connect the signals.</P
+><P
+>The <TT
+CLASS="FUNCTION"
+>some_signal_handler_func</TT
+> function
+      is not referenced anywhere in the program explicitely, but if
+      any signals are defined in the interface description that use
+      "some_signal_handler_func" as the handler name, then this
+      function will automatically be connected.  Note that the
+      function can not be static, since we require it to apear in the
+      symbol table.  Here is an example of the XML that would cause
+      <TT
+CLASS="FUNCTION"
+>some_signal_handler_func</TT
+> to be
+      connected:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#D6E8FF"
+WIDTH="100%"
+CELLPADDING="6"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>&#60;widget class="GtkWindow" id="MainWindow"&#62;
+  &#60;property name="visible"&#62;yes&#60;/property&#62;
+  &#60;signal name="destroy" handler="some_signal_handler_func" /&#62;
+  ...
+&#60;/widget&#62;</PRE
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>Note: </B
+>If you wish to autoconnect handlers defined in the main
+	executable (not a shared library), you will need to pass a
+	linker flag to export the executable's symbols for dynamic
+	linking.  This flag is platform specific, but libtool can take
+	care of this for you.  Just add
+	<TT
+CLASS="PARAMETER"
+><I
+>-export-dynamic</I
+></TT
+> argument to your link
+	flags, and libtool will convert it to the correct
+	format.</P
+><P
+>Many people did not see this problem on GNU/Linux with
+	GTK+ 1.2, because the <B
+CLASS="COMMAND"
+>gtk-config</B
+> script
+	adds the correct flag on that platform.  Such programs would
+	sometimes break when run on alternative platforms.</P
+></BLOCKQUOTE
+></DIV
+><P
+>To compile the program, we would use the following:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#D6E8FF"
+WIDTH="100%"
+CELLPADDING="6"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>cc -o testprogram testprogram.c `pkg-config --cflags --libs libglade-2.0`</PRE
+></TD
+></TR
+></TABLE
+><P
+>The <B
+CLASS="COMMAND"
+>pkg-config</B
+> program is used to
+      deduce the compiler and link flags necessary to compile various
+      modules.  If you are using automake or autoconf, you probably
+      want to use the PKG_CHECK_MODULES macro.  This can be used to
+      check for the presence of a collection of a number of packages,
+      and set some shell variables:</P
+><TABLE
+BORDER="0"
+BGCOLOR="#D6E8FF"
+WIDTH="100%"
+CELLPADDING="6"
+><TR
+><TD
+><PRE
+CLASS="PROGRAMLISTING"
+>PKG_CHECK_MODULES(MYPROG, libglade-2.0 libgnomeui-2.0 &#62;= 1.110.0)
+AC_SUBST(MYPROG_CFLAGS)
+AC_SUBST(MYPROG_LIBS)</PRE
+></TD
+></TR
+></TABLE
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><BR
+CLEAR="all"><BR><TABLE
+WIDTH="100%"
+BORDER="0"
+BGCOLOR="#000000"
+CELLPADDING="1"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="25%"
+BGCOLOR="#C00000"
+ALIGN="left"
+><A
+HREF="libglade.html"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>&#60;&#60;&#60; Previous Page</B
+></FONT
+></A
+></TD
+><TD
+WIDTH="25%"
+BGCOLOR="#0000C0"
+ALIGN="center"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+><A
+HREF="libglade.html"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>Home</B
+></FONT
+></A
+></B
+></FONT
+></TD
+><TD
+WIDTH="25%"
+BGCOLOR="#00C000"
+ALIGN="center"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>&nbsp;</B
+></FONT
+></TD
+><TD
+WIDTH="25%"
+BGCOLOR="#C00000"
+ALIGN="right"
+><A
+HREF="libglade-modules.html"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>Next Page &#62;&#62;&#62;</B
+></FONT
+></A
+></TD
+></TR
+><TR
+><TD
+COLSPAN="2"
+ALIGN="left"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>Libglade Reference Manual</B
+></FONT
+></TD
+><TD
+COLSPAN="2"
+ALIGN="right"
+><FONT
+COLOR="#FFFFFF"
+SIZE="3"
+><B
+>Libglade Modules</B
+></FONT
+></TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

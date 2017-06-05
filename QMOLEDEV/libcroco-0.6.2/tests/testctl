@@ -1,0 +1,424 @@
+#! /bin/sh
+
+#####################################
+#This script just runs the tests of 
+#libcroco, saves their result, diff them
+#against a set of reference results and
+#displays OK/KO.
+#To use it as a tester, the best way is
+#just to run 'testctl run' and see the result.
+####################################
+
+#the directory that contains the tests sources is:
+#$TEST_SOURCE_DIR. User can set this var in the environment
+#before calling this script. Otherwise, we set it to a default value
+if test x$TEST_SOURCE_DIR = x ; then
+	TEST_SOURCE_DIR=`dirname "$0"`
+fi
+
+#the directory that contains the test outputs is:
+#$TEST_OUT_DIR
+#User can set this var in the environment before
+#calling this script. Otherwise, we set it to a default value.
+if test x$TEST_OUT_DIR = x ; then
+	TEST_OUT_DIR=tests
+fi
+
+
+#the list of tests to be run
+TEST_PROG_LIST=
+
+#the test input dirs.
+TEST_INPUT_DIR=test-inputs
+
+#the reference test output dirs.
+TEST_OUT_REF_DIR=test-output-refs
+
+#temporary test result dir
+TEST_OUTPUT_DIR=test-outputs
+
+ERROR_REPORT_FILE=tests-error.log
+COMMAND_LIST=
+COMMAND=
+if test x$RUN_VALGRIND = x ; then
+    RUN_VALGRIND=no
+else
+    RUN_VALGRIND=yes
+fi
+if test "x$CHECKER" = "x" ; then
+    CHECKER="valgrind --tool=memcheck"
+fi
+
+VALGRIND_LOGS_DIR=valgrind-logs
+VALGRIND=
+TEST_PROG=
+EGREP=`which egrep`
+if test "empty$EGREP" = "empty" ; then
+    echo "You don't have the egrep program installed"
+    echo "Please, install it first"
+fi
+
+DIFF=`which diff`
+if test "empty$DIFF" = "empty" ; then
+    echo "You don't have the diff program installed"
+    echo "Please, install is first"
+fi
+
+display_usage ()
+{
+    echo ""
+    echo "usage: $0 [general options] <command> [command option]"
+    echo ""
+    echo "where general options are:"
+    echo "===================="
+    echo "-h|--help     displays this help"
+    echo ""
+    echo "commands are:"
+    echo "=============="
+    echo "run           run the tests and display their result"
+    echo "ref           run the tests but saves their output as a reference"
+    echo "cleanup       removes the tmp directories that may have been created"    
+    echo ""
+    echo "run command options:"
+    echo "--valgrind runs the test using valgrind"
+    echo "--testprog <test program>"
+}
+
+parse_command_line ()
+{
+    if test "empty$1" = "empty" ; then
+	display_usage ;
+	exit -1
+    fi
+
+    while true ; do
+	arg=$1
+
+	if test "empty$arg" = "empty" ; then
+	    break ;
+	fi
+
+	case "$arg" in
+	    -h|--help)
+		display_usage $@
+		exit 0
+		;;
+
+	    -*)
+		echo "$0: unknown option: $arg"
+		display_usage $@
+		exit 0
+		;;
+
+	    run|ref|cleanup)		
+		COMMAND_LIST=$arg
+		REMAINING_ARGS=$@
+		echo "REMAINING_ARGS=$REMAINING_ARGS"
+		break ;
+		;;
+
+	    *)
+		display_usage $@
+		exit 0
+		;;
+	esac
+    done
+}
+
+
+#builds the list of available test functions.
+build_tests_list ()
+{
+    for TEST_PROG in "$TEST_SOURCE_DIR"/test*.sh "$TEST_OUT_DIR"/test?; do
+	TEST_PROG=`basename $TEST_PROG`	
+	echo "run test: $TEST_PROG"
+	TEST_PROG_LIST="$TEST_PROG_LIST $TEST_PROG"
+    done
+}
+
+#runs a test programs.
+#usage run_test_prog <test-name> <reference> <display-on-stdout>
+#where "test-name" is the name of the test program to run
+#"reference" is a boolean value: yes/no. (the string "yes" or the string no)
+#if yes, means that the output of the test is to be saved as a reference.
+#if no, means that the output of the test is to be saved as a result of a test.
+run_test_prog ()
+{
+    TEST_PROG="$1"
+    REFERENCE="$2"
+    DISPLAY_ON_STDOUT="$3"
+    OUTPUT_DIR=
+    OUTPUT_SUFFIX=
+    TEST_INPUT_LIST=
+    VALGRIND_OPTIONS="--error-limit=no --num-callers=100 --logfile=$TEST_OUT_DIR/$VALGRIND_LOGS_DIR/$TEST_PROG-valgrind.log  --leak-check=yes --show-reachable=yes --quiet --suppressions=$TEST_SOURCE_DIR/vg.supp"
+    if test x$RUN_VALGRIND = xno ; then
+	VALGRIND=
+    else
+	if ! test -x "$TEST_SOURCE_DIR"/valgrind-version.sh ; then
+	    echo "Argh! Could not find file $TEST_SOURCE_DIR/valgrind-version.sh"
+	    exit -1 ;
+	fi
+	version=`"$TEST_SOURCE_DIR"/valgrind-version.sh`
+	if ! test "x$version" = "xokay" ; then
+	    echo "You must install a valgrind version greater than 2.1.1"
+	    echo "version=$version"
+	    exit -1
+	fi
+	if test "x$CHECKER" = "x" ; then
+	    VALGRIND=`which valgrind`
+	    if test "x$VALGRIND" = x ; then
+		echo "Could not find valgrind in your path"
+	    else
+		VALGRIND="$VALGRIND $VALGRIND_OPTIONS"
+		echo "Gonna run the tests with valgrind, using the following options: $VALGRIND_OPTIONS"
+	    fi
+	else
+	    VALGRIND="$CHECKER $VALGRIND_OPTIONS"
+	    echo "Gonna run the tests with valgrind, using the cmd line: $VALGRIND"
+	fi
+    fi
+    export VALGRIND
+    case "$TEST_PROG" in
+      *.sh) is_shell_script=yes ;;
+      *)    is_shell_script=no ;;
+    esac
+
+    if ! test -d "$TEST_OUT_DIR/$VALGRIND_LOGS_DIR" ; then
+	mkdir "$TEST_OUT_DIR/$VALGRIND_LOGS_DIR"
+    fi
+
+    for TEST_INPUT in `ls -1 "$TEST_SOURCE_DIR/$TEST_INPUT_DIR" | egrep "^${TEST_PROG}"'[.0-9]+css$'` ; do
+	TEST_INPUT_LIST="$TEST_INPUT_LIST $TEST_INPUT"
+    done
+
+    if test "$REFERENCE" = "yes" ; then
+	OUTPUT_DIR="$TEST_SOURCE_DIR/$TEST_OUT_REF_DIR"
+	OUTPUT_SUFFIX=.out
+    else
+	OUTPUT_DIR="$TEST_OUT_DIR/$TEST_OUTPUT_DIR"
+	OUTPUT_SUFFIX=.out
+	if test ! -d "$OUTPUT_DIR" ; then
+	    echo "creating tmp directory $OUTPUT_DIR ..."
+	    mkdir "$OUTPUT_DIR"
+	    echo "done"
+	fi
+    fi
+
+    if test "empty$TEST_INPUT_LIST" != "empty" ; then
+	for TEST_INPUT in $TEST_INPUT_LIST ; do
+	    TEST_INPUT_NAME=`basename $TEST_INPUT .sh`
+	    if test "$DISPLAY_ON_STDOUT" = "yes" ; then
+		echo "###############################################"
+		echo "launching $VALGRIND $TEST_PROG $TEST_SOURCE_DIR/$TEST_INPUT_DIR/$TEST_INPUT"....
+		echo "###############################################"		
+		if test x$is_shell_script = xyes ; then
+		    "$TEST_SOURCE_DIR/$TEST_PROG" "$TEST_SOURCE_DIR/$TEST_INPUT_DIR/$TEST_INPUT"
+		else
+		    $VALGRIND "$TEST_OUT_DIR/.libs/$TEST_PROG" "$TEST_SOURCE_DIR/$TEST_INPUT_DIR/$TEST_INPUT"
+		fi		
+		echo "###############################################"
+		echo  "done"
+		echo "###############################################"
+		echo ""
+	    else
+		echo "executing $VALGRIND $TEST_PROG $TEST_SOURCE_DIR/$TEST_INPUT_DIR/$TEST_INPUT > $OUTPUT_DIR/${TEST_INPUT_NAME}${OUTPUT_SUFFIX} ..."
+		$VALGRIND "$TEST_OUT_DIR/.libs/$TEST_PROG" "$TEST_SOURCE_DIR/$TEST_INPUT_DIR/$TEST_INPUT" > "$OUTPUT_DIR/${TEST_INPUT_NAME}${OUTPUT_SUFFIX}"
+		echo "done"
+	    fi
+	done
+    else
+	if test "$DISPLAY_ON_STDOUT" = "yes" ; then
+	    echo "####################################################"
+	    echo "launching $VALGRIND $TEST_PROG ..."
+	    echo "####################################################"
+	    if test x$is_shell_script = xyes ; then
+		"$TEST_SOURCE_DIR/$TEST_PROG"
+	    else
+		$VALGRIND "$TEST_OUT_DIR/.libs/$TEST_PROG"
+	    fi
+	    echo "####################################################"
+	    echo "done"
+	    echo "####################################################"
+	    echo ""
+	else
+	    TEST_INPUT_NAME=`basename "$TEST_PROG" .sh`
+	    echo "executing $VALGRIND $TEST_PROG  > $OUTPUT_DIR/${TEST_PROG}${OUTPUT_SUFFIX} ..."
+	    if test x$is_shell_script = xyes ; then
+		"$TEST_SOURCE_DIR/$TEST_PROG" > "$OUTPUT_DIR/${TEST_INPUT_NAME}${OUTPUT_SUFFIX}"
+	    else
+		$VALGRIND "$TEST_OUT_DIR/.libs/$TEST_PROG" > "$OUTPUT_DIR/${TEST_INPUT_NAME}${OUTPUT_SUFFIX}"
+	    fi
+	    echo "done"
+	fi
+    fi
+    unset VALGRIND
+}
+
+cleanup_tests ()
+{
+    if test -d "$TEST_OUT_DIR/$TEST_OUTPUT_DIR" ; then
+	echo "removing $TEST_OUT_DIR/$TEST_OUTPUT_DIR/*"
+	rm -rf "$TEST_OUT_DIR/$TEST_OUTPUT_DIR"
+	rm -rf "$TEST_OUT_DIR/$VALGRIND_LOGS_DIR"
+    fi
+    if test -f "$TEST_OUT_DIR/$ERROR_REPORT_FILE" ; then
+	rm "$TEST_OUT_DIR/$ERROR_REPORT_FILE"
+    fi
+}
+
+run_test_report ()
+{
+    diff -ur --exclude='*CVS*' --exclude='*cvs*' --exclude='Makefile*' --exclude=.arch-ids "$TEST_SOURCE_DIR/$TEST_OUT_REF_DIR" "$TEST_OUT_DIR/$TEST_OUTPUT_DIR" > "$TEST_OUT_DIR/tmpdiff.$$"
+    NB_DIFF=`wc -l < "$TEST_OUT_DIR/tmpdiff.$$"`
+
+    if test "$NB_DIFF" -eq 0 ; then
+	echo "/////////////ALL THE TESTS ARE OK :) //////////////////"
+	rm "$TEST_OUT_DIR/tmpdiff.$$"
+    else
+	echo "SOME TESTS ARE KO :("
+	mv "$TEST_OUT_DIR/tmpdiff.$$" "$TEST_OUT_DIR/$ERROR_REPORT_FILE"
+	echo "See $TEST_OUT_DIR/$ERROR_REPORT_FILE to see what's going on"
+    fi
+
+    ###################
+    #Valgrind errors  #
+    ###################
+    memleaks=no
+    for vg_log in `find "$TEST_OUT_DIR/$VALGRIND_LOGS_DIR" -name '*-valgrind.log*' -print` ; do
+	if test -s "$vg_log" ; then
+	    leaks=`cat "$vg_log" | grep -i leak | grep -v no`
+	    errors=`cat "$vg_log" | grep -w Invalid`
+	    if test "x$leaks" = "x" -a "x$errors" = "x" ; then
+		rm -f "$vg_log" ;
+	    else
+		echo "valgrind reported some memory leaks/corruptions in $vg_log"
+		memleaks=yes
+	    fi
+	else
+	    rm "$vg_log"
+	fi
+    done
+    if test "x$RUN_VALGRIND" = "xyes" ; then
+	if test "x$memleaks" = "xno" ; then
+	    echo "Oh, YESSSSSS!, VALGRIND DID NOT DETECT ANY MEMLEAK !! You can go have a beer."
+	else
+	    echo "Please report these leaks by sending the valgrind logs to the authors of libcroco."
+	fi
+    fi
+}
+
+############################
+#Executes the "run" command along with
+#its command options.
+#For the sake of safety checking
+############################
+execute_run_cmd ()
+{
+    args=$@
+
+    if test "$1" != "run" ; then
+	echo "internal error: first argument should be \'run\'"
+	return
+    fi
+    shift
+
+    while true ; do
+	cur_arg=$1
+	echo "cur_arg=$cur_arg"
+
+	case $cur_arg in
+	    --valgrind)
+		RUN_VALGRIND=yes
+		shift
+		;;
+
+	    "--testprog")
+		shift
+		if test "empty$1" = "empty" ; then
+		    echo "--testprog should be followed by a prog name"
+		    display_usage
+		    exit
+		fi
+		TEST_PROG=$1
+		echo "TEST_PROG=$TEST_PROG"
+		shift
+		;;
+
+	    *)
+		break 
+		;;
+	esac
+    done
+
+    if test "empty$TEST_PROG" = "empty"; then
+	build_tests_list ;
+	if test "empty$TEST_PROG_LIST" = "empty" ; then
+	    echo "could not find any test to run"
+	    exit
+	fi
+
+	for TEST in $TEST_PROG_LIST ; do
+	    run_test_prog "$TEST" no no;
+	done
+	run_test_report ;
+    else
+	#run the test and display result on stdout
+	run_test_prog "$TEST_PROG" no yes ;
+    fi
+}
+
+##############################
+#Analyzes a command string "<command> [command option]"
+#and runs the necessary commands.
+#
+#Must be called with the command line
+#starting with a command name.
+#all the previous general argument must
+#have been stripped away.
+#############################
+execute_command ()
+{
+    arg="$1" ;
+
+    case "$arg" in
+
+	run)
+	    execute_run_cmd "$@"
+	    ;;
+
+	ref)
+	    build_tests_list ;
+	    if test "empty$TEST_PROG_LIST" = "empty" ; then
+		echo "could not find any test to run"
+		exit
+	    fi
+
+	    for TEST in $TEST_PROG_LIST ; do
+		run_test_prog "$TEST" yes no;
+	    done
+	    ;;
+
+	cleanup)
+	    cleanup_tests
+	    ;;
+
+	*)
+	    echo "unknown command"
+	    exit ;
+    esac
+    
+}
+
+main ()
+{
+    parse_command_line $@
+
+    if test "empty$COMMAND_LIST" = "empty" ; then
+	echo "no test command to execute"
+	exit
+    fi
+
+    execute_command $REMAINING_ARGS
+}
+
+main $@

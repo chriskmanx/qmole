@@ -1,0 +1,186 @@
+
+             Synthetic Resources and Resolution Independence
+             ===============================================
+
+
+1.0 Introduction
+================
+
+Synthetic resources are a mechanism included in Motif that allows a developer
+to modify resource values as collected by or assigned to the Xt resource
+mechanism.  That is, if a user should want to find the value of an Xt
+resource, but Motif would rather that the user not see the true value, the
+synthetic resource mechanism allows the Motif developer to "fake out" the
+Intrinsics, and replace the true instance variable values with modified values;
+alternatively, the toolkit may prefer to transform a user specified value
+into something more palatable by the toolkit.
+
+The more common usage of synthetic resources is to support resolution
+independence; however, the toolkit developers also realized that the
+mechanism provided a way to protect 'delicate' resources (i.e., those that
+it would be dangerous for the user to change, or those that would upset the
+toolkit if they were unexpectedly modified).
+
+
+
+2.0 Initialize, SetValues, and GetValuesHook Methods
+====================================================
+
+There are really five important classes in Motif; ExtObject, Gadget, Primitive,
+Manager and VendorShell; nearly every Motif widget class inherits behavior
+from one of these.  Some (e.g. XmDialogShell) inherit from more than one.
+While this may seem a statement of the obvious, it must be pointed out that
+the easiest way for a class to inherit behavior from a superclass is to
+subclass from the appropriate "Core" widget;  those aforementioned classes are
+the "Core" Motif classes (for objects, window-less widgets, core, constraint,
+and shell widgets respectively).  Thus, if we provide the Motif "Core" widgets
+the ability to handle synthetic resources, all subclasses will inherit that
+behavior.  In practice, the VendorShell class behavior is dictated by the X
+specification;  any special behavior related to the VendorShell must be
+specified in the VendorShell extension object, which is subclassed from
+ExtObj -- thus the true core widget set contains only four classes.
+
+There are only four class methods that deal with resource manipulation; the
+initialize() method, the set_values() method, the Constraint set_values()
+method, and the get_values_hook() method.  (Really there are two more, the
+set_values_almost() method, and the set_values_hook() method; the latter
+is obsolete, the former is in practice never used).
+
+In terms of resource manipulation, the Core set_values() method and the
+Constraint set_values() method can be combined, by simply checking to see if
+the parent is a Constraint (read Manager) subclass; the only difference is
+where the resources are defined (self or parent).  Second, the alterations
+that the initialize() method and the set_values() method perform based on the
+argument lists are identical; so we can use the same function for both.
+Therefore, we really have only two cases to handle -- the case where the user
+specifies the value for a resource (initialize() and set_values()), and the
+case where the user wants to find the value of a resource (get_values_hook()).
+
+Thus, there are two major sets of functions that implement the synthetic
+resource behavior: *ImportArgs, and *GetValuesHook (both of which appear
+in ResInd.c).
+
+
+
+3.0 Import and Export
+=====================
+
+There are five import and four export functions; the prototypes are as follows:
+
+void _XmExtImportArgs(Widget w, ArgList args, Cardinal *num_args);
+void _XmPrimitiveImportArgs(Widget w, ArgList args, Cardinal *num_args);
+void _XmGadgetImportArgs(Widget w, ArgList args, Cardinal *num_args);
+void _XmGadgetImportSecondaryArgs(Widget w, ArgList args, Cardinal *num_args);
+void _XmManagerImportArgs(Widget w, ArgList args, Cardinal *num_args);
+
+void _XmPrimitiveGetValuesHook(Widget w, ArgList args, Cardinal *num_args);
+void _XmGadgetGetValuesHook(Widget w, ArgList args, Cardinal *num_args);
+void _XmManagerGetValuesHook(Widget w, ArgList args, Cardinal *num_args);
+void _XmExtGetValuesHook(Widget w, ArgList args, Cardinal *num_args);
+
+The import functions are called from the initialize() and set_values() methods
+in the relevant widget classes directly.  The export functions are directly
+registered in the core get_values_hook() method.
+
+Note that there is an extra function unique to Gadgets --
+_XmGadgetImportSecondaryArgs().  This function is a result of the "cache"
+subparts that nearly all Gadgets have; it provides the mechanism to import
+and export resources from the subpart.
+
+The implementation of the functions is fairly ugly, and I wouldn't mind
+suggestions on how to improve their efficiency.  Essentially, they use
+a doubly nested loop, going through the resource request list, and finding
+matches in the Synthetic resource list.  If a match is found, the import
+or export proc in the Synthetic resource structure is invoked.
+
+I'll not go into further detail about how the Motif "core" widget classes
+hook into the synthetic resource mechanism.  If you read the code to Gadget,
+Primitive, or Manager, it is fairly obvious.  Instead, I'll discuss how the
+Synthetic resources are used.  One fairly important thing to note, however,
+is that the "core" class_part_initialize() methods combine a subclasses'
+Synthetic resources with all of the superclass Synthetic resources.  This
+is done via _XmBuildResources().
+
+4.0 XmSyntheticResource and it's use
+====================================
+
+The XmSyntheticResource structure looks suspiciously like the Xt resource
+structure, and in fact operates in much the same way.  Here's the structure,
+and some associated information:
+
+--------------------
+typedef enum { 
+    XmSYNTHETIC_NONE, 
+    XmSYNTHETIC_LOAD 
+} XmImportOperator;
+
+typedef void (*XmExportProc)(Widget, int, XtArgVal *);
+typedef XmImportOperator (*XmImportProc)(Widget, int, XtArgVal*);
+
+typedef struct _XmSyntheticResource {
+    String resource_name;
+    Cardinal resource_size;
+    Cardinal resource_offset;
+    XmExportProc export_proc;
+    XmImportProc import_proc;
+} XmSyntheticResource;
+--------------------
+
+Note that the XmImportProc has a return type; this type is a clue to the
+Synthetic resource implementation for whether or not the imported value
+should be loaded into the widget structure directly, or just into the arg
+list.  Most would suspect that this should always go into the Widget structure;
+however, remember that many manager widgets have associated children defined
+as part of their functionality (e.g., SelectionBox), and don't have direct
+visibility into some of the resources that can be specified.
+
+Let's go into a little more detail about that.  When an import proc wants a
+value to go directly into a resource variable, it returns XmSYNTHETIC_LOAD.
+This is typically returned by such functions as _XmToHorizontalPixels(), which
+implements resolution independence into widgets.  This has the effect of
+modifying directly the width (or x) instance variable of a widget.  However,
+consider the XmNlistItems in a SelectionBox.  This import function typically
+wants to copy the XmStringTable provided by the user (as a "sensitive" resource
+that the user may or may not free); at any rate, the SelectionBox doesn't have
+visibility into this resource directly.  The implementor has two choices;
+they can copy the XmStringTable and store it in the subpart in the import
+proc (and return XmSYNTHETIC_NONE), or they can simply make a copy of the
+XmStringTable, store it in the XtArgVal pointer, and return XmSYNTHETIC_NONE.
+In practice, they'll usually want to choose the latter, as they probably
+already have code in their set_values() or initialize() method to set the
+ListItems instance variable, and the Synthetic resource mechanism will take
+care of the nuisance of making a copy first (at least, it will if that's how
+they've coded the ImportProc).  However, if they don't have code already,
+they can save some simply by coding the ImportProc to do it for them; then
+they never need worry about the subpart (beyond checking to see if set_values()
+need return True.
+
+For ExportProcs, much of the same logic applies, except that there is no
+return value, so only the resource values can be modified.  The export
+procs typically want to make a copy of "sensitive" resources, however (such
+as XmNlabelString in the Label widget -- if the user frees this (as they
+should), it won't matter to the instance they got the value from).  The same
+idea applies to things like XmStringTable's in the List, etc (this can
+be a performance win, as well, as calls to GetValues can be avoided).
+
+Also note that export procs can play games; for example, consider the Gadget
+class, and what it should return for the value of XmNtopShadowColor.  Take a
+look at the export proc in the Gadget for TopShadowColor color:
+
+------------------
+static void
+_XmGetParentTopShadowColor(Widget w, int offset, XtArgVal *value) {
+    *value = XmParentTopShadowColor(w);
+}
+------------------
+
+Here, we cheat; we know that the parent is a Manager, and that the
+TopShadowColor that a Gadget uses is the TopShadowColor defined by the parent,
+so we can just return that.  In this way, we scan specify a value, even
+though we don't directly have an instance variable to define that value.
+
+5.0 Conclusion
+==============
+
+We've seen how Synthetic resource can protect sensitive widget resources, and
+how to use them. [Hope this helps.  What else needs to be in this document?]

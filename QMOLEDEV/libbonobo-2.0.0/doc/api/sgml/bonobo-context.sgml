@@ -1,0 +1,205 @@
+<refentry id="libbonobo-bonobo-context">
+<refmeta>
+<refentrytitle>bonobo-context</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBBONOBO Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>bonobo-context</refname><refpurpose>Extensible runtime service interface</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+
+
+<link linkend="Bonobo-Unknown">Bonobo_Unknown</link> <link linkend="bonobo-context-get">bonobo_context_get</link>           (const <link linkend="CORBA-char">CORBA_char</link> *context_name,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *opt_ev);
+void        <link linkend="bonobo-context-add">bonobo_context_add</link>              (const <link linkend="CORBA-char">CORBA_char</link> *context_name,
+                                             <link linkend="Bonobo-Unknown">Bonobo_Unknown</link> context);
+<link linkend="BonoboObject">BonoboObject</link>* <link linkend="bonobo-context-running-get">bonobo_context_running_get</link>    (void);
+void        <link linkend="bonobo-running-context-auto-exit-unref">bonobo_running_context_auto_exit_unref</link>
+                                            (<link linkend="BonoboObject">BonoboObject</link> *object);
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+The bonobo-context code is designed to provide a way to
+expose CORBA contexts through a single C interface. This
+is so that language bindings can get away with wrapping
+a single function, and yet have access to the whole
+Bonobo service framework. Two examples of this are the
+MonikerContext and the RunningContext ( see
+Bonobo_Context.idl ).
+</para>
+
+<para>
+  <example>
+     <title>Getting and using the moniker context</title>
+     <programlisting>
+Bonobo_MonikerContext context;
+Bonobo_Unknown        object;
+
+context = bonobo_context_get ("Activation", NULL);
+
+if (context == CORBA_OBJECT_NIL)
+	g_error (_("Internal error, no activation context"));
+
+object = Bonobo_MonikerContext_getObject (
+	"file:/demo/a.jpeg", "Bonobo/Control", ev);
+...
+     </programlisting>
+  </example>
+</para>
+
+<para>
+The list of contexts is open and may be expanded in the future,
+currently there are the following:
+  <itemizedlist>
+    <listitem>
+      <para>
+        Activation - Bonobo/MonikerContext
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Running - Bonobo/RunningContext
+      </para>
+    </listitem>
+  </itemizedlist>
+</para>
+
+<para>
+The running context is particularly useful for ensuring that
+server processes exit cleanly when all their objects and
+derived objects are dead. To do this we can simply do the
+following:
+</para>
+<para>
+  <example>
+    <title>How to get a factory to quit when it is idle</title>
+    <programlisting>
+static void
+last_unref_exit_cb (gpointer      context,
+		    BonoboObject *factory)
+{
+        bonobo_object_unref (factory);
+	<link linkend="gtk-main-quit">gtk_main_quit</link>();
+}
+...
+int main (int argc, char **argv)
+{
+	...
+	bonobo_running_context_ignore_object (BONOBO_OBJREF (object));
+
+	gtk_signal_connect (GTK_OBJECT (<link linkend="bonobo-context-running-get">bonobo_context_running_get</link>()),
+			    "last_unref", last_unref_exit_cb, factory);
+	...
+	<link linkend="bonobo-main">bonobo_main</link>();
+}
+    </programlisting>
+  </example>
+</para>
+<para>
+  Since this is a commonly used thing there is a helper to make this
+easier:
+  <example>
+    <title>How to get a factory to quit when it is idle</title>
+    <programlisting>
+bonobo_running_context_auto_exit_unref (factory) 
+    </programlisting>
+  </example>
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="bonobo-context-get">bonobo_context_get ()</title>
+<programlisting><link linkend="Bonobo-Unknown">Bonobo_Unknown</link> bonobo_context_get           (const <link linkend="CORBA-char">CORBA_char</link> *context_name,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *opt_ev);</programlisting>
+<para>
+The most useful context is named 'Activation' and returns
+the IDL:Bonobo/ActivationContext:1.0 interface.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>context_name</parameter>&nbsp;:</entry>
+<entry> the name of the context
+</entry></row>
+<row><entry align="right"><parameter>opt_ev</parameter>&nbsp;:</entry>
+<entry> optional Environment, or NULL
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> a new reference to a global Bonobo context or CORBA_OBJECT_NIL
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-context-add">bonobo_context_add ()</title>
+<programlisting>void        bonobo_context_add              (const <link linkend="CORBA-char">CORBA_char</link> *context_name,
+                                             <link linkend="Bonobo-Unknown">Bonobo_Unknown</link> context);</programlisting>
+<para>
+This function adds a new context to the context system</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>context_name</parameter>&nbsp;:</entry>
+<entry> the name to refer to the context by
+</entry></row>
+<row><entry align="right"><parameter>context</parameter>&nbsp;:</entry>
+<entry> The Bonobo_Unknown; a ref. is taken on this.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-context-running-get">bonobo_context_running_get ()</title>
+<programlisting><link linkend="BonoboObject">BonoboObject</link>* bonobo_context_running_get    (void);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-running-context-auto-exit-unref">bonobo_running_context_auto_exit_unref ()</title>
+<programlisting>void        bonobo_running_context_auto_exit_unref
+                                            (<link linkend="BonoboObject">BonoboObject</link> *object);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>object</parameter>&nbsp;:</entry>
+<entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+
+</refentry>

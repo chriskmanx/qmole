@@ -1,0 +1,178 @@
+<!-- ##### SECTION Title ##### -->
+bonobo-async
+
+<!-- ##### SECTION Short_Description ##### -->
+Helpers for invoking CORBA methods asynchronously
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+The bonobo-async interface duplicates much of the equivalent CORBA
+asynchronous invocation functionality, in a non-standard way. This
+is regrettable, but appeared neccessary at the time for various
+reasons. This interface will be short lived, disappearing in the
+next versions of Bonobo.
+</para>
+
+<para>
+The bonobo-async code uses fully type driven marshaling, so before
+you can invoke a method you need to fully describe the method you
+wish to invoke by constructing its type data. You probably really
+don't want to do this, however here is some example code to
+demonstrate how it can be done:
+  <example>
+    <title>A chunk of the asynchronous moniker code</title>
+    <programlisting>
+typedef struct {
+	Bonobo_Moniker       moniker;
+	BonoboMonikerAsyncFn cb;
+	gpointer             user_data;
+} resolve_async_ctx_t;
+
+static void
+resolve_async_cb (BonoboAsyncReply  *handle,
+		  CORBA_Environment *ev,
+		  gpointer           user_data)
+{
+	resolve_async_ctx_t *ctx = user_data;
+
+	if (BONOBO_EX (ev))
+		ctx->cb (CORBA_OBJECT_NIL, ev, ctx->user_data);
+	else {
+		Bonobo_Unknown object;
+		bonobo_async_demarshal (handle, &amp;object, NULL);
+		ctx->cb (object, ev, ctx->user_data);
+	}
+
+	bonobo_object_release_unref (ctx->moniker, ev);
+	g_free (ctx);
+}
+
+void
+bonobo_moniker_resolve_async (Bonobo_Moniker         moniker,
+			      Bonobo_ResolveOptions *options,
+			      const char            *interface_name,
+			      CORBA_Environment     *ev,
+			      guint                  timeout_msec,
+			      BonoboMonikerAsyncFn   cb,
+			      gpointer               user_data)
+{
+	/*
+	 * A chunk of data describing the 'resolve' method.
+	 */
+	static const BonoboAsyncArg arguments [] = {
+		{ TC_Bonobo_ResolveOptions, BONOBO_ASYNC_IN },
+		{ TC_string,                BONOBO_ASYNC_IN },
+		{ NULL }
+	};
+	static const CORBA_TypeCode exceptions [] = {
+		TC_Bonobo_Moniker_InterfaceNotFound,
+		TC_Bonobo_Moniker_UnknownPrefix,
+		NULL
+	};
+	static const BonoboAsyncMethod method = {
+		"resolve", 
+		TC_Object, 
+		arguments,
+		exceptions
+	};
+	gpointer arg_values [2] = { &amp;options, &amp;interface_name };
+	resolve_async_ctx_t *ctx;
+	
+	g_return_if_fail (ev != NULL);
+	g_return_if_fail (cb != NULL);
+	g_return_if_fail (moniker != CORBA_OBJECT_NIL);
+	g_return_if_fail (options != CORBA_OBJECT_NIL);
+	g_return_if_fail (interface_name != CORBA_OBJECT_NIL);
+
+	ctx = g_new0 (resolve_async_ctx_t, 1);
+	ctx->cb = cb;
+	ctx->user_data = user_data;
+	ctx->moniker = bonobo_object_dup_ref (moniker, ev);
+
+	bonobo_async_invoke (&amp;method, resolve_async_cb, ctx,
+			     timeout_msec, ctx->moniker, arg_values, ev);
+}
+    </programlisting>
+  </example>
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### ENUM BonoboAsyncArgFlag ##### -->
+<para>
+An enumeration flagging the direction of an argument.
+</para>
+
+@BONOBO_ASYNC_IN: Flags an argument as being In
+@BONOBO_ASYNC_OUT: Flags an argument as being Out
+
+<!-- ##### TYPEDEF BonoboAsyncArg ##### -->
+<para>
+A type describing a single CORBA method argument
+</para>
+
+
+<!-- ##### TYPEDEF BonoboAsyncMethod ##### -->
+<para>
+A type describing a CORBA method
+</para>
+
+
+<!-- ##### STRUCT BonoboAsyncReply ##### -->
+<para>
+An opaque async reply handle
+</para>
+
+
+<!-- ##### USER_FUNCTION BonoboAsyncCallback ##### -->
+<para>
+This callback is invoked either when the invocation
+times out, in which case an ex_CORBA_COMM_FAILURE system
+exception will be passed in @ev. Or with a valid reply,
+in which case arguments should be de-marshaled using
+#bonobo_async_demarshal.
+</para>
+
+@reply: the reply handle
+@ev: the CORBA_Environment
+@user_data: the callback's associated user data.
+
+
+<!-- ##### FUNCTION bonobo_async_demarshal ##### -->
+<para>
+
+</para>
+
+@reply: 
+@retval: 
+@out_args: 
+
+
+<!-- ##### FUNCTION bonobo_async_invoke ##### -->
+<para>
+
+</para>
+
+@method: 
+@cb: 
+@user_data: 
+@timeout_msec: 
+@object: 
+@args: 
+@ev: 
+<!-- # Unused Parameters # -->
+@timeout_usec: 
+
+
+<!-- ##### FUNCTION bonobo_async_handle_get_recv ##### -->
+<para>
+
+</para>
+
+@reply: 
+@Returns: 
+
+

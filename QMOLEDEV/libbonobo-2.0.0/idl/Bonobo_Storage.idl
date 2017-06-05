@@ -1,0 +1,263 @@
+/*
+ * bonobo-storage.idl: Handles structured storage
+ *
+ * Copyright (C) 1999, 2000  Helix Code, Inc.
+ *
+ * Author:
+ *    Miguel de Icaza (miguel@gnu.org)
+ *    Dietmar Maurer (dietmar@maurer-it.com)
+ *
+ * Terms:
+ *
+ *    Storage:   This interface provides access to a directory
+ *               like storage facility. 
+ *
+ *    Stream:    Used to read and write bytes to a storage.  The
+ *               Streams are equivalent to files.
+ */
+
+#ifndef BONOBO_STORAGE_IDL
+#define BONOBO_STORAGE_IDL
+
+#include "Bonobo_Unknown.idl"
+
+module Bonobo {
+
+	typedef long StorageInfoFields;
+        const StorageInfoFields FIELD_CONTENT_TYPE = 1;
+        const StorageInfoFields FIELD_SIZE         = 2;
+        const StorageInfoFields FIELD_TYPE         = 4;
+
+	typedef string ContentType;
+
+	enum StorageType {
+		STORAGE_TYPE_REGULAR,
+		STORAGE_TYPE_DIRECTORY
+	};
+
+	struct StorageInfo {
+		string		name;
+		StorageType     type;
+		ContentType	content_type;
+		long		size;
+	};
+
+	interface Stream : Unknown {
+		typedef sequence<octet> iobuf;
+
+		exception NoPermission {};
+		exception NotSupported {};
+		exception IOError {};
+
+		enum SeekType {
+			SeekSet,
+			SeekCur,
+			SeekEnd
+		};
+
+		/**
+		 * getInfo:
+		 * @mask:
+		 *
+		 * Returns a StorageInfo structure which contains
+		 * the name, content_type and size info.
+		 */
+		StorageInfo getInfo (in StorageInfoFields mask)
+			raises (IOError, NoPermission, NotSupported);
+		
+		/**	
+		 * setInfo:
+		 * @info:
+		 * @mask:
+		 *
+		 */
+		void setInfo (in StorageInfo info, in StorageInfoFields mask)
+			raises (IOError, NoPermission, NotSupported);
+
+		/**
+		 * read:
+		 * @count:  number of bytes to read.
+		 * @buffer: the buffer where the data is returned.
+		 */
+		void read (in long count, out iobuf buffer)
+			raises (NoPermission, IOError);
+	
+		/**
+		 * write:
+		 * @buffer: a buffer to write.
+		 *
+		 * writes the buffer to this stream.
+		 */
+		void write (in iobuf buffer)
+			raises (NoPermission, IOError);
+
+		/**
+		 * seek:
+		 * @offset: offset
+		 * @whence: 
+		 *
+		 * Sets the read/write pointer to @offset (relative to @whence)
+		 */
+		long seek (in long offset, in SeekType whence)
+			raises (IOError, NotSupported);
+
+
+		/**
+		 * truncate:
+		 * @length: new size of the stream
+		 *
+		 */
+		void truncate (in long length)
+			raises (IOError, NoPermission, NotSupported);
+	
+		/**
+		 * commit:
+		 *
+		 * Commits any pending changes to the Storage
+		 */
+		void commit ()
+			raises (IOError, NoPermission, NotSupported);
+		
+		/**
+		 * revert:
+		 *
+		 * Discards any changes since the last commit.
+		 */
+		void revert ()
+			raises (IOError, NoPermission, NotSupported);
+
+		void unImplemented1 ();
+		void unImplemented2 ();
+	};
+
+	interface Storage : Unknown {
+		
+		typedef sequence<StorageInfo> DirectoryList;
+
+		typedef long OpenMode;
+		const OpenMode READ        = 1;
+		const OpenMode WRITE       = 2;
+		const OpenMode CREATE      = 4;
+		const OpenMode FAILIFEXIST = 8;
+		const OpenMode COMPRESSED  = 16;
+		const OpenMode TRANSACTED  = 32;
+
+		exception IOError {};
+		exception NameExists {};
+		exception NotFound {};
+		exception NoPermission {};
+		exception NotSupported {};
+		exception NotStream {};
+		exception NotStorage {};
+		exception NotEmpty {};
+
+		/**
+		 * getInfo:
+		 * @path:
+		 * @mask:
+		 *
+		 * Returns a StorageInfo structure which contains
+		 * the name, content_type and size info.
+		 */
+		StorageInfo getInfo (in string path, 
+				     in StorageInfoFields mask)
+			raises (IOError, NoPermission, NotFound, NotSupported);
+		
+		/**	
+		 * setInfo:
+		 * @path:
+		 * @info:
+		 * @mask:
+		 *
+		 */
+		void setInfo (in string path, in StorageInfo info, 
+			      in StorageInfoFields mask)
+			raises (IOError, NoPermission, NotFound, NotSupported);
+
+		/**
+		 * openStream:
+		 * @path: path of the stream to open
+		 * @mode: open flags
+		 *
+		 * Opens a Stream whose name is @path.
+		 */
+		Stream openStream (in string path, in OpenMode mode)
+			raises (IOError, NotFound, NoPermission, 
+				NotStream, NameExists);
+
+		/**
+		 * openStorage:
+		 * @path: path of the storage to open.
+		 * @mode: open mode.
+		 * 
+		 * Returns a storage object for @path.
+		 */
+		Storage openStorage (in string path, in OpenMode mode)
+			raises (IOError, NotFound, NoPermission, 
+                                NotStorage, NameExists);
+
+		/** 
+		 * copyTo:
+		 * @target: where to copy this storage to.
+		 *
+		 * Copies this storages contents to the @target storage
+		 */
+		void copyTo (in Storage target)
+			raises (IOError, NoPermission);
+
+		/**
+		 * listContents:
+		 * @path: path that we want to examine.
+		 * @mask:
+		 *
+		 * Returns a list of all the Storage and Streams available
+		 * at @path.
+		 */
+		DirectoryList listContents (in string path, 
+					    in StorageInfoFields mask)
+			raises (IOError, NotStorage, NotFound, NotSupported);
+	
+		/**
+		 * erase:
+		 * @path: path to the element to erase.
+		 * 
+		 * Destroys the element pointed to by @path.  The element
+		 * can be a Storage or a Stream.
+		 */
+		void erase (in string path)
+                       raises (IOError, NoPermission, NotFound, NotEmpty);
+
+		/** 
+		 * rename:
+		 * @path_name: element name to rename
+		 * @new_path_name: new name we want to use
+		 *
+		 * Renames a Stream or Storage component inside a Storage.
+		 */
+		void rename (in string path_name, in string new_path_name)
+			raises (IOError, NameExists, NotFound, NoPermission);
+
+		/**
+		 * commit:
+		 * 
+		 * Commits any pending changes to the Storage since it was
+		 * opened.  This operation is syncronous.
+		 */
+
+		void commit ()
+			raises (IOError, NoPermission, NotSupported);
+
+		/**
+		 * revert:
+		 *
+		 * Discards any changes since the last commit.
+		 */
+		void revert ()
+			raises (IOError, NoPermission, NotSupported);
+
+		void unImplemented1 ();
+		void unImplemented2 ();
+	};
+};
+
+#endif /* BONOBO_STORAGE_IDL */

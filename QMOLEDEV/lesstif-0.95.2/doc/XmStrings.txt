@@ -1,0 +1,148 @@
+
+                         XmStrings and Motif 1.2
+                         =======================
+
+
+
+1.0 Introduction
+================
+
+This document gives a cursory explanation of the way XmStrings are encoded
+in Motif 1.2 (and LessTif).  This information is still being discovered, so
+explanations of where it is wrong are welcome.
+
+Sometime last year on the LessTif mailing list, a well known SGI persona,
+Doug Rand, sent an email that described the things that were changed from 1.2
+to 2.0.  One of the things he mentioned was that the encoding rules for the
+external representation of XmStrings can no longer be considered to be in
+ASN.1 format (ASN means "Abstract Syntax Notation").
+
+
+2.0 Description (Get ready for the acronyms)
+============================================
+
+If you don't care where the rules come from, or what they are for, you
+can skip this section.
+
+I happen to work in the telecommunications industry, and I have experience
+with ASN.1 and related standards as defined by the ITU (others know these
+standards either through the ISO or from RFC's).  ASN.1 is used by the GDMO
+(roughly, "Guidelines for the Development of Managed Objects" - there are
+several ways I know of to decompose that acronym) to describe MIBs (Management
+Information Bases).
+
+Basically, ASN.1 is a way to describe data types in a machine independent
+way from a text description (sorta like XDR).  Vaguely associated with ASN.1
+are sets of encoding rules, such as BER (or Basic Encoding Rules) which
+describe how to actually create external representations of data.  There
+are other encoding rules (e.g., FER), but you've had enough acronyms for now.
+ASN.1 is really a very powerful tool; you may want to learn more about it
+on your own.
+
+
+3.0 How It Works
+================
+
+Ok, enough of the background.  Let's see how it works in practice.
+
+The basic idea is to describe data elements as a three piece combination:
+tag/length/value, sometimes referred to as TLV.  You basically have a tag,
+which describes what type of data this is; a length, which says how long
+the following value is; and a value, which is basically an octet (or byte)
+sequence that describes the value.  The basic unit of information is the
+octet (or byte); 8 bits of information.  You can see how 8 bits might be
+a little small to describe large strings -- more on that later.  One
+thing that must be noted is that TLVs can be nested; that is, the value
+part of a TLV tuple can contain TLVs.
+
+I'm going to skip a full description of BER and just report the basics of
+how they relate to XmStrings.  Let's take a trivial example:
+
+    xmstr = XmStringCreateLtoR("Hello\nWorld", XmFONTLIST_DEFAULT_TAG);
+
+The first thing to notice is the XmFONTLIST_DEFAULT_TAG; that's a clue to
+Motif that the string passed in is represented in the current locale (I'm
+not even going to try to talk about NLS; look elsewhere for what locale
+means).  The second thing to notice is that we used *CreateLtoR, which
+means the function should be aware of separators (normally, this means
+"look for newlines").  So Motif would parse that as
+   "Hello" (locale text)
+   "\n"    (separator in this locale)
+   "World" (locale text)
+
+Let's look at what Motif does tell us about encodings; each XmString component
+has a different identifier:
+    XmSTRING_COMPONENT_UNKNOWN        ; 0
+    XmSTRING_COMPONENT_CHARSET        ; 1
+    XmSTRING_COMPONENT_TEXT           ; 2
+    XmSTRING_COMPONENT_DIRECTION      ; 3
+    XmSTRING_COMPONENT_SEPARATOR      ; 4
+    XmSTRING_COMPONENT_LOCALE_TEXT    ; 5
+Hmm, these could be the tag part of the TLVs!  Given that, the XmString that
+1.2 generates is the following (in hex and chars, with the 0x prefix removed
+from the hex):
+   df 80 06 10 05 05 'H' 'e' 'l' 'l' 'o' 04 00 05 05 'W' 'o' 'r' 'l' 'd'
+(**** verify this is really the right string)
+which makes absolutely no sense when you look at it that way.  Try this:
+    df 80                          ; this is a Motif string (essentially)
+        06 10                      ;   which contains a 16 byte XmString
+            05 05                  ;     which contains 5 bytes of locale text
+                "Hello"            ;       which has the value "Hello"
+            04 00                  ;     and a separator
+                <nothing>          ;       which has no data (never does)
+            05 05                  ;     and 5 more bytes of locale text
+                "World"            ;       which has the value "World"
+The first number (on lines that have them) are the tag; the second number is
+the length.
+
+You can see that this description shows how TLVs can be nested.  Look at it
+this way; if I just describe the string above structurally, it comes out as
+(using parentheses as an indicator of nesting):
+TLV=(TLV=(TLV,TLV,TLV))
+
+Ok, now you're scratching your head.  Where does the 0x80 (the first length)
+fit in?  Remember how I said that 8 bits was a little small for describing
+lengths?  Well, that's where BER kicks in.  There are really three ways for
+describing lengths: short form, long form, and indeterminate form.  As far
+as I know, Motif cheats horribly on this (more on this below).  Here's how
+you describe lengths in BER:
+  if (length < 128 [0x80]), then length is contained in one octet.
+  if (length > 128 (but not indeterminate), then the length octet is
+     defined as 0x80 + the number of octets needed to describe the length (up
+     to 127 additional octets; this can describe lengths up to 2^^(127 * 8),
+     or 2^^1016, which is HUGE).  The octets describing the length immediately
+     follow the length octet and come before the value octets.  In practice
+     (as far as I know), Motif limits this to two additional length octets,
+     which implies a maximum value length of 65535.
+  if (length > 2^^1016, or you are really lazy (like Motif is), then the length
+     octect contains 0x80, and you're to parse the value (which contains TLV
+     tuples) until you come to a TLV whose tag and length are both 0.
+
+As I said before, Motif is really lazy; the first header (0xdf 0x80) should
+imply that an XmString parser should look for a tag and length that are both
+0; in practice, Motif strings contain one element in the value; the XmString.
+I've parsed strings in Motif looking for the (0 0) tag/length, and run off
+into space; therefore, LessTif stops after finding the first XmString
+component.  In effect, a length of 0x80 in Motif means "I don't know how long
+my value is, but my value is really a TLV, and there's only one of them".
+
+Let's look at our example string again, in light of this information:
+    df 80                      ; XmSTRING_TAG, XmSTRING_LENGTH
+        06 10                  ;   XmSTRING_COMPONENT_XMSTRING, 16 bytes
+            05 05              ;     XmSTRING_COMPONENT_LOCALE_TEXT, 5 bytes
+                "Hello"        ;       "Hello"
+            04 00              ;     XmSTRING_COMPONENT_SEPARATOR, 0 bytes
+                <nothing>      ; 
+            05 05              ;     XmSTRING_COMPONENT_LOCALE_TEXT, 5 bytes
+                "World"        ;       "World"
+
+That should make more sense, now.  Note that the tags 6 - 125 are said to
+be reserved in the Motif header files; now you should understand why the value
+6 is XmSTRING_COMPONENT_XMSTRING (which doesn't appear in any Motif header).
+
+
+4.0 Structures
+==============
+
+[Need to explain here why order is important in the strings -- the charsets
+MUST come before the strings that use them].

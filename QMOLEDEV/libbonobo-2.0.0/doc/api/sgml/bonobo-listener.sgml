@@ -1,0 +1,380 @@
+<refentry id="libbonobo-bonobo-listener">
+<refmeta>
+<refentrytitle>bonobo-listener</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBBONOBO Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>bonobo-listener</refname><refpurpose>An Event Listener (an implementation of Bonobo::Listener)</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+
+
+#define     <link linkend="BONOBO-LISTENER-TYPE-CAPS">BONOBO_LISTENER_TYPE</link>
+struct      <link linkend="BonoboListenerPrivate">BonoboListenerPrivate</link>;
+typedef     <link linkend="BonoboListener">BonoboListener</link>;
+typedef     <link linkend="BonoboListenerClass">BonoboListenerClass</link>;
+void        (<link linkend="BonoboListenerCallbackFn">*BonoboListenerCallbackFn</link>)     (<link linkend="BonoboListener">BonoboListener</link> *listener,
+                                             const char *event_name,
+                                             const <link linkend="CORBA-any">CORBA_any</link> *any,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev,
+                                             <link linkend="gpointer">gpointer</link> user_data);
+<link linkend="BonoboListener">BonoboListener</link>* <link linkend="bonobo-listener-new">bonobo_listener_new</link>         (<link linkend="BonoboListenerCallbackFn">BonoboListenerCallbackFn</link> event_cb,
+                                             <link linkend="gpointer">gpointer</link> user_data);
+<link linkend="BonoboListener">BonoboListener</link>* <link linkend="bonobo-listener-new-closure">bonobo_listener_new_closure</link> (<link linkend="GClosure">GClosure</link> *event_closure);
+char*       <link linkend="bonobo-event-make-name">bonobo_event_make_name</link>          (const char *idl_path,
+                                             const char *kind,
+                                             const char *subtype);
+char*       <link linkend="bonobo-event-type">bonobo_event_type</link>               (const char *event_name);
+char*       <link linkend="bonobo-event-subtype">bonobo_event_subtype</link>            (const char *event_name);
+char*       <link linkend="bonobo-event-kind">bonobo_event_kind</link>               (const char *event_name);
+char*       <link linkend="bonobo-event-idl-path">bonobo_event_idl_path</link>           (const char *event_name);
+
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+   The BonoboListener object is a CORBA server used to receive events
+   emitted by a remote Bonobo::EventSource server.  The combination
+   EventSource/Listener is used to notify one or more client
+   applications of events that happen in a component.    Think of the
+   EventSource/Listener as a notification/callback system that allows
+   multiple clients to be informed of events.
+</para>
+
+<para>
+   Once created, the BonoboListener object needs to be attached to a
+   remote IDL:Bonobo/EventSource:1.0 server.  This is done by passing the
+   CORBA Object reference of the BonoboListener to the addListener
+   method in the IDL:Bonobo/EventSource:1.0.  
+</para>
+
+<para>
+   The BonoboListener object allows the user to specify a callback
+   function to be invoked when an event is emitted by the
+   IDL:Bonobo/EventSource:1.0 server.  The BonoboListener object also
+   emits the "event_notify" Gtk+ signal, which allows you to connect
+   multiple code segments to the same event notification. 
+</para>
+
+<para>
+    Here is a sample client application that registers interest in
+    being notified of events from the fictional "Keyboard" event
+    source:
+
+    <informalexample>
+      <programlisting>
+BonoboListener *keyboard_listener;
+
+my_listener_function (BonoboListener *l, char *event_name,
+                      CORBA_any value, CORBA_Environment *ev,
+                      gpointer user_data)
+{
+	printf ("Received event named: <literal>s</literal>\n", event_name);
+}
+
+connect_to_keyboard_source (Bonobo_EventSource *keyboard)
+{
+        Bonobo_Unknown reference;
+
+        /*
+         * First, create the listener Bonobo server.
+         */
+	keyboard_listener = bonobo_listener_new (my_listener_function, NULL);
+
+        /*
+         * Now, register our listener with the EventSource
+         */
+        reference = bonobo_object_corba_objref (keyboard_listener);
+        Bonobo_EventSource_addListener (keyboard, reference);
+}
+      </programlisting>
+    </informalexample>
+
+</para>
+
+<para>
+  The CORBA::any value passed to the listener function is defined by
+  the contract between the EventSource's event you are using and you.
+  To manipulate the value, you can use the CORBA DynamicAny interface
+  to introspect the value and extract the information you need. 
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="BONOBO-LISTENER-TYPE-CAPS">BONOBO_LISTENER_TYPE</title>
+<programlisting>#define BONOBO_LISTENER_TYPE        BONOBO_TYPE_LISTENER /* deprecated, you should use BONOBO_TYPE_LISTENER */
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboListenerPrivate">struct BonoboListenerPrivate</title>
+<programlisting>struct BonoboListenerPrivate;</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboListener">BonoboListener</title>
+<programlisting>typedef struct {
+        BonoboObject          parent;
+
+	BonoboListenerPrivate *priv;
+} BonoboListener;
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboListenerClass">BonoboListenerClass</title>
+<programlisting>typedef struct {
+	BonoboObjectClass     parent_class;
+
+	POA_Bonobo_Listener__epv epv;
+
+	/* Signals */
+	void (* event_notify) (BonoboListener    *listener, 
+			       char              *event_name,
+			       BonoboArg         *event_data, 
+			       CORBA_Environment *ev);
+} BonoboListenerClass;
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboListenerCallbackFn">BonoboListenerCallbackFn ()</title>
+<programlisting>void        (*BonoboListenerCallbackFn)     (<link linkend="BonoboListener">BonoboListener</link> *listener,
+                                             const char *event_name,
+                                             const <link linkend="CORBA-any">CORBA_any</link> *any,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev,
+                                             <link linkend="gpointer">gpointer</link> user_data);</programlisting>
+<para>
+   The signature for the callback function invoked when an event is
+   delivered to the BonoboListener object.  
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>listener</parameter>&nbsp;:</entry>
+<entry>a pointer to the BonoboListener.
+</entry></row>
+<row><entry align="right"><parameter>event_name</parameter>&nbsp;:</entry>
+<entry>the event name that was emitted.
+</entry></row>
+<row><entry align="right"><parameter>any</parameter>&nbsp;:</entry>
+<entry>The value (A CORBA Any) that was passed by the EventSource.
+</entry></row>
+<row><entry align="right"><parameter>ev</parameter>&nbsp;:</entry>
+<entry>Environment for returning CORBA errors.
+</entry></row>
+<row><entry align="right"><parameter>user_data</parameter>&nbsp;:</entry>
+<entry>the data pointer specified when you called bonobo_listener_new
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-listener-new">bonobo_listener_new ()</title>
+<programlisting><link linkend="BonoboListener">BonoboListener</link>* bonobo_listener_new         (<link linkend="BonoboListenerCallbackFn">BonoboListenerCallbackFn</link> event_cb,
+                                             <link linkend="gpointer">gpointer</link> user_data);</programlisting>
+<para>
+Creates a generic event listener.  The listener calls the <parameter>event_callback</parameter> 
+function and emits an "event_notify" signal when notified of an event.  
+The signal callback should be of the form:
+</para>
+<para>
+&lt;informalexample&gt;
+&lt;programlisting&gt;
+void some_callback (BonoboListener *listener,
+char *event_name, 
+CORBA_any *any,
+CORBA_Environment *ev,
+gpointer user_data);
+&lt;/programlisting&gt;
+&lt;/informalexample&gt;
+</para>
+<para>
+You will typically pass the CORBA_Object reference in the return value
+to an EventSource (by invoking EventSource::addListener).</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>event_cb</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>user_data</parameter>&nbsp;:</entry>
+<entry> data passed to the functioned pointed by <parameter>event_call</parameter>.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> A BonoboListener object.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-listener-new-closure">bonobo_listener_new_closure ()</title>
+<programlisting><link linkend="BonoboListener">BonoboListener</link>* bonobo_listener_new_closure (<link linkend="GClosure">GClosure</link> *event_closure);</programlisting>
+<para>
+Creates a generic event listener.  The listener invokes the <parameter>event_closure</parameter> 
+closure and emits an "event_notify" signal when notified of an event.  
+The signal callback should be of the form:
+</para>
+<para>
+&lt;informalexample&gt;
+&lt;programlisting&gt;
+void some_callback (BonoboListener *listener,
+char *event_name, 
+CORBA_any *any,
+CORBA_Environment *ev,
+gpointer user_data);
+&lt;/programlisting&gt;
+&lt;/informalexample&gt;
+</para>
+<para>
+You will typically pass the CORBA_Object reference in the return value
+to an EventSource (by invoking EventSource::addListener).</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>event_closure</parameter>&nbsp;:</entry>
+<entry> closure to be invoked when an event is emitted by the EventSource.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> A BonoboListener object.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-event-make-name">bonobo_event_make_name ()</title>
+<programlisting>char*       bonobo_event_make_name          (const char *idl_path,
+                                             const char *kind,
+                                             const char *subtype);</programlisting>
+<para>
+Creates an event name. Event names consist of three parts. The <parameter>idl_path</parameter> is
+mainly to create a unique namespace, and should identify the interface 
+which triggered the event, for example "Bonobo/Property". The <parameter>kind</parameter> denotes
+what happened, for example "change". Finally you can use the optional 
+<parameter>subtype</parameter> to make events more specific. All three parts of the name are 
+joined together separated by colons. "Bonobo/Property:change" or 
+"Bonobo/Property:change:autosave" are examples of valid event names.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>idl_path</parameter>&nbsp;:</entry>
+<entry> the IDL part of the event name.
+</entry></row>
+<row><entry align="right"><parameter>kind</parameter>&nbsp;:</entry>
+<entry> the kind of the event
+</entry></row>
+<row><entry align="right"><parameter>subtype</parameter>&nbsp;:</entry>
+<entry> an optional subtype
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> A valid event_name, or NULL on error.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-event-type">bonobo_event_type ()</title>
+<programlisting>char*       bonobo_event_type               (const char *event_name);</programlisting>
+<para>
+</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>event_name</parameter>&nbsp;:</entry>
+<entry> the event name
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> The event subtype, or NULL on error.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-event-subtype">bonobo_event_subtype ()</title>
+<programlisting>char*       bonobo_event_subtype            (const char *event_name);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>event_name</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-event-kind">bonobo_event_kind ()</title>
+<programlisting>char*       bonobo_event_kind               (const char *event_name);</programlisting>
+<para>
+</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>event_name</parameter>&nbsp;:</entry>
+<entry> the event name
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> The event kind, or NULL on error.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-event-idl-path">bonobo_event_idl_path ()</title>
+<programlisting>char*       bonobo_event_idl_path           (const char *event_name);</programlisting>
+<para>
+</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>event_name</parameter>&nbsp;:</entry>
+<entry> the event name
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> The event idl path, or NULL on error.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+<refsect1>
+<title>See Also</title>
+<para>
+   <link linkend="BonoboEventSource">BonoboEventSource</link> <link linkend="BonoboArg">BonoboArg</link>
+</para>
+</refsect1>
+
+</refentry>

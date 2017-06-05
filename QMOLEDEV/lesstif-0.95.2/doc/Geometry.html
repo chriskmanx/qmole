@@ -1,0 +1,408 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<!-- $Id: Geometry.html,v 1.9 2002/05/16 12:43:45 amai Exp $ -->
+<TITLE>Geometry Management in LessTif</TITLE>
+</HEAD>
+<BODY>
+
+
+<H1>Introduction</H1>
+
+
+<p>
+This document describes the way in which LessTif widgets handle
+their geometry negotiations.
+As geometry management is a subject that has much to do with Xt,
+part of this document describes (what I understand of) the Xt
+geometry model.
+<p>
+All feedback is, as always, welcomed.
+
+
+<H1>Xt Geometry Management</H1>
+
+
+<p>
+The Xt geometry model is based on geometry negotiations.
+This really means that every change that a widget wants to apply to
+its geometry, must be approved by the widget's parent.
+The resources in the widget that are part of this geometry are
+<ul>
+<li> x
+<li> y
+<li> width
+<li> height
+<li> border_width
+</ul>
+<p>
+A widget can request a geometry change by using
+XtMakeGeometryRequest or XtMakeResizeRequest.
+In LessTif, we've wrappered XtMakeGeometryRequest
+in _XmMakeGeometryRequest().  This is the preferred
+method of geometry negotiation, as the result is
+(or at least should be) binary -- Yes or No.
+
+XtMakeResizeRequest only allows a widget to request
+a different size (width/height),
+whereas XtMakeGeometryRequest can be used
+to alter all five resources mentioned above.
+<p>
+LessTif has a convenience function called _XmMakeGeometryRequest which
+calls XtMakeGeometryRequest.
+
+<H2>XtMakeGeometryRequest</H2>
+
+<p>
+The signature of XtMakeGeometryRequest is
+<pre>
+XtGeometryResult
+XtMakeGeometryRequest(  Widget w,
+			XtWidgetGeometry *desired,
+			XtWidgetGeometry *allowed)
+</pre>
+<p>
+It should be called from the widget which is passed as parameter 1.
+The second parameter described the geometry that the widget would like
+to have.
+The last parameter returns the geometry that the widget got,
+in some circumstances.
+Finally, the result of the function is a value indicating
+whether the request has been granted.
+<p>
+XtWidgetGeometry is a structure which holds the five fields indicated above,
+and a bitset in which you can indicate which fields have been initialized.
+In the return parameter, the bitset will also indicate how much information
+is valid.
+A common mistake is to assume
+that the parent widget will always set width and height values,
+and to just read those fields without looking at the flags.
+<p>
+The bitset field is called <b>request_mode</b>.
+It can be set using an OR of zero or more of the macros
+CWX, CWY, CWWidth, CWHeight, CWBorderWidth,
+each of which has exactly one bit set.
+A final bit XtCWQueryOnly is not currently used in LessTif.
+When set, the call to XtMakeGeometryRequest will return a result without
+changing anything to the widget.
+<p>
+The result of XtMakeGeometryRequest can have four values :
+<ul>
+<li>XtGeometryYes :Means that the request has been granted.
+<li>XtGeometryDone :
+The request has been granted, also it has been applied to the widget.
+According to "X Window System Toolkit" by Asente &amp; Swick,
+a widget set should choose a policy : either use YES in all widgets,
+or use DONE.
+In LessTif, we've chosen the YES approach.
+<li>XtGeometryNo :
+You can guess this by now : the request has not been granted.
+Many manager widgets (subclasses of XmManager)
+in LessTif will return this when they get a request to change the
+X or Y (i.e. the position) of a child widget.
+<li>XtGeometryAlmost :
+This is a very useful but difficult return value.
+It means that the request has not been <i>completely</i> granted,
+and the <b>allowed</b> parameter returns a suggested geometry.
+If the widget takes the suggestion and calls XtMakeGeometryRequest
+with that same set of values, the parent widget <b>must</b>
+allow this request.
+That's the hard part.
+</ul>
+
+<H2>_XmMakeGeometryRequest</H2>
+
+<pre>
+XtGeometryResult
+_XmMakeGeometryRequest(Widget w, XtWidgetGeometry *g)
+</pre>
+This function calls XtMakeGeometryRequest.
+If the return value is XtGeometryAlmost, it'll call it a second time,
+with the value just obtained.
+Then it returns.
+<p>
+Another programming mistake (introduced by Asente &amp; Swick) :
+given the Xt rule about XtGeometryAlmost,
+you could program a loop in which you keep calling
+XtMakeGeometryRequest until the value is different from XtGeometryAlmost.
+The trouble is that this kind of a loop is only guaranteed to be
+finite if the parent widget(s) are bug-free.
+Need I say more?
+<p>
+_XmMakeGeometryRequest detects this problem and is verbose about it
+(if you set DEBUGSOURCES to print information about GeoUtils.c).
+It is known to happen with XmForm (i.e. XmForm currently doesn't always
+grant a geometry that it just suggested).
+<p>
+If anybody wants a good exercise in understanding this document,
+he or she is invited to find this bug.
+Really.
+I'll only start tracking it myself when I have no serious bugs to attend to.
+A couple of beers can be had in Leuven, Belgium,
+by the first person to fix this.
+
+<H2>XtQueryGeometry</H2>
+
+You can ask the preferred size of a widget.
+
+<H1> Geometry and Widget Methods </H1>
+The basic cycle involved is PreferredSize/XtMakeGeometryRequest/Layout.
+
+<H2> For both primitives and composites: </H2>
+<ul>
+<li> <b>initialize()</b> -  Don't do anything if you're composite.
+You don't know enough yet (and you probably don't have any
+kids yet, unless the user created you with XtNchildren: if
+the user does something like this, they're on their own).
+If a primitive, you should know enough to do a basic layout.
+<p>
+<li> <b>set_values()</b> - If a value changed that should cause a
+layout change, go ahead and recompute the PreferredSize.
+Then, just set your width/height to the computed values:
+the intrinisics will automatically see a change made and
+call XtMakeGeometryRequest on your behalf, so (ordinarily)
+<b>don't do a Layout</b>.
+<p>
+If the request is granted, the intrinsics will automatically
+call your resize() method; that should be where the Layout
+is done.
+<p>
+Rebuttal:  There may be times where this isn't true.  Some
+resources may require a composite to re-Layout.  When doing
+so, there are a few warnings that should be noted.
+<ul>
+  <li> If the user set a resource that triggered a size
+	adjustment, the resize request may <b>not</b> be
+	honored by the parent.  If it is not, and you
+	re-Layout, then be aware that you may have layed
+	out to a geometry that isn't honored.  This can
+	cause (grossly understated) unexpected results.
+	This case can (and does) happen in Label[G]; that's
+	why there is a call to the resize() method in expose()
+	-- to make sure the widget is displayed correctly.
+	The same is true of CascadeB[G].
+  <p>
+  <li> A superclass may have polluted the widget dimensions,
+	or a resource that changed in a superclass may have
+	altered the widget dimensions to cause a request
+	that may not be honored.  Laying out to this geometry
+	may not be valid either.
+</ul>
+<p>
+Unfortunately, the intrinsics do not notify a widget if the
+resize request wasn't honored, so there's no way to do a
+proper job of it unless the expose method calls Layout.
+Needless to say, this is <b>not</b> good for performance.  One
+optimization that can be made is due to the nature of
+XtMakeGeometryRequest() (which will be discussed later);
+if widget is not managed, or the parent isn't realized,
+then we can be sure that the resize request WILL be
+honored.  In this case, we can blithely call Layout and be
+sure that the request will be honored.
+<p>
+<li> <b>resize()</b> - You can't do any geometry negotiation here.
+You <b>must</b> take the size you currently have, and lay
+yourself out to this geometry.  This method, in combination
+with set_values(), show the requirements of the two basic
+algorithms: one to compute the PreferredSize, and one to
+Layout to a given size.
+<p>
+<li> <b>realize()</b> - For primitive subclasses, you probably want
+to realize your window, and then Layout to it's geometry.
+For managers, it doesn't hurt to go through the
+PreferredSize/XtMakeGeometryRequest/Layout cycle again, as
+things may have changed.
+<p>
+<li> <b>query_geometry()</b> - Call the PreferredSize routine, and
+return the result if the request_mode is 0.  Otherwise,
+return the usual rules of the request versus what you've
+computed.
+</ul>
+<p>
+<H2> For composites only: </H2>
+<ul>
+<li> <b>geometry_manager()</b> - The trickiest one.  The
+PreferredSize routine should take two parameters, instigator
+and instig_request, and use the values specified in
+instig_request when treating the instigator.  There are two
+additional rules that you should keep in mind:
+geometry_manager() doesn't get called if the parent isn't
+realized; it also doesn't get called if the child isn't
+managed (in both cases, the request is automatically granted).
+The method should then call _XmMakeGeometryRequest(); doing
+this guarantees that either XtGeometryYes or XtGeometryNo is
+returned -- you'll never see XtGeometryAlmost unless a
+composite has a bug.  Finally the Layout function should be
+called.  The Layout function should take two additional
+parameters, the instigator and the instig_request.  What to
+do next depends on the value that's going to be returned by
+the geometry_manager():
+<ul>
+  <li> if the result of the Layout on the instigator is
+	XtGeometryAlmost, then no change should be made to
+	the instigator (<b>OR FOR THAT MATTER, TO ANY OTHER
+	CHILDREN IN THE COMPOSITE</b>; this is an important point,
+	and often alters the behavior of the layout method
+	-- doing a Configure on a child when the geometry
+	didn't change just wastes cycles).  Instead, the
+	reply geometry should reflect what Layout computed
+	for the instigator.  <b>IMPORTANT</b>: if the instigator
+	calls back with the geometry that you computed, the
+	geometry_manager MUST return XtGeometryYes.
+  <p>
+  <li> if the return is XtGeometryYes, the <u>child's rectangle
+	should be modified to reflect the geometry</u>.  <b>THIS IS
+	IMPORTANT</b>.  You must do this so that
+	XtMakeGeometryRequest will reconfigure the requesting
+	child's window.  This is different from XtGeometryDone
+	in that XtGeometryDone implies that the window change
+	was made by the parent, and we don't do that in LessTif.
+	The GeoUtils and RowColumn do this now.
+</ul>
+<p>
+In the layout function, if the child being manipulated is NOT
+the instigator, then the child should be configured (normally
+_XmConfigureObject()), if the return is XtGeometryYes.
+<p>
+<li> <b>change_managed()</b> -  You've got to go through the complete
+cycle of PreferredSize/XtMakeGeometryRequest/Layout.  The
+intrinsics don't help with any of this, so it's got to be
+explicit.  Remember that you've no instigator here, so all
+managed children should be configured if a size change took
+place.
+<p>
+<b>insert_child()/delete_child()</b> - These methods are
+called when a child is added to a manager widget, or when
+a child is destroyed.  Their use is particularly important
+in those manager widget which keep information about their
+children in private data structures.
+<p>
+Note that these are <b>unchained</b> methods, which means
+they are not automatically called for all the superclasses
+of a manager widget.  XmRowColumn's insert_child needs to
+call XmManager's insert_child, which in turn calls the one
+in its superclass.
+</ul>
+<b>NB</b>:  If a composite, and you either a) have no children, or
+b) have no managed children (BTW, _XmGeoCount_kids() will
+return zero for case b), then you probably shouldn't bother
+in either method to compute the preferred size or the
+layout; mostly because you don't have anything to operate
+on.  Instead you should probably return the current geometry
+in query_geometry().
+
+<H2> For constraints only </H2>
+<ul>
+<li> <b>constraint_initialize()</b> - Often, this method (if
+present) will not cause any geometry changes, but does
+offer an excellent time to capture information that will
+affect geometry management in the future.  This includes
+things like XmNpositionIndex (RowColumn), or XmNpaneMinimum/
+XmNpaneMaximum (PanedW).
+<p>
+<li> <b>constraint_set_values()</b> - Tricky.  In this method, there
+can be so many interactions that the mind boggles.  Quite
+often, resources that are set here may have *serious*
+implications for geometry management (like XmNpositionIndex),
+but it is difficult to know when a change should cause a
+Layout.  In general, <b>ALL OF THE WARNINGS FOR set_values()
+APPLY</b>.
+</ul>
+
+<H1> The Geometry Management Helper Interfaces </H1>
+
+There are two sets of two basic functions, that roughly have the signatures
+
+For primitives:
+<p>
+<pre>
+    <b>PreferredSize</b>( Widget <i>w</i> /* input */ );
+    <b>Layout</b>( Widget <i>w</i> /* input with side effects */ );
+</pre>
+<p>
+and for composites:
+<p>
+<pre>
+     <b>PreferredSize</b>( Widget <i>w</i>, /* input */
+                    Widget <i>instig</i>, /* input */
+                    XtWidgetGeometry <i>*instig_request</i>, /* input */
+                    XtWidgetGeometry <i>*preferred_geom</i> /* output */ );
+     <b>Layout</b>( Widget <i>w</i>, /* input */
+             Widget <i>instig</i>, /* input */
+             XtWidgetGeometry <i>*instig_request</i>, /* input/output */
+             XtWidgetGeometry <i>*preferred_geom</i> /* input */ );
+</pre>
+<p>
+
+For primitives, an example of PreferredSize is XmCalcLabelDimensions(); the
+equivalent Layout() would be the resize() method.  Regardless, you're Layout
+function or PreferredSize function can be modified for different behavior
+as appropriate to your class.
+
+<H1>LessTif Geometry</H1>
+
+
+We're discussing geometry of many of LessTif's manager widgets here.
+One widget (and many of its subclasses) is not treated here,
+though : XmBulletinBoard has functionality based on XmGeoMatrix
+which allows you to build dialogs with it in a simple way.
+This is all described in the document
+<A HREF="GeoUtils.txt">$LESSTIF/doc/GeoUtils.txt,
+`Fun and Pain with the GeoUtils'</A>.
+
+<H2>Generic layout functions in complicated widgets <b>(deprecated)</b></H2>
+
+Many of the LessTif manager widgets have one layout function
+with a fairly large number of parameters.
+This one layout function is built such that it can be 
+called from all the geometry-related widget methods described above.
+<p>
+Here's an example of the signature of such a function :
+<pre>
+static void
+_XmMainWindowLayout(Widget w,
+		    Boolean ParentResize,
+                    Widget child,
+                    Boolean TestMode,
+                    XtWidgetGeometry *cg,
+                    XtWidgetGeometry *mwg)
+</pre>
+The parameters are used as follows :
+<dl>
+<dt>w</dt><dd>this is the manager widget</dd>
+<dt>ParentResize</dt><dd>is a boolean which indicates whether the widget
+is allowed to try to resize itself</dd>
+<dt>child</dt><dd>is the instigator: it is the widget that requests geometry changes</dd>
+<dt>TestMode</dt><dd>is another boolean;
+if it is True, no changes are actually done to any widget resources</dd>
+<dt>cg</dt><dd>is the geometry request for the child widget</dd>
+<dt>mwg</dt><dd>optionally returns information about the main widget's size</dd>
+</dl>
+<p>
+The structure of these functions is such that they can be called in a
+number of circumstances.
+A high level description of what they do is :
+<ol>
+<li>declare lots of local variables to store geometries
+(for the widget itself, and all its children).
+This is necessary to implement test mode.
+<li>
+initialise all local variables to reflect the current geometry
+of the relevant widget
+<li>
+initialise the specific variables that reflect the instigator
+with its geometry
+<li>
+see how big the manager widget must be
+<li>
+if we're allowed to (ParentResize), ask whether we can resize ourselves
+to the geometry we need
+<li>
+resize ourselves (if applicable)
+<li>
+layout all children widgets
+<li>
+return information to the caller
+</ol>
+</BODY>
+</HTML>

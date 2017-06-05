@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"
+   "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<title>Making LessTif thread-safe</title>
+</head>
+<body lang="en">
+
+<h1>What's thread-safe ?</h1>
+
+<p>For something to be thread-safe means it can be called from any thread.</p>
+
+<p>A thread is a smaller unit of parallellism than a process. Operating
+systems such as OS/2 and Windows NT have had threading for ages; UNIX has
+lagged a bit in this area, probably due to its multiprocessing capabilities
+being good enough.</p>
+
+<p>Anyway - in the UNIX terminology - processes are independent things (one
+doesn't influence the other) which share no data. Threads are a level lower
+than processes : threads are independent but they do share data - all threads
+in the same process run with the same memory space.</p>
+
+<p>Once you know that, it's easy to figure out that all accesses to data
+(anything in the thread's memory really) need to be watched carefully, because
+any of the other processes can be accessing the same data at the same
+time.</p>
+
+<p>This is not only true for the application program, but for all the
+libraries it uses.</p>
+
+<p>So if you want to write a multithreaded application that uses a library
+(such as LessTif), then that library must also be thread-safe.</p>
+
+<h1>How to achieve it ?</h1>
+
+<p>The mechanisms for dealing with multithreading have been built into X11
+Release 6, so all we have to do is use their stuff in the right way.</p>
+
+<p>The X sources can be compiled to be thread-safe themselves. Unfortunately
+not all implementations of X are compiled in that way - <strong>none of the
+XFree implementations that I've seen were compiled to be
+thread-safe.</strong></p>
+
+<p>The mechanisms however are available so we can call them, independent of
+how they've been compiled.</p>
+
+<p>The calls provided by X are :</p>
+<ul>
+<li>
+void XtAppLock(XtAppContext),
+
+<p>void XtAppUnlock(XtAppContext)</p>
+</li>
+<li>
+void XtProcessLock(void),
+
+<p>void XtProcessUnlock(void)</p>
+</li>
+</ul>
+
+<p>A few simple rules must be followed to work with these.</p>
+
+<p>All API calls to a widget must be masked with XtAppLock() and
+XtAppUnlock(). This means that a function such as XmListAddItem() should start
+with a call to XtAppLock and should end with a call to XtAppUnlock. Doing this
+ensures that only one thread can run in that application context at a
+time.</p>
+
+<p>Second, global data (if you really need it - otherwise get rid of it) can
+be secured by using XtProcessLock. This will ensure that nothing else uses the
+data. Note that calling XtProcessLock twice will cause deadlock.</p>
+
+<p>To avoid deadlocks with interactions of the calls mentioned above, the rule
+to obey is <strong>acquire AppLock first, only then ProcessLock</strong>. This
+means for instance that between XtProcessLock and XtProcessUnlock one should
+not make calls to Xt or other widget API's.</p>
+
+<h1>Details on how to handle this in LessTif</h1>
+
+<p>LessTif has a couple of tweaked versions of the Xt calls :</p>
+<ul>
+<li>
+void _XmAppLock(XtAppContext)
+</li>
+<li>
+void _XmAppUnlock(XtAppContext)
+</li>
+<li>
+void _XmProcessLock(void)
+</li>
+<li>
+void _XmProcessUnlock(void)
+</li>
+<li>
+void _XmObjectLock(Widget)
+</li>
+<li>
+void _XmObjectUnlock(Widget)
+</li>
+</ul>
+
+<p>The latter two can be used to replace _XmAppLock if you haven't looked up
+the Application Context yet. Also the functions mentioned will behave right
+even on older systems with only X11 Release 5.</p>
+
+<p>Here's an example :</p>
+<blockquote>
+
+<p>Widget XmCreateLabel(Widget parent, char *name, Arg *arglist, Cardinal
+argcount)</p>
+
+<p> {</p>
+
+<p>        Widget  w;</p>
+
+<p>       _XmObjectLock(parent);</p>
+
+<p>       w = XtCreateWidget(name, xmLabelWidgetClass, parent, arglist,
+argcount);</p>
+
+<p>       _XmObjectUnlock(parent);</p>
+
+<p>       return w;</p>
+
+<p>}</p>
+</blockquote>
+
+<h1>Checklist</h1>
+<ol>
+<li>
+Avoid global variables like the plague.
+</li>
+<li>
+If you still have to use them, protect global variables with _XmProcessLock.
+</li>
+<li>
+Treat write access in class records as global storage.
+</li>
+<li>
+Protect all public API's with _XmAppLock or _XmObjectLock.
+</li>
+<li>
+Don't forget to unlock after acquiring a lock.
+</li>
+<li>
+Check whether calls to the C library (and other libraries) are thread-safe.
+Unsafe functions by design include ctime, getpwuid, readdir. Use their
+threadsafe equivalents.
+</li>
+</ol>
+
+<p><span style="font-size: 10pt">This has been written using <a
+href="http://www.w3.org/Amaya/">Amaya 2.0</a> running with <a
+href="http://www.lesstif.org">LessTif</a>.</span></p>
+</body>
+</html>

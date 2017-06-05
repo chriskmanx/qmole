@@ -1,0 +1,211 @@
+<!-- ##### SECTION Title ##### -->
+BonoboPersistFile
+
+<!-- ##### SECTION Short_Description ##### -->
+Interface for anything that can save / load itself from a file.
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+The PersistFile interface is a useful interface for Bonoboizing
+legacy applications, however, for new / correct applications it
+is far preferable to implement the #BonoboPersistStream interface,
+since this will not only result in a nice clean to your application
+architecture, but also allow the transparent use of local, remote,
+and synthetic streams.
+</para>
+
+<para>
+This interface works by connecting callbacks to the methods, in
+a pretty deprecated fashion, it is probably better nowadays to
+simply sub-class the BonoboXObject and override the epv methods.
+Either way, after all the caveats here is an example use:
+  <example>
+    <title>Persist file implementation</title>
+    <programlisting>
+static gint
+load_from_file (BonoboPersistFile *pf,
+                const CORBA_char  *filename,
+		CORBA_Environment *ev,
+                void              *closure)
+{
+	EogImageData *image_data = closure;
+
+	g_warning ("Load from '%s'", filename);
+
+	return 0; /* Return 0 on success */
+}
+
+static gint
+save_to_file (BonoboPersistFile *pf,
+              const CORBA_char  *filename,
+              CORBA_Environment *ev,
+              void              *closure)
+{
+	EogImageData *image_data = closure;
+
+	g_warning ("Save to '%s'", filename);
+
+	return 0; /* Return 0 on success */
+}
+    </programlisting>
+  </example>
+Having implemented the callbacks we then have to register them
+and aggregate the interface to our object:
+  <example>
+     <title>Aggregating a new PersistFile</title>
+    <programlisting>
+EogImageData *
+eog_image_data_construct (EogImageData *image_data)
+{
+	BonoboObject        *retval;
+	BonoboPersistFile   *file;
+
+	file = bonobo_persist_file_new (
+		load_from_file, save_to_file, image_data);
+
+	if (file == NULL) {
+		bonobo_object_unref (BONOBO_OBJECT (image_data));
+		return NULL;
+	}
+
+	bonobo_object_add_interface (BONOBO_OBJECT (image_data),
+				     BONOBO_OBJECT (file));
+
+	return image_data;
+}
+    </programlisting>
+  </example>
+Note again, that you should be writing a BonoboPersistStream
+interface, however if you have already done this you might like
+to just have hooks through so that old apps can use the PersistFile
+interface:
+  <example>
+     <title>Chaining to a #PersistStream implementation</title>
+     <programlisting>
+static gint
+load_from_file (BonoboPersistFile *pf,
+                const CORBA_char  *filename,
+		CORBA_Environment *ev,
+                void              *closure)
+{
+	Bonobo_PersistStream ps = closure;
+	BonoboStream *stream;
+	
+	stream = bonobo_stream_open (
+		BONOBO_IO_DRIVER_FS,
+		filename, Bonobo_STORAGE_READ,
+		0);
+
+	if (!stream)
+		return 0;
+
+	.. extract content type from file ...
+
+	Bonobo_PersistStream_load (ps, type, ev);
+
+	return 0; /* Return 0 on success */
+}
+
+static gint
+save_to_file (BonoboPersistFile *pf,
+              const CORBA_char  *filename,
+              CORBA_Environment *ev,
+              void              *closure)
+{
+	Bonobo_PersistStream ps = closure;
+	BonoboStream *stream;
+	
+	stream = bonobo_stream_open (
+		BONOBO_IO_DRIVER_FS,
+		filename, Bonobo_STORAGE_WRITE | Bonobo_STORAGE_CREATE,
+		S_IRUSR | S_IWUSR | S_IRGRP);
+
+	if (!stream)
+		return 0;
+
+	.. work out content type we want to save ...
+
+	Bonobo_PersistStream_save (ps, type, ev);
+
+	return 0; /* Return 0 on success */
+}
+     </programlisting>
+  </example>
+  The mime type data can be extracted from gnome-vfs or gnome-mime.
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+#BonoboPersistStream, #BonoboPersist
+</para>
+
+<!-- ##### MACRO BONOBO_PERSIST_FILE_TYPE ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### STRUCT BonoboPersistFilePrivate ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### STRUCT BonoboPersistFile ##### -->
+<para>
+
+</para>
+
+@persist: 
+@filename: 
+@save_fn: 
+@load_fn: 
+@closure: 
+@priv: 
+
+<!-- ##### USER_FUNCTION BonoboPersistFileIOFn ##### -->
+<para>
+
+</para>
+
+@pf: 
+@filename: 
+@ev: 
+@closure: 
+@Returns: 
+
+
+<!-- ##### TYPEDEF BonoboPersistFileClass ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### FUNCTION bonobo_persist_file_new ##### -->
+<para>
+
+</para>
+
+@load_fn: 
+@save_fn: 
+@iid: 
+@closure: 
+@Returns: 
+
+
+<!-- ##### FUNCTION bonobo_persist_file_construct ##### -->
+<para>
+
+</para>
+
+@ps: 
+@load_fn: 
+@save_fn: 
+@iid: 
+@closure: 
+@Returns: 
+<!-- # Unused Parameters # -->
+@corba_ps: 
+
+

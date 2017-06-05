@@ -1,0 +1,162 @@
+[UNDER CONSTRUCTION]
+
+0. What does the UIL compiler do ? Why ?
+  UIL is a static description of a widget interface. The language
+  is described in OSF's publications in English text, not (to my
+  knowledge) in a BNF form or so.
+
+  UIL files are treated with a UIL compiler which turns them into
+  UID files. UID is a binary, preprocessed form of UIL.
+
+  Applications can then in turn call functions from the Mrm library
+  to load UID files and create widget (or gadget) hierarchies that
+  are described in the UIL.
+
+  According to my understanding, the real reason for a UIL compiler
+  is that it makes the Mrm library smaller because it doesn't need
+  the complicated and large parser for the UIL language.
+
+1. How does the UIL compiler work ?
+  The uil compiler has built-in knowledge about the OSF/Motif widget set
+  (as you can understand from the OSF/Motif specification of uil).
+
+  According to the spec, uil can be given information about custom widgets,
+  and you could even replace the information about the OSF/Motif widget set
+  and have uil operate exclusively on your own widgets.
+
+  A look at binary distributions of OSF/Motif on Linux and HP/UX shows that
+  no WML file is delivered with those distributions.
+
+  What about the LessTif version ? It doesn't currently support WML as I am
+  not sure anybody uses it.
+  The only use I know of WML is in the Builder Xcessory from ICS
+  (http://www.ics.com, info@ics.com) where it is used to tell BX
+  about user defined widgets so it can use them as well.
+  
+2. UIL file format
+
+  You can find the UIL format either in OSF/Motif documentation, where
+  it is partially described (especially in uil(5)); or you could take
+  the files
+	LESSTIF/clients/uil/lex.l
+  and
+	LESSTIF/clients/uil/yacc.y,
+  take the C language statements out, and start reading.
+
+  The lex.l and yacc.y files form the basis of the UIL parser which
+  LessTif uses.
+
+3. WML
+  WML is not currently supported.
+
+  WML is the way to integrate knowledge of (resources of) user-defined
+  widgets into uil.
+
+4. UID file format
+  The OSF/Motif UID format is not documented in any document that I
+  know of.
+  A couple of facts :
+  - the format prior to 2.0 was architecture-dependent. This means
+    that UID files generated on computer A would be different and
+    incompatible with UID files generated on computer B.
+  - the OSF/Motif 2.0 UID file format is architecture-independent.
+    Guess what that means ;-)
+
+  The LessTif UID file format is currently incompatible with either
+  of the OSF/Motif versions; however we aim it to be architecture-
+  independent.
+
+  Some facts from the OSF/Motif uil(5) manual pages :
+  - integers are 32-bit quantities
+  - floating point numbers are double-precision
+  - boolean values are really integers (True is 1, False is 0)
+
+  Currently the UID file format is an all text format (i.e. readable),
+  with a very simple syntax :
+	first line : header line describing the LessTif version
+	other lines : <XXX>name{,parameter}
+		in which XXX is a code describing the type of entry,
+		name is the name of the item, the rest are parameters.
+
+5. Functionality : distributed over several places
+  Current draft of how functionality is spread :
+  - arrays with text to value mappings : libMrm (should move to clients/uil)
+  - convert texts to values : libMrm (should move to clients/uil)
+  - parse UIL syntax (uil)
+
+
+<<< DESCRIPTION OF ALL THE STRUCTURES >>>>
+typedef	struct uil_arguments_s	uil_arguments_t;
+typedef struct uil_callbacks_s	uil_callbacks_t;
+typedef struct uil_controls_s	uil_controls_t;
+typedef struct uil_expression_s	uil_expression_t;
+typedef	struct uil_identifier_s	uil_identifier_t;
+typedef struct uil_lists_s	uil_lists_t;
+typedef struct uil_procedures_s	uil_procedures_t;
+typedef struct uil_objects_s	uil_objects_t;
+typedef struct uil_values_s	uil_values_t;
+
+/*
+ * Only one of these in the uil compiler,
+ * but one per module read in libMrm.
+ */
+typedef struct uil_global_s {
+	char	*uil_version;
+	char	*module_name;
+	Boolean	case_sensitive;
+	char	*character_set;
+
+	uil_arguments_t		*Arguments;
+	uil_identifier_t	*Identifiers;
+	uil_objects_t		*Objects;
+	uil_procedures_t	*Procedures;
+	uil_callbacks_t		*Callbacks;
+	uil_lists_t		*Lists;
+	uil_values_t		*Values;
+} uil_global_t;
+
+7. The use of trees in uil
+
+  Almost all the data structures described above are linked in a tree format.
+  The sources LESSTIF/clients/uil/Tree.c and Tree.h implement this.
+
+  All the tree-structured data type start their definition with the same elements
+  in the structure as are present in "struct tree_s" below.
+
+	typedef struct tree_s	*tree_p;
+	typedef	tree_p		tree;
+
+	struct tree_s {
+		char	*name;
+		tree_p	left, right;
+	};
+
+  Additionally they all have a field
+		what	type;
+  following the ones indicated above. The "type" field is meant to be able to
+  distinguish between the different types of structure in the dynamically allocated
+  structure, so memory de-allocation is possible.
+
+  Currently the implementation of trees is very straightforward. Anybody knows
+  that an implementation this simple can lead to unbalanced and therefore
+  unperformant trees. To be fixed sometime after I dig up my college book on
+  the subject.
+  - build widget tree (uil)
+
+6. Data structures inside uil/libMrm
+
+  Definitions for all these are in clients/uil/UilMrm.h.
+
+  The primary data structure is uil_global_t, which represents a "module"
+  in uil. A number of data structures are dynamically built, and are
+  reachable from the module level.
+
+  Some stuff is global (identifiers, values, procedures, ...), others are
+  hidden under objects (attributes, callbacks).
+  Examples : values are global (they are not linked to an object or so),
+  while many objects (widgets or gadgets) are children of other widgets,
+  because of a "controls" relationship described in the UIL.
+
+  In the libMrm (the runtime that processes all this), the module level
+  (uil_global_t) is read from the UID files, kept in memory, and delivered
+  to the application as hierarchy ID's.

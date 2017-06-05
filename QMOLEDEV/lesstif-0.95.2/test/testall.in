@@ -1,0 +1,163 @@
+#! /bin/sh
+#
+# $Header: /cvsroot/lesstif/lesstif/test/testall.in,v 1.12 2001/11/21 12:55:04 amai Exp $
+#
+# Script to run tests from several subdirectories.
+# 
+
+#set -x
+
+# The default version as of configure
+XmVersion=@xmVer@
+
+case $LOGNAME in
+rwscott)
+   echo "Hello Rick!"
+   DELAY=0                  # Time in milliseconds before apps exit
+   POSITION="+500+500"      # X geometry
+   USE_FB="no"              # Use Xvfb (hardcoded display, see below)
+   USE_FS="no"              # Use font server (hardcoded address, see below)
+   ;;
+mai)
+   echo "Hello Alexander!"
+   DELAY=0
+   POSITION="+75+75"
+   USE_FB="yes"
+   USE_FS="no"
+   ;;
+*)
+   echo "Hello Stranger!"
+   DELAY=31
+   POSITION="+75+75"
+   USE_FB="no"
+   USE_FS="no"
+   ;;
+esac
+
+if [ $# = 0 ]
+then
+   echo "$0 usage: testall dirlist"
+   echo "Set the environment variable USE_FB=\"yes\" if you want to use Xvfb."
+   echo "Also check the script for setting of DELAY and POSITION variables."
+   echo "Set USE_FS=\"yes\" to use font server on default port."
+   echo "Set TEST_MOTIF to run the Motif tests."
+   exit 1
+fi
+
+if [ "$TEST_MOTIF" = "yes" ]
+then
+   echo "Running Motif tests"
+   TEST_MOTIF=yes
+   suffix=".motif"
+else
+   echo "Running LessTif tests"
+   TEST_MOTIF=no
+   suffix=""
+fi
+
+if [ "$USE_FB" != "yes" ]
+then
+   echo "Don't use Xvfb"
+   XVFB_id=""
+else
+   # Look out for old, existing Xvfb processes.
+   # `ps x` should give something like:
+   # 10860 ttyp1    I        0:00.26 Xvfb :3
+   # Avoid to catch our own grep process!
+   old_Xvfb=`ps x | grep -e "[0-9] *Xvfb :2" | awk '{print $1}'`
+   if test "x$old_Xvfb" != "x"
+   then
+      echo "Found an old Xvfb process. Killing it ..."
+      kill "$old_Xvfb"
+   fi
+   if [ "$USE_FS" != "yes" ]
+   then
+      Xvfb :2 -dpi 75 2>/tmp/testall.log &
+   else
+      Xvfb :2 -dpi 75 -fp "tcp/localhost:7000" 2>/tmp/testall.log &
+   fi
+   XVFB_id=$!
+#   Give it a chance to start up    
+   sleep 3
+   if kill -0 $XVFB_id 2>/dev/null
+   then
+      echo "Using Xvfb :2"
+      DISPLAY=:2
+      export DISPLAY
+   else
+      echo "Could not start Xvfb"
+      if test -s /tmp/testall.log
+      then
+         cat /tmp/testall.log
+      fi
+      XVFB_id=""
+      # It doesn't make sense to continue if something went wrong here ...
+      exit 2
+   fi
+fi
+
+TOTAL=0
+FAILED=0
+echo "" >failed
+
+for i in $*
+do
+   dir=`echo $i | sed -e "s/\/*$//"`
+   if [ -d $dir -a -f $dir/Makefile ]
+   then
+      echo "Running tests in $dir ================="
+
+      if [ "$TEST_MOTIF" = "yes" ]
+      then
+         (cd $dir && make motif-tests)
+      else
+         (cd $dir && make)
+      fi
+
+      cd $dir
+      for j in test*[0-9]$suffix
+         do
+	 file=$j
+         if [ -x $file ]
+	 then
+            TOTAL=`expr $TOTAL + 1`
+	    printf "%s/%s ...	"    "$dir" "$file"
+            ./$file -xrm "*geometry:$POSITION" -xrm "*exitDelay:$DELAY" -xrm "*autoExit:True" >/dev/null 2>&1
+            status=$?
+            if [ $status -ne 0 ]
+            then
+               echo "failed $status"
+               echo "status" >>failed
+               FAILED=`expr $FAILED + 1`
+            else
+               echo "okay"
+            fi
+         fi
+         done
+      cd ..
+   fi
+done
+
+# Kill XVFB_id process if we started one
+if [ "x$XVFB_id" != "x" ] ; then
+   kill $XVFB_id
+   # Rest in peace for a moment ...
+   sleep 1
+fi
+
+echo ""
+echo "$FAILED failed out of $TOTAL"
+cmp -s failed failed.known
+CMPSTAT=$?
+if test $CMPSTAT -ne 0
+then
+   echo "< means recently pooched"
+   echo "> means recently fixed"
+   echo ""
+   diff failed failed.known
+else
+   echo "No change in the tests"
+fi
+
+# Exiting. Return number of broken tests (?!)
+exit $CMPSTAT

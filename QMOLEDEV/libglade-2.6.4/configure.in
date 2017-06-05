@@ -1,0 +1,194 @@
+-*- mode: autoconf -*-
+AC_PREREQ(2.52)
+
+m4_define([required_libxml_version], [2.4.10])
+m4_define([required_glib_version],   [2.10.0])
+m4_define([required_atk_version],    [1.9.0])
+m4_define([required_gtk_version],    [2.5.0])
+
+AC_INIT([libglade],[2.6.4],
+        [http://bugzilla.gnome.org/enter_bug.cgi?product=libglade])
+
+AC_CONFIG_SRCDIR([test-libglade.c])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_HEADERS([config.h])
+
+AM_INIT_AUTOMAKE([1.9 no-dist-gzip dist-bzip2])
+
+GNOME_COMMON_INIT
+
+if test "$enable_debug" != "no"; then
+  AC_DEFINE([DEBUG],[1],[enable use of LIBGLADE_DEBUG environment variable])
+fi
+
+AC_PROG_CC
+AC_ISC_POSIX
+AC_HEADER_STDC
+
+dnl XXXX hack to kill off all the libtool tags ...
+dnl it isn't like we are using C++ or Fortran.
+m4_define([_LT_AC_TAGCONFIG],[])
+
+AC_LIBTOOL_WIN32_DLL
+AC_PROG_LIBTOOL
+
+AM_PATH_GTK_2_0(required_gtk_version)
+
+save_LIBS=$LIBS
+LIBS="$GTK_LIBS $LIBS"
+AC_CHECK_FUNC(gtk_plug_get_type,
+  AC_DEFINE(HAVE_GTK_PLUG,1,[gtk has GtkPlug/GtkSocket implementation]))
+LIBS=$save_LIBS
+
+PKG_PROG_PKG_CONFIG
+
+PKG_CHECK_MODULES(LIBGLADE, [dnl
+  libxml-2.0 >= required_libxml_version dnl
+  atk >= required_atk_version dnl
+  gtk+-2.0 >= required_gtk_version dnl
+  glib-2.0 >= required_glib_version])
+
+AC_MSG_CHECKING([for native Win32])
+case "$host" in
+  *-*-mingw*)
+    native_win32=yes
+    ;;
+  *)
+    native_win32=no
+    ;;
+esac
+AC_MSG_RESULT([$native_win32])
+AM_CONDITIONAL(OS_WIN32, test "$native_win32" = yes)
+
+AC_MSG_CHECKING([for Win32 platform in general])
+case "$host" in
+  *-*-mingw*|*-*-cygwin*)
+    platform_win32=yes
+    ;;
+  *)
+    platform_win32=no
+    ;;
+esac
+AC_MSG_RESULT($platform_win32)
+AM_CONDITIONAL(PLATFORM_WIN32, test "$platform_win32" = yes)
+
+# Ensure MSVC-compatible struct packing convention is used when
+# compiling for Win32 with gcc. GTK+ uses this convention, so libglade must, too.
+# What flag to depends on gcc version: gcc3 uses "-mms-bitfields", while
+# gcc2 uses "-fnative-struct".
+if test x"$native_win32" = xyes; then
+  if test x"$GCC" = xyes; then
+    msnative_struct=''
+    AC_MSG_CHECKING([how to get MSVC-compatible struct packing])
+    if test -z "$ac_cv_prog_CC"; then
+      our_gcc="$CC"
+    else
+      our_gcc="$ac_cv_prog_CC"
+    fi
+    case `$our_gcc --version | sed -e 's,\..*,.,' -e q` in
+      2.)
+	if $our_gcc -v --help 2>/dev/null | grep fnative-struct >/dev/null; then
+	  msnative_struct='-fnative-struct'
+	fi
+	;;
+      *)
+	if $our_gcc -v --help 2>/dev/null | grep ms-bitfields >/dev/null; then
+	  msnative_struct='-mms-bitfields'
+	fi
+	;;
+    esac
+    if test x"$msnative_struct" = x ; then
+      AC_MSG_RESULT([no way])
+      AC_MSG_WARN([produced libraries will be incompatible with prebuilt GTK+ DLLs])
+    else
+      CFLAGS="$CFLAGS $msnative_struct"
+      AC_MSG_RESULT([${msnative_struct}])
+    fi
+  fi
+fi
+
+GTK_DOC_CHECK(1.0)
+
+dnl gettext stuff ... there is no message catalog for libglade -- libglade
+dnl provides translation for the XML files it reads in.
+AC_SUBST(GETTEXT_PACKAGE, libglade-2.0)
+
+ALL_LINGUAS=
+AM_GLIB_GNU_GETTEXT
+
+dnl stuff to go in the config.h file
+AH_TOP(
+[#ifndef GLADE_CONFIG_H
+#define GLADE_CONFIG_H])
+AH_BOTTOM(
+[#endif /* GLADE_CONFIG_H */])
+
+# check for a copy of python >= 2.0 with the xml.parsers.expat module.
+AM_PATH_PYTHON(2.0, [have_python=true], [have_python=false])
+if $have_python; then
+  jh_python_check='
+import sys
+try:
+    import xml.parsers.expat
+except ImportError:
+    sys.exit(1)
+'
+  AC_MSG_CHECKING([for the Python module xml.parsers.expat])
+  if AC_RUN_LOG([$PYTHON -c "$jh_python_check"]); then
+    AC_MSG_RESULT([yes])
+  else
+    AC_MSG_RESULT([no])
+    have_python=false
+  fi
+fi
+AM_CONDITIONAL(HAVE_PYTHON, $have_python)
+
+# check for XML catalog
+JH_PATH_XML_CATALOG([have_xmlcatalog=true], [have_xmlcatalog=false])
+AM_CONDITIONAL(HAVE_XMLCATALOG, $have_xmlcatalog)
+
+dnl add debugging options ...
+changequote(,)dnl
+if test "x$GCC" = xyes; then
+  case " $CFLAGS " in
+  *[\	\ ]-Wall[\	\ ]*) ;;
+  *) CFLAGS="$CFLAGS -Wall" ;;
+  esac
+
+  case " $CFLAGS " in
+  *[\	\ ]-std=c9x[\	\ ]*) ;;
+  *) CFLAGS="$CFLAGS -std=c9x" ;;
+  esac
+fi
+changequote([,])dnl
+
+AC_CONFIG_FILES([
+Makefile
+libglade.spec
+libglade-zip
+glade/Makefile
+doc/Makefile
+doc/version.xml
+tests/Makefile
+libglade-2.0.pc
+libglade-2.0-uninstalled.pc
+])
+AC_CONFIG_FILES([libglade-convert], [chmod +x libglade-convert])
+
+AC_OUTPUT
+
+rm -f po/po2tbl.sed
+
+if ! $have_python; then
+  echo "*****************************************************"
+  echo "  A usable version of python was not found, so the"
+  echo "  libglade-convert program was not installed.  This"
+  echo "  script requires Python >= 2.0 with expat support."
+  echo
+  echo "  Some packages require libglade-convert to build"
+  echo "  correctly.  If you wish to build one of these"
+  echo "  packages, you must install expat and python,"
+  echo "  and then rebuild libglade."
+  echo "*****************************************************"
+  echo
+fi

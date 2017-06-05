@@ -1,0 +1,299 @@
+<refentry id="libbonobo-bonobo-moniker-extender">
+<refmeta>
+<refentrytitle>BonoboMonikerExtender</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>LIBBONOBO Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>BonoboMonikerExtender</refname><refpurpose>A way to extend arbitary monikers</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+
+
+#define     <link linkend="BONOBO-MONIKER-EXTENDER-TYPE-CAPS">BONOBO_MONIKER_EXTENDER_TYPE</link>
+struct      <link linkend="BonoboMonikerExtender">BonoboMonikerExtender</link>;
+<link linkend="Bonobo-Unknown">Bonobo_Unknown</link> (<link linkend="BonoboMonikerExtenderFn">*BonoboMonikerExtenderFn</link>)   (<link linkend="BonoboMonikerExtender">BonoboMonikerExtender</link> *extender,
+                                             const <link linkend="Bonobo-Moniker">Bonobo_Moniker</link> parent,
+                                             const <link linkend="Bonobo-ResolveOptions">Bonobo_ResolveOptions</link> *options,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *display_name,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *requested_interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev);
+typedef     <link linkend="BonoboMonikerExtenderClass">BonoboMonikerExtenderClass</link>;
+<link linkend="BonoboMonikerExtender">BonoboMonikerExtender</link>* <link linkend="bonobo-moniker-extender-new">bonobo_moniker_extender_new</link>
+                                            (<link linkend="BonoboMonikerExtenderFn">BonoboMonikerExtenderFn</link> resolve,
+                                             <link linkend="gpointer">gpointer</link> data);
+<link linkend="Bonobo-MonikerExtender">Bonobo_MonikerExtender</link> <link linkend="bonobo-moniker-find-extender">bonobo_moniker_find_extender</link>
+                                            (const <link linkend="gchar">gchar</link> *name,
+                                             const <link linkend="gchar">gchar</link> *interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *opt_ev);
+<link linkend="Bonobo-Unknown">Bonobo_Unknown</link> <link linkend="bonobo-moniker-use-extender">bonobo_moniker_use_extender</link>  (const <link linkend="gchar">gchar</link> *extender_oafiid,
+                                             <link linkend="BonoboMoniker">BonoboMoniker</link> *moniker,
+                                             const <link linkend="Bonobo-ResolveOptions">Bonobo_ResolveOptions</link> *options,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *requested_interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *opt_ev);
+
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+A moniker extender is used to extend the functionality of a moniker.
+There are two standard moniker extenders that cannot be system wide,
+since they use the oaf database to expand the scope of a moniker to
+arbitrarily many interfaces. These are invoked explicitely by monikers
+implementing the stream interface in the following way:
+  <example>
+     <title>Explicit Stream extender usage example</title>
+     <programlisting>
+Bonobo_Unknown
+example_moniker_resolve (BonoboMoniker               *moniker,
+			 const Bonobo_ResolveOptions *options,
+			 const CORBA_char            *requested_interface,
+			 CORBA_Environment           *ev)
+{
+	if (!strcmp (requested_interface, "IDL:Bonobo/Stream:1.0"))
+		return handle_stream (moniker, options, ev);
+	else
+		return bonobo_moniker_use_extender (
+			"OAFIID:Bonobo_MonikerExtender_stream",
+			moniker, options, requested_interface, ev);
+}
+     </programlisting>
+  </example>
+  The moniker extender essentialy resolves 'moniker' against stream
+and my some means ( not known when the moniker was written ) converts
+this to a new exotic interface - via. the PersistStream interface.
+</para>
+
+<para>
+All standard moniker extenders are registered by adding a fragment
+like this:
+  <example>
+    <title>Oaf information for an extender</title>
+    <programlisting>
+&lt;oaf_attribute name="bonobo:moniker_extender" type="stringv"&gt;
+	&lt;item value="file:"/&gt;
+&lt;/oaf_attribute&gt;
+    </programlisting>
+  </example>
+to the .oaf file. This registers the extender with the system, such
+that when a moniker resolve fails an extender can be found for any
+of the monikers with prefix specified in the "bonobo:moniker_extender"
+stringv.
+</para>
+
+<para>
+Implementing your own extender is extremely simple, much like
+<link linkend="BonoboMonikerSimple">BonoboMonikerSimple</link>.
+  <example>
+    <title>Oaf information for an extender</title>
+    <programlisting>
+Bonobo_Unknown
+example_extender_resolve (BonoboMonikerExtender *extender,
+			  const Bonobo_Moniker   m,
+			  const Bonobo_ResolveOptions *options,
+			  const CORBA_char      *display_name,
+			  const CORBA_char      *requested_interface,
+			  CORBA_Environment     *ev)
+{
+	... resolve 'm' against an interface we know it supports ...
+	... then use that interface to provide requested_interface ...
+}
+    </programlisting>
+  </example>
+It is registered again in much the same way in your factory:
+  <example>
+    <title>Creating a new simple moniker</title>
+    <programlisting>
+static BonoboObject *
+bonobo_std_moniker_factory (BonoboGenericFactory *this,
+			    const char           *object_id,
+			    void                 *data)
+{
+	g_return_val_if_fail (object_id != NULL, NULL);
+
+	if (!strcmp (object_id, "OAFIID:Bonobo_MonikerExtender_file"))
+		return BONOBO_OBJECT (bonobo_moniker_extender_new (
+			example_extender_resolve, NULL));
+	else
+		return NULL;
+}
+    </programlisting>
+  </example>
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="BONOBO-MONIKER-EXTENDER-TYPE-CAPS">BONOBO_MONIKER_EXTENDER_TYPE</title>
+<programlisting>#define BONOBO_MONIKER_EXTENDER_TYPE        BONOBO_TYPE_MONIKER_EXTENDER /* deprecated, you should use BONOBO_TYPE_MONIKER_EXTENDER */
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboMonikerExtender">struct BonoboMonikerExtender</title>
+<programlisting>struct BonoboMonikerExtender {
+        BonoboObject           object;
+	BonoboMonikerExtenderFn resolve;
+	gpointer                data;
+};
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboMonikerExtenderFn">BonoboMonikerExtenderFn ()</title>
+<programlisting><link linkend="Bonobo-Unknown">Bonobo_Unknown</link> (*BonoboMonikerExtenderFn)   (<link linkend="BonoboMonikerExtender">BonoboMonikerExtender</link> *extender,
+                                             const <link linkend="Bonobo-Moniker">Bonobo_Moniker</link> parent,
+                                             const <link linkend="Bonobo-ResolveOptions">Bonobo_ResolveOptions</link> *options,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *display_name,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *requested_interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *ev);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>extender</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>parent</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>options</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>display_name</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>requested_interface</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>ev</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BonoboMonikerExtenderClass">BonoboMonikerExtenderClass</title>
+<programlisting>typedef struct {
+	BonoboObjectClass      parent_class;
+
+	POA_Bonobo_MonikerExtender__epv epv;
+	
+	BonoboMonikerExtenderFn resolve;
+} BonoboMonikerExtenderClass;
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="bonobo-moniker-extender-new">bonobo_moniker_extender_new ()</title>
+<programlisting><link linkend="BonoboMonikerExtender">BonoboMonikerExtender</link>* bonobo_moniker_extender_new
+                                            (<link linkend="BonoboMonikerExtenderFn">BonoboMonikerExtenderFn</link> resolve,
+                                             <link linkend="gpointer">gpointer</link> data);</programlisting>
+<para>
+This creates a new moniker extender.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>resolve</parameter>&nbsp;:</entry>
+<entry> the resolve function that will be used to do the extension
+</entry></row>
+<row><entry align="right"><parameter>data</parameter>&nbsp;:</entry>
+<entry> user data to be passed back to the resolve function.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> the extender object
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-moniker-find-extender">bonobo_moniker_find_extender ()</title>
+<programlisting><link linkend="Bonobo-MonikerExtender">Bonobo_MonikerExtender</link> bonobo_moniker_find_extender
+                                            (const <link linkend="gchar">gchar</link> *name,
+                                             const <link linkend="gchar">gchar</link> *interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *opt_ev);</programlisting>
+<para>
+This routine tries to locate an extender for our moniker
+by examining a registry of extenders that map new interfaces
+to certain moniker names.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>name</parameter>&nbsp;:</entry>
+<entry> the name of the moniker we want to extend eg. 'file:'
+</entry></row>
+<row><entry align="right"><parameter>interface</parameter>&nbsp;:</entry>
+<entry> the interface we want to resolve to
+</entry></row>
+<row><entry align="right"><parameter>opt_ev</parameter>&nbsp;:</entry>
+<entry> an optional corba exception environment.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> an appropriate extender or CORBA_OBJECT_NIL.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-moniker-use-extender">bonobo_moniker_use_extender ()</title>
+<programlisting><link linkend="Bonobo-Unknown">Bonobo_Unknown</link> bonobo_moniker_use_extender  (const <link linkend="gchar">gchar</link> *extender_oafiid,
+                                             <link linkend="BonoboMoniker">BonoboMoniker</link> *moniker,
+                                             const <link linkend="Bonobo-ResolveOptions">Bonobo_ResolveOptions</link> *options,
+                                             const <link linkend="CORBA-char">CORBA_char</link> *requested_interface,
+                                             <link linkend="CORBA-Environment">CORBA_Environment</link> *opt_ev);</programlisting>
+<para>
+Locates a known extender via. OAFIID; eg.
+OAFIID:Bonobo_Moniker_Extender_file</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>extender_oafiid</parameter>&nbsp;:</entry>
+<entry> The IID of the extender to use
+</entry></row>
+<row><entry align="right"><parameter>moniker</parameter>&nbsp;:</entry>
+<entry> the moniker to extend
+</entry></row>
+<row><entry align="right"><parameter>options</parameter>&nbsp;:</entry>
+<entry> resolve options
+</entry></row>
+<row><entry align="right"><parameter>requested_interface</parameter>&nbsp;:</entry>
+<entry> the requested interface
+</entry></row>
+<row><entry align="right"><parameter>opt_ev</parameter>&nbsp;:</entry>
+<entry> optional corba environment
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> the resolved result or CORBA_OBJECT_NIL.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+
+</refentry>

@@ -1,0 +1,190 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_PREREQ(2.5)
+AC_INIT(src/cr-input.c)
+PACKAGE=libcroco
+AC_CANONICAL_TARGET
+
+AM_INIT_AUTOMAKE($PACKAGE, $LIBCROCO_VERSION)
+AM_CONFIG_HEADER(config.h)
+AM_MAINTAINER_MODE
+
+LIBCROCO_MAJOR_VERSION=0
+LIBCROCO_MINOR_VERSION=6
+LIBCROCO_MICRO_VERSION=2
+
+LIBCROCO_CURRENT=3
+LIBCROCO_REVISION=1
+LIBCROCO_AGE=0
+
+#LIBCROCO_VERSION_INFO=`expr $LIBCROCO_MAJOR_VERSION + $LIBCROCO_MINOR_VERSION`:$LIBCROCO_MICRO_VERSION:$LIBCROCO_MINOR_VERSION
+LIBCROCO_VERSION_INFO="$LIBCROCO_CURRENT:$LIBCROCO_REVISION:$LIBCROCO_AGE"
+LIBCROCO_VERSION=$LIBCROCO_MAJOR_VERSION.$LIBCROCO_MINOR_VERSION.$LIBCROCO_MICRO_VERSION
+LIBCROCO_VERSION_NUMBER=`expr $LIBCROCO_MAJOR_VERSION \* 10000 + $LIBCROCO_MINOR_VERSION \* 100 + $LIBCROCO_MICRO_VERSION`
+VERSION=$LIBCROCO_VERSION
+
+AC_SUBST(LIBCROCO_MAJOR_VERSION)
+AC_SUBST(LIBCROCO_MINOR_VERSION)
+AC_SUBST(LIBCROCO_MICRO_VERSION)
+AC_SUBST(LIBCROCO_VERSION)
+AC_SUBST(LIBCROCO_VERSION_INFO)
+AC_SUBST(LIBCROCO_VERSION_NUMBER)
+AC_SUBST(LIBCROCO_CURRENT)
+AC_SUBST(LIBCROCO_AGE)
+AC_SUBST(VERSION)
+
+dnl
+dnl First, here goes the list
+dnl of the version of the libraries we depend
+dnl on.
+dnl
+
+GLIB2_VERSION=2.0
+LIBXML2_VERSION=2.4.23
+
+dnl Checks for programs.
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_PROG_CPP
+
+dnl Make sure we have an ANSI compiler
+AM_C_PROTOTYPES
+test "x$U" != "x" && AC_MSG_ERROR(Compiler not ANSI compliant)
+
+dnl Checks for libraries.
+dnl Checks for header files.
+AC_STDC_HEADERS
+AC_ISC_POSIX
+
+AM_PROG_LIBTOOL
+
+case "$host" in
+  *-*-cygwin*|*-*-mingw*)
+    platform_win32=yes
+    ;;
+  *)
+    platform_win32=no
+    ;;
+esac
+AM_CONDITIONAL(PLATFORM_WIN32, [test "$platform_win32" = "yes"])
+
+GTK_DOC_CHECK([1.0])
+
+dnl **************************************************************
+dnl check for the different --enable-option=val  
+dnl messages issued by the user
+dnl ***************************************************************
+G_DISABLE_CHECKS=0
+AC_ARG_ENABLE(checks,
+		AC_HELP_STRING([--enable-checks=yes|no],
+	 	[enables runtime safety checks. Default=yes]),
+		WITH_CHECKS=$enableval,
+		WITH_CHECKS="yes")
+
+if test "$WITH_CHECKS" = "no" ; then
+	G_DISABLE_CHECKS=1
+fi
+AC_SUBST(G_DISABLE_CHECKS)
+
+dnl ************************************************
+dnl end of check of the different --enable-feature options
+dnl *************************************************
+
+dnl
+dnl check glib-2.0 version
+dnl
+have_glib2=no
+PKG_CHECK_MODULES(GLIB2, 
+		  [glib-2.0 >= $GLIB2_VERSION],
+		  [have_glib2=yes
+	 	  CROCO_HAVE_GLIB2=1],
+		  have_glib2=no)
+if test "$have_glib2" = no ; then
+	AC_MSG_ERROR([*** glib2 not found. See http://www.gtk.org])
+fi
+
+AC_SUBST(GLIB2_VERSION)
+AC_SUBST(CROCO_HAVE_GLIB2)
+
+dnl check libxml2 version
+have_libxml2=no
+CROCO_HAVE_LIBXML2=0
+PKG_CHECK_MODULES(LIBXML2, [libxml-2.0 >= $LIBXML2_VERSION],
+			   [have_libxml2=yes
+			   CROCO_HAVE_LIBXML2=1],
+			   have_libxml2=no)
+AC_SUBST(LIBXML2_VERSION)
+AC_SUBST(CROCO_HAVE_LIBXML2)
+
+CROCO_LIB=libcroco-$LIBCROCO_MAJOR_VERSION.$LIBCROCO_MINOR_VERSION.la
+AC_SUBST(CROCO_LIB)
+
+
+dnl **********************************
+dnl *By default compile in debug mode
+dnl **********************************
+
+if test "x$GCC" = "xyes" ; then
+	CFLAGS="$CFLAGS -Wall"
+fi
+
+
+dnl ************************
+dnl *Dodji's environment.
+dnl ************************
+
+if test "x$LOGNAME" = "xdodji" -a "x$GCC" = "xyes" ; then
+	CFLAGS="-g -Wunused -Wimplicit -Wreturn-type -Wswitch \
+	-Wcomment -Wtrigraphs -Wformat -Wchar-subscripts \ 
+        -Wparentheses -Wpointer-arith -Wcast-align \
+        -Wwrite-strings -Waggregate-return -Wstrict-prototypes \
+        -Wmissing-prototypes -Wnested-externs -Winline -Wredundant-decls"
+	
+fi
+
+dnl
+dnl Define the CROCO_LIBS and CROCO_CFLAGS variables. These will be used
+dnl by client application to know where to find croco include files and libs.
+dnl
+CROCO_LIBS="-L${libdir} -lcroco-$LIBCROCO_MAJOR_VERSION.$LIBCROCO_MINOR_VERSION"
+CROCO_CFLAGS="-I${includedir}/libcroco-$LIBCROCO_MAJOR_VERSION.$LIBCROCO_MINOR_VERSION"
+
+AC_SUBST(LIBXML2_LIBS)
+AC_SUBST(LIBXML2_CFLAGS)
+AC_SUBST(CROCO_CFLAGS)
+AC_SUBST(CROCO_LIBS)
+
+AC_SUBST(LDFLAGS)
+AC_SUBST(CFLAGS)
+
+AC_PROG_MAKE_SET
+AC_OUTPUT([
+Makefile
+libcroco.pc
+libcroco.spec
+libcroco-zip
+croco-config
+docs/Makefile
+docs/examples/Makefile
+tests/Makefile
+tests/test-inputs/Makefile
+tests/test-output-refs/Makefile
+global-test-vars.sh
+src/Makefile
+src/libcroco-config.h
+csslint/Makefile
+
+])
+
+dnl =======================================================================
+echo "
+	=====================================================================
+	      LIBCROCO, GNOME CSS2 PARSING AND MANIPULATION TOOLKIT $VERSION
+	=====================================================================
+
+	prefix:				      :	${prefix}
+	source code location:		      :	${srcdir}
+	compiler: 			      :	${CC}
+	cflags:				      :	${CFLAGS}
+
+	Maintainer mode:		      :	${USE_MAINTAINER_MODE}
+"

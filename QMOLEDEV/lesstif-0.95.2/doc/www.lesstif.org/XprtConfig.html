@@ -1,0 +1,239 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<!-- $Id: XprtConfig.html,v 1.9 2004/09/28 04:04:34 dannybackx Exp $ -->
+
+<!-- BEGINNING of header -->
+<HEAD>
+<TITLE>Xprt Configuration</TITLE>
+<META NAME="AUTHOR" CONTENT="LessTif Core Team">
+<META NAME="DESCRIPTION" CONTENT="Xprt Configuration">
+</HEAD>
+
+<body bgcolor="#ffffff" text="#000000">
+
+
+<H1 ALIGN=CENTER>
+XPrt Configuration
+</H1>
+
+The X11r6.8 release from X.org (August 2004) is the first full release of X
+that contains fully functional X printing support.
+As of that release, the remainder of this page is probably obsolete.
+<P>
+<I>
+Add Xprt configuration here...
+<P>
+<B>
+This needs editing !
+</B>
+<P>
+I stripped them to the basics and am attaching my working stuff.
+That's in <A HREF="http://users.skynet.be/danny.backx/download/prconfig.tgz">prconfig.tgz</A> .
+It's a gzipped tar file so the directory hierarchy is in it,
+you may be able to just unpack it in a place where it "just works".
+<P>
+The hierarchy in
+<A HREF="http://users.skynet.be/danny.backx/download/prconfig.tgz">prconfig.tgz</A>
+is etc/X11/xserver/print , you may want
+to put this in /usr/X11R6/lib/X11/xserver/print or so.
+<P>
+Note that in some cases it is a good idea to bypass locale directories,
+I solved this by
+<PRE>
+  cd /usr/X11R6/lib/X11/xserver
+  ln -s . C
+</PRE>
+which creates
+<PRE>
+        dell: {76} l /usr/X11R6/lib/X11/xserver/
+        total 8
+        lrwxrwxrwx   1 root     backx           1 Nov 25 15:56 C -> .
+</PRE>
+which means that /usr/X11R6/lib/X11/xserver/C/print is the same as
+/usr/X11R6/lib/X11/xserver/print .
+<P>
+Oh well, so much for the boring part.
+<P>
+First a little background, you'll find this in the README more elaborately.
+<P>
+We all know an X server, it interfaces X apps to our screen hardware.
+In X11R6 they created a simulated frame buffer whose contents (a bitmap)
+an be put into a file for sending to a printer. Where a normal X server
+would draw pixels on a screen, Xprt draws in memory and then allows you
+to send the bitmap to a printer.
+<P>
+Ok, now for reasons unknown to me they never integrated Xprt with video X
+servers, which means that you need to run both. My test/Xm-2.1/print/test3
+application opens the display :1 assuming that this is an Xprt. You'll
+find in the attachments how to do this in a nicer way, I'm just not there
+yet as to implementing all that stuff.
+<P>
+Ok so now if you start "Xprt :1 &amp;" you'll see that it complains about
+not finding a configuration file (or so).
+<P>
+The main configuration file is /usr/X11R6/lib/X11/xserver/print/Xprinters .
+An example file is in
+<A HREF="http://users.skynet.be/danny.backx/download/prconfig.tgz">prconfig.tgz</A>.
+It just says this :
+<PRE>
+        #
+        Augment_Printer_List    %none%
+        #
+        Printer lp lp1
+</PRE>
+The %none% means don't use fancy tricks to figure out which printers are
+attached to your UNIX, the Printer line defines two printers.
+<P>
+With that file Xprt would run for me, but it would not find /usr/bin/lp .
+(Because I don't have a /usr/bin/lp.)
+<P>
+As the Xprt.ps document shows, you can have more configuration files in
+a set of directories. The list included in
+<A HREF="http://users.skynet.be/danny.backx/download/prconfig.tgz">prconfig.tgz</A>
+is :
+<PRE>
+        etc/X11/xserver/print/attributes/printer
+        etc/X11/xserver/print/Xprinters
+        etc/X11/xserver/print/models/EPSON.STYLUS.COLOR.400/model-config
+        etc/X11/xserver/print/models/EPSON.STYLUS.COLOR.400/fonts.dir
+</PRE>
+On my system they're in /etc but I stripped of the leading / .
+<P>
+Let's have a look. print/attributes/printer contains :
+<PRE>
+        #
+        # Printer attributes file as described in §2.4
+        #
+        lp.descriptor:          this is my Epson
+        lp1.descriptor:         Epson Stylus Color 400
+        *xp-spooler-command:            /tmp/printit
+        *.xp-model-identifier:          EPSON.STYLUS.COLOR.400
+</PRE>
+<P>
+When you run test/Xm-2.1/print/test3, you'll see that it finds
+the descriptors from this file. Importantly this file also shows
+how to run another command than /usr/bin/lp. The /tmp/printit file
+I use contains this :
+<PRE>
+        #!/bin/sh
+        cat >/tmp/print.$$.ps
+        ghostview /tmp/print.$$.ps &amp;
+        exit 0
+</PRE>
+<P>
+This makes sure the file gets put in a file in /tmp, and then ghostview
+is run on it. Make sure to make /tmp/printit executable with
+        chmod a+x /tmp/printit
+<P>
+I ship a couple more files in the
+<A HREF="http://users.skynet.be/danny.backx/download/prconfig.tgz">prconfig.tgz</A>
+to show how to use the model identifier,
+but they don't have sensible contents in my case.
+<P>
+Note finally that there's certainly some parts missing here. First, I
+appear to have found a way to get Xprt to output PostScript instead of
+PCL or something of the kind. Ideally it should produce the format
+that my printer understands, I'm currently better off with the PostScript.
+<P>
+Second, I don't have DtPrint or XmPrint in place so I cannot yet
+offer decent demo programs that work.
+
+<P>
+Actually you may only need the Xprt that I use. It has a bugfix in it and it's
+linked only to system libs :
+<PRE>
+        dell: {34} ldd /home/danny/Hungry/X11r6.5.1/xc/programs/Xserver/Xprt
+                libm.so.6 => /lib/libm.so.6 (0x40020000)
+                libc.so.6 => /lib/libc.so.6 (0x4003e000)
+                /lib/ld-linux.so.2 => /lib/ld-linux.so.2 (0x40000000)
+</PRE>
+This should be fine.
+<P>
+I've just stripped and compressed the Xprt, I'll upload it to
+<A HREF="http://users.skynet.be/danny.backx/download/Xprt-linux.gz">
+http://users.skynet.be/danny.backx/download/Xprt-linux.gz</A>
+<P>
+It should be this size :
+<PRE>
+-rwxrwxr-x    1 danny    backx      963552 Mar 21 20:49 /tmp/Xprt-linux.gz
+</PRE>
+To use it, you would need some setup files that I'm attaching.
+<PRE>
+dell: {28} du /etc/X11/xserver/print/
+16      /etc/X11/xserver/print/attributes
+8       /etc/X11/xserver/print/ddx-config/PostScript
+8       /etc/X11/xserver/print/ddx-config/XP-RASTER
+20      /etc/X11/xserver/print/ddx-config
+11716   /etc/X11/xserver/print/models/EPSON.STYLUS.COLOR.400/fonts
+11724   /etc/X11/xserver/print/models/EPSON.STYLUS.COLOR.400
+11728   /etc/X11/xserver/print/models
+11772   /etc/X11/xserver/print
+</PRE>
+<P>
+I've made a tar.gz file which doesn't include the contents of the fonts
+directory, as this can be grabbed off the net or any recent X source
+distribution. It's on the X11R6.5.1 distribution on ftp.x.org for instance.
+<P>
+Here's a list :
+<PRE>
+dell: {36} ls -l /etc/X11/xserver/print/models/EPSON.STYLUS.COLOR.400/fonts
+total 11712
+-rw-r--r--    1 danny    backx      382972 Dec 24  1996 AvantGarde-Book.pmf
+-rw-r--r--    1 danny    backx      422340 Dec 24  1996 AvantGarde-BookOblique.pmf
+-rw-r--r--    1 danny    backx      399140 Dec 24  1996 AvantGarde-Demi.pmf
+-rw-r--r--    1 danny    backx      432472 Dec 24  1996 AvantGarde-DemiOblique.pmf
+-rw-r--r--    1 danny    backx      319364 Dec 24  1996 Courier-Bold.pmf
+-rw-r--r--    1 danny    backx      348132 Dec 24  1996 Courier-BoldOblique.pmf
+-rw-r--r--    1 danny    backx      327004 Dec 24  1996 Courier-Oblique.pmf
+-rw-r--r--    1 danny    backx      299848 Dec 24  1996 Courier.pmf
+-rw-r--r--    1 danny    backx      388912 Dec 24  1996 Helvetica-Bold.pmf
+-rw-r--r--    1 danny    backx      429360 Dec 24  1996 Helvetica-BoldOblique.pmf
+-rw-r--r--    1 danny    backx      410500 Dec 24  1996 Helvetica-Oblique.pmf
+-rw-r--r--    1 danny    backx      357216 Dec 24  1996 Helvetica.pmf
+-rw-r--r--    1 danny    backx      405084 Dec 24  1996 LubalinGraph-Book.pmf
+-rw-r--r--    1 danny    backx      435380 Dec 24  1996 LubalinGraph-BookOblique.pmf
+-rw-r--r--    1 danny    backx      411324 Dec 24  1996 LubalinGraph-Demi.pmf
+-rw-r--r--    1 danny    backx      448684 Dec 24  1996 LubalinGraph-DemiOblique.pmf
+-rw-r--r--    1 danny    backx      434736 Dec 24  1996 NewCenturySchlbk-Bold.pmf
+-rw-r--r--    1 danny    backx      442732 Dec 24  1996 NewCenturySchlbk-BoldItalic.pmf
+-rw-r--r--    1 danny    backx      412788 Dec 24  1996 NewCenturySchlbk-Italic.pmf
+-rw-r--r--    1 danny    backx      383500 Dec 24  1996 NewCenturySchlbk-Roman.pmf
+-rw-r--r--    1 danny    backx      423980 Dec 24  1996 Souvenir-Demi.pmf
+-rw-r--r--    1 danny    backx      449796 Dec 24  1996 Souvenir-DemiItalic.pmf
+-rw-r--r--    1 danny    backx      384208 Dec 24  1996 Souvenir-Light.pmf
+-rw-r--r--    1 danny    backx      393492 Dec 24  1996 Souvenir-LightItalic.pmf
+-rw-r--r--    1 danny    backx      357252 Dec 24  1996 Symbol.pmf
+-rw-r--r--    1 danny    backx      369068 Dec 24  1996 Times-Bold.pmf
+-rw-r--r--    1 danny    backx      380384 Dec 24  1996 Times-BoldItalic.pmf
+-rw-r--r--    1 danny    backx      341196 Dec 24  1996 Times-Italic.pmf
+-rw-r--r--    1 danny    backx      339148 Dec 24  1996 Times-Roman.pmf
+-rw-r--r--    1 danny    backx      478308 Dec 24  1996 ZapfDingbats.pmf
+-rw-rw-r--    1 danny    backx        1126 Jan  3 21:03 fonts.dir
+</PRE>
+<P>
+The configuration files that I ship also refer to a small script /tmp/printit
+which I've included. It stores the output of Xprt print commands in
+/tmp/print.$$.ps
+where $$ is the process id of the shell that runs /tmp/printit, so you get a
+different output file for each run. Also it invokes ghostview.
+<P>
+I start Xprt from my .xinitrc file as such :
+<BR>
+<CODE>
+(sleep 3; /home/danny/Hungry/X11r6.5.1/xc/programs/Xserver/Xprt :1 -fp
+/usr/lib/X11/xserver/C/print/models/EPSON.STYLUS.COLOR.400/fonts,tcp/localhost:7100
+2>&amp;1 >/dev/pts/0)&amp;
+</CODE>
+<P>
+I found both elements of the font path to be required, not sure why. This could
+be another bug which I've been unable to track.
+<P>
+Anyway as you can see one of the font path elements is the font server (xfs),
+which I enabled on my linux box especially for this. The font server has a
+standard configuration.
+<P>
+A final element (unless I forget something) is to set the environment
+variable XPSERVERLIST to :1 - that's your Xprt.
+
+</BODY>
+</HTML>

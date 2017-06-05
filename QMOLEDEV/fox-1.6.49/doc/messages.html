@@ -1,0 +1,433 @@
+<html>
+<head>
+<link rel="stylesheet" href="page.css" type="text/css">
+<title>Documentation: Messages</title>
+</head>
+<body bgcolor=#ffffff link=#990033 vlink=#990033 alink=#990033 text=#000000>
+
+<!---- TOPIC TITLE WITH LOGO--->
+<table border=0 cellpadding= cellspacing=2 width=100% ><tr><td><a href='http://www.fox-toolkit.org' target=_top><img src='art/foxlogo_small.jpg' border=0></a></td><td width=100% valign=bottom id="HEADLINE"><b>
+Documentation: Messages  <A href='messages.html' target="_top" align=left><font  size=-2>[Remove Frame]</font></a>
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE WITH LOGO --->
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Why a Target/Message System
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+
+  <p>
+  There are many methods to connect Graphical User Interface elements
+  to an application code; the most common methods being used today are callback
+  functions.&nbsp; However, in C++, <I>callback</I> functions are not an
+  obvious choice, as the technique does not easily allow a certain object
+  to be specified.
+  </p>
+
+  <p>
+  Another method being used in C++ is the signal-slot technique. In its typical
+  implementation, <I>connector</I> objects are created that connect a signal to a slot.
+  However, in order to provide the necessary isolation between caller and callee,
+  template instantiations are involved; this limits its use to compile-time
+  connectivity.
+  </p>
+
+  <p>
+  The approach taken by FOX is a <I>Target/Message System</I>.
+  Each Widget sends its <I>message</I> to a certain object called the <B><I>target</I></B>.
+  As there may be multiple Widgets sending messages to one specific target,
+  a <B><I>message id </I></B>is used to tell them apart.
+  </p>
+
+  <p>
+  Moreover, a single Widget may be able to send several kinds of messages; this problem
+  is solved by typing the messages by a <B><I>message type</I></B>.
+  Using the message type and message id, the source and type of a GUI event or
+  action can be uniquely identified.<br>
+  Messages can be sent to any object that is derived (directly or indirectly)
+  from FXObject. Of course, all FOX Widgets are derived from FXObject, and so is the
+  FXApp application object.
+  <u>Thus pretty much <I>every</I> object in FOX is able to <I>receive messages.</I>
+  </u>
+  </p>
+
+  <p>
+  An advantage of the fact that an <I>explicit </I>object is the target
+  of a message (as opposed to lets say an <I>implicit</I> message routing
+  scheme), is the fact that message id's <I>don't </I>have to be<I> globally
+  unique </I>within an application; all that is required is that it is unique
+  for a certain class and its base classes.
+  </p>
+
+  <p>
+  This is a particularly important consideration when one considers making
+  <B>component oriented software</B>, where components are perhaps written by
+  different people, or even different organizations.
+  <br>
+  With FOX, they do not have to coordinate message id's with each other in order
+  for components to interact properly.<br>
+  Another important benefit of the target/message system is the fact that
+  the message a Widget sends, and the target to whom it sends it, may be
+  changed at <I>run time</I>.
+  </p>
+
+  <p>
+  This is an significant benefit for building programs such as GUI Builders
+  and other component oriented software.
+  Finally, since all FOX Widgets derive from FXObject, they are
+  capable of <B><I>receiving</I></B> messages, as well as <B><I>sending</I></B>
+  them.
+  <br>
+  This allows FOX Widgets to implement a number of typical commands
+  that are common in GUI systems; for example, consider the following code ragment:
+  </p>
+
+<pre>
+new FXHorizontalFrame(main,LAYOUT_SIDE_TOP|LAYOUT_FILL_X);
+....
+....
+....
+new FXMenuCommand(windowmenu,"&amp;Toolbar",NULL,<B>toolbar</B>,FXWindow::ID_TOGGLESHOWN);
+</pre>
+
+  <p>In the above example, the <B><I>toolbar</I></B> Widget is a direct target
+  of the MenuCommand Widget.&nbsp; Each time the <B><FONT FACE="Arial,Helvetica"><U>T</U>oolbar</FONT></B>
+  command is invoked, it will toggle the toolbar Widget on or off.&nbsp;
+  Moreover, when the GUI Update process takes place during idle time, the
+  MenuCommand will also send an update message to the toolbar Widget; in
+  response to this update, the toolbar examines its current state, and either
+  checks or unchecks the MenuCommand by sending it back a ID_CHECK or ID_UNCHECK
+  message.</p>
+
+  <p>Note that the toolbar can <I>not assume </I>that the sender of the update
+  message is a MenuCommand; but it <I>does</I> know its an FXObject!&nbsp;
+  So it needs to send a ID_CHECK (ID_UNCHECK) message to this object instead
+  of trying to call the check() or uncheck() member function of MenuCommand
+  directly.
+  <br>The above code fragment shows the flexibility of the target/message
+  system, especially when combined with the GUI Update idle processing capability.&nbsp;
+  The mechanism is used extensively inside FOX itself as well.
+  </p>
+
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Message Maps
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>The messages an object receives are mapped to a specific member function
+  of the object by means of a <B><I>message map</I></B>.&nbsp; A message
+  map is nothing but a static, compile-time defined table which associates
+  one or more messages with a certain member function.&nbsp; Complicated
+  Widgets may have several dozen messages that are being mapped this way.&nbsp;
+  Message maps are un unfortunate necessity in C++ as the exact binding of
+  a message to a member function is performed at run time; C++ does not natively
+  support such dynamic binding very well.Fortunately, FOX makes it fairly easy to define those message maps by
+  providing a number of macros to set them up.&nbsp; The following code fragment
+  illustrates the process:</p>
+
+<pre>
+<B>FXDEFMAP</B>(FXGLViewer) FXGLViewerMap[]={
+  FXMAPFUNC</B>(SEL_PAINT,0,FXGLViewer::onPaint),
+  ....</TT>
+  FXMAPFUNCS</B>(SEL_UPDATE,MINKEY,MAXKEY,FXGLViewer::onUpdAll),
+  };</TT>
+
+<B>FXIMPLEMENT</B>(FXGLViewer,FXGLCanvas,FXGLViewerMap,<B>ARRAYNUMBER</B>(FXGLViewerMap))
+</pre>
+
+
+  <p>The <B>FXDEFMAP</B> macro takes as the argument the name of the class.&nbsp;
+  It is used to define the entries into the message map table.&nbsp; The
+  <B>FXMAPFUNC</B>
+  macro takes three arguments:- first, the type of the message, second, the
+  id of the message, and last the member function to which this message is
+  being mapped.&nbsp; A similar macro called <B>FXMAPFUNCS</B> is used to
+  define a <B><I>range</I></B> of message id's instead of just one.&nbsp;
+  You can use this macro to map a many messages to one and the same member
+  function.</p>
+
+  <p>For example, in a calculator program you may have one button for '0',
+  '1', and so on till '9'.&nbsp; Instead of defining ten very similar member
+  functions, you can define just one of them.&nbsp; The member function can
+  use the macro <B>FXSELID</B>(sel) to acquire the id of the message that called
+  it, and <B>FXSELTYPE</B>(sel) to find the messsage type of the message.
+  </P>
+  <p>The last macro <B>FXIMPLEMENT</B> has four arguments: the name of the
+  class, the name of the immediate base class, a pointer to the message map,
+  and the number of entries in the message map.&nbsp; If an object does not
+  implement any message handlers, you may pass NULL and 0 for these last
+  two arguments instead.&nbsp; The corresponding macro in the header file
+  is called <B>FXDECLARE</B>.</p>
+  <P><FONT COLOR="#FF0000"><I>Every</I> FOX object should <B><I>always</I></B>
+  use <B>FXDECLARE</B> in its header file or class declaration, and <B>FXIMPLEMENT</B>
+  in its implementation file!</FONT></p>
+  <P>Besides FXMAPFUNC and FXMAPFUNCS, there are two (rarely used) macros
+  that key on the message type only; <B>FXMAPTYPE</B> takes just two arguments,
+  the message type and the member function, and <B>FXMAPTYPES</B> takes three,
+  the first and last message id, and the member function.&nbsp; FXMAPTYPE
+  and FXMAPTYPES will completely disregard the message id, and map any message
+  of the appropriate type to the indicated member function.</p>
+  <P>All <B>message id'</B>s should be in the range <B>MINKEY</B> to <B>MAXKEY</B>,
+  and all <B>message types </B>in the range <B>MINTYPE</B> to <B>MAXTYPE</B>.&nbsp;
+  In addition, the special message id of <B>zero</B> <B>(0)</B> is reserved
+  for system-originated messages.</p>
+  <P>Messages are <I>resolved to the message handler functions</I> from the
+  <I>derived
+  class </I>upward<I> to the base class.</I>&nbsp; This allows developers
+  to catch messages in their derived class, before it gets handled in the
+  base class.&nbsp; Thus, you can easily redefine behavior of FOX built-in
+  Widgets.</p>
+  <p>As the message association is performed at run time, it is common practice
+  to place the most-often occurring messages first in the map; this way,
+  the least amount of searching takes place to find them; thus, the SEL_PAINT
+  message is often placed first.
+  </P>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Keeping Track of Message Numbering
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>FOX does not require that all message id's be globally unique.&nbsp;
+  However, it does require that they are unique for a specific target.&nbsp;
+  The messages understood by a target are the union of the messages understood
+  by the target's class, and all of its base classes.
+  <BR>An easy way to keep the numbering straight is to use <B><I>enums</I></B>.&nbsp;
+  FOX itself uses the technique illustrated below:</p>
+<pre>
+class FXWindow : public FXDrawable {</FONT></TT>
+  ...
+public:
+  enum {
+    ID_SHOW=1,
+    ID_HIDE,
+    ...
+<B><FONT COLOR="#3366FF">
+    ID_LAST
+</FONT></B>
+  };
+public:
+...
+};
+
+class MyWindow : public FXWindow {
+...
+public:
+  enum {
+    ID_MYMESSAGE=<B><FONT COLOR="#3366FF">FXWindow::ID_LAST,</FONT></B>
+    ID_MYOTHERMESSAGE,
+    ...
+    ID_LAST
+    };
+public:
+...
+};
+</pre>
+
+  <p>This way, the compiler will <I>automatically</I> arrange to make sure
+  the numbering is correct.&nbsp; It is also easy to add more messages in
+  before ID_LAST,&nbsp; a recompile will adjust the message id's automatically.&nbsp;
+  Of course, you're welcome to use any other scheme if so desired; just make
+  sure your messages do not clash with those of the base-classes of your
+  object.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Message Targets should Outlive Message Sources
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>It is obvious that when a Widget sends a message to some object, the
+  receiving object should of course still exist.&nbsp; A potential pitfall
+  would rear its ugly head if this were not true.&nbsp; Fortunately, in most
+  cases, Control widgets will send messages to their containing Dialog Box,
+  or the Application Object, or other long-lived objects.&nbsp; In rare cases,
+  you may want to make sure that as a Widget or Object is deleted, all references
+  to it are cleaned up as well.FOX provides two member functions:</p>
+
+<pre>
+  FXWindow::setTarget(FXObject* tgt)
+</pre>
+
+<p>and</p>
+
+<pre>
+  FXWindow::setSelector(FXSelector sel)
+</pre>
+
+<p>that allow you to <B><I>change</I></B> the <B><I>target</I></B>, as well
+as the <B><I>message</I></B> that a Widget will send.&nbsp; Setting the
+target of a Widget to NULL will stop it from sending any future messages
+to anybody.</p>
+
+<P>In order to catch the possibility that messages would be sent to an
+object that has been destructed, FOX will<I> <B>utterly</B> <B>thrash</B>
+</I>each
+object in the<I> </I>destructor.&nbsp; Thus, if such a bug exists in an
+application, it is likely to surface quickly, leading to more reliable
+programs.
+</P>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Sending Your Own Messages
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>In many cases, you will want to send messages to Widgets yourself.&nbsp;
+  For example, in an GUI update handler you may want to send a message to
+  the sender of the update message:</p>
+
+<pre>
+....
+FXMAPFUNC(SEL_COMMAND,FXWindow::ID_TOGGLESHOWN,FXWindow::onCmdToggleShown),
+// Command
+FXMAPFUNC(SEL_UPDATE,FXWindow::ID_TOGGLESHOWN,FXWindow::onUpdToggleShown),
+// Update
+....
+// Hide or show window<
+long FXWindow::onCmdToggleShown(FXObject*,FXSelector,void*){
+  ....
+  return 1;
+  }
+
+// Update hide or show window
+long FXWindow::onUpdToggleShown(FXObject* sender,FXSelector,void*){
+<B><FONT COLOR="#3366FF">
+  sender->handle(this,shown()?FXSEL(SEL_COMMAND,ID_CHECK)
+                              :FXSEL(SEL_COMMAND,ID_UNCHECK),NULL);</font></b>
+  return 1;
+  }
+</pre>
+
+<p>
+What happens here? During GUI Updating, the Menu Command connected to
+the Toolbar sends a SEL_UPDATE message [instead of the SEL_COMMAND
+it sends when the command is invoked by the user].
+<BR>The <B><I>onUpdToggleShown </I></B>function above determines whether
+the Toolbar is currently shown, then sends a ID_CHECK or ID_UNCHECK back
+to the sender.
+<BR>Upon getting the ID_CHECK or ID_UNCHECK, a Menu Command object will
+subsequently place or remove a little check mark in front of its label.
+<BR>If the sender of the SEL_UPDATE message were some other Widget, e.g.
+a Check Button, it would still work properly, although the Check Button's
+implementation of the ID_CHECK and ID_UNCHECK handlers is of course completely
+different.
+<BR>If the sender of the SEL_UPDATE message were some completely different
+Widget, it would simply ignore the return message.
+</P>
+<p>
+By sending messages instead of calling a member function directly, the
+function above does<B><I> not need to know </I></B>what <B><I>type</I></B>
+of Widget sent the SEL_UPDATE message; it just sends a message back; if
+the sender of the message does not understand the message, nothing happens.&nbsp;
+Note that it is guaranteed that the sender of a message is always an object
+derived from FXObject.</p>
+<P>The FXSEL macro composes to 16 bit unsigned short numbers into one
+32 bit unsigned int.&nbsp; Composing the message types and message id's
+this way allows for more efficient matching of messages.
+<p>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Message Handler Return Values
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>You may have noticed that some message handlers return <B>1</B>, and
+  some return <B>0</B>. The general convention is, that if the message
+  can be considered <B><I>handled</I></B>, i.e. it is normally processed,
+  the handler s<I>hould return <B>1</B></I>.&nbsp; <I>Otherwise, it should
+  return <B>0.</B></I>
+  <BR>Properly returning the correct return value will allow for intelligent
+  message routing through your application. For messages directly resulting
+  from a user-input event, such as button presses etc., FOX will use the
+  return value of the message handler to determine if the GUI needs to be
+  refreshed.</P>
+  <p>For example, if the system sent a SEL_LEFTBUTTONPRESS to your Widget,
+  and your Widget's handler returned <B>1</B>, it is considered handled;
+  next time the system goes into idle processing, all the GUI Widgets in
+  the application will be updated again as it is assumed that by handling
+  the button message, something may have changed.&nbsp; If your&nbsp; handler
+  had returned <B>0</B>, the message would have been considered unhandled,
+  and nothing further would happen.</p>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Message Routing and Delegation
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Messages may be forwarded from one object to another.&nbsp; For example,
+  upon receipt of a message, a target may first try to handle the message
+  itself; then, if no match is found, it may try its luck by forwarding the
+  message to some other object.&nbsp; Here's how you would code this up:</p>
+
+<pre>
+// Delegate message
+long MyWidget::onDefault(FXObject* sender,FXSelector key,void* data){
+  return delegateObject &amp;&amp; delegateObject->handle(sender,sel,data);
+  }
+</pre>
+
+  <p>We use here the fact that we can overload the so-called <em>default message
+  handler</em>, <b>onDefault()</b>.  The default message handler is called when
+  no message binding has been found for a message.</p>
+
+  <P>In the above code fragment, <I>delegateObject</I> is assumed to be some
+  type of object derived from FXObject.&nbsp;&nbsp; You can use these delegation
+  techniques very creatively.</p>
+
+  <p>Note that you probably want to start the message id's of the delegateObject
+  from where the delegator MyWidget left off, i.e. make sure there is no
+  overlap unless its intended.</p>
+
+  <p>In a few cases, some message which would be handled by MyWidget's base class
+  needs to be forwarded to the delegateObject.  You can easily do this by simply
+  mapping that message to onDefault() in MyWidget's message map:</p>
+
+<pre>
+  FXMAPFUNC(SEL_COMMAND,BaseWidget::ID_DOSOMETHING,MyWidget::onDefault),
+</pre>
+
+</ul>
+
+<!--- COPYRIGHT -->
+<p>
+<table width=100% cellpadding=0 cellspacing=0><tr><td width=100% valign=top id=HEADLINE align=right>
+<img src='art/line.gif' width=100% height=1><font size=-1>
+Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+</td></tr></table>
+</p>
+<!--- COPYRIGHT -->
+
+
+</body>
+</html>

@@ -1,0 +1,379 @@
+
+
+
+
+@subheading gnutls_ia_allocate_client_credentials
+@anchor{gnutls_ia_allocate_client_credentials}
+@deftypefun {int} {gnutls_ia_allocate_client_credentials} (gnutls_ia_client_credentials_t * @var{sc})
+@var{sc}: is a pointer to a @code{gnutls_ia_server_credentials_t} structure.
+
+This structure is complex enough to manipulate directly thus this
+helper function is provided in order to allocate it.
+
+Adding this credential to a session will enable TLS/IA, and will
+require an Application Phase after the TLS handshake (if the server
+support TLS/IA).  Use @code{gnutls_ia_enable()} to toggle the TLS/IA mode.
+
+@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS} (0) is returned, otherwise
+an error code is returned.
+@end deftypefun
+
+@subheading gnutls_ia_allocate_server_credentials
+@anchor{gnutls_ia_allocate_server_credentials}
+@deftypefun {int} {gnutls_ia_allocate_server_credentials} (gnutls_ia_server_credentials_t * @var{sc})
+@var{sc}: is a pointer to a @code{gnutls_ia_server_credentials_t} structure.
+
+This structure is complex enough to manipulate directly thus this
+helper function is provided in order to allocate it.
+
+Adding this credential to a session will enable TLS/IA, and will
+require an Application Phase after the TLS handshake (if the client
+support TLS/IA).  Use @code{gnutls_ia_enable()} to toggle the TLS/IA mode.
+
+@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS} (0) is returned, otherwise
+an error code is returned.
+@end deftypefun
+
+@subheading gnutls_ia_enable
+@anchor{gnutls_ia_enable}
+@deftypefun {void} {gnutls_ia_enable} (gnutls_session_t @var{session}, int @var{allow_skip_on_resume})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{allow_skip_on_resume}: non-zero if local party allows one to skip the
+TLS/IA application phases for a resumed session.
+
+Specify whether we must advertise support for the TLS/IA extension
+during the handshake.
+
+At the client side, we always advertise TLS/IA if gnutls_ia_enable
+was called before the handshake; at the server side, we also
+require that the client has advertised that it wants to run TLS/IA
+before including the advertisement, as required by the protocol.
+
+Similarly, at the client side we always advertise that we allow
+TLS/IA to be skipped for resumed sessions if @code{allow_skip_on_resume}
+is non-zero; at the server side, we also require that the session
+is indeed resumable and that the client has also advertised that it
+allows TLS/IA to be skipped for resumed sessions.
+
+After the TLS handshake, call @code{gnutls_ia_handshake_p()} to find out
+whether both parties agreed to do a TLS/IA handshake, before
+calling @code{gnutls_ia_handshake()} or one of the lower level gnutls_ia_*
+functions.
+@end deftypefun
+
+@subheading gnutls_ia_endphase_send
+@anchor{gnutls_ia_endphase_send}
+@deftypefun {int} {gnutls_ia_endphase_send} (gnutls_session_t @var{session}, int @var{final_p})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{final_p}: Set iff this should signal the final phase.
+
+Send a TLS/IA end phase message.
+
+In the client, this should only be used to acknowledge an end phase
+message sent by the server.
+
+In the server, this can be called instead of @code{gnutls_ia_send()} if
+the server wishes to end an application phase.
+
+@strong{Return value:} Return 0 on success, or an error code.
+@end deftypefun
+
+@subheading gnutls_ia_extract_inner_secret
+@anchor{gnutls_ia_extract_inner_secret}
+@deftypefun {void} {gnutls_ia_extract_inner_secret} (gnutls_session_t @var{session}, char * @var{buffer})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{buffer}: pre-allocated buffer to hold 48 bytes of inner secret.
+
+Copy the 48 bytes large inner secret into the specified buffer
+
+This function is typically used after the TLS/IA handshake has
+concluded.  The TLS/IA inner secret can be used as input to a PRF
+to derive session keys.  Do not use the inner secret directly as a
+session key, because for a resumed session that does not include an
+application phase, the inner secret will be identical to the inner
+secret in the original session.  It is important to include, for
+example, the client and server randomness when deriving a sesssion
+key from the inner secret.
+@end deftypefun
+
+@subheading gnutls_ia_free_client_credentials
+@anchor{gnutls_ia_free_client_credentials}
+@deftypefun {void} {gnutls_ia_free_client_credentials} (gnutls_ia_client_credentials_t @var{sc})
+@var{sc}: is a @code{gnutls_ia_client_credentials_t} structure.
+
+This structure is complex enough to manipulate directly thus this
+helper function is provided in order to free (deallocate) it.
+@end deftypefun
+
+@subheading gnutls_ia_free_server_credentials
+@anchor{gnutls_ia_free_server_credentials}
+@deftypefun {void} {gnutls_ia_free_server_credentials} (gnutls_ia_server_credentials_t @var{sc})
+@var{sc}: is a @code{gnutls_ia_server_credentials_t} structure.
+
+This structure is complex enough to manipulate directly thus this
+helper function is provided in order to free (deallocate) it.
+@end deftypefun
+
+@subheading gnutls_ia_generate_challenge
+@anchor{gnutls_ia_generate_challenge}
+@deftypefun {int} {gnutls_ia_generate_challenge} (gnutls_session_t @var{session}, size_t @var{buffer_size}, char * @var{buffer})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{buffer_size}: size of output buffer.
+
+@var{buffer}: pre-allocated buffer to contain @code{buffer_size} bytes of output.
+
+Generate an application challenge that the client cannot control or
+predict, based on the TLS/IA inner secret.
+
+@strong{Return value:} Returns 0 on success, or an negative error code.
+@end deftypefun
+
+@subheading gnutls_ia_get_client_avp_ptr
+@anchor{gnutls_ia_get_client_avp_ptr}
+@deftypefun {void *} {gnutls_ia_get_client_avp_ptr} (gnutls_ia_client_credentials_t @var{cred})
+@var{cred}: is a @code{gnutls_ia_client_credentials_t} structure.
+
+Returns the pointer that will be provided to the TLS/IA callback
+function as the first argument.
+
+@strong{Returns:} The client callback data pointer.
+@end deftypefun
+
+@subheading gnutls_ia_get_server_avp_ptr
+@anchor{gnutls_ia_get_server_avp_ptr}
+@deftypefun {void *} {gnutls_ia_get_server_avp_ptr} (gnutls_ia_server_credentials_t @var{cred})
+@var{cred}: is a @code{gnutls_ia_client_credentials_t} structure.
+
+Returns the pointer that will be provided to the TLS/IA callback
+function as the first argument.
+
+@strong{Returns:} The server callback data pointer.
+@end deftypefun
+
+@subheading gnutls_ia_handshake_p
+@anchor{gnutls_ia_handshake_p}
+@deftypefun {int} {gnutls_ia_handshake_p} (gnutls_session_t @var{session})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+Predicate to be used after @code{gnutls_handshake()} to decide whether to
+invoke @code{gnutls_ia_handshake()}.  Usable by both clients and servers.
+
+@strong{Return value:} non-zero if TLS/IA handshake is expected, zero
+otherwise.
+@end deftypefun
+
+@subheading gnutls_ia_handshake
+@anchor{gnutls_ia_handshake}
+@deftypefun {int} {gnutls_ia_handshake} (gnutls_session_t @var{session})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+Perform a TLS/IA handshake.  This should be called after
+@code{gnutls_handshake()} iff @code{gnutls_ia_handshake_p()}.
+
+@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS} (zero) is returned,
+otherwise an error code is returned.
+@end deftypefun
+@subheading gnutls_ia_permute_inner_secret
+@anchor{gnutls_ia_permute_inner_secret}
+@deftypefun {int} {gnutls_ia_permute_inner_secret} (gnutls_session_t @var{session}, size_t @var{session_keys_size}, const char * @var{session_keys})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{session_keys_size}: Size of generated session keys (0 if none).
+
+@var{session_keys}: Generated session keys, used to permute inner secret
+(NULL if none).
+
+Permute the inner secret using the generated session keys.
+
+This can be called in the TLS/IA AVP callback to mix any generated
+session keys with the TLS/IA inner secret.
+
+@strong{Return value:} Return zero on success, or a negative error code.
+@end deftypefun
+
+@subheading gnutls_ia_recv
+@anchor{gnutls_ia_recv}
+@deftypefun {ssize_t} {gnutls_ia_recv} (gnutls_session_t @var{session}, char * @var{data}, size_t @var{sizeofdata})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{data}: the buffer that the data will be read into, must hold >= 12 bytes.
+
+@var{sizeofdata}: the number of requested bytes, must be >= 12.
+
+Receive TLS/IA data.  This function has the similar semantics with
+@code{recv()}.  The only difference is that it accepts a GnuTLS session,
+and uses different error codes.
+
+If the server attempt to finish an application phase, this function
+will return @code{GNUTLS_E_WARNING_IA_IPHF_RECEIVED} or
+@code{GNUTLS_E_WARNING_IA_FPHF_RECEIVED}.  The caller should then invoke
+@code{gnutls_ia_verify_endphase()}, and if it runs the client side, also
+send an endphase message of its own using gnutls_ia_endphase_send.
+
+If EINTR is returned by the internal push function (the default is
+@code{code}@{@code{recv()}@}) then GNUTLS_E_INTERRUPTED will be returned.  If
+GNUTLS_E_INTERRUPTED or GNUTLS_E_AGAIN is returned, you must call
+this function again, with the same parameters; alternatively you
+could provide a NULL pointer for data, and 0 for size.
+
+@strong{Returns:} The number of bytes received.  A negative error code is
+returned in case of an error.  The
+@code{GNUTLS_E_WARNING_IA_IPHF_RECEIVED} and
+@code{GNUTLS_E_WARNING_IA_FPHF_RECEIVED} errors are returned when an
+application phase finished message has been sent by the server.
+@end deftypefun
+
+@subheading gnutls_ia_send
+@anchor{gnutls_ia_send}
+@deftypefun {ssize_t} {gnutls_ia_send} (gnutls_session_t @var{session}, const char * @var{data}, size_t @var{sizeofdata})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{data}: contains the data to send
+
+@var{sizeofdata}: is the length of the data
+
+Send TLS/IA application payload data.  This function has the
+similar semantics with @code{send()}.  The only difference is that it
+accepts a GnuTLS session, and uses different error codes.
+
+The TLS/IA protocol is synchronous, so you cannot send more than
+one packet at a time.  The client always send the first packet.
+
+To finish an application phase in the server, use
+@code{gnutls_ia_endphase_send()}.  The client cannot end an application
+phase unilaterally; rather, a client is required to respond with an
+endphase of its own if gnutls_ia_recv indicates that the server has
+sent one.
+
+If the EINTR is returned by the internal push function (the default
+is @code{send()}@} then @code{GNUTLS_E_INTERRUPTED} will be returned.  If
+@code{GNUTLS_E_INTERRUPTED} or @code{GNUTLS_E_AGAIN} is returned, you must call
+this function again, with the same parameters; alternatively you
+could provide a @code{NULL} pointer for data, and 0 for size.
+
+@strong{Returns:} The number of bytes sent, or a negative error code.
+@end deftypefun
+
+@subheading gnutls_ia_set_client_avp_function
+@anchor{gnutls_ia_set_client_avp_function}
+@deftypefun {void} {gnutls_ia_set_client_avp_function} (gnutls_ia_client_credentials_t @var{cred}, gnutls_ia_avp_func @var{avp_func})
+@var{cred}: is a @code{gnutls_ia_client_credentials_t} structure.
+
+@var{avp_func}: is the callback function
+
+Set the TLS/IA AVP callback handler used for the session.
+
+The AVP callback is called to process AVPs received from the
+server, and to get a new AVP to send to the server.
+
+The callback's function form is:
+int (*avp_func) (gnutls_session_t session, void *ptr,
+const char *last, size_t lastlen,
+char **next, size_t *nextlen);
+
+The @code{session} parameter is the @code{gnutls_session_t} structure
+corresponding to the current session.  The @code{ptr} parameter is the
+application hook pointer, set through
+@code{gnutls_ia_set_client_avp_ptr()}.  The AVP received from the server
+is present in @code{last} of @code{lastlen} size, which will be @code{NULL} on the
+first invocation.  The newly allocated output AVP to send to the
+server should be placed in *@code{next} of *@code{nextlen} size.
+
+The callback may invoke @code{gnutls_ia_permute_inner_secret()} to mix any
+generated session keys with the TLS/IA inner secret.
+
+Return 0 (@code{GNUTLS_IA_APPLICATION_PAYLOAD}) on success, or a negative
+error code to abort the TLS/IA handshake.
+
+Note that the callback must use allocate the @code{next} parameter using
+@code{gnutls_malloc()}, because it is released via @code{gnutls_free()} by the
+TLS/IA handshake function.
+@end deftypefun
+
+@subheading gnutls_ia_set_client_avp_ptr
+@anchor{gnutls_ia_set_client_avp_ptr}
+@deftypefun {void} {gnutls_ia_set_client_avp_ptr} (gnutls_ia_client_credentials_t @var{cred}, void * @var{ptr})
+@var{cred}: is a @code{gnutls_ia_client_credentials_t} structure.
+
+@var{ptr}: is the pointer
+
+Sets the pointer that will be provided to the TLS/IA callback
+function as the first argument.
+@end deftypefun
+
+@subheading gnutls_ia_set_server_avp_function
+@anchor{gnutls_ia_set_server_avp_function}
+@deftypefun {void} {gnutls_ia_set_server_avp_function} (gnutls_ia_server_credentials_t @var{cred}, gnutls_ia_avp_func @var{avp_func})
+@var{cred}: is a @code{gnutls_ia_server_credentials_t} structure.
+
+Set the TLS/IA AVP callback handler used for the session.
+
+The callback's function form is:
+int (*avp_func) (gnutls_session_t session, void *ptr,
+const char *last, size_t lastlen,
+char **next, size_t *nextlen);
+
+The @code{session} parameter is the @code{gnutls_session_t} structure
+corresponding to the current session.  The @code{ptr} parameter is the
+application hook pointer, set through
+@code{gnutls_ia_set_server_avp_ptr()}.  The AVP received from the client
+is present in @code{last} of @code{lastlen} size.  The newly allocated output
+AVP to send to the client should be placed in *@code{next} of *@code{nextlen}
+size.
+
+The AVP callback is called to process incoming AVPs from the
+client, and to get a new AVP to send to the client.  It can also be
+used to instruct the TLS/IA handshake to do go into the
+Intermediate or Final phases.  It return a negative error code, or
+a @code{gnutls_ia_apptype_t} message type.
+
+The callback may invoke @code{gnutls_ia_permute_inner_secret()} to mix any
+generated session keys with the TLS/IA inner secret.
+
+Specifically, return @code{GNUTLS_IA_APPLICATION_PAYLOAD} (0) to send
+another AVP to the client, return
+@code{GNUTLS_IA_INTERMEDIATE_PHASE_FINISHED} (1) to indicate that an
+IntermediatePhaseFinished message should be sent, and return
+@code{GNUTLS_IA_FINAL_PHASE_FINISHED} (2) to indicate that an
+FinalPhaseFinished message should be sent.  In the last two cases,
+the contents of the @code{next} and @code{nextlen} parameter is not used.
+
+Note that the callback must use allocate the @code{next} parameter using
+@code{gnutls_malloc()}, because it is released via @code{gnutls_free()} by the
+TLS/IA handshake function.
+@end deftypefun
+
+@subheading gnutls_ia_set_server_avp_ptr
+@anchor{gnutls_ia_set_server_avp_ptr}
+@deftypefun {void} {gnutls_ia_set_server_avp_ptr} (gnutls_ia_server_credentials_t @var{cred}, void * @var{ptr})
+@var{cred}: is a @code{gnutls_ia_client_credentials_t} structure.
+
+@var{ptr}: is the pointer
+
+Sets the pointer that will be provided to the TLS/IA callback
+function as the first argument.
+@end deftypefun
+
+@subheading gnutls_ia_verify_endphase
+@anchor{gnutls_ia_verify_endphase}
+@deftypefun {int} {gnutls_ia_verify_endphase} (gnutls_session_t @var{session}, const char * @var{checksum})
+@var{session}: is a @code{gnutls_session_t} structure.
+
+@var{checksum}: 12-byte checksum data, received from @code{gnutls_ia_recv()}.
+
+Verify TLS/IA end phase checksum data.  If verification fails, the
+@code{GNUTLS_A_INNER_APPLICATION_VERIFICATION} alert is sent to the other
+sie.
+
+This function is called when @code{gnutls_ia_recv()} return
+@code{GNUTLS_E_WARNING_IA_IPHF_RECEIVED} or
+@code{GNUTLS_E_WARNING_IA_FPHF_RECEIVED}.
+
+@strong{Return value:} Return 0 on successful verification, or an error
+code.  If the checksum verification of the end phase message fails,
+@code{GNUTLS_E_IA_VERIFY_FAILED} is returned.
+@end deftypefun

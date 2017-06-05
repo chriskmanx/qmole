@@ -1,0 +1,93 @@
+
+HACKING GNOME KEYRING 
+
+Patches should be submitted to bugzilla:
+http://bugzilla.gnome.org/enter_bug.cgi?product=gnome-keyring
+
+The gnome-keyring mailing list is:
+gnome-keyring-list@gnome.org
+
+An overview of the architecture and graphical outline can be found here:
+
+http://live.gnome.org/GnomeKeyring/Architecture
+
+Gnome Keyring is made up of several distinct parts working on concert with 
+each other. These parts generally live in different directories:
+
+daemon 
+   The main daemon startup code and gnome-keyring password protocol operations. 
+
+daemon/control
+   Binary protocol for controling and initializing the daemon.
+
+daemon/dbus
+   Various DBus bits of the daemon including the Secret Service API.
+
+daemon/gpg-agent
+   A GPG agent implementation that uses a PKCS#11 module for it's password storage.
+
+daemon/login
+   Used to lock and unlock the daemon.
+
+daemon/ssh-agent
+   An SSH agent implementation that uses a PKCS#11 module for it's cryto and key storage.
+
+egg
+   Code that either: a) Really should be implemented elsewhere (eg: glib) but isn't.
+   b) Code that needs to be shared between loosely coupled gnome-keyring components.  
+
+gcr
+   A public library for bits of crypto UI and parsing etc...
+   
+gp11
+   A public library for accessing PKCS#11 modules. 
+
+pam 
+   The PAM module that unlocks the login keyring when the user logs in.
+   
+pkcs11
+   The various bits of the PKCS#11 implementation.
+
+pkcs11/gck
+   A base library for implementing our internal PKCS#11 modules.
+   
+pkcs11/roots-store
+   A PKCS#11 module that exposes Root CA certificates from a directory like /etc/ssl/certs
+   
+pkcs11/rpc-layer
+   A PKCS#11 module that calls into the daemon. This is the module that apps actually use.
+   
+pkcs11/ssh-store
+   A PKCS#11 module which exposes objects in ~/.ssh directory.
+   
+pkcs11/user-store
+   A PKCS#11 module for general storage of certificates and keys.
+
+pkcs11/wrap-layer
+   A PKCS#11 module that combines slots from multiple PKCS#11 modules into one module.
+
+testsing
+   Test tools and unit tests.
+
+ui
+   Prompting the user, asking for passwords.
+
+--------------------------------------------------------------------------------
+                            USE OF WORKER THREADS
+
+Gnome Keyring uses threads in a limited manner, as state machines, (ie: execution
+stacks). Only one thread runs at any given time, each thread hands off execution
+to another thread. 
+
+The *only* use of threading and/or synchronization primitives should be in:
+ 
+   common/gkr-async.c
+   
+Worker threads are created by using gkr_async_worker_start(). Each worker needs 
+to call gkr_async_yield() regularly, to give other threads a chance to run.
+
+If a thread needs perform a blocking syscall, or do something that takes a long 
+time (like create a key) it can use the gkr_async_begin_concurrent() and 
+gkr_async_end_concurrent() functions. While running 'concurrent' no global
+functions and/or data should be accessed.
+

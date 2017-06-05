@@ -1,0 +1,945 @@
+@node Included programs
+@chapter Included Programs
+
+Included with @acronym{GnuTLS} are also a few command line tools that
+let you use the library for common tasks without writing an
+application.  The applications are discussed in this chapter.
+
+@menu
+* Invoking certtool::
+* Invoking gnutls-cli::
+* Invoking gnutls-cli-debug::
+* Invoking gnutls-serv::
+* Invoking psktool::
+* Invoking srptool::
+* Invoking p11tool::
+@end menu
+
+@node Invoking certtool
+@section Invoking certtool
+@cindex certtool
+
+This is a program to generate @acronym{X.509} certificates, certificate
+requests, CRLs and private keys.
+
+@verbatim
+Certtool help
+Usage: certtool [options]
+     -s, --generate-self-signed
+                              Generate a self-signed certificate.
+     -c, --generate-certificate
+                              Generate a signed certificate.
+     --generate-proxy         Generate a proxy certificate.
+     --generate-crl           Generate a CRL.
+     -u, --update-certificate
+                              Update a signed certificate.
+     -p, --generate-privkey   Generate a private key.
+     -q, --generate-request   Generate a PKCS #10 certificate
+                              request.
+     -e, --verify-chain       Verify a PEM encoded certificate chain.
+                              The last certificate in the chain must
+                              be a self signed one.
+     --verify-crl             Verify a CRL.
+     --generate-dh-params     Generate PKCS #3 encoded Diffie-Hellman
+                              parameters.
+     --get-dh-params          Get the included PKCS #3 encoded Diffie
+                              Hellman parameters.
+     --load-privkey FILE      Private key file to use.
+     --load-request FILE      Certificate request file to use.
+     --load-certificate FILE
+                              Certificate file to use.
+     --load-ca-privkey FILE   Certificate authority's private key
+                              file to use.
+     --load-ca-certificate FILE
+                              Certificate authority's certificate
+                              file to use.
+     --password PASSWORD      Password to use.
+     -i, --certificate-info   Print information on a certificate.
+     -l, --crl-info           Print information on a CRL.
+     --p12-info               Print information on a PKCS #12
+                              structure.
+     --p7-info                Print information on a PKCS #7
+                              structure.
+     --smime-to-p7            Convert S/MIME to PKCS #7 structure.
+     -k, --key-info           Print information on a private key.
+     --fix-key                Regenerate the parameters in a private
+                              key.
+     --to-p12                 Generate a PKCS #12 structure.
+     -8, --pkcs8              Use PKCS #8 format for private keys.
+     --dsa                    Use DSA keys.
+     --hash STR               Hash algorithm to use for signing
+                              (MD5,SHA1,RMD160).
+     --export-ciphers         Use weak encryption algorithms.
+     --inder                  Use DER format for input certificates
+                              and private keys.
+     --outder                 Use DER format for output certificates
+                              and private keys.
+     --bits BITS              specify the number of bits for key
+                              generation.
+     --outfile FILE           Output file.
+     --infile FILE            Input file.
+     --template FILE          Template file to use for non
+                              interactive operation.
+     -d, --debug LEVEL        specify the debug level. Default is 1.
+     -h, --help               shows this help text
+     -v, --version            shows the program's version
+@end verbatim
+
+The program can be used interactively or non interactively by
+specifying the @code{--template} command line option. See below for an
+example of a template file.
+
+How to use certtool interactively:
+
+@itemize
+@item
+To generate parameters for Diffie-Hellman key exchange, use the command:
+@example
+$ certtool --generate-dh-params --outfile dh.pem
+@end example
+
+@item
+To generate parameters for the RSA-EXPORT key exchange, use the command:
+@example
+$ certtool --generate-privkey --bits 512 --outfile rsa.pem
+@end example
+
+@end itemize
+
+@itemize
+
+@item
+To create a self signed certificate, use the command:
+@example
+$ certtool --generate-privkey --outfile ca-key.pem
+$ certtool --generate-self-signed --load-privkey ca-key.pem \
+   --outfile ca-cert.pem
+@end example
+
+Note that a self-signed certificate usually belongs to a certificate
+authority, that signs other certificates.
+
+@item
+To create a private key (RSA by default), run:
+
+@example
+$ certtool --generate-privkey --outfile key.pem
+@end example
+
+To create a DSA private key, run:
+
+@example
+$ certtool --dsa --generate-privkey --outfile key-dsa.pem
+@end example
+
+@item
+To generate a certificate using the private key, use the command:
+
+@example
+$ certtool --generate-certificate --load-privkey key.pem \
+   --outfile cert.pem --load-ca-certificate ca-cert.pem \
+   --load-ca-privkey ca-key.pem
+@end example
+
+@item
+To create a certificate request (needed when the certificate is issued by
+another party), run:
+
+@example
+$ certtool --generate-request --load-privkey key.pem \
+  --outfile request.pem
+@end example
+
+@item
+To generate a certificate using the previous request, use the command:
+
+@example
+$ certtool --generate-certificate --load-request request.pem \
+   --outfile cert.pem \
+   --load-ca-certificate ca-cert.pem --load-ca-privkey ca-key.pem
+@end example
+
+@item
+To view the certificate information, use:
+
+@example
+$ certtool --certificate-info --infile cert.pem
+@end example
+
+@item
+To generate a @acronym{PKCS} #12 structure using the previous key and
+certificate, use the command:
+
+@example
+$ certtool --load-certificate cert.pem --load-privkey key.pem \
+  --to-p12 --outder --outfile key.p12
+@end example
+
+Some tools (reportedly web browsers) have problems with that file
+because it does not contain the CA certificate for the certificate.
+To work around that problem in the tool, you can use the
+@samp{--load-ca-certificate} parameter as follows:
+
+@example
+$ certtool --load-ca-certificate ca.pem \
+  --load-certificate cert.pem --load-privkey key.pem \
+  --to-p12 --outder --outfile key.p12
+@end example
+
+@item
+Proxy certificate can be used to delegate your credential to a
+temporary, typically short-lived, certificate.  To create one from the
+previously created certificate, first create a temporary key and then
+generate a proxy certificate for it, using the commands:
+
+@example
+$ certtool --generate-privkey > proxy-key.pem
+$ certtool --generate-proxy --load-ca-privkey key.pem \
+  --load-privkey proxy-key.pem --load-certificate cert.pem \
+  --outfile proxy-cert.pem
+@end example
+
+@item
+To create an empty Certificate Revocation List (CRL) do:
+
+@example
+$ certtool --generate-crl --load-ca-privkey x509-ca-key.pem --load-ca-certificate x509-ca.pem
+@end example
+
+To create a CRL that contains some revoked certificates, place the
+certificates in a file and use @code{--load-certificate} as follows:
+
+@example
+$ certtool --generate-crl --load-ca-privkey x509-ca-key.pem --load-ca-certificate x509-ca.pem --load-certificate revoked-certs.pem
+@end example
+
+@item
+To verify a Certificate Revocation List (CRL) do:
+
+@example
+$ certtool --verify-crl --load-ca-certificate x509-ca.pem < crl.pem
+@end example
+
+@end itemize
+
+Certtool's template file format:
+
+@itemize
+
+@item
+Firstly create a file named 'cert.cfg' that contains the information
+about the certificate. An example file is listed below.
+
+@item
+Then execute:
+
+@example
+$ certtool --generate-certificate cert.pem --load-privkey key.pem  \
+   --template cert.cfg \
+   --load-ca-certificate ca-cert.pem --load-ca-privkey ca-key.pem
+@end example
+
+@end itemize
+
+An example certtool template file:
+
+@example
+# X.509 Certificate options
+#
+# DN options
+
+# The organization of the subject.
+organization = "Koko inc."
+
+# The organizational unit of the subject.
+unit = "sleeping dept."
+
+# The locality of the subject.
+# locality =
+
+# The state of the certificate owner.
+state = "Attiki"
+
+# The country of the subject. Two letter code.
+country = GR
+
+# The common name of the certificate owner.
+cn = "Cindy Lauper"
+
+# A user id of the certificate owner.
+#uid = "clauper"
+
+# If the supported DN OIDs are not adequate you can set
+# any OID here.
+# For example set the X.520 Title and the X.520 Pseudonym
+# by using OID and string pairs.
+#dn_oid = "2.5.4.12" "Dr." "2.5.4.65" "jackal"
+
+# This is deprecated and should not be used in new
+# certificates.
+# pkcs9_email = "none@@none.org"
+
+# The serial number of the certificate
+serial = 007
+
+# In how many days, counting from today, this certificate will expire.
+expiration_days = 700
+
+# X.509 v3 extensions
+
+# A dnsname in case of a WWW server.
+#dns_name = "www.none.org"
+#dns_name = "www.morethanone.org"
+
+# An IP address in case of a server.
+#ip_address = "192.168.1.1"
+
+# An email in case of a person
+email = "none@@none.org"
+
+# An URL that has CRLs (certificate revocation lists)
+# available. Needed in CA certificates.
+#crl_dist_points = "http://www.getcrl.crl/getcrl/"
+
+# Whether this is a CA certificate or not
+#ca
+
+# Whether this certificate will be used for a TLS client
+#tls_www_client
+
+# Whether this certificate will be used for a TLS server
+#tls_www_server
+
+# Whether this certificate will be used to sign data (needed
+# in TLS DHE ciphersuites).
+signing_key
+
+# Whether this certificate will be used to encrypt data (needed
+# in TLS RSA ciphersuites). Note that it is preferred to use different
+# keys for encryption and signing.
+#encryption_key
+
+# Whether this key will be used to sign other certificates.
+#cert_signing_key
+
+# Whether this key will be used to sign CRLs.
+#crl_signing_key
+
+# Whether this key will be used to sign code.
+#code_signing_key
+
+# Whether this key will be used to sign OCSP data.
+#ocsp_signing_key
+
+# Whether this key will be used for time stamping.
+#time_stamping_key
+
+# Whether this key will be used for IPsec IKE operations.
+#ipsec_ike_key
+@end example
+
+@node Invoking gnutls-cli
+@section Invoking gnutls-cli
+@cindex gnutls-cli
+
+Simple client program to set up a TLS connection to some other
+computer.  It sets up a TLS connection and forwards data from the
+standard input to the secured socket and vice versa.
+
+@verbatim
+GnuTLS test client
+Usage:  gnutls-cli [options] hostname
+
+     -d, --debug integer      Enable debugging
+     -r, --resume             Connect, establish a session. Connect
+                              again and resume this session.
+     -s, --starttls           Connect, establish a plain session and
+                              start TLS when EOF or a SIGALRM is
+                              received.
+     --crlf                   Send CR LF instead of LF.
+     --x509fmtder             Use DER format for certificates to read
+                              from.
+     -f, --fingerprint        Send the openpgp fingerprint, instead
+                              of the key.
+     --disable-extensions     Disable all the TLS extensions.
+     --print-cert             Print the certificate in PEM format.
+     --recordsize integer     The maximum record size to advertize.
+     -V, --verbose            More verbose output.
+     --ciphers cipher1 cipher2...
+                              Ciphers to enable.
+     --protocols protocol1 protocol2...
+                              Protocols to enable.
+     --comp comp1 comp2...    Compression methods to enable.
+     --macs mac1 mac2...      MACs to enable.
+     --kx kx1 kx2...          Key exchange methods to enable.
+     --ctypes certType1 certType2...
+                              Certificate types to enable.
+     --priority PRIORITY STRING
+                              Priorities string.
+     --x509cafile FILE        Certificate file to use.
+     --x509crlfile FILE       CRL file to use.
+     --pgpkeyfile FILE        PGP Key file to use.
+     --pgpkeyring FILE        PGP Key ring file to use.
+     --pgpcertfile FILE       PGP Public Key (certificate) file to
+                              use.
+     --pgpsubkey HEX|auto     PGP subkey to use.
+     --x509keyfile FILE       X.509 key file to use.
+     --x509certfile FILE      X.509 Certificate file to use.
+     --srpusername NAME       SRP username to use.
+     --srppasswd PASSWD       SRP password to use.
+     --pskusername NAME       PSK username to use.
+     --pskkey KEY             PSK key (in hex) to use.
+     --opaque-prf-input DATA
+                              Use Opaque PRF Input DATA.
+     -p, --port PORT          The port to connect to.
+     --insecure               Don't abort program if server
+                              certificate can't be validated.
+     -l, --list               Print a list of the supported
+                              algorithms and modes.
+     -h, --help               prints this help
+     -v, --version            prints the program's version number
+@end verbatim
+
+To connect to a server using PSK authentication, you may use something
+like:
+
+@smallexample
+$ gnutls-cli -p 5556 test.gnutls.org --pskusername jas --pskkey 9e32cf7786321a828ef7668f09fb35db --priority NORMAL:+DHE-PSK:+PSK:-RSA:-DHE-RSA -d 4711
+@end smallexample
+
+@menu
+* Example client PSK connection::
+@end menu
+
+@node Example client PSK connection
+@subsection Example client PSK connection
+@cindex PSK client
+
+If your server only supports the PSK ciphersuite, connecting to it
+should be as simple as connecting to the server:
+
+@smallexample
+$ ./gnutls-cli -p 5556 localhost
+Resolving 'localhost'...
+Connecting to '127.0.0.1:5556'...
+- PSK client callback.
+Enter PSK identity: psk_identity
+Enter password: 
+- PSK authentication.
+- Version: TLS1.1
+- Key Exchange: PSK
+- Cipher: AES-128-CBC
+- MAC: SHA1
+- Compression: NULL
+- Handshake was completed
+
+- Simple Client Mode:
+@end smallexample
+
+If the server supports several cipher suites, you may need to force it
+to chose PSK by using a cipher priority parameter such as
+@code{--priority NORMAL:+PSK:-RSA:-DHE-RSA:-DHE-PSK}.
+
+@cindex Netconf
+Instead of using the Netconf-way to derive the PSK key from a
+password, you can also give the PSK username and key directly on the
+command line:
+
+@smallexample
+$ ./gnutls-cli -p 5556 localhost --pskusername psk_identity --pskkey 88f3824b3e5659f52d00e959bacab954b6540344  --priority NORMAL:+DHE-PSK:+PSK
+Resolving 'localhost'...
+Connecting to '127.0.0.1:5556'...
+- PSK authentication.
+- Version: TLS1.1
+- Key Exchange: PSK
+- Cipher: AES-128-CBC
+- MAC: SHA1
+- Compression: NULL
+- Handshake was completed
+
+- Simple Client Mode:
+@end smallexample
+
+By keeping the @code{--pskusername} parameter and removing the
+@code{--pskkey} parameter, it will query only for the password during
+the handshake.
+
+@node Invoking gnutls-cli-debug
+@section Invoking gnutls-cli-debug
+@cindex gnutls-cli-debug
+
+This program was created to assist in debugging @acronym{GnuTLS}, but
+it might be useful to extract a @acronym{TLS} server's capabilities.
+It's purpose is to connect onto a @acronym{TLS} server, perform some
+tests and print the server's capabilities. If called with the `-v'
+parameter a more checks will be performed. An example output is:
+
+@smallexample
+crystal:/cvs/gnutls/src$ ./gnutls-cli-debug localhost -p 5556
+Resolving 'localhost'...
+Connecting to '127.0.0.1:5556'...
+Checking for TLS 1.1 support... yes
+Checking fallback from TLS 1.1 to... N/A
+Checking for TLS 1.0 support... yes
+Checking for SSL 3.0 support... yes
+Checking for version rollback bug in RSA PMS... no
+Checking for version rollback bug in Client Hello... no
+Checking whether we need to disable TLS 1.0... N/A
+Checking whether the server ignores the RSA PMS version... no
+Checking whether the server can accept Hello Extensions... yes
+Checking whether the server can accept cipher suites not in SSL 3.0 spec... yes
+Checking whether the server can accept a bogus TLS record version in the client hello... yes
+Checking for certificate information... N/A
+Checking for trusted CAs... N/A
+Checking whether the server understands TLS closure alerts... yes
+Checking whether the server supports session resumption... yes
+Checking for export-grade ciphersuite support... no
+Checking RSA-export ciphersuite info... N/A
+Checking for anonymous authentication support... no
+Checking anonymous Diffie-Hellman group info... N/A
+Checking for ephemeral Diffie-Hellman support... no
+Checking ephemeral Diffie-Hellman group info... N/A
+Checking for AES cipher support (TLS extension)... yes
+Checking for 3DES cipher support... yes
+Checking for ARCFOUR 128 cipher support... yes
+Checking for ARCFOUR 40 cipher support... no
+Checking for MD5 MAC support... yes
+Checking for SHA1 MAC support... yes
+Checking for ZLIB compression support (TLS extension)... yes
+Checking for LZO compression support (GnuTLS extension)... yes
+Checking for max record size (TLS extension)... yes
+Checking for SRP authentication support (TLS extension)... yes
+Checking for OpenPGP authentication support (TLS extension)... no
+@end smallexample
+
+@node Invoking gnutls-serv
+@section Invoking gnutls-serv
+@cindex gnutls-serv
+
+Simple server program that listens to incoming TLS connections.
+
+@verbatim
+GnuTLS test server
+Usage: gnutls-serv [options]
+
+     -d, --debug integer      Enable debugging
+     -g, --generate           Generate Diffie-Hellman Parameters.
+     -p, --port integer       The port to connect to.
+     -q, --quiet              Suppress some messages.
+     --nodb                   Does not use the resume database.
+     --http                   Act as an HTTP Server.
+     --echo                   Act as an Echo Server.
+     --dhparams FILE          DH params file to use.
+     --x509fmtder             Use DER format for certificates
+     --x509cafile FILE        Certificate file to use.
+     --x509crlfile FILE       CRL file to use.
+     --pgpkeyring FILE        PGP Key ring file to use.
+     --pgpkeyfile FILE        PGP Key file to use.
+     --pgpcertfile FILE       PGP Public Key (certificate) file to
+                              use.
+     --pgpsubkey HEX|auto     PGP subkey to use.
+     --x509keyfile FILE       X.509 key file to use.
+     --x509certfile FILE      X.509 Certificate file to use.
+     --x509dsakeyfile FILE    Alternative X.509 key file to use.
+     --x509dsacertfile FILE   Alternative X.509 certificate file to
+                              use.
+     -r, --require-cert       Require a valid certificate.
+     -a, --disable-client-cert
+                              Disable request for a client
+                              certificate.
+     --pskpasswd FILE         PSK password file to use.
+     --pskhint HINT           PSK identity hint to use.
+     --srppasswd FILE         SRP password file to use.
+     --srppasswdconf FILE     SRP password conf file to use.
+     --opaque-prf-input DATA
+                              Use Opaque PRF Input DATA.
+     --ciphers cipher1 cipher2...
+                              Ciphers to enable.
+     --protocols protocol1 protocol2...
+                              Protocols to enable.
+     --comp comp1 comp2...    Compression methods to enable.
+     --macs mac1 mac2...      MACs to enable.
+     --kx kx1 kx2...          Key exchange methods to enable.
+     --ctypes certType1 certType2...
+                              Certificate types to enable.
+     --priority PRIORITY STRING
+                              Priorities string.
+     -l, --list               Print a list of the supported
+                              algorithms  and modes.
+     -h, --help               prints this help
+     -v, --version            prints the program's version number
+@end verbatim
+
+@subsection Setting Up a Test HTTPS Server
+@cindex HTTPS server
+@cindex debug server
+
+Running your own TLS server based on GnuTLS can be useful when
+debugging clients and/or GnuTLS itself.  This section describes how to
+use @code{gnutls-serv} as a simple HTTPS server.
+
+The most basic server can be started as:
+
+@example
+gnutls-serv --http
+@end example
+
+It will only support anonymous ciphersuites, which many TLS clients
+refuse to use.
+
+The next step is to add support for X.509.  First we generate a CA:
+
+@example
+certtool --generate-privkey > x509-ca-key.pem
+echo 'cn = GnuTLS test CA' > ca.tmpl
+echo 'ca' >> ca.tmpl
+echo 'cert_signing_key' >> ca.tmpl
+certtool --generate-self-signed --load-privkey x509-ca-key.pem \
+  --template ca.tmpl --outfile x509-ca.pem
+...
+@end example
+
+Then generate a server certificate.  Remember to change the dns_name
+value to the name of your server host, or skip that command to avoid
+the field.
+
+@example
+certtool --generate-privkey > x509-server-key.pem
+echo 'organization = GnuTLS test server' > server.tmpl
+echo 'cn = test.gnutls.org' >> server.tmpl
+echo 'tls_www_server' >> server.tmpl
+echo 'encryption_key' >> server.tmpl
+echo 'signing_key' >> server.tmpl
+echo 'dns_name = test.gnutls.org' >> server.tmpl
+certtool --generate-certificate --load-privkey x509-server-key.pem \
+  --load-ca-certificate x509-ca.pem --load-ca-privkey x509-ca-key.pem \
+  --template server.tmpl --outfile x509-server.pem
+...
+@end example
+
+For use in the client, you may want to generate a client certificate
+as well.
+
+@example
+certtool --generate-privkey > x509-client-key.pem
+echo 'cn = GnuTLS test client' > client.tmpl
+echo 'tls_www_client' >> client.tmpl
+echo 'encryption_key' >> client.tmpl
+echo 'signing_key' >> client.tmpl
+certtool --generate-certificate --load-privkey x509-client-key.pem \
+  --load-ca-certificate x509-ca.pem --load-ca-privkey x509-ca-key.pem \
+  --template client.tmpl --outfile x509-client.pem
+...
+@end example
+
+To be able to import the client key/certificate into some
+applications, you will need to convert them into a PKCS#12 structure.
+This also encrypts the security sensitive key with a password.
+
+@example
+certtool --to-p12 --load-ca-certificate x509-ca.pem --load-privkey x509-client-key.pem --load-certificate x509-client.pem --outder --outfile x509-client.p12
+@end example
+
+For icing, we'll create a proxy certificate for the client too.
+
+@example
+certtool --generate-privkey > x509-proxy-key.pem
+echo 'cn = GnuTLS test client proxy' > proxy.tmpl
+certtool --generate-proxy --load-privkey x509-proxy-key.pem \
+  --load-ca-certificate x509-client.pem --load-ca-privkey x509-client-key.pem \
+  --load-certificate x509-client.pem --template proxy.tmpl \
+  --outfile x509-proxy.pem
+...
+@end example
+
+Then start the server again:
+
+@example
+gnutls-serv --http \
+            --x509cafile x509-ca.pem \
+            --x509keyfile x509-server-key.pem \
+            --x509certfile x509-server.pem
+@end example
+
+Try connecting to the server using your web browser.  Note that the
+server listens to port 5556 by default.
+
+While you are at it, to allow connections using DSA, you can also
+create a DSA key and certificate for the server.  These credentials
+will be used in the final example below.
+
+@example
+certtool --generate-privkey --dsa > x509-server-key-dsa.pem
+certtool --generate-certificate --load-privkey x509-server-key-dsa.pem \
+  --load-ca-certificate x509-ca.pem --load-ca-privkey x509-ca-key.pem \
+  --template server.tmpl --outfile x509-server-dsa.pem
+...
+@end example
+
+The next step is to create OpenPGP credentials for the server.
+
+@example
+gpg --gen-key
+...enter whatever details you want, use 'test.gnutls.org' as name...
+@end example
+
+Make a note of the OpenPGP key identifier of the newly generated key,
+here it was @code{5D1D14D8}.  You will need to export the key for
+GnuTLS to be able to use it.
+
+@example
+gpg -a --export 5D1D14D8 > openpgp-server.txt
+gpg --export 5D1D14D8 > openpgp-server.bin
+gpg --export-secret-keys 5D1D14D8 > openpgp-server-key.bin
+gpg -a --export-secret-keys 5D1D14D8 > openpgp-server-key.txt
+@end example
+
+Let's start the server with support for OpenPGP credentials:
+
+@example
+gnutls-serv --http \
+            --pgpkeyfile openpgp-server-key.txt \
+            --pgpcertfile openpgp-server.txt
+@end example
+
+The next step is to add support for SRP authentication.
+
+@example
+srptool --create-conf srp-tpasswd.conf
+srptool --passwd-conf srp-tpasswd.conf --username jas --passwd srp-passwd.txt
+Enter password: [TYPE "foo"]
+@end example
+
+Start the server with SRP support:
+
+@example
+gnutls-serv --http \
+            --srppasswdconf srp-tpasswd.conf \
+            --srppasswd srp-passwd.txt
+@end example
+
+Let's also add support for PSK.
+
+@example
+$ psktool --passwd psk-passwd.txt
+@end example
+
+Start the server with PSK support:
+
+@example
+gnutls-serv --http \
+            --pskpasswd psk-passwd.txt
+@end example
+
+Finally, we start the server with all the earlier parameters and you
+get this command:
+
+@example
+gnutls-serv --http \
+            --x509cafile x509-ca.pem \
+            --x509keyfile x509-server-key.pem \
+            --x509certfile x509-server.pem \
+            --x509dsakeyfile x509-server-key-dsa.pem \
+            --x509dsacertfile x509-server-dsa.pem \
+            --pgpkeyfile openpgp-server-key.txt \
+            --pgpcertfile openpgp-server.txt \
+            --srppasswdconf srp-tpasswd.conf \
+            --srppasswd srp-passwd.txt \
+            --pskpasswd psk-passwd.txt
+@end example
+
+@menu
+* Example server PSK connection::
+@end menu
+
+@node Example server PSK connection
+@subsection Example server PSK connection
+@cindex PSK server
+
+To set up a PSK server with @code{gnutls-serv} you need to create PSK
+password file (@pxref{Invoking psktool}).  In the example below, I
+type @code{password} at the prompt.
+
+@smallexample
+$ ./psktool -u psk_identity -p psks.txt
+Enter password:
+Key stored to psks.txt
+$ cat psks.txt
+psk_identity:88f3824b3e5659f52d00e959bacab954b6540344
+$
+@end smallexample
+
+After this, start the server pointing to the password file.  We
+disable DHE-PSK.
+
+@smallexample
+$ ./gnutls-serv --pskpasswd psks.txt  --pskhint psk_identity_hint --priority NORMAL:-DHE-PSK
+Set static Diffie-Hellman parameters, consider --dhparams.
+Echo Server ready. Listening to port '5556'.
+@end smallexample
+
+You can now connect to the server using a PSK client (@pxref{Example
+client PSK connection}).
+
+@node Invoking psktool
+@section Invoking psktool
+@cindex psktool
+
+This is a program to manage @acronym{PSK} username and keys.
+
+@verbatim
+PSKtool help
+Usage : psktool [options]
+     -u, --username username
+                              specify username.
+     -p, --passwd FILE        specify a password file.
+     -n, --netconf-hint HINT
+                              derive key from Netconf password, using 
+                              HINT as the psk_identity_hint.
+     -s, --keysize SIZE       specify the key size in bytes.
+     -v, --version            prints the program's version number
+     -h, --help               shows this help text
+@end verbatim
+
+Normally the file will generate random keys for the indicate username.
+You may also derive PSK keys from passwords, using the algorithm
+specified in @file{draft-ietf-netconf-tls-02.txt}.  The algorithm
+needs a PSK identity hint, which you specify using
+@code{--netconf-hint}.  To derive a PSK key from a password with an
+empty PSK identity hint, using @code{--netconf-hint ""}.
+
+@node Invoking srptool
+@section Invoking srptool
+@anchor{srptool}
+@cindex srptool
+
+The @file{srptool} is a very simple program that emulates the programs
+in the @emph{Stanford SRP libraries}, see
+@url{http://srp.stanford.edu/}.  It is intended for use in places
+where you don't expect @acronym{SRP} authentication to be the used for
+system users.
+
+Traditionally @emph{libsrp} used two files. One called @code{tpasswd}
+which holds usernames and verifiers, and @code{tpasswd.conf} which
+holds generators and primes.
+
+How to use srptool:
+
+@itemize
+
+@item
+To create tpasswd.conf which holds the g and n values for
+@acronym{SRP} protocol (generator and a large prime), run:
+
+@example
+$ srptool --create-conf /etc/tpasswd.conf
+@end example
+
+@item
+This command will create /etc/tpasswd and will add user 'test' (you
+will also be prompted for a password).  Verifiers are stored by
+default in the way libsrp expects.
+
+@example
+$ srptool --passwd /etc/tpasswd \
+    --passwd-conf /etc/tpasswd.conf -u test
+@end example
+
+@item
+This command will check against a password.  If the password matches
+the one in /etc/tpasswd you will get an ok.
+
+@example
+$ srptool --passwd /etc/tpasswd \
+    --passwd-conf /etc/tpasswd.conf --verify -u test
+@end example
+
+@end itemize
+
+@node Invoking p11tool
+@section Invoking p11tool
+@anchor{p11tool}
+@cindex p11tool
+
+The @file{p11tool} is a program that helps with accessing tokens
+and security modules that support the PKCS #11 API. It requires
+the individual PKCS #11 modules to be loaded either with the
+@code{--provider} option, or by setting up the GnuTLS configuration
+file for PKCS #11 as in @ref{sec:pkcs11}.
+
+@verbatim
+p11tool help
+Usage: p11tool [options]
+
+     --export URL             Export an object specified by a pkcs11 
+                              URL
+     --list-tokens            List all available tokens
+     --list-mechanisms URL    List all available mechanisms in token.
+     --list-all               List all objects specified by a PKCS#11 
+                              URL
+     --list-all-certs         List all certificates specified by a 
+                              PKCS#11 URL
+     --list-certs             List certificates that have a private 
+                              key specified by a PKCS#11 URL
+     --list-privkeys          List private keys specified by a 
+                              PKCS#11 URL
+     --list-trusted           List certificates marked as trusted, 
+                              specified by a PKCS#11 URL
+     --initialize URL         Initializes a PKCS11 token.
+     --write URL              Writes loaded certificates, private or 
+                              secret keys to a PKCS11 token.
+     --delete URL             Deletes objects matching the URL.
+     --label label            Sets a label for the write operation.
+     --trusted                Marks the certificate to be imported as 
+                              trusted.
+     --login                  Force login to token
+     --detailed-url           Export detailed URLs.
+     --no-detailed-url        Export less detailed URLs.
+     --secret-key HEX_KEY     Provide a hex encoded secret key.
+     --load-privkey FILE      Private key file to use.
+     --load-pubkey FILE       Private key file to use.
+     --load-certificate FILE  
+                              Certificate file to use.
+     -8, --pkcs8              Use PKCS #8 format for private keys.
+     --inder                  Use DER format for input certificates 
+                              and private keys.
+     --inraw                  Use RAW/DER format for input 
+                              certificates and private keys.
+     --provider Library       Specify the pkcs11 provider library
+     --outfile FILE           Output file.
+     -d, --debug LEVEL        specify the debug level. Default is 1.
+     -h, --help               shows this help text
+@end verbatim
+
+After being provided the available PKCS #11 modules, it can list all tokens 
+available in your system, the objects on the tokens, and perform operations
+on them.
+
+Some examples on how to use p11tool:
+
+@itemize
+
+@item List all tokens
+@example
+$ p11tool --list-tokens
+@end example
+
+@item List all objects
+@example
+$ p11tool --login --list-all
+@end example
+
+@item To export an object
+@example 
+$ p11tool --login --export pkcs11:(OBJECT URL)
+@end example
+
+@item To copy an object to a token
+@example 
+$ p11tool --login --write pkcs11:(TOKEN URL) --load-certificate (certificate file) --label "my_cert"
+@end example
+
+@end itemize
+
+Note that typically PKCS #11 private key objects are not allowed
+to be extracted from the token.

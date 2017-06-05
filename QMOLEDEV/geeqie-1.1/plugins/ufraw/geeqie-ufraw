@@ -1,0 +1,215 @@
+#!/bin/sh
+
+# FIXME TODO:
+# improve the default ufraw configuration
+# localization?
+
+
+# matches raw file names, used as case insensitive
+RAW_REGEX='.*\.(arw|srf|sr2|crw|cr2|kdc|dcr|k25|raf|mef|mos|mrw|nef|orf|pef|ptx|dng|x3f|raw|r3d|3fr|erf)$'
+
+# matches output file names, used as case insensitive
+OUT_REGEX='.*\.(jpg|jpeg|png|tif|tiff|ppm)$'
+
+# matches ufraw id file names, used as case sensitive
+ID_REGEX='.*\.ufraw$'
+
+# matches xmp sidecar file names, used as case insensitive
+XMP_REGEX='.*\.xmp$'
+
+# extract output file from ufraw id file
+get_output_from_id ()
+{
+    grep "<OutputFilename>.*</OutputFilename>" "$1" |sed -e 's|.*<OutputFilename>\(.*\)</OutputFilename>.*|\1|'
+}
+
+# extract input file from ufraw id file
+get_input_from_id ()
+{
+    grep "<InputFilename>.*</InputFilename>" "$1" |sed -e 's|.*<InputFilename>\(.*\)</InputFilename>.*|\1|'
+}
+
+add_xmp_from_sidecar ()
+{
+    idfile=$1
+    input=`get_input_from_id "$idfile"`
+    [ -f "$input" ] || return 1
+
+    basename=${input%.*}
+    dirname=${basename%/*}
+    xmp=`find "$dirname" -maxdepth 1 -path "$basename.*" -regextype posix-egrep -iregex "$XMP_REGEX" -print | head -n 1`
+    [ -f "$xmp" ] || return 1
+
+    output=`get_output_from_id "$idfile"`
+
+    [ -f "$output" ] || return 1
+    xmpext=.${xmp##*.}
+
+    # passing the source file to exiv2 is unnecessary complicated
+    # do not change the orientation, ufraw resets it to 1
+    exiv2 insert -ixX -l "$dirname" -S "$xmpext" "$output"
+    exiv2 -M "set Xmp.tiff.Orientation 1" "$output"
+}
+
+# test if the id file has changed and the output needs to be refreshed
+id_file_changed ()
+{
+    idfile=$1
+    output=`get_output_from_id "$idfile"`
+    [ ! -f "$output" -o "$idfile" -nt "$output" ]
+}
+
+# refresh the output file specified by given id file, if necessary
+process_ufraw_id_file ()
+{
+    idfile=$1
+    if id_file_changed "$idfile" ; then
+        ufraw-batch --overwrite "$idfile"
+        add_xmp_from_sidecar "$idfile"
+    fi
+}
+
+# test for newly added raw files that were never processed
+raw_file_not_processed ()
+{
+    rawfile=$1
+    basename=${rawfile%.*}
+    dirname=${basename%/*}
+    outfiles=`find "$dirname" -maxdepth 1 -path "$basename.*" -regextype posix-egrep \( -iregex "$OUT_REGEX" -o -regex "$ID_REGEX" \) -print `
+    [ -z "$outfiles" ] # return true if no possible output file exists
+
+    # raw+jpeg pair created by the camera is considered processed, 
+    # - this function returns false, the jpeg from camera is preserved and id file is not created
+}
+
+# process raw file for the first time
+process_raw_file_default ()
+{
+    rawfile=$1
+    if raw_file_not_processed "$rawfile" ; then
+        ufraw-batch --create-id=also \
+                    --wb=camera \
+                    --exposure=auto \
+                    --out-type=jpeg \
+                    --compression=96 \
+                    "$rawfile"
+        idfile=${rawfile%.*}.ufraw
+        add_xmp_from_sidecar "$idfile"
+    fi
+}
+
+# process all files listed in file $1
+# if $2 is not empty, produce output for zenity --progress
+process_list ()
+{
+    list=$1
+    use_zenity=$2
+
+    count=`wc -l <$list`
+    n=0
+    [ -n "$use_zenity" ] && echo 0
+
+    if [ "$count" -gt 0 ] ; then
+        while read file; do
+            [ -f "$file" ] || continue
+            if echo "$file"|grep -E -q -i "$RAW_REGEX" ; then
+                process_raw_file_default "$file" 
+            elif echo "$file"|grep -E -q "$ID_REGEX" ; then
+                process_ufraw_id_file "$file"
+
+            fi
+
+            n=$((n + 1))
+
+            # the function can end at the 'echo' command with broken pipe
+            # if it is cancelled via zenity
+            [ -n "$use_zenity" ] && echo $((n * 100 / count))
+
+        done <$list
+    fi
+    [ -n "$use_zenity" ] && echo 100
+}
+
+# process all files in directories $@, including subdirectories
+# processing is controlled by zenity dialogs if $DISPLAY is set
+process_tree ()
+{
+    list=`mktemp /tmp/geeqie-ufraw-list.XXXXXXXXXX` || exit 1
+
+    find "$@" -regextype posix-egrep -iregex "$RAW_REGEX" -print | while read rawfile ; do
+        raw_file_not_processed "$rawfile" && echo "$rawfile" 
+    done >>$list
+    
+    #refresh output from changed id files
+    find "$@" -regextype posix-egrep -regex "$ID_REGEX" -print | while read idfile ; do
+        id_file_changed "$idfile" && echo "$idfile"
+    done >>$list
+
+    if [ -n "$DISPLAY" ] ; then
+        if [ -s $list ] && \
+           zenity --list --title "Files to proceed" --text "Files to proceed" --column "Files" <$list ; then
+            process_list $list with_zenity | zenity --progress --auto-close
+        else
+           zenity --info --title "All files are up-to-date" --text "All files are up-to-date"
+        fi
+    else 
+        # no DISPLAY
+        process_list $list
+    fi
+    rm $list
+}
+
+print_help ()
+{
+    cat << EOT
+
+    RAW file collection maintenance tool
+
+    Usage:
+
+    geeqie-ufraw [raw file | id file] ...
+    geeqie-ufraw --recursive [dir] ...
+    geeqie-ufraw -h | --help
+
+    This script searches for new RAW files or for modified UFRaw 
+    ID files and process them with ufraw-batch. It can work either 
+    on individual files or on whole directory.
+    The functions are designed to be usable from Geeqie menu.
+
+EOT
+}
+
+#parse commandline
+
+while true ; do
+    case "$1" in
+        -v|--verbose)
+            verbose=yes #fixme: not used yet
+            shift ;;
+        -R|--recursive)
+            recursive=yes
+            shift ;;
+        -h|-help|--help|-*) 
+            print_help
+            exit  ;;
+        *)
+            break ;;
+    esac
+done
+
+if [ $# -lt 1 ] ; then
+    print_help
+    exit
+fi 
+
+if [ -n "$recursive" ] ; then
+    # recursive processing of directories
+    process_tree "$@"
+else
+    list=`mktemp /tmp/geeqie-ufraw-list.XXXXXXXXXX` || exit 1
+    for file in "$@" ; do
+        echo "$file" |sed -e "s|^\([^/]\)|$PWD/\1|"
+    done >>$list
+    process_list $list
+    rm $list
+fi

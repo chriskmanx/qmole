@@ -1,0 +1,370 @@
+# makefile for Gambit-C documentation.
+
+# Copyright (c) 1994-2009 by Marc Feeley, All Rights Reserved.
+
+herefromroot = doc
+rootfromhere = ..
+SUBDIRS =
+
+PACKAGE_SHORTNAME = gambc
+PACKAGE_NAME = Gambit-C
+PACKAGE_VERSION = v4.6.4
+PACKAGE_STRING = Gambit-C v4.6.4
+PACKAGE_BUGREPORT = gambit@iro.umontreal.ca
+PACKAGE_TARNAME = gambc-v4_6_4
+
+
+
+srcdir = .
+
+srcdirpfx = 
+
+C_COMPILER = /usr/bin/gcc
+C_PREPROC = /usr/bin/gcc -E
+FLAGS_OBJ =    -no-cpp-precomp -Wno-unused -Wno-write-strings -O2 -fno-math-errno -fschedule-insns2 -fno-trapping-math -fno-strict-aliasing -fwrapv -fomit-frame-pointer -fPIC -fno-common 
+FLAGS_DYN =    -bundle  -no-cpp-precomp -Wno-unused -Wno-write-strings -O2 -fno-math-errno -fschedule-insns2 -fno-trapping-math -fno-strict-aliasing -fwrapv -fomit-frame-pointer -fPIC -fno-common   -flat_namespace -undefined suppress
+FLAGS_LIB =    -dynamiclib -install_name $(libdir)/$(LIBRARY)   -flat_namespace -undefined suppress
+FLAGS_EXE =     -no-cpp-precomp -Wno-unused -Wno-write-strings -O2 -fno-math-errno -fschedule-insns2 -fno-trapping-math -fno-strict-aliasing -fwrapv -fomit-frame-pointer -fPIC -fno-common  
+DEFS = -DHAVE_CONFIG_H
+LIBS = 
+
+GAMBCLIB_DEFS =  -D___GAMBCDIR="\"/usr/local/Gambit-C\"" -D___SYS_TYPE_CPU="\"arm\"" -D___SYS_TYPE_VENDOR="\"apple\"" -D___SYS_TYPE_OS="\"darwin10.4.0\"" -D___CONFIGURE_COMMAND="\"./configure 'CC=/usr/bin/gcc'"\" -D___OBJ_EXTENSION="\".o\"" -D___EXE_EXTENSION="\"\"" -D___BAT_EXTENSION="\"\""
+LIB_PREFIX = lib
+LIB_EXTENSION = .a
+GAMBCLIB = gambc
+GAMBCGSCLIB = gambcgsc
+GAMBCGSILIB = gambcgsi
+INSTALL = $(rootfromhere)/install-sh -c
+INSTALL_DATA = $(rootfromhere)/install-sh -c -m 644
+INSTALL_LIB = $(rootfromhere)/install-sh -c -m 644
+INSTALL_PROGRAM = $(rootfromhere)/install-sh -c -m 755
+LN_S = ln -s
+RANLIB = ranlib
+RC = git
+GIT = git
+HG = hg
+
+prefix = /usr/local/Gambit-C
+exec_prefix = ${prefix}
+includedir = ${prefix}/include
+libdir = ${prefix}/lib
+bindir = ${prefix}/bin
+docdir = ${prefix}/doc
+infodir = ${prefix}/info
+emacsdir = ${datadir}/emacs/site-lisp
+libexecdir = ${exec_prefix}/libexec
+datarootdir = ${prefix}/share
+datadir = ${prefix}/share
+htmldir = ${docdir}
+dvidir = ${docdir}
+pdfdir = ${docdir}
+psdir = ${docdir}
+localedir = ${datarootdir}/locale
+mandir = ${datarootdir}/man
+
+MAKEINFO = makeinfo
+TEXI2DVI = texi2dvi
+TEXI2HTML = ./texi2html
+PDF2PS = pdf2ps
+
+.SUFFIXES:
+
+RCFILES = makefile.in \
+gambit-c.txi texinfo.tex texi2html \
+checkdoc.scm gambcini.scm square.scm bench.scm \
+m1.c m2.scm m3.scm m4.scm m5.scm m6.scm m7.scm x.c x.h h.scm w.six \
+test1.scm test2.scm test3.scm gsi.1
+
+GENDISTFILES = stamp.vti version.txi \
+gambit-c.pdf gambit-c*.html gambit-c.txt \
+gambit-c.info gambit-c.info-1 gambit-c.info-2 gambit-c.info-3
+
+DISTFILES = $(RCFILES) $(GENDISTFILES)
+
+INSTFILES_DOC = gambit-c.pdf gambit-c*.html gambit-c.txt
+INSTFILES_INFO = gambit-c.info*
+INSTFILES_MAN = gsi.1
+
+all:
+
+all-pre:
+
+all-post:
+
+doc: info pdf html txt ps
+
+info: gambit-c.info
+
+pdf: gambit-c.pdf
+
+ps: gambit-c.ps
+
+html: gambit-c.html
+
+txt: gambit-c.txt
+
+gambit-c.info: gambit-c.txi version.txi
+	(cd $(srcdir) && $(MAKEINFO) gambit-c.txi) || (echo "*** $@ could not be built (perhaps $(MAKEINFO) is not installed?)" > $@)
+
+gambit-c.ps: gambit-c.pdf
+	(cd $(srcdir) && $(PDF2PS) gambit-c.pdf) || (echo "*** $@ could not be built (perhaps $(PDF2PS) is not installed?)" > $@)
+
+gambit-c.pdf: gambit-c.txi version.txi
+	(cd $(srcdir) && cd $(srcdir) && $(TEXI2DVI) -p gambit-c.txi) || (echo "*** $@ could not be built (perhaps $(TEXI2DVI) is not installed?)" > $@)
+
+gambit-c.html: gambit-c.txi
+	(cd $(srcdir) && $(TEXI2HTML) -def-table gambit-c.txi) || (echo "*** $@ could not be built (perhaps $(TEXI2HTML) is not installed?)" > $@)
+
+gambit-c.txt: gambit-c.txi
+	(cd $(srcdir) && $(MAKEINFO) --no-split --no-headers --output gambit-c.txt gambit-c.txi) || (echo "*** $@ could not be built (perhaps $(MAKEINFO) is not installed?)" > $@)
+
+version.txi: stamp.vti
+
+stamp.vti: gambit-c.txi $(rootfromhere)/configure.ac
+	# we need this mess because "date" and "stat"
+	# don't behave the same on Linux and BSD
+	st_mtime="`stat -s gambit-c.txi | sed -e 's/.*st_mtime=//g' -e 's/ .*//g'`"; \
+	if [ "$$st_mtime" = "" ]; then \
+	  mtime="`date -r gambit-c.txi '+%B %d, %Y'`"; \
+	else \
+	  mtime="`date -r $$st_mtime '+%B %d, %Y'`"; \
+	fi; \
+	echo "@set EDITION $(PACKAGE_VERSION)" > version.tmp; \
+	echo "@set UPDATED $$mtime" >> version.tmp; \
+	echo "@set VERSION $(PACKAGE_VERSION)" >> version.tmp
+	if cmp -s version.tmp $(srcdirpfx)version.txi; then rm -f version.tmp; \
+	else mv version.tmp $(srcdirpfx)version.txi; fi
+	date > $(srcdirpfx)stamp.vti
+
+checkdoc:
+	rm -f *.o[0123456789]* fifo
+	rm -rf newdir
+	 $(rootfromhere)/gsi/gsi checkdoc.scm
+	diff gambit-c.txi gambit-c.txi-correct
+
+install-pre:
+
+install-post: all doc
+	c_docdir=$(DESTDIR)$(prefix)/doc; \
+	i_docdir=$(DESTDIR)$(docdir); \
+	t_docdir=$$i_docdir; \
+	c_infodir=$(DESTDIR)$(prefix)/info; \
+	i_infodir=$(DESTDIR)$(infodir); \
+	t_infodir=$$i_infodir; \
+	c_mandir=$(DESTDIR)$(prefix)/doc/man/man1; \
+	i_mandir=$(DESTDIR)$(mandir)/man1; \
+	t_mandir=$$i_mandir; \
+	$(srcdirpfx)$(rootfromhere)/mkidirs $$i_docdir $$i_infodir $$i_mandir; \
+	if test "no" = "yes"; then \
+	  $(srcdirpfx)$(rootfromhere)/mkidirs $$c_docdir $$c_infodir $$c_mandir; \
+	  t_docdir=$$c_docdir; \
+	  t_infodir=$$c_infodir; \
+	  t_mandir=$$c_mandir; \
+	fi; \
+	for file in $(INSTFILES_DOC); do \
+	  $(INSTALL_DATA) $(srcdirpfx)$$file $$t_docdir/$$file; \
+	done; \
+	for file in $(INSTFILES_INFO); do \
+	  $(INSTALL_DATA) $(srcdirpfx)$$file $$t_infodir/$$file; \
+	done; \
+	for file in $(INSTFILES_MAN); do \
+	  $(INSTALL_DATA) $(srcdirpfx)$$file $$t_mandir/$$file; \
+	done; \
+	if test "" = ""; then \
+	  if test "$$t_docdir" != "$$i_docdir"; then \
+	    r_docdir=`$(rootfromhere)/relpath "$$t_docdir" "$$i_docdir" no`; \
+	    for file in $(INSTFILES_DOC); do \
+	      (cd $$i_docdir && $(LN_S) $$r_docdir$$file $$file); \
+	    done; \
+	  fi; \
+	  if test "$$t_infodir" != "$$i_infodir"; then \
+	    r_infodir=`$(rootfromhere)/relpath "$$t_infodir" "$$i_infodir" no`; \
+	    for file in $(INSTFILES_INFO); do \
+	      (cd $$i_infodir && $(LN_S) $$r_infodir$$file $$file); \
+	    done; \
+	  fi; \
+	  if test "$$t_mandir" != "$$i_mandir"; then \
+	    r_mandir=`$(rootfromhere)/relpath "$$t_mandir" "$$i_mandir" no`; \
+	    for file in $(INSTFILES_MAN); do \
+	      (cd $$i_mandir && $(LN_S) $$r_mandir$$file $$file); \
+	    done; \
+	  fi; \
+	fi
+
+uninstall-pre:
+
+uninstall-post:
+	c_docdir=$(DESTDIR)$(prefix)/doc; \
+	i_docdir=$(DESTDIR)$(docdir); \
+	t_docdir=$$i_docdir; \
+	c_infodir=$(DESTDIR)$(prefix)/info; \
+	i_infodir=$(DESTDIR)$(infodir); \
+	t_infodir=$$i_infodir; \
+	c_mandir=$(DESTDIR)$(prefix)/doc/man/man1; \
+	i_mandir=$(DESTDIR)$(mandir)/man1; \
+	t_mandir=$$i_mandir; \
+	if test "no" = "yes"; then \
+	  t_docdir=$$c_docdir; \
+	  t_infodir=$$c_infodir; \
+	  t_mandir=$$c_mandir; \
+	fi; \
+	for file in $(INSTFILES_DOC); do \
+	  rm -f $$t_docdir/$$file; \
+	done; \
+	for file in $(INSTFILES_INFO); do \
+	  rm -f $$t_infodir/$$file; \
+	done; \
+	for file in $(INSTFILES_MAN); do \
+	  rm -f $$t_mandir/$$file; \
+	done; \
+	if test "$$t_docdir" != "$$i_docdir"; then \
+	  for file in $(INSTFILES_DOC); do \
+	    rm -f $$i_docdir/$$file; \
+	  done; \
+	fi; \
+	if test "$$t_infodir" != "$$i_infodir"; then \
+	  for file in $(INSTFILES_INFO); do \
+	    rm -f $$i_infodir/$$file; \
+	  done; \
+	fi; \
+	if test "$$t_mandir" != "$$i_mandir"; then \
+	  for file in $(INSTFILES_MAN); do \
+	    rm -f $$i_mandir/$$file; \
+	  done; \
+	fi; \
+	rmdir $$t_docdir 2> /dev/null; \
+	if test "$$t_docdir" != "$$i_docdir"; then \
+	  rmdir $$i_docdir 2> /dev/null; \
+	fi; \
+	rmdir $$t_infodir 2> /dev/null; \
+	if test "$$t_infodir" != "$$i_infodir"; then \
+	  rmdir $$i_infodir 2> /dev/null; \
+	fi; \
+	rmdir $$t_mandir 2> /dev/null; \
+	if test "$$t_mandir" != "$$i_mandir"; then \
+	  rmdir $$i_mandir 2> /dev/null; \
+	fi
+
+mostlyclean-pre:
+
+mostlyclean-post:
+
+clean-pre: mostlyclean-pre
+
+clean-post: mostlyclean-post
+	rm -f *.aux *.cp *.cps *.dvi *.fn *.fns *.ky *.log *.pg \
+	  *.toc *.tp *.vr *.tmp
+
+distclean-pre: clean-pre
+
+distclean-post: clean-post
+
+bootclean-pre: distclean-pre
+
+bootclean-post: distclean-post
+	rm -f stamp.vti version.txi \
+	  gambit-c.ps gambit-c.pdf gambit-c*.html gambit-c.txt gambit-c.info*
+
+realclean-pre: bootclean-pre
+
+realclean-post: bootclean-post
+	rm -f makefile
+
+rc-setup-pre:
+	$(RC) add $(RCFILES)
+
+rc-setup-post:
+
+dist-pre dist-devel-pre:
+	mkdir $(rootfromhere)/$(PACKAGE_TARNAME)/$(herefromroot)
+	chmod 777 $(rootfromhere)/$(PACKAGE_TARNAME)/$(herefromroot)
+	@echo "  Copying distribution files:"
+	@for file in $(DISTFILES); do \
+	  echo "    $(herefromroot)/$$file"; \
+	  ln $(srcdirpfx)$$file $(rootfromhere)/$(PACKAGE_TARNAME)/$(herefromroot) 2> /dev/null \
+	    || cp -p $(srcdirpfx)$$file $(rootfromhere)/$(PACKAGE_TARNAME)/$(herefromroot); \
+	done
+
+dist-post dist-devel-post:
+
+all-recursive install-recursive uninstall-recursive mostlyclean-recursive clean-recursive distclean-recursive bootclean-recursive realclean-recursive rc-setup-recursive dist-recursive dist-devel-recursive:
+	@if test -n "$(SUBDIRS)"; then \
+	  for subdir in ""$(SUBDIRS); do \
+	    target=`echo $@ | sed 's/-recursive//'`; \
+	    echo making $$target in $$subdir; \
+	    (cd $$subdir && $(MAKE) $$target) || exit 1; \
+	  done \
+	fi
+
+all: all-post
+
+all-post: all-recursive
+
+all-recursive: all-pre
+
+install: install-post
+
+install-post: install-recursive
+
+install-recursive: install-pre
+
+uninstall: uninstall-post
+
+uninstall-post: uninstall-recursive
+
+uninstall-recursive: uninstall-pre
+
+mostlyclean: mostlyclean-post
+
+mostlyclean-post: mostlyclean-recursive
+
+mostlyclean-recursive: mostlyclean-pre
+
+clean: clean-post
+
+clean-post: clean-recursive
+
+clean-recursive: clean-pre
+
+distclean: distclean-post
+
+distclean-post: distclean-recursive
+
+distclean-recursive: distclean-pre
+
+bootclean: bootclean-post
+
+bootclean-post: bootclean-recursive
+
+bootclean-recursive: bootclean-pre
+
+realclean: realclean-post
+
+realclean-post: realclean-recursive
+
+realclean-recursive: realclean-pre
+
+rc-setup: rc-setup-post
+
+rc-setup-post: rc-setup-recursive
+
+rc-setup-recursive: rc-setup-pre
+
+dist: dist-post
+
+dist-post: dist-recursive
+
+dist-recursive: dist-pre
+
+dist-devel: dist-devel-post
+
+dist-devel-post: dist-devel-recursive
+
+dist-devel-recursive: dist-devel-pre
+
+makefile: makefile.in $(rootfromhere)/config.status
+	cd $(rootfromhere) && CONFIG_FILES=$(herefromroot)/$@ CONFIG_HEADERS= ./config.status
+
+# Tell versions [3.59,3.63) of GNU make not to export all variables.
+# Otherwise a system limit (for SysV at least) may be exceeded.
+.NOEXPORT:

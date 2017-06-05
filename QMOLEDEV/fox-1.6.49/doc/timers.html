@@ -1,0 +1,378 @@
+<html>
+<head>
+<link rel="stylesheet" href="page.css" type="text/css">
+<title>Documentation: Timers, Signals and Input Messages</title>
+</head>
+<body bgcolor=#ffffff link=#990033 vlink=#990033 alink=#990033 text=#000000>
+
+<!---- TOPIC TITLE WITH LOGO--->
+<table border=0 cellpadding= cellspacing=2 width=100% ><tr><td><a href='http://www.fox-toolkit.org' target=_top><img src='art/foxlogo_small.jpg' border=0></a></td><td width=100% valign=bottom id="HEADLINE"><b>
+Documentation: Timers, Signals and Input Messages  <A href='timers.html' target="_top" align=left><font  size=-2>[Remove Frame]</font></a>
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE WITH LOGO --->
+
+<ul>
+  <p>Most messages your application will receive are
+  generated from FOX Widgets, such as buttons, sliders, and other controls.&nbsp;
+  However, FOX also provides some messages which are generated from other
+  sources.</p>
+  <p>There are four types of such messages: Timers, Chores, Signals, and Inputs.</p>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Timer Messages
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Timer messages are used so your program can receive
+  a message after some specified interval has elapsed. This can be very useful,
+  for example for performing an animation of some kind. Like all messages, timer messages are handled
+  by specifying a <i>target object </i>which is to handle the message.&nbsp;
+  When the specified time has elapsed, the object will receive a message
+  of the type <b>SEL_TIMEOUT,&nbsp;</b> with the message <b>ID</b> being
+  the one which was registered at the beginning of the time interval.
+  The length of the time interval is expressed in
+  <b><i>milliseconds</i></b>,
+  and the interval starts at the time the callback message was registered.&nbsp;
+  The message callback to the target object will be when the interval has
+  expired.</p>
+
+  <p>Here's how you would&nbsp; program a message map
+  entry to catch a timer message in a target object of type MyObject:</p>
+
+<pre>
+// Message map entry of "object"
+<b>FXDEFMAP</b>(MyObject) MyObjectMap[]={
+  <b>&nbsp; FXMAPFUNC</b>(SEL_TIMEOUT,MyObject::ID_ANIMATIONSTEP,MyObject::onAnimationStep),
+  <b>...</b>
+};
+
+</pre>
+
+
+<p>A timer may be registered with a specific target object and message-id identifying the
+object and method to be invoked on that object when the timer expires.
+An optional user-data pointer may be passed which is made available to the
+message handler when the timer message is invoked.  This can be used by the
+handler to e.g. determine what to do.
+To register a timer message, you would call the function <b>FXApp::addTimeout(),
+</b> as follows:</p>
+<pre>
+// Register Timer callback message for 1000 milliseconds
+MyObject* object;
+void *userdata;
+app-><b>addTimeout</b>(object,ID_ANIMATIONSTEP,1000,userdata);
+</pre>
+
+If a timer with this particular target and message combination already exists,
+the interval is reset to the new time.  
+
+
+<p>Timers can be removed or unregistered at any time, by calling <b>FXApp::removeTimeout()</b> 
+with same target and message-id with which it was registered previously:</p>
+
+<pre>
+// Unregister Timer callback message
+<b>removeTimeout</b>(object,ID_ANIMATIONSTEP);
+</pre>
+
+
+<p>It is OK to call removeTimeout() on a timer that has already fired.
+Timers in FOX are fired only once, not repeatedly; thus, to do animations
+the timer must be reset each time it expires, as is done below:
+
+<pre>
+// Receive a Timer callback
+long MyObject::onAnimationStep(FXObject*,FXSelector,void* ptr){
+  if(continueToAnimate){
+  
+    // Do something ...
+  
+    // Restart timer for another interval, passing the user data for next time
+    app->addTimeout(object,ID_ANIMATIONSTEP,1000,ptr);
+    }
+  return 1;
+  }
+  
+</pre>
+
+
+
+<p>It is OK to call <b>FXApp::removeTimeout()</b> even when the timer has
+already fired.  
+A typical scenario used in FOX programs is to remove any timers that may
+be outstanding in the destructor of the target.<br>
+Since a timer is uniquely identified by the target and message-id,
+a class using timers does not need to bother with bookkeeping issues
+like keeping track of which timers are still in use.
+This is very convenient in destructors:
+
+<pre>
+// Destructor: just remove the timer, regarless of whether it was set
+MyObject::~MyObject(){
+  removeTimeout(object,ID_ANIMATIONSTEP);
+  }
+</pre>
+
+
+  <p>Which makes for much cleaner code.</p>
+
+  <p>Timers are <b>fired</b> when the application returns to the event loop.
+  In other words, handlers may be invoked a bit later than specified by the
+  timer interval. To maintain smooth animation sequences, you might
+  want to call <b>gettimeofday()</b> or some equivalent function so as to
+  decrease the next timer interval in the sequence a little bit to correct
+  for this effect, particularly if some of your applications are CPU intensive.</p>
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Chore Messages
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Chore messages are messages which are delivered
+  to their target object when the application is about to block for events.&nbsp;
+  They are used for background tasks which are to be performed when no other,
+  more urgent tasks need to be performed.&nbsp; You can use chores for housekeeping
+  tasks in your application, or&nbsp; perhaps for animations.&nbsp; A chore
+  will fire as soon as the event stream is exhausted and there is nothing
+  else for the application to do, this is why it is also sometimes referred
+  to as <b><i>idle processing.</i></b></p>
+
+  <p>When the chore message is fired, your object will
+  receive a message of the type <b>SEL_CHORE,</b> with the message <b>ID</b>
+  being the one which was registered.&nbsp; To intercept this message, here's
+  how you would program your message map:</font></p>
+
+<pre>
+FXDEFMAP(MyObject) MyObjectMap[]={
+  FXMAPFUNC(SEL_CHORE,MyObject::ID_IDLETASK,MyObject::onIdleTask),
+  ...
+  };
+</pre>
+
+
+  <p>As you see, it is very similar to timer callback
+  processing.&nbsp; Setting or registering a chore callback message is similar
+  as well, and is done by calling <b>FXApp::addChore() </b>as shown below:</p>
+
+<pre>
+// Register Chore callback message
+MyObject* object;
+void *userdata;
+app->addChore(object,ID_ANIMATIONSTEP,userdata);
+</pre>
+
+
+  <p>Chores can be unregistered at any time <b><i>prior</i></b> to being
+  fired, by calling <b>FXApp::removeChore()</b> with the same target and
+  message-id as was used to register it in <b>FXApp::addChore():</b></p>
+
+<pre>
+// Unregister Chore callback message
+app->removeChore(object,ID_ANIMATIONSTEP);
+</pre>
+
+  <p>Like timers, it is OK to remove chores that have already fired.
+  Thus, classes which are receiving chore messages can remove them
+  in the destructor, regardless of whether they were set or not.  This
+  can substantially simplify book keeping.</p>
+
+  <p>Some notes:</p>
+  <ul>
+  <li>Some computer graphics books describe using <b>Motif work-proc</b>'s to perform delayed 
+  drawing for complicated 3D graphics. While FOX's Chores are indeed equivalent to Motif's 
+  work-proc's, this is unnecessary, as ALL paint operations in the FOX toolkit are already delayed.</li>
+  <li>Repeatedly resetting the chore callback will mean that your application will never yield 
+  the CPU, because there will always be a chore ready to execute prior to blocking for event 
+  input.</li>
+  <li>The GUI update and the Chore processing are interleaved, so that each time through 
+  the event loop, at least one GUI update callback and one Chore are always being executed.
+  This means however, that if a Chore takes a long time, the GUI update process itself will 
+  also proceed much slower, as it will proceed in lock-step with the Chore processing.</li>
+  </ul>
+
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Signal Messages
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Signal messages are generated when certain asynchronous
+  events happen.&nbsp; On most systems, these events are generated in the
+  form of <b><i>POSIX signals</i></b>.&nbsp; The POSIX signal facility is
+  available on most systems to which FOX has been ported, although&nbsp;
+  non-POSIX [e.g. BSD) signals should work also.</p>
+
+  <p>You can use Signal messages to allow FOX objects
+  to receive signals and process them.&nbsp; For example, you could&nbsp;
+  register a signal handler for <b>SIGINT</b>, so that an application may
+  be closed down properly when the user hits <tt><b>^C</b> </tt>on the controlling
+  terminal.&nbsp; Another use might be to register a handler to catch the
+  <b>SIGFPE</b> during a computation, so a warning panel can be popped for
+  a divide by zero, and perhaps gracefully save the user's data rather than
+  core dumping.</p>
+
+  <p>When a Signal message is sent, your target object
+  will receive a message of the type <b>SEL_SIGNAL</b> with the <b>ID</b>
+  being the one specified when the callback message was registered:</p>
+
+<pre>
+// Message map entry of "object"
+FXDEFMAP(MyObject) MyObjectMap[]={
+  FXMAPFUNC(SEL_SIGNAL,MyObject::ID_INTERRUPT,MyObject::onCleanUpAndQuit),
+  ...
+  };
+</pre>
+
+  <p>A signal handler can be added by calling <b>FXApp::addSignal().</b>&nbsp;
+  There are two methods to deliver a signal to the application: synchronously,
+  and asynchronously (immediately).</p>
+
+  <p><b>Synchronous or non-immediate</b><b>signals </b>are held until the application returns to the event loop,
+  and then dispatched to the application.&nbsp; Thus, in most cases, the
+  normal flow of computation in the application will not be interrupted,
+  and your signal callback message handler can assume that all data structures
+  are in a consistent state.&nbsp;&nbsp;&nbsp; Relatively harmless signals
+  such as <b>SIGINT</b> are best handled synchronously.</p>
+
+  <p><b>Asynchronous or immediate signals </b>are dispatched
+  to the target object immediately.&nbsp; Since the regular processing of
+  your application may have been interrupted by the signal, you will have
+  to exercise extreme caution in the handler, as data structures may be partically
+  complete.&nbsp; The immediate signal handlers are best reserved for last-ditch
+  efforts, such as cleaning up after a <b>SIGSEGV</b> or <b>SIGBUS</b>, when
+  a grave error has occured but there may be a chance to perhaps recover
+  some of the user's data.</p>
+
+<pre>
+// Register Signal callback message
+app->addSignal(SIGINT,myobject,ID_INTERRUPT,FALSE,flags);
+</pre>
+
+  <p>The flags are set as for POSIX signal handling facilities, pleace confer
+  your man pages for <b>sigaction(2).</b>
+  <br>To remove the signal handler callback message and restore the default
+  signal handling action, you can call <b>FXApp::removeSignal() </b>as follows:</p>
+
+<pre>
+// Unregister Signal callback message
+app->removeSignal(SIGINT);
+</pre>
+
+
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Input Messages
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Input messages allow your programs to receive
+  inputs from other sources than the GUI.&nbsp; Input messages can for example
+  be used to watch <b><i>sockets</i></b>, <b><i>pipes</i></b>, and a host
+  of other <b><i>synchronization objects</i></b> [if available on your machine].</p>
+
+  <p>Writing networked applications, such as e.g. a chat program, involves watching inputs from a number of different sources.&nbsp;
+  You could have your program continuously check all these inputs for activity
+  in a timer callback, but it is far more efficient to register an input
+  source and yield the CPU until there is something going on.</p>
+
+  <p>Fortunately, most operating systems provide such a facility, and FOX can take advantage of this:</p>
+  <ul>
+  <li>On UNIX, the <b>select()</b> system call is used.&nbsp; The select mechanism allow a group of file descriptors representing sockets, pipes, and [where supported] asynchronous files to be watched for activity.&nbsp; In fact, the connection to the display, i.e. the GUI is just one of the file descriptors that can be watched.&nbsp; Please consult your UNIX <i>select(2) </i>man pages for more information about this system call.</li>
+  <li>On WIndows NT, the <b>MsgWaitForMultipleObjects()</b>
+    system call is used.&nbsp; This system call waits for GUI messages, as
+    well as any number of synchronization objects, such as asynchronous files,
+    sockets, pipes, event objects, mutexes, and even directories.&nbsp; More
+    information about this can be found on the Microsoft Developer Network
+    CD's, or on their on-line version of <a href="http://msdn.microsoft.com/library/default.asp">MSDN</a>.</li>
+  </ul>
+  <p>To register a callback message for an input source, you can call FXApp::addInput().&nbsp;
+  The callback message will remain registered even even after it has fired,
+  unlike for Timers and Chores which are automatically removed after being
+  fired once.</p>
+
+  <p>When a synchronization object becomes signaled, a message of the type
+  SEL_IO_READ, SEL_IO_WRITE, or SEL_IO_EXCEPT will be sent to the target
+  object, with the ID being the one specified in addInput().&nbsp; You can
+  intercept these messages as follows:</p>
+
+<pre>
+// Message map entry of "object"
+FXDEFMAP(MyObject) MyObjectMap[]={
+  FXMAPFUNC(SEL_IO_READ,MyObject::ID_ACCEPT,MyObject::onAcceptConnectionFromTheNet),
+  FXMAPFUNC(SEL_IO_READ,MyObject::ID_SOCKET,MyObject::onReceivedInputFromTheNet),
+  FXMAPFUNC(SEL_IO_WRITE,MyObject::ID_SOCKET,MyObject::onSendOutputToTheNet),
+  FXMAPFUNC(SEL_IO_EXCEPT,MyObject::ID_SOCKET,MyObject::onDealWithExcept),
+  ...
+  };
+</pre>
+
+  <p>In this example, a server type application may
+  be creating a <b>socket</b> (socket(2)), and listen for incoming connections.&nbsp;
+  When an incoming connection is received the callback handler <b>onAcceptConnectionFromTheNet</b><tt>()
+  </tt>presumably verifies the request and calls <b>accept</b> (accept(2))&nbsp;
+  and registers another handler to deal with incoming or outgoing data, and
+  exceptional conditions.</p>
+
+  <p>You can register a input handler by calling <b>FXApp::addInput()</b>.</p>
+
+<pre>
+// Accept the connection
+socket=accept(...);
+
+// Register input callback message
+app->addInput(socket,INPUT_READ|INPUT_WRITE|INPUT_EXCEPT,myobject,ID_SOCKET);
+</pre>
+
+<br>&nbsp;
+
+  <p>Passing <b>INPUT_READ|INPUT_WRITE|INPUT_EXCEPT</b> will register the
+  same callback message handler <b>ID</b> for all three types of I/O activities.
+  <br>To remove a callback message handler, you can call <b>FXApp::removeInput()
+  </b>as follows:</p>
+
+<pre>
+// Unregister input callback message
+app->removeInput(socket,INPUT_WRITE);
+</pre>
+
+<p>This will remove the callback message <b>ID</b> for I/O output.&nbsp;
+It is usually a good idea for output, because the file descriptor will
+remain signaled as long as there is buffering to accept more outgoing data.
+<br>You would add the <b>INPUT_WRITE</b> back only when buffers get full
+[when the other party is tardy processing the data you're sending, lets
+say].</p>
+
+</ul>
+
+
+<!--- COPYRIGHT -->
+<p>
+<table width=100% cellpadding=0 cellspacing=0><tr><td width=100% valign=top id=HEADLINE align=right>
+<img src='art/line.gif' width=100% height=1><font size=-1>
+Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+</td></tr></table>
+</p>
+<!--- COPYRIGHT -->
+
+
+</body>
+</html>

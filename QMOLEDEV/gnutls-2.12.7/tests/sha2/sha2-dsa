@@ -1,0 +1,79 @@
+#!/bin/sh
+
+# Copyright (C) 2006, 2007, 2008, 2010 Free Software Foundation, Inc.
+#
+# Author: Simon Josefsson
+#
+# This file is part of GnuTLS.
+#
+# GnuTLS is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 3 of the License, or (at
+# your option) any later version.
+#
+# GnuTLS is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GnuTLS; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+#set -e
+
+srcdir=${srcdir:-.}
+CERTTOOL=${CERTTOOL:-../../src/certtool$EXEEXT}
+
+echo ca > template
+echo cn = "SHA 256 CA" >> template
+
+$CERTTOOL -d 2 --generate-self-signed --template template \
+    --load-privkey $srcdir/key-ca-dsa.pem \
+    --outfile new-ca-dsa.pem \
+    --hash sha256 >out 2>&1
+
+if [ $? != 0 ];then
+	cat out
+	exit 1
+fi
+
+echo ca > template
+echo cn = "SHA 224 Mid CA" >> template
+
+$CERTTOOL -d 2 --generate-certificate --template template \
+    --load-ca-privkey $srcdir/key-ca-dsa.pem \
+    --load-ca-certificate new-ca-dsa.pem \
+    --load-privkey $srcdir/key-subca-dsa.pem \
+    --outfile new-subca-dsa.pem \
+    --hash sha224 >out 2>&1
+
+if [ $? != 0 ];then
+	cat out
+	exit 1
+fi
+
+echo cn = "End-user" > template
+
+$CERTTOOL -d 2 --generate-certificate --template template \
+    --load-ca-privkey $srcdir/key-subca-dsa.pem \
+    --load-ca-certificate new-subca-dsa.pem \
+    --load-privkey $srcdir/key-dsa.pem \
+    --outfile new-user.pem >out 2>&1
+
+if [ $? != 0 ];then
+	cat out
+	exit 1
+fi
+
+cat new-user.pem new-subca-dsa.pem new-ca-dsa.pem > out
+$CERTTOOL --verify-chain <out > verify
+
+if [ $? != 0 ];then
+	cat verify
+	exit 1
+fi
+
+rm -f verify new-user.pem new-ca-dsa.pem new-subca-dsa.pem template out
+
+exit 0

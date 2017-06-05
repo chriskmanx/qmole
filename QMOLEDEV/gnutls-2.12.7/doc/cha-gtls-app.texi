@@ -1,0 +1,532 @@
+@node How to use GnuTLS in applications
+@chapter How To Use @acronym{GnuTLS} in Applications
+@anchor{examples}
+@cindex Example programs
+
+@menu
+* Preparation::
+* Multi-threaded applications::
+* Client examples::
+* Server examples::
+* Miscellaneous examples::
+* Parameter generation::
+* Keying Material Exporters::
+* Channel Bindings::
+* Compatibility with the OpenSSL library::
+@end menu
+
+@node Preparation
+@section Preparation
+
+To use @acronym{GnuTLS}, you have to perform some changes to your
+sources and your build system. The necessary changes are explained in
+the following subsections.
+
+@menu
+* Headers::
+* Initialization::
+* Version check::
+* Debugging::
+* Building the source::
+@end menu
+
+@node Headers
+@subsection Headers
+
+All the data types and functions of the @acronym{GnuTLS} library are
+defined in the header file @file{gnutls/gnutls.h}.  This must be
+included in all programs that make use of the @acronym{GnuTLS}
+library.
+
+The extra functionality of the @acronym{GnuTLS-extra} library is
+available by including the header file @file{gnutls/extra.h} in your
+programs.
+
+@node Initialization
+@subsection Initialization
+
+GnuTLS must be initialized before it can be used.  The library is
+initialized by calling @ref{gnutls_global_init}.  The resources
+allocated by the initialization process can be released if the
+application no longer has a need to call GnuTLS functions, this is
+done by calling @ref{gnutls_global_deinit}.
+
+The extra functionality of the @acronym{GnuTLS-extra} library is
+available after calling @ref{gnutls_global_init_extra}.
+
+In order to take advantage of the internationalisation features in
+GnuTLS, such as translated error messages, the application must set
+the current locale using @code{setlocale} before initializing GnuTLS.
+
+@node Version check
+@subsection Version Check
+
+It is often desirable to check that the version of `gnutls' used is
+indeed one which fits all requirements.  Even with binary
+compatibility new features may have been introduced but due to problem
+with the dynamic linker an old version is actually used.  So you may
+want to check that the version is okay right after program startup.
+See the function @ref{gnutls_check_version}.
+
+@node Debugging
+@subsection Debugging
+
+In many cases things may not go as expected and further information,
+to assist debugging, from @acronym{GnuTLS} is desired. Those are the
+case where the @ref{gnutls_global_set_log_level} and
+@ref{gnutls_global_set_log_function} are to be used. Those will print
+verbose information on the @acronym{GnuTLS} functions internal flow.
+
+@node Building the source
+@subsection Building the Source
+
+If you want to compile a source file including the
+@file{gnutls/gnutls.h} header file, you must make sure that the
+compiler can find it in the directory hierarchy.  This is accomplished
+by adding the path to the directory in which the header file is
+located to the compilers include file search path (via the @option{-I}
+option).
+
+However, the path to the include file is determined at the time the
+source is configured.  To solve this problem, the library uses the
+external package @command{pkg-config} that knows the path to the
+include file and other configuration options.  The options that need
+to be added to the compiler invocation at compile time are output by
+the @option{--cflags} option to @command{pkg-config gnutls}.  The
+following example shows how it can be used at the command line:
+
+@example
+gcc -c foo.c `pkg-config gnutls --cflags`
+@end example
+
+Adding the output of @samp{pkg-config gnutls --cflags} to the
+compilers command line will ensure that the compiler can find the
+@file{gnutls/gnutls.h} header file.
+
+A similar problem occurs when linking the program with the library.
+Again, the compiler has to find the library files.  For this to work,
+the path to the library files has to be added to the library search
+path (via the @option{-L} option).  For this, the option
+@option{--libs} to @command{pkg-config gnutls} can be used.  For
+convenience, this option also outputs all other options that are
+required to link the program with the libarary (for instance, the
+@samp{-ltasn1} option).  The example shows how to link @file{foo.o}
+with the library to a program @command{foo}.
+
+@example
+gcc -o foo foo.o `pkg-config gnutls --libs`
+@end example
+
+Of course you can also combine both examples to a single command by
+specifying both options to @command{pkg-config}:
+
+@example
+gcc -o foo foo.c `pkg-config gnutls --cflags --libs`
+@end example
+
+@node Multi-threaded applications
+@section Multi-Threaded Applications
+
+Although the @acronym{GnuTLS} library is thread safe by design, some
+parts of the cryptographic backend, such as the random generator, are not.
+Applications can either call @ref{gnutls_global_init} and use the default 
+operating system provided locks (i.e. @code{pthreads} on GNU/Linux), or
+specify manualy the locking system using the function @ref{gnutls_global_set_mutex}
+before calling @ref{gnutls_global_init}. Setting manually mutexes is recommended
+only to applications that have full control of the underlying libraries. If this
+is not the case, the use of the operating system defaults is recommended.
+
+
+There are helper macros to help you properly initialize the libraries.
+Examples are shown below.
+
+@itemize
+
+@item POSIX threads in GNU/Linux
+@example
+#include <gnutls.h>
+#include <errno.h>
+#include <pthread.h>
+
+int main()
+@{
+   gnutls_global_init();
+@}
+@end example
+
+@item Other thread packages
+@example
+
+int main()
+@{
+   gnutls_global_mutex_set (mutex_init, mutex_deinit, mutex_lock, mutex_unlock);
+   gnutls_global_init();
+@}
+@end example
+@end itemize
+
+@node Client examples
+@section Client Examples
+
+This section contains examples of @acronym{TLS} and @acronym{SSL}
+clients, using @acronym{GnuTLS}.  Note that these examples contain
+little or no error checking.  Some of the examples require functions
+implemented by another example.
+
+@menu
+* Simple client example with anonymous authentication::
+* Simple client example with X.509 certificate support::
+* Obtaining session information::
+* Verifying peer's certificate::
+* Using a callback to select the certificate to use::
+* Client using a PKCS #11 token with TLS::
+* Client with Resume capability example::
+* Simple client example with SRP authentication::
+* Simple client example in C++::
+* Helper function for TCP connections::
+@end menu
+
+@node Simple client example with anonymous authentication
+@subsection Simple Client Example with Anonymous Authentication
+
+The simplest client using TLS is the one that doesn't do any
+authentication.  This means no external certificates or passwords are
+needed to set up the connection.  As could be expected, the connection
+is vulnerable to man-in-the-middle (active or redirection) attacks.
+However, the data is integrity and privacy protected.
+
+@verbatiminclude examples/ex-client1.c
+
+@node Simple client example with X.509 certificate support
+@subsection Simple Client Example with @acronym{X.509} Certificate Support
+
+Let's assume now that we want to create a TCP client which
+communicates with servers that use @acronym{X.509} or
+@acronym{OpenPGP} certificate authentication. The following client is
+a very simple @acronym{TLS} client, it does not support session
+resuming, not even certificate verification. The TCP functions defined
+in this example are used in most of the other examples below, without
+redefining them.
+
+@verbatiminclude examples/ex-client2.c
+
+@node Obtaining session information
+@subsection Obtaining Session Information
+
+Most of the times it is desirable to know the security properties of
+the current established session.  This includes the underlying ciphers
+and the protocols involved.  That is the purpose of the following
+function.  Note that this function will print meaningful values only
+if called after a successful @ref{gnutls_handshake}.
+
+@verbatiminclude examples/ex-session-info.c
+
+@node Verifying peer's certificate
+@subsection Verifying Peer's Certificate
+@anchor{ex:verify}
+
+A @acronym{TLS} session is not secure just after the handshake
+procedure has finished.  It must be considered secure, only after the
+peer's certificate and identity have been verified. That is, you have
+to verify the signature in peer's certificate, the hostname in the
+certificate, and expiration dates.  Just after this step you should
+treat the connection as being a secure one.
+
+@verbatiminclude examples/ex-rfc2818.c
+
+Another example is listed below which provides more detailed
+verification output, for applications that need it.
+
+@verbatiminclude examples/ex-verify.c
+
+@node Using a callback to select the certificate to use
+@subsection Using a Callback to Select the Certificate to Use
+
+There are cases where a client holds several certificate and key
+pairs, and may not want to load all of them in the credentials
+structure.  The following example demonstrates the use of the
+certificate selection callback.
+
+@verbatiminclude examples/ex-cert-select.c
+
+
+@node Client using a PKCS #11 token with TLS
+@subsection Using a @acronym{PKCS #11} token with TLS
+@anchor{ex:pkcs11-client}
+
+This example will demonstrate how to load keys and certificates
+from a @acronym{PKCS} #11 token, and use it with a TLS connection.
+
+@verbatiminclude examples/ex-cert-select-pkcs11.c
+
+
+@node Client with Resume capability example
+@subsection Client with Resume Capability Example
+@anchor{ex:resume-client}
+
+This is a modification of the simple client example. Here we
+demonstrate the use of session resumption. The client tries to connect
+once using @acronym{TLS}, close the connection and then try to
+establish a new connection using the previously negotiated data.
+
+@verbatiminclude examples/ex-client-resume.c
+
+
+@node Simple client example with SRP authentication
+@subsection Simple Client Example with @acronym{SRP} Authentication
+
+The following client is a very simple @acronym{SRP} @acronym{TLS}
+client which connects to a server and authenticates using a
+@emph{username} and a @emph{password}. The server may authenticate
+itself using a certificate, and in that case it has to be verified.
+
+@verbatiminclude examples/ex-client-srp.c
+
+@node Simple client example in C++
+@subsection Simple Client Example using the C++ API
+
+The following client is a simple example of a client client utilizing
+the GnuTLS C++ API.
+
+@verbatiminclude examples/ex-cxx.cpp
+
+@node Helper function for TCP connections
+@subsection Helper Function for TCP Connections
+
+This helper function abstracts away TCP connection handling from the
+other examples.  It is required to build some examples.
+
+@verbatiminclude examples/tcp.c
+
+@node Server examples
+@section Server Examples
+
+This section contains examples of @acronym{TLS} and @acronym{SSL}
+servers, using @acronym{GnuTLS}.
+
+@menu
+* Echo Server with X.509 authentication::
+* Echo Server with OpenPGP authentication::
+* Echo Server with SRP authentication::
+* Echo Server with anonymous authentication::
+@end menu
+
+@node Echo Server with X.509 authentication
+@subsection Echo Server with @acronym{X.509} Authentication
+
+This example is a very simple echo server which supports
+@acronym{X.509} authentication, using the RSA ciphersuites.
+
+@verbatiminclude examples/ex-serv1.c
+
+@node Echo Server with OpenPGP authentication
+@subsection Echo Server with @acronym{OpenPGP} Authentication
+@cindex @acronym{OpenPGP} Server
+
+The following example is an echo server which supports
+@acronym{@acronym{OpenPGP}} key authentication. You can easily combine
+this functionality ---that is have a server that supports both
+@acronym{X.509} and @acronym{OpenPGP} certificates--- but we separated
+them to keep these examples as simple as possible.
+
+@verbatiminclude examples/ex-serv-pgp.c
+
+@node Echo Server with SRP authentication
+@subsection Echo Server with @acronym{SRP} Authentication
+
+This is a server which supports @acronym{SRP} authentication. It is
+also possible to combine this functionality with a certificate
+server. Here it is separate for simplicity.
+
+@verbatiminclude examples/ex-serv-srp.c
+
+@node Echo Server with anonymous authentication
+@subsection Echo Server with Anonymous Authentication
+
+This example server support anonymous authentication, and could be
+used to serve the example client for anonymous authentication.
+
+@verbatiminclude examples/ex-serv-anon.c
+
+@node Miscellaneous examples
+@section Miscellaneous Examples
+
+@menu
+* Checking for an alert::
+* X.509 certificate parsing example::
+* Certificate request generation::
+* PKCS #12 structure generation::
+@end menu
+
+@node Checking for an alert
+@subsection Checking for an Alert
+
+This is a function that checks if an alert has been received in the
+current session.
+
+@verbatiminclude examples/ex-alert.c
+
+@node X.509 certificate parsing example
+@subsection @acronym{X.509} Certificate Parsing Example
+@anchor{ex:x509-info}
+
+To demonstrate the @acronym{X.509} parsing capabilities an example program is
+listed below.  That program reads the peer's certificate, and prints
+information about it.
+
+@verbatiminclude examples/ex-x509-info.c
+
+@node Certificate request generation
+@subsection Certificate Request Generation
+@anchor{ex:crq}
+
+The following example is about generating a certificate request, and a
+private key. A certificate request can be later be processed by a CA,
+which should return a signed certificate.
+
+@verbatiminclude examples/ex-crq.c
+
+@node PKCS #12 structure generation
+@subsection @acronym{PKCS} #12 Structure Generation
+@anchor{ex:pkcs12}
+
+The following example is about generating a @acronym{PKCS} #12
+structure.
+
+@verbatiminclude examples/ex-pkcs12.c
+
+@node Parameter generation
+@section Parameter generation
+@cindex parameter generation
+@cindex generating parameters
+
+Several TLS ciphersuites require additional parameters that
+need to be generated or provided by the application. The
+Diffie-Hellman based ciphersuites (ANON-DH or DHE), require
+the group information to be provided. This information can be either
+be generated on the fly using @ref{gnutls_dh_params_generate2}
+or imported from some pregenerated value using @ref{gnutls_dh_params_import_pkcs3}.
+The parameters can be used in a session by calling
+@ref{gnutls_certificate_set_dh_params} or
+@ref{gnutls_anon_set_server_dh_params} for anonymous sessions.
+
+Due to the time-consuming calculations required for the generation
+of Diffie-Hellman parameters we suggest against performing generation
+of them within an application. The @code{certtool} tool can be used to 
+generate or export known safe values that can be stored in code
+or in a configuration file to provide the ability to replace. We also
+recommend the usage of @ref{gnutls_sec_param_to_pk_bits} to determine
+the bit size of the parameters to be generated.
+
+The ciphersuites that involve the RSA-EXPORT key exchange require
+additional parameters. Those ciphersuites are rarely used today
+because they are by design insecure, thus if you have no requirement
+for them, this section should be skipped. The RSA-EXPORT key exchange
+requires 512-bit RSA keys to be generated. It is recommended those
+parameters to be refreshed (regenerated) in short intervals. The
+following functions can be used for these parameters.
+
+@itemize
+
+@item @ref{gnutls_rsa_params_generate2}
+
+@item @ref{gnutls_certificate_set_rsa_export_params}
+
+@item @ref{gnutls_rsa_params_import_pkcs1}
+
+@item @ref{gnutls_rsa_params_export_pkcs1}
+
+@end itemize
+
+
+@node Keying Material Exporters
+@section Keying Material Exporters
+@cindex Keying Material Exporters
+@cindex Exporting Keying Material
+
+The TLS PRF can be used by other protocols to derive data.  The API to
+use is @ref{gnutls_prf}.  The function needs to be provided with the
+label in the parameter @code{label}, and the extra data to mix in the
+@code{extra} parameter.  Depending on whether you want to mix in the
+client or server random data first, you can set the
+@code{server_random_first} parameter.
+
+For example, after establishing a TLS session using
+@ref{gnutls_handshake}, you can invoke the TLS PRF with this call:
+
+@smallexample
+#define MYLABEL "EXPORTER-FOO"
+#define MYCONTEXT "some context data"
+char out[32];
+rc = gnutls_prf (session, strlen (MYLABEL), MYLABEL, 0,
+                 strlen (MYCONTEXT), MYCONTEXT, 32, out);
+@end smallexample
+
+If you don't want to mix in the client/server random, there is a more
+low-level TLS PRF interface called @ref{gnutls_prf_raw}.
+
+@node Channel Bindings
+@section Channel Bindings
+@cindex Channel Bindings
+
+In user authentication protocols (e.g., EAP or SASL mechanisms) it is
+useful to have a unique string that identifies the secure channel that
+is used, to bind together the user authentication with the secure
+channel.  This can protect against man-in-the-middle attacks in some
+situations.  The unique strings is a ``channel bindings''.  For
+background and more discussion see @xcite{RFC5056}.
+
+You can extract a channel bindings using the
+@ref{gnutls_session_channel_binding} function.  Currently only the
+@code{GNUTLS_CB_TLS_UNIQUE} type is supported, which corresponds to
+the @code{tls-unique} channel bindings for TLS defined in
+@xcite{RFC5929}.
+
+The following example describes how to print the channel binding data.
+Note that it must be run after a successful TLS handshake.
+
+@smallexample
+@{
+  gnutls_datum cb;
+  int rc;
+
+  rc = gnutls_session_channel_binding (session,
+                                       GNUTLS_CB_TLS_UNIQUE,
+                                       &cb);
+  if (rc)
+    fprintf (stderr, "Channel binding error: %s\n",
+             gnutls_strerror (rc));
+  else
+    @{
+      size_t i;
+      printf ("- Channel binding 'tls-unique': ");
+      for (i = 0; i < cb.size; i++)
+        printf ("%02x", cb.data[i]);
+      printf ("\n");
+    @}
+@}
+@end smallexample
+
+@node Compatibility with the OpenSSL library
+@section Compatibility with the OpenSSL Library
+@cindex OpenSSL
+
+To ease @acronym{GnuTLS}' integration with existing applications, a
+compatibility layer with the widely used OpenSSL library is included
+in the @code{gnutls-openssl} library. This compatibility layer is not
+complete and it is not intended to completely reimplement the OpenSSL
+API with @acronym{GnuTLS}.  It only provides source-level
+compatibility. There is currently no attempt to make it
+binary-compatible with OpenSSL.
+
+The prototypes for the compatibility functions are in the
+@file{gnutls/openssl.h} header file.
+
+Current limitations imposed by the compatibility layer include:
+
+@itemize
+
+@item Error handling is not thread safe.
+
+@end itemize
+

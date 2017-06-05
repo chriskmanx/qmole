@@ -1,0 +1,99 @@
+# norootforbuild
+
+BuildRequires:  gtk2-devel gcc-c++ intltool gnome-doc-utils libjpeg-devel libtiff-devel
+%if 0%{?suse_version}
+BuildRequires:  liblcms-devel update-desktop-files
+%define docname	%{name}
+%else
+BuildRequires:  lcms-devel
+%define docname	%{name}-%{version}
+%endif
+%if 0%{?suse_version} > 1010
+BuildRequires:  libexiv2-devel
+%endif
+%if 0%{?fedora_version}
+BuildRequires:  exiv2-devel
+%endif
+%if 0%{?mandriva_version} > 2007
+%ifarch x86_64
+BuildRequires:  lib64exiv2-devel
+%else
+BuildRequires:  libexiv2-devel
+%endif
+%endif
+
+
+Summary:        Graphics file browser utility
+Summary(fr):    Explorateur de fichiers graphiques
+Summary(es):    Navegador de archivos gráficos
+Summary(it):    Visualizzatore di archivi grafici
+Name:           geeqie
+Version:        1.1
+Release:        0
+License:        GNU General Public License version 2 or later (GPL v2 or later)
+Group:          Productivity/Graphics/Viewers
+Source:         geeqie-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{name}-%{version}-build
+URL:            http://geeqie.sourceforge.net/
+#
+# these are requirements of the plugins
+Requires: exiv2 exiftran ImageMagick ufraw
+
+%description
+Geeqie is a browser for graphics files.
+Offering single click viewing of your graphics files.
+Includes thumbnail view, zoom and filtering features.
+And external editor support.
+
+%description -l fr
+Geeqie est un explorateur de fichiers graphiques.
+Il permet d'un simple clic l'affichage de vos fichiers graphiques.
+Les capacités suivantes sont incluses: vue d'imagettes, zoom,
+filtres et support d'éditeurs externes.
+
+%description -l es
+Geeqie es un navegador de archivos gráficos.
+Ofrece visualizar sus archivos gráficos con sólo hacer un clic.
+Incluye visualización de miniaturas, zoom, filtros y soporte para
+editores externos.
+
+%description -l it
+Geeqie è un visualizzatore di archivi grafici.
+Offre la possibilità di visualizzare i tuoi files grafici grazie ad un singolo
+click.
+Include la rappresentazione tramite miniature e gli strumenti di zoom e
+filtraggio.
+Supporta anche l'uso di editor grafici esterni.
+
+%prep
+%setup -q
+
+%build
+%configure --with-readmedir="%{_docdir}/%{docname}"
+
+
+%__make %{?jobs:-j%{jobs}}
+
+%install
+make install DESTDIR=%{buildroot}
+
+%if 0%{?suse_version} > 1100
+%suse_update_desktop_file -n geeqie
+%endif
+
+%__install -m 644 AUTHORS COPYING ChangeLog NEWS README README.lirc "%{buildroot}/%{_docdir}/%{docname}/"
+
+%clean
+%__rm -rf "%{buildroot}"
+
+%files 
+%defattr(-,root,root)
+%doc %{_docdir}/%{docname}
+%{_bindir}/geeqie*
+%{_datadir}/geeqie
+%{_datadir}/locale/*/LC_MESSAGES/*.mo
+%{_datadir}/applications/geeqie.desktop
+%{_datadir}/pixmaps/geeqie.png
+%{_mandir}/man1/geeqie*
+%{_prefix}/lib/geeqie
+

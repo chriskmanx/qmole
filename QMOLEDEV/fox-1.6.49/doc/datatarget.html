@@ -1,0 +1,271 @@
+<html>
+<head>
+<link rel="stylesheet" href="page.css" type="text/css">
+<title>Documentation: DataTargets</title>
+</head>
+<body bgcolor=#ffffff link=#990033 vlink=#990033 alink=#990033 text=#000000>
+
+<!---- TOPIC TITLE WITH LOGO--->
+<table border=0 cellpadding= cellspacing=2 width=100% ><tr><td><a href='http://www.fox-toolkit.org' target=_top><img src='art/foxlogo_small.jpg' border=0></a></td><td width=100% valign=bottom id="HEADLINE"><b>
+Documentation: DataTargets  <A href='datatarget.html' target="_top" align=left><font  size=-2>[Remove Frame]</font></a>
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE WITH LOGO --->
+<ul>
+<p>A common application of GUI development is the
+collection of inputs from the user in the form of booleans, numbers and
+strings of text.&nbsp; This usually involves building a dialog panel with
+a collection of controls such as text fields, sliders, and other input
+controls.&nbsp; The GUI developer then would write callback handler functions
+so as to be notified when any of these controls changes value.&nbsp; Often,
+the developer is forced to fill up these controls to reflect the initial
+suggested values.</p>
+
+<p>This process is common enough that we have found
+that it makes sense to support it with a much more declarative programming
+style:-&nbsp; instead of writing many callback routines, and routines to
+preset the GUI controls with their initial value, we have implemented a
+more easy to use method in the form of the FOX FXDataTarget class.
+
+<p>The FXDataTarget acts as an intermediary between
+a program variable, such as an integer or string, and a FOX widget such
+as a FXTextField or FXSlider.&nbsp;&nbsp; The FXDataTarget works by associating
+a variable in the application code with one or more control widgets in
+the GUI.&nbsp; Several controls may be connected to the same data target,
+although each data target is associated with only one variable at a time.</p>
+
+<p>A FXDataTarget forms a bi-directional channel through which a GUI control can communicate
+with a variable in an application
+program.&nbsp; Thus, once the GUI is created and connected via the FXDataTarget,
+the GUI controls will automatically display the current value of that variable,
+and when the user starts interacting with a control, the variable will
+be automatically changed.&nbsp; Moreover, if several GUI controls are connected
+to one single FXDataTarget, each of these controls will automatically update
+when the variable has been changed.</p>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Example Usage
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+
+<p>Suppose you are writing a program to enter personnel
+data by means of a dialog.&nbsp; One or the first things you may want to
+do is to design a data structure which is to hold this information:</p>
+
+<pre>
+// Employee record
+struct Employee {
+  FXString name;
+  FXint    number;
+  FXdouble salary;
+  FXString address;
+  };
+</pre>
+
+
+<p>Lets make a dialog box which obtains this information from the user,
+and of course we'll use the FXDataTargets to eliminate as much coding as
+possible; first comes the header file (we'll omit some details in the interest
+of brevity):</p>
+
+<pre>
+/* EmployeeEntry.h */
+
+// Employee Information Entry Dialog
+class EmployeeEntry : public FXDialogBox {
+  FXDECLARE(EmployeeEntry)
+public:
+  Employee record;   // Record we'll be modifying
+private:
+  FXDataTarget nameTarget;
+  FXDataTarget numberTarget;
+  FXDataTarget salaryTarget;
+  FXDataTarget addressTarget;
+public:
+  EmployeeEntry(FXWindow* owner);
+  };
+
+</pre>
+
+
+<p>Well, that's basically it.&nbsp; Now for the implementation file:</p>
+
+<pre>
+/* EmployeeEntry.cpp */
+#include "EmployeeEntry.h"
+
+FXIMPLEMENT(EmployeeEntry,FXDialogBox,NULL,0)
+
+EmployeeEntry::EmployeeEntry(FXWindow* owner):
+  FXDialogBox(owner,"Enter Employee Information"),
+  nameTarget(record.name),
+  numberTarget(record.number),
+  salaryTarget(record.salary),
+  addressTarget(record.address){
+
+  ...
+  new FXTextField(frame,5,&nameTarget,FXDataTarget::ID_VALUE,...);
+  new FXSpinner(frame,5,&numberTarget_target,FXDataTarget::ID_VALUE,...);
+  new FXTextField(frame,5,&addressTarget,FXDataTarget::ID_VALUE,...);
+  new FXSlider(frame,&salaryTarget,FXDataTarget::ID_VALUE,...);
+  new FXTextField(frame,5,&salaryTarget,FXDataTarget::ID_VALUE,...);
+  ...
+  new FXButton(frame,"Cancal",NULL,this,FXDialogBox::ID_CANCEL,...);
+  new FXButton(frame,"Accept",NULL,this,FXDialogBox::ID_ACCEPT,...);
+  }
+
+</pre>
+
+
+<p>We have of course omitted some details here regarding the layout and
+other&nbsp; visual&nbsp; paraphernalia.&nbsp; Note that we have connected
+the data target controlling the <b>salary </b>member to both a text field
+as well as a slider, so we can set the salary either way.&nbsp; So far,
+it sounds rediculously simple, doesn't it? The secret is, it really is!
+Next, we're getting ready to use this new panel.&nbsp; Here's how we
+would do that.&nbsp; Lets say we have selected the employee from a big
+array of employee records, and we enter the following callback handler
+to edit one of the entries in this array:</p>
+
+<pre>
+/* EmployeeDatabase.cpp */
+#include "EmployeeEntry.h"
+
+  ...
+
+Employee *employeedatabase;     // Database of records
+int       currentemployee;      // Current employee number we're going to edit
+int       numberofemployees;    // Total number
+
+  ...
+
+long EmployeeDatabase::onCmdChangeInformation(FXObject*,FXSelector,void*){
+  EmployeeEntry dialog(mainwindow);
+  dialog.record=employeedatabase[currentemployee];    // We will work on the copy
+  if(dialog.execute()){
+    employeedatabase[currentemployee]=dialog.record;  // We accept the change
+    }
+  return 1;
+  }
+</pre>
+
+<p>In the above code, we <i>copy</i> the employee record from the database,
+and then pop up the EmployeeEntry dialog by calling its <b>execute()</b>
+member function.
+When this dialog shows up, it will initially display the old information
+from <b><tt>employeedatabase[currentemployee]</tt></b>.&nbsp; After editing
+it with the dialog, if the user hits the <b>Accept</b> button, <b>execute()
+</b>will return <b>true</b> and we copy the changed record back into the
+database; if the user hit the <b>Cancel</b> button, <b>execute()</b> we
+will simply do nothing and return from the callback.
+The EmployeeEntry dialog's destructors will automatically clean up the
+mess.</p>
+
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+More Advanced Usage
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+
+<p>The above shows the most basic usage of FXDataTarget.&nbsp;
+It uses the <b>ID_VALUE</b> message.&nbsp; When a FXDataTarget receives
+this message, it will ask the sender of the message for the desired value,
+and then place that value into the connected program variable.</font>
+<br><font color="#000000">However, the FXDataTarget also understands the
+<b>ID_OPTION</b> messages.&nbsp; With these messages, the actual value
+is encoded in the message ID itself, by adding the value to the message
+ID.</p>
+
+<p>For example, to set a program variable to the
+value <b>10</b>, we could send the FXDataTarget a message <b>ID_OPTION+10</b>.&nbsp;
+With the ID_OPTION messages we can for example connect a FXDataTarget to
+a number of <b>FXRadioButtons</b>, and set a program variable by clicking
+on one of several radio buttons:</p>
+
+<pre>
+  enum Color {Red, Green, Blue};
+
+  FXint color;
+  FXDataTarget colorTarget(color);
+  color=Red;
+
+  new FXRadioButton(matrix,"Red",option_target,FXDataTarget::ID_OPTION+Red,...);
+  new FXRadioButton(matrix,"Green",option_target,FXDataTarget::ID_OPTION+Green,...);
+  new FXRadioButton(matrix,"Blue",option_target,FXDataTarget::ID_OPTION+Blue,...);
+</pre>
+
+<p>Here we set the variable <b>color</b> to one of the three values <b>{Red,
+Green, Blue}</b> by directly connecting the FXDataTarget to three FXRadioButtons.
+<br>When the FXDataTarget receives an ID_OPTION message, it changes the
+program variable to (message-<b>ID_OPTION</b>).&nbsp; Using this method,
+its easy to input<b> yes/no</b> values, lists of <b>choices</b>, and so
+on, all without having to write explicit callback handlers.</p>
+
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+How It Works
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+
+<p>The FXDataTarget idea works because of FOX's built-in
+GUI Update mechanism.&nbsp; The GUI Update mechanism is responsible for
+refreshing the state of each widget in your program, based on the state
+of your application data structures.&nbsp; Basically, each widget periodically
+inquires about its state by sending its target a <b>SEL_UPDATE</b> message.</p>
+
+<p>When an FXDataTarget receives a message of type
+SEL_UPDATE, it reads the value of its associated variable and updates the
+sender of the message by means of another message.&nbsp; Note that the
+FXDataTarget does not need to know what type of Widget did the sending.</p>
+
+<p>There are two ways the FXDataTarget can receive
+updates: by an <b>ID_VALUE</b> message or an&nbsp; <b>ID_OPTION</b> message.&nbsp;
+The former type is usually generated by a <b>valuator control</b>, such
+as an FXSlider.&nbsp; When a message from a valuator control is received,
+FXDataTarget responds by sending back an <b>ID_SETINTVALUE, ID_SETREALVALUE,
+</b>or<b> ID_SETSTRINGVALUE</b> message to the sender of the request.</p>
+
+<p>When a FXDataTarget receives a message of the
+form (<b>ID_OPTION+i</b>),&nbsp; it resonds by sending back one of two
+messages: <b>ID_CHECK</b> or <b>ID_UNCHECK,</b> depending on whether the
+value of the associated variable is equal to<b> i</b>.</p>
+
+<p>In the example above, the "Red" radio button will
+receive an <b>ID_CHECK</b> message, because the initial value of the variable
+color is red.&nbsp; The other radio buttons will receive the <b>ID_UNCHECK</b>
+message.</p>
+
+<p>All of these methods explained here are deployed in the <b>datatarget</b>
+example program.</p>
+
+
+</ul>
+
+<!--- COPYRIGHT -->
+<p>
+<table width=100% cellpadding=0 cellspacing=0><tr><td width=100% valign=top id=HEADLINE align=right>
+<img src='art/line.gif' width=100% height=1><font size=-1>
+Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+</td></tr></table>
+</p>
+<!--- COPYRIGHT -->
+
+
+</body>
+</html>

@@ -1,0 +1,69 @@
+#!/bin/sh
+
+# This is a helper script that rotate image files according to the metadata
+# requirements: ImageMagick, exiftran, exiv2
+
+GQ_METADATA_DIR="$HOME/.local/share/geeqie/metadata"
+
+rotate()
+{
+    ext=`echo "${1##*.}" |tr "[:upper:]" "[:lower:]"`
+    [ "x$ext" == "x" ] && return 1 #no extension
+
+    gq_metadata="$GQ_METADATA_DIR/$1.gq.xmp"
+    if [ -f "$gq_metadata" ]; then
+	gq_orientation=`exiv2 -PXkv "$gq_metadata"|grep Xmp.tiff.Orientation|sed -e "s|Xmp.tiff.Orientation *||"`
+    else
+	gq_orientation=
+    fi
+
+    case "$ext" in
+	jpg|jpeg) 
+		[ -n "$gq_orientation" ] && exiv2 -M "set Exif.Image.Orientation $gq_orientation" "$1"
+		if exiftran -aip "$1" ; then
+		    # exiftran ignores xmp, set it manually
+		    exiv2 -M "set Xmp.tiff.Orientation 1" "$1"
+		    #http://dev.exiv2.org/issues/show/639
+		    [ -n "$gq_orientation" ] && exiv2 -M "set Xmp.tiff.Orientation 1" \
+		                                      -M "set Exif.Image.Orientation 1" "$gq_metadata"
+		    return 0
+		fi
+		;;
+	
+	tif|tiff|png)
+		[ -n "$gq_orientation" ] && exiv2 -M "set Exif.Image.Orientation $gq_orientation" "$1"
+		if mogrify -auto-orient "$1" ; then
+		    # mogrify ignores xmp, set it manually
+		    exiv2 -M "set Xmp.tiff.Orientation 1" "$1"
+		    #http://dev.exiv2.org/issues/show/639
+		    [ -n "$gq_orientation" ] && exiv2 -M "set Xmp.tiff.Orientation 1" \
+		                                      -M "set Exif.Image.Orientation 1" "$gq_metadata"
+		    return 0
+		fi
+		;;
+	*)	#not supported
+		return 0
+		;;
+    esac
+}
+
+get_sidecars=
+if [ "x$1" == "x-g" ] ; then
+    get_sidecars=yes
+    shift
+fi
+
+# iterate over files on commandline
+for file in "$@" ; do
+    if [ -n "$get_sidecars" ] ; then
+        # we got only one file for each group, typically the main one
+        # get the sidecars:
+        geeqie -r --get-sidecars:"$file" |while read sidecar ; do
+            # the main file is included in the sidecar file list, no special handling is required
+            rotate "$sidecar"
+        done
+    else
+        rotate "$file"
+    fi
+done
+

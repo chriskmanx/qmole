@@ -1,0 +1,187 @@
+@node The Library
+@chapter The Library
+
+In brief @acronym{GnuTLS} can be described as a library which offers an API
+to access secure communication protocols. These protocols provide
+privacy over insecure lines, and were designed to prevent
+eavesdropping, tampering, or message forgery.
+
+Technically @acronym{GnuTLS} is a portable ANSI C based library which
+implements the protocols ranging from SSL 3.0 to TLS 1.2 (@xref{Introduction to
+TLS}, for a more detailed description of the protocols), accompanied
+with the required framework for authentication and public key
+infrastructure.  Important features of the @acronym{GnuTLS} library
+include:
+
+@itemize
+
+@item Support for TLS 1.2, TLS 1.1, TLS 1.0 and SSL 3.0 protocols.
+
+@item Support for both @acronym{X.509} and @acronym{OpenPGP} certificates.
+
+@item Support for handling and verification of certificates.
+
+@item Support for @acronym{SRP} for TLS authentication.
+
+@item Support for @acronym{PSK} for TLS authentication.
+
+@item Support for TLS Extension mechanism.
+
+@item Support for TLS Compression Methods.
+
+@end itemize
+
+Additionally @acronym{GnuTLS} provides a limited emulation API for the
+widely used OpenSSL@footnote{@url{http://www.openssl.org/}} library,
+to ease integration with existing applications.
+
+@acronym{GnuTLS} consists of three independent parts, namely the ``TLS
+protocol part'', the ``Certificate part'', and the ``Cryptographic
+backend'' part.  The `TLS protocol part' is the actual protocol
+implementation, and is entirely implemented within the
+@acronym{GnuTLS} library.  The `Certificate part' consists of the
+certificate parsing, and verification functions which is partially
+implemented in the @acronym{GnuTLS} library.  The
+@acronym{Libtasn1}@footnote{@url{ftp://ftp.gnupg.org/gcrypt/alpha/gnutls/libtasn1/}},
+a library which offers @acronym{ASN.1} parsing capabilities, is used
+for the @acronym{X.509} certificate parsing functions.  A smaller
+version of
+@acronym{OpenCDK}@footnote{@url{ftp://ftp.gnupg.org/gcrypt/alpha/gnutls/opencdk/}}
+is used for the @acronym{OpenPGP} key support in @acronym{GnuTLS}.
+The ``Cryptographic backend'' is provided by the
+@acronym{Libgcrypt}@footnote{@url{ftp://ftp.gnupg.org/gcrypt/alpha/libgcrypt/}}
+library@footnote{On current versions of GnuTLS it is possible to
+override the default crypto backend. Check @pxref{Cryptographic
+Backend} for details}.
+
+In order to ease integration in embedded systems, parts of the
+@acronym{GnuTLS} library can be disabled at compile time. That way a
+small library, with the required features, can be generated.
+
+@menu
+* General Idea::
+* Error handling::
+* Memory handling::
+* Callback functions::
+@end menu
+
+@node General Idea
+@section General Idea
+
+A brief description of how @acronym{GnuTLS} works internally is shown
+at the figure below. This section may be easier to understand after
+having seen the examples (@pxref{examples}).
+
+@image{gnutls-internals,12cm,8cm}
+
+As shown in the figure, there is a read-only global state that is
+initialized once by the global initialization function.  This global
+structure, among others, contains the memory allocation functions
+used, and some structures needed for the @acronym{ASN.1} parser.  This
+structure is never modified by any @acronym{GnuTLS} function, except
+for the deinitialization function which frees all memory allocated in
+the global structure and is called after the program has permanently
+finished using @acronym{GnuTLS}.
+
+The credentials structure is used by some authentication methods, such
+as certificate authentication (@pxref{Certificate Authentication}).  A
+credentials structure may contain certificates, private keys,
+temporary parameters for Diffie-Hellman or RSA key exchange, and other
+stuff that may be shared between several TLS sessions.
+
+This structure should be initialized using the appropriate
+initialization functions. For example an application which uses
+certificate authentication would probably initialize the credentials,
+using the appropriate functions, and put its trusted certificates in
+this structure. The next step is to associate the credentials
+structure with each @acronym{TLS} session.
+
+A @acronym{GnuTLS} session contains all the required stuff for a
+session to handle one secure connection. This session calls directly
+to the transport layer functions, in order to communicate with the
+peer.  Every session has a unique session ID shared with the peer.
+
+Since TLS sessions can be resumed, servers would probably need a
+database backend to hold the session's parameters.  Every
+@acronym{GnuTLS} session after a successful handshake calls the
+appropriate backend function (@xref{resume}, for information on
+initialization) to store the newly negotiated session. The session
+database is examined by the server just after having received the
+client hello@footnote{The first message in a @acronym{TLS} handshake},
+and if the session ID sent by the client, matches a stored session,
+the stored session will be retrieved, and the new session will be a
+resumed one, and will share the same session ID with the previous one.
+
+@node Error handling
+@section Error Handling
+
+In @acronym{GnuTLS} most functions return an integer type as a result.
+In almost all cases a zero or a positive number means success, and a
+negative number indicates failure, or a situation that some action has
+to be taken. Thus negative error codes may be fatal or not.
+
+Fatal errors terminate the connection immediately and further sends
+and receives will be disallowed. An example of a fatal error code is
+@code{GNUTLS_E_DECRYPTION_FAILED}. Non-fatal errors may warn about
+something, i.e., a warning alert was received, or indicate the some
+action has to be taken. This is the case with the error code
+@code{GNUTLS_E_REHANDSHAKE} returned by @ref{gnutls_record_recv}.
+This error code indicates that the server requests a re-handshake. The
+client may ignore this request, or may reply with an alert.  You can
+test if an error code is a fatal one by using the
+@ref{gnutls_error_is_fatal}.
+
+If any non fatal errors, that require an action, are to be returned by
+a function, these error codes will be documented in the function's
+reference.  @xref{Error Codes}, for all the error codes.
+
+@node Memory handling
+@section Memory Handling
+
+@acronym{GnuTLS} internally handles heap allocated objects
+differently, depending on the sensitivity of the data they
+contain. However for performance reasons, the default memory functions
+do not overwrite sensitive data from memory, nor protect such objects
+from being written to the swap.  In order to change the default
+behavior the @ref{gnutls_global_set_mem_functions} function is
+available which can be used to set other memory handlers than the
+defaults.
+
+The @acronym{Libgcrypt} library on which @acronym{GnuTLS} depends, has
+such secure memory allocation functions available. These should be
+used in cases where even the system's swap memory is not considered
+secure. See the documentation of @acronym{Libgcrypt} for more
+information.
+
+@node Callback functions
+@section Callback Functions
+@cindex Callback functions
+
+There are several cases where @acronym{GnuTLS} may need some out of
+band input from your program. This is now implemented using some
+callback functions, which your program is expected to register.
+
+An example of this type of functions are the push and pull callbacks
+which are used to specify the functions that will retrieve and send
+data to the transport layer.
+
+@itemize
+
+@item @ref{gnutls_transport_set_push_function}
+
+@item @ref{gnutls_transport_set_pull_function}
+
+@end itemize
+
+Other callback functions such as the one set by
+@ref{gnutls_srp_set_server_credentials_function}, may require more
+complicated input, including data to be allocated.  These callbacks
+should allocate and free memory using the functions shown below.
+
+@itemize
+
+@item @ref{gnutls_malloc}
+
+@item @ref{gnutls_free}
+
+@end itemize

@@ -1,0 +1,368 @@
+<html>
+<head>
+<link rel="stylesheet" href="page.css" type="text/css">
+<title>Documentation: Clipboard and Primary Selection</title>
+</head>
+<body bgcolor=#ffffff link=#990033 vlink=#990033 alink=#990033 text=#000000>
+
+<!---- TOPIC TITLE WITH LOGO--->
+<table border=0 cellpadding= cellspacing=2 width=100% ><tr><td><a href='http://www.fox-toolkit.org' target=_top><img src='art/foxlogo_small.jpg' border=0></a></td><td width=100% valign=bottom id="HEADLINE"><b>
+Documentation: Clipboard and Primary Selection <A href='clipboard.html' target="_top" align=left><font  size=-2>[Remove Frame]</font></a>
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE WITH LOGO --->
+<ul>
+  <p>FOX supports three different ways of moving or copying data between applications:
+  <ul>
+  <li><b>Drag and drop</b>.  Drag and drop is used when you <em>grab</em> some
+  object on the screen and <em>drag</em> it to another location, and then <em>drop</em> it there.
+  It is the most visually intuitive way to move information from one place to another.
+  The drag and drop mechanism is described in the section on <a href='draganddrop.html'>drag and drop</a>.
+  </li>
+  <p>
+  <li><b>Clipboard</b>.  The clipboard is used by typically selecting some object
+  or text and <em>copying</em> it to the clipboard using <b>Ctrl-C</b>, or <em>cutting</em>
+  it to the clipboard using <b>Ctrl-X</b>.
+  Next you can move to another application and <em>pasted</em> the object or text
+  into it by using <b>Ctrl-V</b>.<br>
+  Conceptually, the clipboard is a memory region which holds on to a copy of the object
+  or text that was copied or cut.  This memory region will continue to exist until
+  it is replaced by another clipboard copy or cut operation, either in the same
+  application or in another application; there is conceptually only one single
+  memory region serving all applications on the desktop.
+  </li>
+  <p>
+  <li><b>Primary Selection</b>.  The primary selection is silently established by
+  selecting some text in a text field.  It can be <em>pasted</em> into another text
+  field simply by using the middle mouse button.  Unlike the clipboard, there is
+  no memory region to remember the primary selection other than the selection
+  on the screen itself.  Thus, changing the selection immediately overwrites the
+  old one. <br>
+  Analoguous to the clipboard, there is only one primary selection active among
+  all applications on the desktop; selecting text in another application will
+  deselect the text in the current one.
+  </li>
+  </ul>
+  <p>
+  All three methods can exchange essentially arbitrary amounts of data, or arbitrary
+  types.  Exchanges may take place between different controls in the same application,
+  or different controls in different applications.  Under X-Windows, the different
+  applications may even be running on different machines of different types.
+  <p>
+  Whether using the clipboard, drag and drop, or primary selection, applications
+  must first agree on the <em>types</em> of data being exchanged.  A single piece
+  of data, for example, an image, may be exchanged using different representations.
+  For an image, for instance, the transfer may take place as GIF or BMP formats.
+  <p>
+  To increase the odds that both the originating application and the receiving one
+  support the same data representations, the originating application can furnish
+  its list of supported representations for the data.  The receiving application,
+  after inspecting this list, can then ask for the one format of the supplied list
+  it also supports.
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Registering Clipboard Types
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>In order to communicate a particular data structure across applications,
+  both partners need to first register a <B>Drag Type</B>.  Registering a
+  drag type yields a unique number which is guaranteed to be the same for
+  all applications on the desktop.<br>
+  The Drag Type is created by calling the function:
+
+<pre>
+FXDragType FXApp::<B>registerDragType</B>(const FXString&amp; name) const;
+</pre>
+
+  <p>
+  The registerDragType() function registers a new Drag Type <em>name</em> on the
+  application's desktop, and returns an abstract handle to the Drag Type.
+  The returned handle is used in all subsequent clipboard, drag and drop, or
+  primary selection operations to signify the data type being exchanged.
+  <p>
+  Chosing one of the standard <A HREF="ftp://ftp.isi.edu/in-notes/iana/assignments/media-types/">MIME types.</a>
+  for commonly available data streams will ensure that data can be exchanged between
+  FOX programs and programs written using other toolkits.
+  <P>
+  The function:
+
+<pre>
+FXString FXApp::<B>getDragTypeName</B>(FXDragType type) const;
+</pre>
+
+  <p>will return the Drag Type Name, given the Drag Type <em>type</em>. You may need
+  to use this in case your application receives a drop of an unknown type,
+  and you need to decide what to do with it.</p>
+
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Clipboard Exchange
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>
+  The clipboard is a single facility on the desktop which can be interrogated about the
+  <b>types</b> of objects currently retained, and the <b>contents</b> of these objects.
+  <br>
+  The clipboard is said to be <b>owned</b> by a <b>window</b>, meaning that whenever
+  such a query must be asnwered, that particular window is the one which will be
+  asked.
+  <br>
+  The advantage of this model is that it permits an easy-going decentralized
+  scheme where 3rd-party widgets can implement any number of clipboard data types
+  without any need for central coordination.
+  <br>
+  Moreover, the originator can furnish a large number of potential formats for
+  the clipboard selection, yet will only be called upon to actually supply one
+  of these formats during the transaction.
+  <p>
+  Upon performing a Cut or Copy to clipboard operation, the originating widget
+  will claim ownership of the clipboard by calling:
+
+<pre>
+FXbool FXWindow::<B>acquireClipboard</B>(const FXDragType *types,FXuint numtypes);
+</pre>
+
+<p>
+where <em>types</em> is a list of Drag Types previously registered (see above), and
+<em>numtypes</em> is the number of such types.
+<p>
+When one widget acquires the clipboard, the previous widget which owned the clipboard
+will receive a message of type <b>SEL_CLIPBOARD_LOST</b>, which should cause that
+widget to release all data previously retained regarding the clipboard operation.
+<p>
+If the caller has successfully invoked acquireClipboard(), it can allocate storage
+to remember the clipboard selection in.  As it may be requested to furnish the
+selection in any of the previously stated data types, it may have to remember
+multiple representations of the clipboard selection.
+<p>
+The widget calling acquireClipboard() will receive a message of type <b>SEL_CLIPBOARD_GAINED</b>.
+<p>
+
+To voluntarily release the clipboard, a widget may call:
+
+<pre>
+virtual void FXWindow::<B>releaseClipboard</B>();
+</pre>
+
+<p>
+This will cause the calling widget to receive a message of type <b>SEL_CLIPBOARD_LOST</b>,
+just as if some other widget had called acquireClipboard().
+
+<p>
+The proper response to receiving a SEL_CLIPBOARD_LOST message is to release
+the clipboard selection data:
+<pre>
+long MyWidget::onClipboardLost(FXObject* sender,FXSelector sel,void* ptr){
+  BaseClassOfMyWidget::onClipboardLost(sender,sel,ptr);
+  ...
+  free the data
+  ...
+  return 1;
+  }
+</pre>
+
+<p>
+A widget which wants to obtain the clipboard selection can ask for the entire
+list of clipboard types by calling:
+
+<pre>
+FXbool inquireDNDTypes(FXDNDOrigin origin,FXDragType*& types,FXuint& numtypes) const;
+</pre>
+
+<p>
+Where the parameter <em>origin</em> should be set to <b>FROM_CLIPBOARD</b>.  The result
+will be placed in an array of Drag Types <em>types</em> of length <em>numtypes</em>.
+
+<p>
+Often, the requesting widget can deal with only one single type of data; for such cases,
+its more convenient to be able to ask if one particular Drag Type is supported by the
+originator:
+
+<pre>
+FXbool offeredDNDType(FXDNDOrigin origin,FXDragType type) const;
+</pre>
+
+<p>
+Where again, origin must be set to <b>FROM_CLIPBOARD</b>, and <em>type</em> is the
+type which we want to know about.
+
+<p>
+In even simpler scenarios, the requesting widget may simply ask for the clipboard
+data of a certain datatype.  This is appropriate if there is no special action
+needed in preparation to receiving the data.
+
+<P>
+A widget can obtain the data using:
+
+<pre>
+FXbool getDNDData(FXDNDOrigin origin,FXDragType type,FXuchar*& data,FXuint& size) const;
+</pre>
+
+<p>
+Once more, <em>origin</em> is set to <b>FROM_CLIPBOARD</b>.  The requested type is given
+in <em>type</em>.  Upon successful return, <em>data</em> will refer to a byte array
+containing the clipboard selection data, and <em>size</em> will contain the length
+of this data array.  If the originating widget is unable to furnish the requested
+data type, getDNDData() returns FALSE and the <em>data</em> and <em>size</em> will
+be set to NULL and 0, respectively.
+<p>
+The requesting widget is now resposible for deleting the memory, which must be done
+using FXFREE().
+
+<p>
+When a widget requests data using getDNDData(), a message of type <b>SEL_CLIPBOARD_REQUEST</b>
+is issued to the widget owning the clipboard.  The originating widget must call:
+
+<pre>
+FXbool setDNDData(FXDNDOrigin origin,FXDragType type,FXuchar* data,FXuint size) const;
+</pre>
+<p>
+With <em>origin</em> set to <b>FROM_CLIPBOARD</b>, <em>type</em> to the requested data
+type. The originating widget must allocate (using FXMALLOC) and fill a data array with the clipboard
+selection and pass a reference to <em>data</em>, and the size of the array in <em>size</em>.
+<p>
+After handing the array to setDNDData(), the originating widget <em>no longer owns</em> the
+data array and should make NO attempts to free it!
+<p>
+To figure out which datatype was requested by the requesting widget, the originating
+widget can inspect the <em>target</em> member of the FXEvent structure passed in the
+SEL_CLIPBOARD_REQUEST message pointer.
+<p>
+A typical widget implementation first lets its base class inspect the Drag Type,
+and if it was not handled yet, inspects it itself:
+<pre>
+long MyWidget::onClipboardRequest(FXObject* sender,FXSelector sel,void* ptr){
+
+  // See if base class knows how to deal with the requested clipboard type
+  if(BaseClassOfMyWidget::onClipboardRequest(sender,sel,ptr)) return 1;
+
+  // See if we can deal with this type ourselves
+  if(((FXEvent*)ptr)->target==mydataType){
+    FXuchar *data;
+    FXuint len;
+    ...
+    FXMALLOC(&data,FXuchar,len);
+    ...
+    fill data
+    ...
+
+    // Give the array to the system!
+    setDNDData(FROM_CLIPBOARD,event->target,data,len);
+
+    // Return 1 because it was handled here
+    return 1;
+    }
+
+  // Return 0 to signify we haven't dealt with it yet; a derived
+  // class from MyWidget may yet give it another try ...
+  return 0;
+  }
+</pre>
+<p>
+Thus, MyWidget itself can also be subclassed so as to add even more data types!
+
+<p>
+
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Clipboard Originator
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+The originator's responsibilities during a clipboard transaction are as follows:
+<p>
+<li>Register the desired clipboard data types; in most widgets, this is done once
+only in the widget's create() routine.  Usually, all widgets of the same type
+support the same set of clipboard types so it is appropriate to remember the
+clipboard type in a static member variable.</li>
+<p>
+<li>When performing a Cut or Copy to clipboard operation, call acquireClipboard(), and
+if successfully obtaining the clipboard, allocate the necessary memory for keeping a
+copy of the clipboard selection data.</li>
+<p>
+<li>Alternatively, allocate the memory and remember the clipboard selection when the
+SEL_CLIPBOARD_GAINED is received.</li>
+<p>
+<li>Sit there and wait for a SEL_CLIPBOARD_REQUEST message.  If a request is received,
+try handle the request in the base class, and if still not handled, try handle it
+in the widget.
+<br>
+Return 1 only if it was handled.</li>
+<p>
+<li>If a SEL_CLIPBOARD_LOST is received, release the memory used to keep the clipboard
+selection and forget anything has happened.</li>
+<p>
+<li>Typically, just in case the widget still owns the clipboard when it is destroyed,
+release the memory for the clipboard selection in the destructor also.</li>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Clipboard Requestor
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+The requestor's responsibilities in a clipboard transaction are as follows:
+<p>
+<li>Upon performing a Paste command, determine the type of data using inquireDNDTypes()
+or offeredDNDType().  Then ask for the data using getDNDData(), passing in the
+requested data type, which is typically one of the data types furnished by the
+originator.</li>
+<p>
+<li>If getDNDData() returned successfully, insert the data into the widget, and
+release the data array obtained from getDNDData().</li>
+
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Primary Selection Exchange
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+The primary selection data exchange mechanism is pretty much the same as that for
+the clipboard.
+<br>
+The key difference is that typically, no copy is made of the selection.  As soon as
+some text is selected, the originating window acquires the primary selection.
+If the selected text is changed, the widget typically releases and reacquires the
+primary selection.
+<p>
+Also, upon receiving a SEL_SELECTION_LOST, typically all that happens is that the
+text is deselected, instead of deleted.
+<p>
+When exchanging via primary selection, the <em>origin</em> parameter is normally set
+to <b>FROM_SELECTION</b>.
+</ul>
+
+<!--- COPYRIGHT -->
+<p>
+<table width=100% cellpadding=0 cellspacing=0><tr><td width=100% valign=top id=HEADLINE align=right>
+<img src='art/line.gif' width=100% height=1>
+<font size=-1>Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+</td></tr></table>
+</p>
+<!--- COPYRIGHT -->
+
+
+</body>
+</html>

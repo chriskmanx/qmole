@@ -1,0 +1,589 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <link rel="stylesheet" href="page.css" type="text/css">
+  <title>Documentation: The Application Class</title>
+</head>
+<body alink="#990033" bgcolor="#ffffff" link="#990033" text="#000000"
+ vlink="#990033">
+<!---- TOPIC TITLE WITH LOGO--->
+<table border="0" cellpadding="cellspacing=2" width="100%">
+  <tbody>
+    <tr>
+      <td><a href="http://www.fox-toolkit.org" target="_top"><img
+ src="art/foxlogo_small.jpg" border="0"></a></td>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Documentation:
+The Application Class <a href="app.html" target="_top" align="left"><font
+ size="-2">[Remove Frame]</font></a>
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+<p></p>
+<!--- TOPIC TITLE WITH LOGO --->
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>The FXApp Class
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>The application object manages the message queue, timers, chores,
+signal handling, GUI updating, and other system facilities. Each FOX
+application will have exactly one application instance. Every FOX
+application will start by constructing one FXApp object prior to
+building the GUI.&nbsp; Usually, the FXApp object is the last object to
+be deleted as well.</p>
+  <p>Using the code below, the application object will be constructed
+on the stack and hence is automatically destroyed when the program
+terminates.&nbsp; Also, when the application object is destroyed, all
+the windows and other resources it knows about are destroyed as well.</p>
+  <pre>int main(int argc,char *argv[]){<br><br>  // Make application<br>  FXApp application("ApplicationName","VendorName");<br><br><br>  // Open display<br>  application.init(argc,argv);<br><br><br>  // Make window<br>  MainWindow* mainwindow=new MainWindow(&amp;application);<br><br><br>  // Create it<br>  application.create();<br><br><br>  // Show Window<br>  mainwindow-&gt;show();<br><br><br>  // Run<br>  return application.run();<br>  }<br></pre>
+  <p>In the first line of code above, an application object is
+constructed.&nbsp; The constructor has two parameters, the application
+name, and the vendor name.&nbsp; The application name and vendor name
+are used to determine the application's <a href="registry.html">registry</a>
+settings.</p>
+  <p>The next line of code initializes the application object, passing
+in the command line arguments of the process.&nbsp; The application
+object parses its own arguments and removes them, but leaves the
+remaining arguments alone, to be interpreted by your own code.<br>
+  </p>
+  <p>The next line creates a toplevel window, passing in a pointer to
+the application object.</p>
+  <p>The call to the application object's create() function realizes
+the entire widget tree, i.e. creates the necessary resources in the
+system (X Server or Windows GDI), to turn what was up till that point a
+collection of C++ data structures into a real-life application which is
+able to receive events and draw on the screen.</p>
+  <p>The final call to run() starts the toplevel event loop. A typical
+application will not return from this loop until the user closes the
+application.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Event Loops
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Most GUI applications have something called an <b>event loop</b>
+or <b>message loop</b>.&nbsp; Unlike batch-oriented programs which
+read a datafile, perform some processing, and then produce an output
+file, a GUI driven application spends almost all its time in an event
+loop, waiting for user input, determining where that input came from,
+and then dispatching it to the proper function to perform some
+processing. Unlike batch oriented programs, these functions are
+typically very short, and mostly take only very little time to execute,
+and so the user is in complete control of the application most of the
+time. The events a GUI program processes can be of different types:</p>
+  <ul>
+    <li>Keyboard input;</li>
+    <li>Mouse movements;</li>
+    <li>Mouse buttons;</li>
+    <li>Inputs from other sources (e.g. network sockets, timers,
+signals, and so on);</li>
+    <li>Changes in selection and clipboard ownership;</li>
+    <li>Drag and drop events;</li>
+    <li>Window repaint events;</li>
+    <li>And other things which can happen to a window.</li>
+  </ul>
+  <p>The application object is solely responsible for coordinating all
+these events and dispatching them to the proper destination where they
+are handled.</p>
+  <p>FXApp performs delayed repaints on windows; it delays issuing the
+repainting of windows until all other events have been performed.&nbsp;
+The theory behind this is that most events are not as time-consuming as
+redrawing, and also that many events cause more things to be redrawn so
+if we were to draw as soon as possible it might be invain.&nbsp; Also
+FXApp combines repaint rectangles so as to minimize the video card
+hardware setup and tear down time relative to the number of pixels
+drawn.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Event Queues
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Certain devices, such as a moving mouse, can generate events
+faster than some programs can process them.&nbsp; To prevent losing
+events, events are commonly queued up, so programs can catch up as fast
+as they can. Likewise, the drawing commands a GUI program generates as
+its trying to draw buttons and other controls on the screen are also
+queued up, so that the X server (or GDI on Windows) can take its time
+to catch up.</p>
+  <p>Finally, the X Server has its own event queue and drawing queue,
+making for a total of <b>four queues</b>.&nbsp; All these queues allow
+for much faster performance of applications, as bigger chunks of data
+can be transmitted between the application and the X server, and fewer
+context switches of video card and cpu hardware are needed.</p>
+  <p>From the point of programming in FOX, the existence of these
+queues is for the most part hidden, but in a few cases some special
+functions are available that you may need to call:</p>
+  <ul>
+    <b><u>FXApp::flush(sync)</u></b>
+    <p>This function flushes the output queue, i.e. the commands which
+have been already performed are pushed to the X Server, where they are
+executed. If we want to make sure that the display shows the correct
+picture, however, just pushing the commands to the X Server is not
+enough! Sometimes we need to make sure that these commands have been
+executed before we continue! <br>
+Thus, when passing TRUE to<span style="font-weight: bold;"> flush(),</span>
+the X Server is forced to execute the commands queued up in the drawing
+queue prior to returning control to the caller.<br>
+    </p>
+  </ul>
+  <p>Sometimes, we want to check if there are any events,
+but continue to do some processing if no events are available.&nbsp;
+Under
+normal circumstances, returning to the event loop will cause our
+process
+to block until there are events; but if there is stuff we may want to
+do,
+this is of course not desirable.&nbsp; We have just the right solution
+for this problem:</p>
+  <ul>
+    <b><u>FXApp::peekEvent()</u></b>
+    <p>This function will return TRUE if there are any events ready to
+process, and FALSE if there are none.&nbsp; The peekEvent() function
+can be used when we are doing a long calculation and we want to check
+if the user has hit the STOP button.</p>
+  </ul>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Types of Event
+Loops
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>There are several types of event loops supported, each of them is
+appropriate for certain situations.&nbsp; Most commonly, application
+developers will however only call: </p>
+  <ul>
+    <b><u>FXApp::run()</u></b>
+    <p>This is the <i>top level </i>event loop, and it will only
+terminate when the application is ready to call it quits. When <b>run()
+    </b>finally returns, its return value is the exit value passed to <b>stop()</b>
+earlier.</p>
+    <b><u>FXApp::stop(code)</u></b>
+    <p>This function terminates the top level event loop, but also
+terminates all nested event loops which have been directly or
+indirectly invoked from this top level loop.&nbsp; Each nested loop is
+terminated with a code of <b><i>zero (0),</i></b> but the top level
+event loop is terminated with the given <b><i>code</i></b>.</p>
+    <b><u>FXApp::runOneEvent()</u></b>
+    <p>As the name implies, this function reads and then processes <b><i>one
+    </i></b>single event, and then returns.&nbsp; It is primarily
+interesting to use in combination with <b>peekEvent(),</b> as <b>peekEvent()
+    </b>returns TRUE if there is <i>at least one </i>event ready to
+be processed. <br>
+If there is no event ready, <b>runOneEvent()</b> will block until
+there is at least one event.</p>
+    <b><u>FXApp::runWhileEvents()</u></b>
+    <p>This function processes events while events are available.&nbsp;
+This function is useful if you are running a long calculation, and want
+to temporarily dip into the event stream to process some event, for
+example to redraw damaged windows and so on.</p>
+    <p><b><u>FXApp::runUntil(condition)</u></b><br>
+    </p>
+    <p>This function processes events until the variable <b>condition</b>,
+which is passed as a reference, becomes non-zero.</p>
+  </ul>
+</ul>
+<ul>
+  <ul>
+    <p><br>
+    </p>
+  </ul>
+  <p><b><i>Modal dialogs</i></b> are dialog panels which block
+interaction with the rest of the application until they are
+completed.&nbsp; For example, while trying to open a file, the
+application is unable to interact in other way with the user until some
+file is selected and loaded in. In FOX, the <i>only</i> difference
+between normal dialogs and modal dialogs is <i>how</i> they are run:-
+modal dialogs are run by calling:</p>
+  <ul>
+    <b><u>FXApp::runModalFor(window)</u></b>
+    <p>This function runs a <i>nested or recursive invocation</i> of
+the event loop, i.e. it re-enters an event loop and processes events
+for a while, and returns only when <span style="font-weight: bold;">stopModal()
+    </span>or <span style="font-weight: bold;">stop()</span> is
+called. As long as <span style="font-weight: bold;">runModalFor() </span>is
+running, user-input events to all other windows, except for given <span
+ style="font-weight: bold;">window</span> and the windows owned by it,
+are being blocked. No user-interaction with other windows is possible
+until <span style="font-weight: bold;">runModalFor(</span>) returns,
+but other windows are allowed to process other events like redrawing
+and resizing. <br>
+When it returns, it returns the value passed to the <span
+ style="font-weight: bold;">stopModal()</span> function, or 0 if <span
+ style="font-weight: bold;">stop()</span> is called to terminate the
+application.</p>
+    <p>However, it is quite possible, and in fact common, that one
+modal dialog invokes another.&nbsp; In that case, only the most
+recently invoked dialog can be interacted with.</p>
+    <b><u>FXApp::runModalWhileShown(window)</u></b>
+    <p>The function<b> runModalWhileShown()</b> runs until either <b>stopModal()</b>
+or <span style="font-weight: bold;">stop()</span> is called or the
+specified window becomes hidden. This is of interest when running popup
+menus or other temporary windows. If the window parameter is NULL, all
+input is blocked; otherwise the input to all windows except the given
+window (and all windows owned by the window) are blocked.<br>
+    </p>
+    <b><u>FXApp::stopModal(window,code)</u></b>
+    <p>Calling stopModal() causes the modal event loop with the
+matching window to terminate with code.&nbsp; However, stopModal() also
+causes all modal event loops which are nested more deeply to terminate
+with code <b><i>zero (0).<br>
+    </i></b><b><u><br>
+FXApp::stopModal(code)</u></b><br>
+Calling stopModal() causes the innermost modal event loop with the
+matching window to terminate with code.&nbsp; This is the most common
+method to terminate model loops.<b><i><br>
+    </i></b></p>
+  </ul>
+</ul>
+<ul>
+  <ul>
+    <b><u>FXApp::isModal(window)</u></b>
+    <p>This function returns TRUE if a modal loop is in effect for the
+given window.</p>
+  </ul>
+  <p>Modal dialogs are always run with runModalFor(). Because it is so
+common to construct a dialog on the stack, run it modally, and then
+process the inputs thus obtained, there is a convenience member
+function <b>FXDialogBox::execute() </b>which calls <b>create(),</b> <b>show(),</b>
+and then <b>runModalFor() </b>in turn. The FXDialogBox also
+understands several messages, for example ID_ACCEPT, ID_CANCEL, and
+SEL_CLOSE which call stopModal() returning a code 1, 0, and 0
+respectively. <br>
+The return <b><i>code </i></b>of zero from <b>FXDialogBox::execute()</b>
+indicates that the dialog window was closed or cancelled.&nbsp; An
+application should typically not perform any action when a dialog is
+closed.<br>
+  <br>
+<!--- TOPIC TITLE -->
+  </p>
+</ul>
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Global
+Application Mutex <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+When programming with multiple threads of control, one single thread
+(the Main Thread) is responsible for the User Interface, while other
+threads are Worker Threads churning in the background.&nbsp;
+Occasionally, the Worker Threads need to interact with the Main Thread.<br>
+This is accomplished by means of the global application mutex.<br>
+<br>
+When the display is opened, the Main Thread acquires the global
+application Mutex. It continues to hold this Mutex while it is
+processing events, until the Main Thread is about to enter a blocking
+state.&nbsp; <br>
+<br>
+Just before entering the blocking state, the Main Thread releases the
+global application Mutex.&nbsp; Worker Threads are then free to acquire
+the<br>
+global Mutex and then play around with data structures safely.&nbsp; As
+soon as an event comes in, the Main Thread wakes up and immediately
+reacquires the global application Mutex.<br>
+Thus, basically every message or callback in the system is performed
+while the global Mutex is held by the Main Thread.&nbsp; This ensures
+that no Worker Thread is simultaneously modifying some data structure
+when the Main Thread is also.<br>
+<br>
+The Main Thread continues to hold the global Mutex until display is
+closed.<br>
+<br>
+The global Mutex may be obtained by reference with the function:<br>
+<ul>
+  <b><u>FXApp::mutex()</u></b>
+  <p>This function returns a reference to the global Mutex.</p>
+</ul>
+Having the Mutex returned as a reference allows it to be passed
+directly into the FXMutexLock convenience class, which performs Mutex
+locking and unlocking by means of constructor and destructor.<br>
+<br>
+<ul>
+  <p><br>
+  </p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>GUI Updating
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>The event loop ordinarily enters a blocking system call when no
+events are available.&nbsp; However, if any windows have been marked as
+damaged, the system will peform repaint events that have been queued up
+to this point.<br>
+When no more events call for attention, and all windows have been
+redrawn properly, there is still just a bit more to do before entering
+the blocking state, and that is the <span style="font-weight: bold;">GUI-Update.<br>
+  <br>
+  </span>The GUI-Update phase is entered just prior to blocking the
+user-interface.&nbsp; Since there is nothing else the application would
+be doing (after all, it is about to block for new events!), FOX takes
+advantage of this quiet time to iterate through all widgets in the
+widget tree and issue a SEL_UPDATE message to that widget's target.<br>
+The receiver of the SEL_UPDATE message typically inspects the state of
+the application, and decides whether the sending widget should be
+update to properly reflect that state.</p>
+  <p>For example, a <span style="font-weight: bold;">Save</span>
+Button may be <span style="font-style: italic;">grayed out </span>when
+the user has not yet made any modification to a document. You can also
+change the values of certain controls such as Sliders, Text Fields,
+Check Buttons, Color Wells, and so on.<br>
+The result of this procedure is that a short time after processing a
+burst of events, the User Interface of your application automatically
+updates to reflect the state of the application.<br>
+  </p>
+  <p>The application determines whether a GUI-Update pass is warranted
+based on the return value of messages it sends.&nbsp; If messages are
+sent but aren't handled by a widget or by your application code, it
+doesn't need to perform an update pass.&nbsp; On the other hand, if
+there is reason to believe a message has been handled, the application
+automatically calls <span style="font-weight: bold;">refresh()</span>
+to schedule a future GUI-Update pass.<br>
+  </p>
+  <p>The GUI-Update pass is performed in a cyclical fashion, that is to
+say, each widget gets updated roughly equally often.<br>
+  </p>
+  <p>In a few cases, it is nice to be able to forcibly schedule a
+GUI-Update pass; for example, just before entering a modal dialog;
+because the callback handler invoking the dialog does not return until
+the dialog is done, an explict call to <span style="font-weight: bold;">refresh()</span>
+may be needed to ensure that the controls in the dialog are properly
+updated when the dialog is displayed. In this case you can call <span
+ style="font-weight: bold;">refresh()</span> explicitly from the
+application code.<br>
+  </p>
+  <ul>
+    <p><b><u>FXApp::refresh()</u></b><br>
+    </p>
+    <p>This function reschedules another GUI update to be performed in
+the future.</p>
+  </ul>
+</ul>
+<ul>
+  <p>At other times, it may be necessary to ensure that the GUI-Update
+pass is performed immediately; this ensures that all the controls in
+the application have been updated to their current state.&nbsp; Since
+this involves having a SEL_UPDATE sent from each widget, it is of
+course rather expensive.&nbsp; Fortunately, it is not often necessary
+to do this:<br>
+  </p>
+  <ul>
+    <b><u>FXApp::forceRefresh()</u></b>
+    <p>Calling this function will cause an immediate GUI update pass to
+be performed.&nbsp; Unlike the normal GUI update, which takes place
+unobstrusively one and a time, prior to blocking, forceRefresh() will
+not return until all windows have been refreshed. It is therefore quite
+expensive, and should be used only when strictly necessary.</p>
+  </ul>
+  <p>The GUI update has no impact on the perceived speed of an
+application because between each pair of GUI updates performed, a check
+for events is performed.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Visuals
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>An FXVisual is a description of the pixel organization on the
+display. For example, some high-quality graphics cards can do 24 bits
+per pixel; other graphics cards may be limited to 16, 15 bits per
+pixel, or even just 8 bits/pixel.&nbsp; FOX programs can even work on 4
+bit/pixel (VGA mode) and 1 bit/pixel (monochrome), although it wouldn't
+be as much fun!</p>
+  <p>Besides depth (number of bits/pixel), there are also other
+characteristics which come into play describing the pixel organization,
+such as colormaps, and wether or not a colormap can be written or not,
+and the byte and bit organization.</p>
+  <p>Colormaps are commonly used on 8-bit/pixel systems.&nbsp; Most
+hardware only supports one hardware colormap, and this must be shared
+among all programs on the display.&nbsp; Because legacy toolkits such
+as Motif do not deal with full colormaps very gracefully, FOX
+applications deliberately do not try to grab all 256 colors from the
+colormap, but only 125 colors.&nbsp; Images and Icons are dithered to
+get the best possible rendering given the number of colors available.</p>
+  <p>You can improve the look of your program quite easily, however, as
+the maximum number of colors which the default visual tries to allocate
+can be easily changed using a command line argyment; for example,&nbsp;
+  <b>"myapp&nbsp; -maxcolors 256"</b> will start myapp in such a way as
+to attempt to acquire all 256 colors from the colormap.</p>
+  <p>Because other programs may already be running, the desired gamut
+of colors may not be available.&nbsp; If the exact color can not be
+obtained, FOX will try to find the <i>closest color </i>available and
+use that.</p>
+  <p>Normally, the FXVisual a window uses is copied from its
+parent.&nbsp; You can change this visual for each window, or you can
+call:</p>
+  <ul>
+    <b><u>FXApp::setDefaultVisual(visual)</u></b>
+    <p>This function will change the default visual to be used for all
+toplevel windows; the child-windows will simply inherit the visual from
+their parent.</p>
+  </ul>
+  <p>Alternatively, the maximum number of colors can also be set via
+the registry, using the <b>maxcolors</b> key under <b>[SETTINGS] </b>any
+number less than or equal to 256 colors may be specified, FXVisual will
+determine the best gamut to pick from the allowable number of colors.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Wait Cursors
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Sometimes, an application needs to undertake a long task, such as
+e.g. loading a big file.&nbsp; In such cases, it is good form to
+present the user with some feedback to indicate that the application
+may be temporarily unresponsive.&nbsp; Common ways to do this are
+progress bars and changing the cursor shape to a stopwatch, or
+hourglass, or something like that.FXApp supports this by means of the
+following functions:</p>
+  <ul>
+    <b><u>FXApp::beginWaitCursor()</u></b>
+    <p>This will change the cursor shape for all windows to the
+stopwatch cursor, or the cursor designated by <b>setWaitCursor().&nbsp;
+    </b>Calls to <b>beginWaitCursor() </b>and <b>endWaitCursor() </b>can
+be nested in a stack-like fashion, with only the first call to <b>beginWaitCursor()
+    </b>and last call to <b>endWaitCursor() </b>actually changing the
+cursor shape.</p>
+    <b><u>FXApp::endWaitCursor()</u></b>
+    <p>A matching call to <b>endWaitCursor() </b>will restore the
+original cursor for each window.</p>
+    <b><u>FXApp::setWaitCursor(cursor)</u></b>
+    <p>This will change the cursor shape used in during a
+beginWaitCursor() endWaitCursor() pair.</p>
+    <b><u>FXApp::getWaitCursor()</u></b><b><u></u></b>
+    <p>This returns the current FXCursor being used as hourglass or
+stopwatch cursor.</p>
+  </ul>
+  <p>The beginWaitCursor() and endWaitCursor() calls can be nested
+pairwise, so that a functions which bracket a long calculation by means
+of a beginWaitCursor/endWaitCursor pair can call upon each other.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Drag Types
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Exchanging data via the Primary Selection, the Clipboard, or by
+means of Drag and Drop requires that all applications agree with the
+type of data being exchanged.<br>
+This is done by registering a <b>Drag Type</b>. In most cases, the
+name being registered should be a mime-type, such as <b>"text/plain"</b>
+or <b>"image/gif"</b>.</p>
+  <p>Manipulating drag types is done with the following API's:</p>
+  <ul>
+    <b><u>FXApp::registerDragType(name)</u></b>
+    <p>This will register a new drag type based on the mime type name.</p>
+    <b><u>FXApp::getDragTypeName(dragtype)</u></b>
+    <p>Obtain the name of a previously registered drag type.<br>
+    </p>
+  </ul>
+</ul>
+<p style="margin-left: 40px;">The drag types must be mime types as
+defined in the XDND standard.<br>
+</p>
+<b><u><br>
+</u></b>
+<ul>
+  <ul>
+    <p><br>
+    </p>
+  </ul>
+</ul>
+<!--- COPYRIGHT -->
+<p>
+<table cellpadding="0" cellspacing="0" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" align="right" valign="top" width="100%"><img
+ src="art/line.gif" height="1" width="100%"><font size="-1">
+Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+      </td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- COPYRIGHT -->
+</body>
+</html>

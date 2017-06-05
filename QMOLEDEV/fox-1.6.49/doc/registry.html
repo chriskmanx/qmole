@@ -1,0 +1,375 @@
+<html>
+<head>
+<link rel="stylesheet" href="page.css" type="text/css">
+<title>Documentation: The FOX Registry</title>
+</head>
+<body bgcolor=#ffffff link=#990033 vlink=#990033 alink=#990033 text=#000000>
+
+<!---- TOPIC TITLE WITH LOGO--->
+<table border=0 cellpadding= cellspacing=2 width=100% ><tr><td><a href='http://www.fox-toolkit.org' target=_top><img src='art/foxlogo_small.jpg' border=0></a></td><td width=100% valign=bottom id="HEADLINE"><b>
+Documentation: The FOX Registry  <A href='registry.html' target="_top" align=left><font  size=-2>[Remove Frame]</font></a>
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE WITH LOGO --->
+<ul>
+<p>Many applications have a need to read settings and configuration parameters
+from configuration files.&nbsp; For example, it is common for applications
+to remember which documents have been used recently with an application,
+or what color a user has changed his/her window background to.</p>
+<P>Historically, each application has implemented its configuration files
+in its own way, resulting in a plethora of file formats, each with their
+own syntax and semantics.&nbsp; Moreover, many applications can only read,
+and not write these configuration files; they rely on the user to fire
+up an editor and edit them by hand.</p>
+<P>The FOX Registry class provides a simple method to keep track of configuration
+parameters for FOX-based applications.&nbsp; Entries can be both read as
+well as written, and settings will persist across invocations because the
+system will write changed settings back to disk.</p>
+<P>Because the format is the same for all FOX applications, users will
+have to learn only one [very simple] syntax in case they want to edit these
+files by hand (although in most cases, registry files will probably be
+manipulated by FOX programs only).</p>
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Design Features of the FOX Registry
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+
+<p>A registry mechanism should allow applications from many vendors or
+organizations to coexist peacefully.&nbsp; Also, certain settings or configuration
+parameters should be applied system wide, others&nbsp; ``suite-wide'' i.e.
+for all applications produced by some organization.&nbsp; Yet other settings
+apply only to one application. Tallying it all up, I've come up with the following list of requirements
+for a registry system:</p>
+
+<UL>
+<LI>
+<B>System-wide Desktop settings.</B>&nbsp; Configuration parameters which
+apply to all users on a certain system, and apply to all applications.&nbsp;
+For example, parameters specific to a certain FOX installation, such as
+the location of icon files, images, and other such parameters.</LI>
+
+<LI>
+<B>System-wide Vendor settings</B>.&nbsp; These settings are determined
+during installation of some vendor's application suite.&nbsp; They apply
+to all applications which belong to the suite, and to all users on the
+system.</LI>
+
+<LI>
+<B>System-wide Application settings.</B>&nbsp; These parameters apply to
+a specific application, and to all users on the system.</LI>
+
+<LI>
+<B>Per-user Desktop settings.&nbsp;</B> Personal preferences that a specific
+user has changed from the system-wide settings, and which apply to all
+applications run by this user.</LI>
+
+<LI>
+<B>Per-user Vendor settings. </B>Similarly, a user of some application-suite
+from a certain vendor may have changed a few things to suit his/her personal
+preferences.</LI>
+
+<LI>
+<B>Per-user Application</B> settings.&nbsp; These are specific configurations
+that a user may have changed while running an application.</LI>
+</UL>
+
+<P>All settings can be ``shadowed'' or overridden.&nbsp; The general
+rule is that more specific settings override more general ones.&nbsp; FOX
+implements this by first loading system-wide settings, then per-user settings;
+within each category, Desktop settings are shadowed by Vendor settings,
+and those are overruled by Application settings.</p>
+<P>Registry settings are not shadowed when they've been changed, i.e. a
+setting which was changed by an application is not replaced by a settings
+entry loaded later.</p>
+<P>Finally, when settings are being written back to disk, they will automatically
+become per-application, per-user settings.&nbsp; For instance, suppose
+the default system-wide background color is ``gray.''&nbsp; If the user
+changes this, it will become a per-user default background color.&nbsp;
+In other words, the system-wide settings are <I>never written</I>, except
+perhaps when the application is being installed.</p>
+<P>The FOX settings database is comprised tyically of a number of files
+which are placed in a certain directory structure.&nbsp; The organization
+is as follows:</p>
+
+<CENTER><TABLE BORDER CELLSPACING=0 CELLPADDING=0 WIDTH="90%" BGCOLOR="#FFF8E1" NOSAVE >
+<TR NOSAVE>
+<TD NOSAVE>&lt;DIR>/Desktop</TD>
+
+<TD NOSAVE>The settings database for all FOX applications.&nbsp; This contains
+things such as double-click speed, default application fonts, and so on.</TD>
+</TR>
+
+<TR NOSAVE>
+<TD NOSAVE>&lt;DIR>/&lt;VENDOR>/&lt;VENDOR></TD>
+
+<TD NOSAVE>This contains all settings for all applications produced by
+organization &lt;VENDOR>.&nbsp;</TD>
+</TR>
+
+<TR NOSAVE>
+<TD NOSAVE>&lt;DIR>/&lt;VENDOR>/&lt;APP></TD>
+
+<TD>This contains all settings for application &lt;APP> produced by organization
+&lt;VENDOR>.</TD>
+</TR>
+</TABLE></CENTER>
+
+<P>The same directory structure applies for both system-wide settings and
+per-user settings.&nbsp; The system-wide settings are found in directories:</p>
+
+<pre>
+/etc/foxrc
+/usr/lib/FOX/foxrc
+/usr/local/lib/FOX/foxrc
+</pre>
+
+Per-user settings are found in:
+
+<pre>
+$HOME/.foxrc
+</pre>
+
+<p>Which is a hidden directory directly under the users regular HOME directory.</p>
+
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Format of a Registry File
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+<p>The format for a FOX registry file is very similar to that of the SAMBA
+configuration files.&nbsp; It consists of a number of sections, and each
+section contains a number of registry entries.&nbsp; Each entry is a key/value
+pair, where the key is the name of the particular entry, and the value
+is a human-readable string representing the value of that key. For example:</p>
+
+<pre>
+# A section
+[SETTINGS]
+
+# An entry
+clickspeed = 400
+scrollspeed = 400
+
+# Strings may have to be quoted if they contain special characters
+tiger = "Tyger tyger burning bright\nIn the forest of the night"
+
+! Comment may also start with a bang
+tippause = 500
+tiptime = 300
+</pre>
+
+<p>The section names should consist of alphanumeric characters [A-Z,a-z,0-9],
+and may contain underscores ``_'' also.&nbsp; Key names should consist
+of alphanumeric characters [A-Z,a-z,0-9], underscores, dash ``-'' or periods
+``.''.&nbsp; Value strings may consist of any non-blank character, except
+``#'' or ``!'' which are used for comments.&nbsp; To incorporate these
+and other non-printable characters, you may quote the string as shown above.&nbsp;
+Special characters can be embedded into a quotable string using the regular
+C-style backslash mechanism, i.e. ``\n'' is replaced by a newline; control
+characters can be embedded using hex-notation: for instance, ``\FF'' represents
+the byte 0xff.</p>
+<P>Under the MS-Windows Implementation of FOX, you can use either the ASCII,
+human-readable implementation, or the binary version which uses the built-in
+System Registry.</p>
+
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+Using the Registry
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+<p>The FOX FXApp object contains an embedded FXRegistry object, which is
+automatically read in when you start up using FXApp::init().&nbsp; Likewise,
+this registry is also automatically written back out when you terminate
+the application using FXApp::exit().</p>
+<p>The <B><I>application name</I></B> and <B><I>vendor name</I></B> parameters
+passed in when you construct the FXApp object are directly used as the
+application name and vendor name for the registry system.</p>
+<p>To make use of the registry in your application's code, you can obtain
+a reference to the embedded registry object using FXApp::reg().&nbsp; FXRegistry
+provides the following API:</p>
+
+
+<ul>
+<P>FXbool<B> read</B>()
+<BR>&nbsp;
+<BLOCKQUOTE>This function causes the system-wide registry database to be
+read first, followed by the per-user database.&nbsp; In each category,
+it reads the Desktop, Vendor, and Application settings in order, overwriting
+unmodified settings as it goes.
+<BR>Note that upon startup, a FOX application automatically calls the registry's
+read() function already.&nbsp; You will usually not call this function,
+unless perhaps to re-read the registry.</BLOCKQUOTE>
+
+
+<P><BR>FXbool<B> write</B>()
+<BLOCKQUOTE>If any settings have been changed, this will write out the
+changed values into the per-user, per-application files of the registry
+database.
+<BR>Note that a FOX application automatically calls the registry's write()
+function when the application terminates normally (i.e. by calling FXApp::exit()).&nbsp;
+You will not call this function under normal conditions, except perhaps
+to force changed registry entries to disk, e.g. so that other instances
+of the same application will encounter the changed entries, even before
+the current one quits.</BLOCKQUOTE>
+
+<P><BR>const FXchar *<B>readStringEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,const FXchar *<B><I>def</I></B>)
+<BLOCKQUOTE>This function attempts to localize the entry <B><I>key</I></B>
+in the
+<B><I>section</I></B> of the registry database, and returns the
+value of this key if it is found; otherwise, it returns the specified <B><I>def</I></B>
+value.</BLOCKQUOTE>
+
+<P><BR>FXint <B>readIntEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXint <B><I>def</I></B>)
+<BLOCKQUOTE>Similar to the function above, only it assumes the entry's
+value is an <I>integer</I> number.
+<BR></BLOCKQUOTE>
+
+<P><BR>FXint <B>readUnsignedEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXint <B><I>def</I></B>)
+<BLOCKQUOTE>Similar to the function above, only it assumes the entry's
+value is an <I>unsigned</I> integer number.
+<BR></BLOCKQUOTE>
+
+<P><BR>FXdouble <B>readRealEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXdouble <B><I>def</I></B>)
+<BLOCKQUOTE>Assumes that the entry's value is a real number.</BLOCKQUOTE>
+
+<P><BR>FXColor <B>readColorEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXColor <B><I>def</I></B>)
+<BLOCKQUOTE>Assumes that the entry's value is a color, which may be specified by a color
+name, like "red", or in hex notation, as in "#ff0000".</BLOCKQUOTE>
+
+<P><BR>FXbool <B>writeStringEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,const FXchar *<B><I>val</I></B>)
+<BLOCKQUOTE>Sets or changes the value of <B><I>key</I></B> in the given
+<B><I>section
+</I></B>to
+the value<B><I> val.</I></B> If this key or section does not yet exist,
+it is created.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>writeIntEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXint <B><I>val</I></B>)
+<BLOCKQUOTE>Similar, but assumes the key's value is an <I>integer</I> number.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>writeUnsignedEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXint <B><I>val</I></B>)
+<BLOCKQUOTE>Similar, but assumes the key's value is an <I>unsigned</I>
+integer number.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>writeRealEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXdouble <B><I>val</I></B>)
+<BLOCKQUOTE>Assumes the entry's value is a real number.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>writeColorEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>,FXColor <B><I>val</I></B>)
+<BLOCKQUOTE>Assumes the entry's value is a color; it is translated into a colorname, or
+as in hex notation if no name is found for the color.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>deleteEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>)
+<BLOCKQUOTE>Removes the entry from the database.&nbsp; It will be removed
+from the per-user, per-application file, but not from the system-wide or
+per-user Desktop or Vendor files.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>existingEntry</B>(const FXchar *<B><I>section</I></B>,const
+FXchar *<B><I>key</I></B>)
+<BLOCKQUOTE>Returns true if the given section and key exists.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>deleteSection</B>(const FXchar *<B><I>section</I></B>)
+<BR>
+<BLOCKQUOTE>Removes the named section from the database. The section will
+be removed only from the per-user, per-application file.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>existingSection</B>(const FXchar *<B><I>section</I></B>)
+<BLOCKQUOTE>Returns true if the given section exists.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>clear</B>()
+<BLOCKQUOTE>Clears the entire database.</BLOCKQUOTE>
+
+<P><BR>void <B>setModified</B>(FXbool <B><I>mdfy</I></B>=TRUE)
+<BLOCKQUOTE>Mark the registry as having been modified or non-modified.&nbsp;
+One would typically call this to prevent modified entries from being written.</BLOCKQUOTE>
+
+<P><BR>FXbool <B>isModified</B>()
+<BLOCKQUOTE>Returns TRUE if the database has been modified.</BLOCKQUOTE>
+
+<P><BR>void <B>setAsciiMode</B>(FXbool <B><I>asciiMode</I></B>)
+<BLOCKQUOTE>On MS-Windows, this switches the registry to ASCII based, human-readable
+format or, if asciiMode is FALSE, to the binary system.
+<BR>&nbsp;</BLOCKQUOTE>
+
+</ul>
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id=HEADLINE><b>
+The Standard Registry in FOX Application Object
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+<p>Note that the FOX FXApp object provides a registry already.&nbsp; The
+standard application registry is defined in terms of the application name
+and vendor name that were passed into the FXApp's constructor.
+<BR>When an application is started, the standard registry is automatically
+loaded when <TT><B>FXApp::init()</B> </TT>is called.&nbsp; Likewise, modified
+registry settings are automatically written when <TT><B>FXApp::exit()</B>
+</TT>is called.&nbsp; You should take care that these functions are called
+when writing your own programs so that settings needed in your program
+are available when you expect them, and are properly written back to disk
+after the application exits
+<BR>Only changed settings are written back; if no changes have been made
+to any settings while running the application, no writing would take place
+at all.</p>
+<P>You can access the built-in registry object by the <B><TT>FXApp::reg()</TT></B>
+member function.&nbsp; For example:</p>
+
+<pre>
+FXColor canvasbackground = myapp->reg().readColorEntry("SETTINGS","background",FXRGB(255,255,255));
+</pre>
+
+<P>To read a background color from the settings database, and default
+to white if no entry exists.
+<P>When writing the registry, FOX first writes to a temp file, then renames
+the temp file to the regular registry file.&nbsp; Since rename() is an
+atomic system call, either it works and the new registry is in place, or
+it doesn't and the old registry is still in place; at no time would a partially
+complete registry file be left behind; therefore, the registry mechanism
+should be quite safe even in the presence of multiple applications simultaneously
+trying to access the same registry.
+</P>
+</ul>
+
+<!--- COPYRIGHT -->
+<p>
+<table width=100% cellpadding=0 cellspacing=0><tr><td width=100% valign=top id=HEADLINE align=right>
+<img src='art/line.gif' width=100% height=1><font size=-1>
+Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+</td></tr></table>
+</p>
+<!--- COPYRIGHT -->
+
+
+</body>
+</html>

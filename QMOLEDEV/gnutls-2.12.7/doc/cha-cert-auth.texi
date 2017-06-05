@@ -1,0 +1,680 @@
+@node More on certificate authentication
+@chapter More on Certificate Authentication
+@anchor{Certificate Authentication}
+@cindex Certificate authentication
+
+@menu
+* The X.509 trust model::
+* The OpenPGP trust model::
+* PKCS #11 tokens::
+* Abstract data types::
+* Digital signatures::
+@end menu
+
+@node The X.509 trust model
+@section The @acronym{X.509} Trust Model
+@cindex @acronym{X.509} certificates
+
+The @acronym{X.509} protocols rely on a hierarchical trust model. In
+this trust model Certification Authorities (CAs) are used to certify
+entities.  Usually more than one certification authorities exist, and
+certification authorities may certify other authorities to issue
+certificates as well, following a hierarchical model.
+
+@image{gnutls-x509,7cm,9.5cm}
+
+One needs to trust one or more CAs for his secure communications. In
+that case only the certificates issued by the trusted authorities are
+acceptable.  See the figure above for a typical example.  The API for
+handling @acronym{X.509} certificates is described at section
+@ref{sec:x509api}.  Some examples are listed below.
+
+@menu
+* X.509 certificates::
+* Verifying X.509 certificate paths::
+* PKCS #10 certificate requests::
+* PKCS #12 structures::
+@end menu
+
+@node X.509 certificates
+@subsection @acronym{X.509} Certificates
+
+An @acronym{X.509} certificate usually contains information about the
+certificate holder, the signer, a unique serial number, expiration
+dates and some other fields @xcite{PKIX} as shown in the table below.
+
+@table @code
+
+@item version:
+The field that indicates the version of the certificate.
+
+@item serialNumber:
+This field holds a unique serial number per certificate.
+
+@item issuer:
+Holds the issuer's distinguished name.
+
+@item validity:
+The activation and expiration dates.
+
+@item subject:
+The subject's distinguished name of the certificate.
+
+@item extensions:
+The extensions are fields only present in version 3 certificates.
+
+@end table
+
+The certificate's @emph{subject or issuer name} is not just a single
+string.  It is a Distinguished name and in the @acronym{ASN.1}
+notation is a sequence of several object IDs with their corresponding
+values. Some of available OIDs to be used in an @acronym{X.509}
+distinguished name are defined in @file{gnutls/x509.h}.
+
+The @emph{Version} field in a certificate has values either 1 or 3 for
+version 3 certificates.  Version 1 certificates do not support the
+extensions field so it is not possible to distinguish a CA from a
+person, thus their usage should be avoided.
+
+The @emph{validity} dates are there to indicate the date that the
+specific certificate was activated and the date the certificate's key
+would be considered invalid.
+
+Certificate @emph{extensions} are there to include information about
+the certificate's subject that did not fit in the typical certificate
+fields. Those may be e-mail addresses, flags that indicate whether the
+belongs to a CA etc.  All the supported @acronym{X.509} version 3
+extensions are shown in the table below.
+
+@table @code
+
+@item subject key id (2.5.29.14):
+An identifier of the key of the subject.
+
+@item authority key id (2.5.29.35):
+An identifier of the authority's key used to sign the certificate.
+
+@item subject alternative name (2.5.29.17):
+Alternative names to subject's distinguished name.
+
+@item key usage (2.5.29.15):
+Constraints the key's usage of the certificate.
+
+@item extended key usage (2.5.29.37):
+Constraints the purpose of the certificate.
+
+@item basic constraints (2.5.29.19):
+Indicates whether this is a CA certificate or not, and specify the
+maximum path lengths of certificate chains.
+
+@item CRL distribution points (2.5.29.31):
+This extension is set by the CA, in order to inform about the issued
+CRLs.
+
+@item Proxy Certification Information (1.3.6.1.5.5.7.1.14):
+Proxy Certificates includes this extension that contains the OID of
+the proxy policy language used, and can specify limits on the maximum
+lengths of proxy chains.  Proxy Certificates are specified in
+@xcite{RFC3820}.
+
+@end table
+
+In @acronym{GnuTLS} the @acronym{X.509} certificate structures are
+handled using the @code{gnutls_x509_crt_t} type and the corresponding
+private keys with the @code{gnutls_x509_privkey_t} type.  All the
+available functions for @acronym{X.509} certificate handling have
+their prototypes in @file{gnutls/x509.h}. An example program to
+demonstrate the @acronym{X.509} parsing capabilities can be found at
+section @ref{ex:x509-info}.
+
+@node Verifying X.509 certificate paths
+@subsection Verifying @acronym{X.509} Certificate Paths
+@cindex Verifying certificate paths
+
+Verifying certificate paths is important in @acronym{X.509}
+authentication. For this purpose the function
+@ref{gnutls_x509_crt_verify} is provided. The output of this function
+is the bitwise OR of the elements of the
+@code{gnutls_certificate_status_t} enumeration.  A detailed
+description of these elements can be found in figure below.  The
+function @ref{gnutls_certificate_verify_peers2} is equivalent to the
+previous one, and will verify the peer's certificate in a TLS session.
+
+@table @code
+
+@item GNUTLS_CERT_INVALID:
+The certificate is not signed by one of the known authorities, or
+the signature is invalid.
+
+@item GNUTLS_CERT_REVOKED:
+The certificate has been revoked by its CA.
+
+@item GNUTLS_CERT_SIGNER_NOT_FOUND:
+The certificate's issuer is not known. This is the case when the
+issuer is not in the trusted certificates list.
+
+@item GNUTLS_CERT_SIGNER_NOT_CA:
+The certificate's signer was not a CA. This may happen if
+this was a version 1 certificate, which is common with some CAs, or
+a version 3 certificate without the basic constrains extension.
+
+@anchor{GNUTLS_CERT_INSECURE_ALGORITHM}
+@item GNUTLS_CERT_INSECURE_ALGORITHM:
+The certificate was signed using an insecure algorithm such as MD2 or
+MD5.  These algorithms have been broken and should not be trusted.
+
+@end table
+
+There is also to possibility to pass some input to the verification
+functions in the form of flags. For @ref{gnutls_x509_crt_verify} the
+flags are passed straightforward, but
+@ref{gnutls_certificate_verify_peers2} depends on the flags set by
+calling @ref{gnutls_certificate_set_verify_flags}.  All the available
+flags are part of the enumeration
+@ref{gnutls_certificate_verify_flags} and are explained in the table
+below.
+
+@anchor{gnutls_certificate_verify_flags}
+@tindex gnutls_certificate_verify_flags
+@table @code
+@item GNUTLS_VERIFY_DISABLE_CA_SIGN:
+If set a signer does not have to be a certificate authority. This
+flag should normaly be disabled, unless you know what this means.
+
+@item GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT:
+Allow only trusted CA certificates that have version 1.  This is
+safer than GNUTLS_VERIFY_ALLOW_ANY_X509_V1_CA_CRT, and should be
+used instead. That way only signers in your trusted list will be
+allowed to have certificates of version 1.
+
+@item GNUTLS_VERIFY_ALLOW_ANY_X509_V1_CA_CRT:
+Allow CA certificates that have version 1 (both root and
+intermediate). This is dangerous since those haven't the
+basicConstraints extension. Must be used in combination with
+GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT.
+
+@item GNUTLS_VERIFY_DO_NOT_ALLOW_SAME:
+If a certificate is not signed by anyone trusted but exists in
+the trusted CA list do not treat it as trusted.
+
+@item GNUTLS_VERIFY_ALLOW_SIGN_RSA_MD2:
+Allow certificates to be signed using the old MD2 algorithm.
+
+@item GNUTLS_VERIFY_ALLOW_SIGN_RSA_MD5:
+Allow certificates to be signed using the broken MD5 algorithm.
+@end table
+
+Although the verification of a certificate path indicates that the
+certificate is signed by trusted authority, does not reveal anything
+about the peer's identity. It is required to verify if the
+certificate's owner is the one you expect. For more information
+consult @xcite{RFC2818} and section @ref{ex:verify} for an example.
+
+@node PKCS #10 certificate requests
+@subsection @acronym{PKCS} #10 Certificate Requests
+@cindex Certificate requests
+@cindex @acronym{PKCS} #10
+
+A certificate request is a structure, which contain information about
+an applicant of a certificate service.  It usually contains a private
+key, a distinguished name and secondary data such as a challenge
+password. @acronym{GnuTLS} supports the requests defined in
+@acronym{PKCS} #10 @xcite{RFC2986}. Other certificate request's format
+such as PKIX's @xcite{RFC4211} are not currently supported.
+
+In @acronym{GnuTLS} the @acronym{PKCS} #10 structures are handled
+using the @code{gnutls_x509_crq_t} type.  An example of a certificate
+request generation can be found at section @ref{ex:crq}.
+
+@node PKCS #12 structures
+@subsection @acronym{PKCS} #12 Structures
+@cindex @acronym{PKCS} #12
+
+A @acronym{PKCS} #12 structure @xcite{PKCS12} usually contains a user's
+private keys and certificates. It is commonly used in browsers to
+export and import the user's identities.
+
+In @acronym{GnuTLS} the @acronym{PKCS} #12 structures are handled
+using the @code{gnutls_pkcs12_t} type. This is an abstract type that
+may hold several @code{gnutls_pkcs12_bag_t} types.  The Bag types are
+the holders of the actual data, which may be certificates, private
+keys or encrypted data.  An Bag of type encrypted should be decrypted
+in order for its data to be accessed.
+
+An example of a @acronym{PKCS} #12 structure generation can be found
+at section @ref{ex:pkcs12}.
+
+@node The OpenPGP trust model
+@section The @acronym{OpenPGP} Trust Model
+@cindex @acronym{OpenPGP} Keys
+
+The @acronym{OpenPGP} key authentication relies on a distributed trust
+model, called the ``web of trust''. The ``web of trust'' uses a
+decentralized system of trusted introducers, which are the same as a
+CA. @acronym{OpenPGP} allows anyone to sign anyone's else public
+key. When Alice signs Bob's key, she is introducing Bob's key to
+anyone who trusts Alice. If someone trusts Alice to introduce keys,
+then Alice is a trusted introducer in the mind of that observer.
+
+@image{gnutls-pgp,11cm,9cm}
+
+For example: If David trusts Alice to be an introducer, and Alice
+signed Bob's key, Dave also trusts Bob's key to be the real one.
+
+There are some key points that are important in that model. In the
+example Alice has to sign Bob's key, only if she is sure that the key
+belongs to Bob. Otherwise she may also make Dave falsely believe that
+this is Bob's key. Dave has also the responsibility to know who to
+trust.  This model is similar to real life relations.
+
+Just see how Charlie behaves in the previous example. Although he has
+signed Bob's key - because he knows, somehow, that it belongs to Bob -
+he does not trust Bob to be an introducer. Charlie decided to trust
+only Kevin, for some reason. A reason could be that Bob is lazy
+enough, and signs other people's keys without being sure that they
+belong to the actual owner.
+
+@subsection @acronym{OpenPGP} Keys
+
+In @acronym{GnuTLS} the @acronym{OpenPGP} key structures
+@xcite{RFC2440} are handled using the @code{gnutls_openpgp_crt_t} type
+and the corresponding private keys with the
+@code{gnutls_openpgp_privkey_t} type. All the prototypes for the key
+handling functions can be found at @file{gnutls/openpgp.h}.
+
+@subsection Verifying an @acronym{OpenPGP} Key
+
+The verification functions of @acronym{OpenPGP} keys, included in
+@acronym{GnuTLS}, are simple ones, and do not use the features of the
+``web of trust''.  For that reason, if the verification needs are
+complex, the assistance of external tools like @acronym{GnuPG} and
+GPGME (@url{http://www.gnupg.org/related_software/gpgme/}) is
+recommended.
+
+There is one verification function in @acronym{GnuTLS}, the
+@ref{gnutls_openpgp_crt_verify_ring}.  This checks an
+@acronym{OpenPGP} key against a given set of public keys (keyring) and
+returns the key status. The key verification status is the same as in
+@acronym{X.509} certificates, although the meaning and interpretation
+are different. For example an @acronym{OpenPGP} key may be valid, if
+the self signature is ok, even if no signers were found.  The meaning
+of verification status is shown in the figure below.
+
+@table @code
+
+@item CERT_INVALID:
+A signature on the key is invalid. That means that the key was
+modified by somebody, or corrupted during transport.
+
+@item CERT_REVOKED:
+The key has been revoked by its owner.
+
+@item CERT_SIGNER_NOT_FOUND:
+The key was not signed by a known signer.
+
+@item GNUTLS_CERT_INSECURE_ALGORITHM:
+The certificate was signed using an insecure algorithm such as MD2 or
+MD5.  These algorithms have been broken and should not be trusted.
+
+@end table
+
+
+@node PKCS #11 tokens
+@section @acronym{PKCS #11} tokens
+@anchor{sec:pkcs11}
+@cindex @acronym{PKCS #11} tokens
+
+@subsection Introduction
+This section copes with the @acronym{PKCS #11} @xcite{PKCS11} support in @acronym{GnuTLS}.
+@acronym{PKCS #11} is plugin API allowing applications to access cryptographic
+operations on a token, as well as to objects residing on the token. A token can 
+be a real hardware token such as a smart card, or it can be a software component
+such as @acronym{Gnome Keyring}. The objects residing on such token can be
+certificates, public keys, private keys or even plain data or  secret keys. Of those
+certificates and public/private key pairs can be used with @acronym{GnuTLS}. Its
+main advantage is that it allows operations on private key objects such as decryption
+and signing without accessing the key itself.
+
+Moreover it can be used to allow all applications in the same operating system to access
+shared cryptographic keys and certificates in a uniform way, as in the following picture.
+
+@image{pkcs11-vision}
+
+@subsection Initialization
+To allow all the  @acronym{GnuTLS} applications to access @acronym{PKCS #11} tokens
+it is adviceable to use @code{/etc/gnutls/pkcs11.conf}. This file has the following
+format:
+
+@verbatim
+load=/usr/lib/opensc-pkcs11.so
+load=/usr/lib/gnome-keyring/gnome-keyring-pkcs11.so
+@end verbatim
+
+If you use this file, then there is no need for other initialization in
+@acronym{GnuTLS}, except for the PIN and token functions. Those allow retrieving a PIN
+when accessing a protected object, such as a private key, as well as probe
+the user to insert the token. All the initialization functions are below.
+
+@itemize
+
+@item @ref{gnutls_pkcs11_init}: Global initialization
+
+@item @ref{gnutls_pkcs11_deinit}: Global deinitialization
+
+@item @ref{gnutls_pkcs11_set_token_function}: Sets the token insertion function
+
+@item @ref{gnutls_pkcs11_set_pin_function}: Sets the PIN request function
+
+@item @ref{gnutls_pkcs11_add_provider}: Adds an additional @acronym{PKCS #11} provider
+
+@end itemize
+
+Note that due to limitations of @acronym{PKCS #11} there might be issues when multiple libraries 
+are sharing a module. If this is the case we suggest to use p11-kit@footnote{http://p11-glue.freedesktop.org/}
+that provides an intermediate module to control access to resources over the
+multiple users.
+
+@subsection Reading Objects
+
+All @acronym{PKCS #11} objects are referenced by @acronym{GnuTLS} functions by
+URLs as described in @code{draft-pechanec-pkcs11uri-03}. For example a public
+key on a smart card may be referenced as:
+
+@example
+pkcs11:token=Nikos;serial=307521161601031;model=PKCS%2315; \
+manufacturer=EnterSafe;object=test1;objecttype=public;\
+id=32:f1:53:f3:e3:79:90:b0:86:24:14:10:77:ca:5d:ec:2d:15:fa:ed
+@end example
+
+while the smart card itself can be referenced as:
+@example
+pkcs11:token=Nikos;serial=307521161601031;model=PKCS%2315;manufacturer=EnterSafe
+@end example
+
+
+Objects can be accessed with the following functions
+@itemize
+
+@item @ref{gnutls_pkcs11_obj_init}: Initializes an object
+
+@item @ref{gnutls_pkcs11_obj_import_url}: To import an object from a url
+
+@item @ref{gnutls_pkcs11_obj_export_url}: To export the URL of the object
+
+@item @ref{gnutls_pkcs11_obj_deinit}: To deinitialize an object
+
+@item @ref{gnutls_pkcs11_obj_export}: To export data associated with object
+
+@item @ref{gnutls_pkcs11_obj_get_info}: To obtain information about an object
+
+@item @ref{gnutls_pkcs11_obj_list_import_url}: To mass load of objects
+
+@item @ref{gnutls_x509_crt_import_pkcs11}: Import a certificate object
+
+@item @ref{gnutls_x509_crt_import_pkcs11_url}: Helper function to directly import a URL into a certificate
+
+@item @ref{gnutls_x509_crt_list_import_pkcs11}: Mass import of certificates
+
+@end itemize
+
+
+Functions that relate to token handling are shown below
+@itemize
+
+@item @ref{gnutls_pkcs11_token_init}: Initializes a token
+
+@item @ref{gnutls_pkcs11_token_set_pin}: Sets the token user's PIN
+
+@item @ref{gnutls_pkcs11_token_get_url}: Returns the URL of a token
+
+@item @ref{gnutls_pkcs11_token_get_info}: Obtain information about a token
+
+@item @ref{gnutls_pkcs11_token_get_flags}: Returns flags about a token (i.e. hardware or software)
+
+@end itemize
+
+The following example will list all tokens.
+@verbatim
+int i;
+char* url;
+
+gnutls_global_init();
+
+for (i=0;;i++) {
+	ret = gnutls_pkcs11_token_get_url(i, &url);
+	if (ret == GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE)
+		break;
+
+	if (ret < 0)
+		exit(1);
+		
+	fprintf(stdout, "Token[%d]: URL: %s\n", i, url);
+	gnutls_free(url);
+}
+gnutls_global_deinit();
+@end verbatim
+
+
+The next one will list all certificates in a token, that have a corresponding
+private key:
+@verbatim
+gnutls_pkcs11_obj_t *obj_list;
+unsigned int obj_list_size = 0;
+gnutls_datum_t cinfo;
+int i;
+
+obj_list_size = 0;
+ret = gnutls_pkcs11_obj_list_import_url( obj_list, NULL, url, \
+			GNUTLS_PKCS11_OBJ_ATTR_CRT_WITH_PRIVKEY);
+if (ret < 0 && ret != GNUTLS_E_SHORT_MEMORY_BUFFER)
+	exit(1);
+
+/* no error checking from now on */
+obj_list = malloc(sizeof(*obj_list)*obj_list_size);
+
+gnutls_pkcs11_obj_list_import_url( obj_list, &obj_list_size, url, flags);
+
+/* now all certificates are in obj_list */
+for (i=0;i<obj_list_size;i++) {
+
+	gnutls_x509_crt_init(&xcrt);
+
+	gnutls_x509_crt_import_pkcs11(xcrt, obj_list[i]);
+		
+	gnutls_x509_crt_print (xcrt, GNUTLS_CRT_PRINT_FULL, &cinfo);
+
+	fprintf(stdout, "cert[%d]:\n %s\n\n", cinfo.data);
+
+	gnutls_free(cinfo.data);
+	gnutls_x509_crt_deinit(&xcrt);
+}
+@end verbatim
+
+
+@subsection Writing Objects
+
+With @acronym{GnuTLS} you can copy existing private keys and certificates
+to a token. This can be achieved with the following functions
+
+@itemize
+
+@item @ref{gnutls_pkcs11_delete_url}: To delete an object
+
+@item @ref{gnutls_pkcs11_copy_x509_privkey}: To copy a private key to a token
+
+@item @ref{gnutls_pkcs11_copy_x509_crt}: To copy a certificate to a token
+
+@end itemize
+
+
+@subsection Using a @acronym{PKCS #11} token with TLS
+
+It is possible to use a @acronym{PKCS #11} token to a TLS
+session, as shown in @ref{ex:pkcs11-client}. In addition
+the following functions can be used to load PKCS #11 key and
+certificates.
+
+@itemize
+
+@item @ref{gnutls_certificate_set_x509_trust_file}: If given a PKCS #11 URL will load the trusted certificates from it.
+
+@item @ref{gnutls_certificate_set_x509_key_file}: Will also load PKCS #11 URLs for keys and certificates.
+
+@end itemize
+
+
+@node Abstract data types
+@section Abstract data types
+@anchor{sec:abstract}
+@cindex Abstract types
+
+Since there are many forms of a public or private keys supported by @acronym{GnuTLS} such as
+@acronym{X.509}, @acronym{OpenPGP}, or @acronym{PKCS #11} it is desirable to allow common operations
+on them. For these reasons the abstract @code{gnutls_privkey_t} and @code{gnutls_pubkey_t} were
+introduced in @code{gnutls/abstract.h} header. Those types are initialized using a specific type of key and then can be used to
+perform operations in an abstract way. For example in order for someone to sign an X.509 certificate
+with a key that resides in a smart he has to follow the steps below:
+
+@verbatim
+#inlude <gnutls/abstract.h>
+#inlude <gnutls/pkcs11.h>
+
+void sign_cert( gnutls_x509_crt_t to_be_signed)
+{
+gnutls_pkcs11_privkey_t ca_key;
+gnutls_x509_crt_t ca_cert;
+gnutls_privkey_t abs_key;
+
+	/* load the PKCS #11 key and certificates */
+	gnutls_pkcs11_privkey_init(&ca_key);
+	gnutls_pkcs11_privkey_import_url(ca_key, key_url);
+
+	gnutls_x509_crt_init(&ca_cert);
+	gnutls_x509_crt_import_pkcs11_url(&ca_cert, cert_url);
+
+	/* initialize the abstract key */
+	gnutls_privkey_init(&abs_key);
+	gnutls_privkey_import_pkcs11(abs_key, ca_key);
+
+	/* sign the certificate to be signed */
+	gnutls_x509_crt_privkey_sign(to_be_signed, ca_cert, ca_key, GNUTLS_DIG_SHA1, 0);
+}
+@end verbatim
+
+
+@node Digital signatures
+@section Digital Signatures
+@cindex Digital signatures
+
+In this section we will provide some information about digital
+signatures, how they work, and give the rationale for disabling some
+of the algorithms used.
+
+Digital signatures work by using somebody's secret key to sign some
+arbitrary data.  Then anybody else could use the public key of that
+person to verify the signature.  Since the data may be arbitrary it is
+not suitable input to a cryptographic digital signature algorithm. For
+this reason and also for performance cryptographic hash algorithms are
+used to preprocess the input to the signature algorithm. This works as
+long as it is difficult enough to generate two different messages with
+the same hash algorithm output. In that case the same signature could
+be used as a proof for both messages. Nobody wants to sign an innocent
+message of donating 1 @euro{} to Greenpeace and find out that he
+donated 1.000.000 @euro{} to Bad Inc.
+
+For a hash algorithm to be called cryptographic the following three
+requirements must hold:
+
+@enumerate
+@item Preimage resistance.
+That means the algorithm must be one way and given the output of the
+hash function @math{H(x)}, it is impossible to calculate @math{x}.
+
+@item 2nd preimage resistance.
+That means that given a pair @math{x,y} with @math{y=H(x)} it is
+impossible to calculate an @math{x'} such that @math{y=H(x')}.
+
+@item Collision resistance.
+That means that it is impossible to calculate random @math{x} and
+@math{x'} such @math{H(x')=H(x)}.
+@end enumerate
+
+The last two requirements in the list are the most important in
+digital signatures. These protect against somebody who would like to
+generate two messages with the same hash output. When an algorithm is
+considered broken usually it means that the Collision resistance of
+the algorithm is less than brute force. Using the birthday paradox the
+brute force attack takes
+@iftex
+@math{2^{(\rm{hash\ size}) / 2}}
+@end iftex
+@ifnottex
+@math{2^{((hash size) / 2)}}
+@end ifnottex
+operations. Today colliding certificates using the MD5 hash algorithm
+have been generated as shown in @xcite{WEGER}.
+
+There has been cryptographic results for the SHA-1 hash algorithms as
+well, although they are not yet critical.  Before 2004, MD5 had a
+presumed collision strength of @math{2^{64}}, but it has been showed
+to have a collision strength well under @math{2^{50}}.  As of November
+2005, it is believed that SHA-1's collision strength is around
+@math{2^{63}}.  We consider this sufficiently hard so that we still
+support SHA-1.  We anticipate that SHA-256/386/512 will be used in
+publicly-distributed certificates in the future.  When @math{2^{63}}
+can be considered too weak compared to the computer power available
+sometime in the future, SHA-1 will be disabled as well.  The collision
+attacks on SHA-1 may also get better, given the new interest in tools
+for creating them.
+
+@subsection Trading Security for Interoperability
+
+If you connect to a server and use GnuTLS' functions to verify the
+certificate chain, and get a @ref{GNUTLS_CERT_INSECURE_ALGORITHM}
+validation error (@pxref{Verifying X.509 certificate paths}), it means
+that somewhere in the certificate chain there is a certificate signed
+using @code{RSA-MD2} or @code{RSA-MD5}.  These two digital signature
+algorithms are considered broken, so GnuTLS fail when attempting to
+verify the certificate.  In some situations, it may be useful to be
+able to verify the certificate chain anyway, assuming an attacker did
+not utilize the fact that these signatures algorithms are broken.
+This section will give help on how to achieve that.
+
+First, it is important to know that you do not have to enable any of
+the flags discussed here to be able to use trusted root CA
+certificates signed using @code{RSA-MD2} or @code{RSA-MD5}.  The only
+attack today is that it is possible to generate certificates with
+colliding signatures (collision resistance); you cannot generate a
+certificate that has the same signature as an already existing
+signature (2nd preimage resistance).
+
+If you are using @ref{gnutls_certificate_verify_peers2} to verify the
+certificate chain, you can call
+@ref{gnutls_certificate_set_verify_flags} with the
+@code{GNUTLS_VERIFY_ALLOW_SIGN_RSA_MD2} or
+@code{GNUTLS_VERIFY_ALLOW_SIGN_RSA_MD5} flag, as in:
+
+@example
+  gnutls_certificate_set_verify_flags (x509cred,
+                                       GNUTLS_VERIFY_ALLOW_SIGN_RSA_MD5);
+@end example
+
+This will tell the verifier algorithm to enable @code{RSA-MD5} when
+verifying the certificates.
+
+If you are using @ref{gnutls_x509_crt_verify} or
+@ref{gnutls_x509_crt_list_verify}, you can pass the
+@code{GNUTLS_VERIFY_ALLOW_SIGN_RSA_MD5} parameter directly in the
+@code{flags} parameter.
+
+If you are using these flags, it may also be a good idea to warn the
+user when verification failure occur for this reason.  The simplest is
+to not use the flags by default, and only fall back to using them
+after warning the user.  If you wish to inspect the certificate chain
+yourself, you can use @ref{gnutls_certificate_get_peers} to extract
+the raw server's certificate chain, then use
+@ref{gnutls_x509_crt_import} to parse each of the certificates, and
+then use @ref{gnutls_x509_crt_get_signature_algorithm} to find out the
+signing algorithm used for each certificate.  If any of the
+intermediary certificates are using @code{GNUTLS_SIGN_RSA_MD2} or
+@code{GNUTLS_SIGN_RSA_MD5}, you could present a warning.

@@ -1,0 +1,655 @@
+<html>
+<head>
+<link rel="stylesheet" href="page.css" type="text/css">
+<title>fox-toolkit.org - Documentation: Regular Expressions</title>
+</head>
+<body bgcolor=#ffffff link=#990033 vlink=#990033 alink=#990033 text=#000000>
+
+<!---- TOPIC TITLE WITH LOGO--->
+<table border=0 cellpadding= cellspacing=2 width=100% ><tr><td><a href='http://www.fox-toolkit.org' target=_top><img src='art/foxlogo_small.jpg' border=0></a></td><td width=100% valign=bottom id="HEADLINE"><b>
+Documentation: Regular Expressions  <A href='rex.html' target="_top" align=left><font  size=-2>[Remove Frame]</font></a>
+<br><img src='art/line.gif' width=100% height=1></b></td></tr></table>
+<p>
+<!--- TOPIC TITLE WITH LOGO --->
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id="HEADLINE"><b>
+What are Regular Expressions?
+<br><img src='art/line.gif' width='100%' height=1></b></td></tr></table>
+<p>
+<!--- TOPIC TITLE -->
+<ul>
+  Regular Expressions are used to search strings for certain patterns. For example,
+  in a text editor you might want to search for the pattern "widgets?".  This pattern
+  will match occurrances of the word "widget" or "widgets" in the text.<br>
+  Thus, a regular expression matching facility is a necessity for writing programs
+  which perform text searches, syntax coloring, and so on.
+
+</ul>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id="HEADLINE"><b>
+Anatomy of Regular Expressions
+<br><img src='art/line.gif' width='100%' height=1></b></td></tr></table>
+<p>
+<!--- TOPIC TITLE -->
+<ul>
+  A regular expression is comprised of one or more branches separated by a "|".
+  Each branch is made up of a sequence of pieces, and each piece is an atom optionally
+  followed by a repetition.
+  <p>
+  Atoms are the simplest element in a regular expression.  The simplest atoms are
+  individual letters.  For example, the letter "a" is an atom, and it matches a
+  letter "a" in the subject string.  <br>
+  Another kind of atom is the character class, which is simply a <em>set</em> of characters;
+  for example, the atom "[abcdefg]" matches one of {a,b,c,d,e,f,g} in the subject
+  string.  Thus, "[abcdefg]" matches "a" or "g" but not "q".  <br>
+  As a shorthand, you
+  can identify a bunch of characters by a character range, as in "[a-z]" which is
+  automatically translated into "[abcdefghijklmnopqrstuvwxyz]".  You can see this
+  is a lot shorter.
+  <p>
+  You can also simply negate the set using "^"; thus "[^a]" matches any character,
+  EXCEPT the "a".  To include the "]" character itself it must be used as the
+  first character after the "[".  To include the "-" itself it must be the first
+  character after the "[", the second character of the range, or the character just
+  before the "]".
+  <p>
+  You can embed control characters by the usual C conventions: \t for TAB, \n for
+  NEWLINE, and so on.  Or you can use the control-character notation, like \cH for
+  ^H or BACKSPACE.<br>
+  Other characters may be entered by octal or hexadecimal
+  notation: \0 for octal 0, and \xff for 0xff or decimal 255 (all 256 possible
+  characters are legal in the subject string, FXRex does not treat any character
+  specially, not even the end-of-string character).
+  <p>
+  Repetitions may optionally follow an atom, making a piece.
+  For example, "a*" matches
+  "", "a", "aa", and so on.  The "*" operator matches zero or more occurrences.
+  There are also several other repetition operators.
+  The "+" operator matches one or more
+  occurrences, and the "?" matches zero or one occurrence.
+  <p>
+  Finally, there is also
+  a way to match a bounded number of occurrences.
+  For example, "a{3}" matches "aaa", while "a{0,3}" matches "", "a", "aa", and
+  "aaa", but not "aaaa".<br>
+  The general form of the bounded repetition is "a{n,m}" and this matches at least
+  n but no more than m occurrences of the preceding atom.
+  For convenience, we
+  allow omission of the n or the m; thus, "a{,m}" becomes equivalent to "a{0,m}",
+  and "a{n,}" becomes equivalent to "a{n,infinite}".
+  The special form "a{n}"
+  is equivalent to "a{n,n}".
+  <p>
+  Repetitions may be <em>greedy</em> or <em>lazy</em>.  Greedy repetitions are
+  the default; greedy repetitions will try to match as many characters as possible,
+  whereas lazy repetitions will try to match as few as possible.
+  You can indicate a lazy repetition by appending a "?".  So "a*?" is the lazy
+  equivalent of "a*", "a??" the lazy equivalent of "a?", and "a{2,5}?" that of
+  "a{2,5}".
+  <p>
+  A sequence of pieces makes up one branch.  Several branches may be separated
+  by a "|", and these become alternatives.  For example, the pattern "ac|dc"
+  matches "ac", or "dc".
+  <p>
+  Precedence rules are such that repetitions bind more strongly than sequencing,
+  so that "ab*" matches a single "a" followed by zero or more "b"'s.
+  Conversely, the "|" operator is the weakest, making the pattern "a|b*" match
+  either a single "a", or a sequence of zero or more "b"'s.
+  Explicit use of parentheses allows other precedences: "(a|b)*" is a sequence
+  of zero or more characters, each either "a" or "b", i.e. the same as "[ab]*".
+  <p>
+  FXRex, like PERL, offers a more convenient way to specify certain frequent
+  character classes; they are also faster to use when matching.
+  For example, "\s" matches any whitespace, "\S" matches anything other
+  than whitespace. The "\d" matches any digit, and is equivalent to "[0-9]". <br>
+  Of course,
+  "\D" is equivalent to "[^0-9]".  The "\l" matches any letter like "[a-zA-Z]",
+  and "\L" any non-letter.  "\w" matches any word character and is equivalent
+  to "[a-zA-Z_0-9]".  See the table below for a full list.<br>
+  You can use these character set shortcuts inside a character class; for example,
+  "[\dA-Fa-f]" is equivalent to "[0-9A-Fa-f]", which could actually also be done
+  more compactly by "\h" (hexdigits).
+  <p>
+  Assertions provide a way to match without consuming any characters.  You are
+  probably familiar with "^", which matches the begin of the line, and "$",
+  which matches the end of the line. FXRex also provides a few additional
+  assertions: "\&lt;" matches word begin, i.e. a character position such that
+  the previous character matches \W and the following character matches with \w.
+  Likewise "\&gt;" matches a word end. The "\b" and "\B" match word boundary
+  and word interior, respectively.
+  Note that the backspace character may be entered as <b>\cH</b> or <b>\x8</b>.
+  <p>
+  The ultimate in assertions is the so-called positive or negative look-ahead.
+  Lookahead effectively provides for arbitrarily complex positive or
+  negative assertions.
+  Unless you're familiar with PERL, you may not have seen certain features before.
+  First, FXRex supports additional zero-width assertions [Zero width assertions
+  are points in the recognition phase of a pattern where a match can pass or fail
+  without consuming characters from the subject string].
+  <p>
+  The "(?= ... )" and "(?! ... )" syntax is used for positive and negative look ahead,
+  respectively.  For example "fred(?!erick)" will match "fred" and "freddy", but
+  not "frederick".
+  <p>
+
+  <p>
+  Jeffrey Friedl wrote what is now the standard work on regular expressions, see
+  <a href="http://www.oreilly.com/catalog/regex">Mastering Regular Expressions</a>.
+  This book is recommended for further background on Regular Expressions.
+</ul>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id="HEADLINE"><b>
+Regular Expression Grammar
+<br><img src='art/line.gif' width='100%' height=1></b></td></tr></table>
+<p>
+<!--- TOPIC TITLE -->
+
+
+<!--- INDENT BEGIN -->
+<ul>
+<!--- INDENT BEGIN -->
+FXRex accepts patterns with the following grammar:
+<BR>&nbsp;
+<CENTER>
+<TABLE BORDER=0 CELLSPACING=0 COLS=3 WIDTH="90%">
+<TR>
+<TD><font size=1>expression</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>branch { "|" branch }*</font></TD>
+</TR>
+<TR>
+<TD><font size=1>branch</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>{ piece }*</font></TD>
+</TR>
+<TR>
+<TD><font size=1>piece</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>atom [ rep ]</font></TD>
+</TR>
+<TR>
+<TD><font size=1>rep</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>( "*" | "+" | "?" | counts ) [ "?" ]</font></TD>
+</TR>
+<TR>
+<TD><font size=1>counts</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>"{" digits ["," [ digits] ] "}"</font></TD>
+</TR>
+<TR>
+<TD><font size=1>atom</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>"(" expression ")" | "[" [^] range "]" | characters</font></TD>
+</TR>
+<TR>
+<TD><font size=1>range</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>character | character "-" character</font></TD>
+</TR>
+<TR>
+<TD><font size=1>characters</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>{ character }*</font></TD>
+</TR>
+<TR>
+<TD><font size=1>digits</font></TD><TD><font size=1>::=</font></TD><TD><font size=1>{ digit }*</font></TD>
+</TR>
+</TABLE>
+</CENTER>
+<p>
+When parsing a pattern FXRex first performs a grammar check, and measures the
+resulting regex code.  Subsequently it generates the pattern code.
+FXRex returns immediately when the syntax is found to be incorrect, and returns
+an appropriate error code.
+
+
+<!--- INDENT END -->
+</ul>
+<!--- INDENT END -->
+<p>
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id="HEADLINE"><b>
+Matching Operators
+<br><img src='art/line.gif' width='100%' height=1></b></td></tr></table>
+<p>
+<!--- TOPIC TITLE -->
+
+<!--- INDENT BEGIN -->
+<ul>
+<!--- INDENT BEGIN -->
+
+FXRex supports the following matching operators:
+<BR>&nbsp;
+<CENTER>
+<TABLE BORDER=0 CELLSPACING=0 COLS=2 WIDTH="90%">
+
+<TR><TD colspan=2><font size=1><p><center>Basics<hr></center></font></TD></TR>
+<TR><TD><font size=1>|</font></TD><TD><font size=1>Alternation.</font></TD></TR>
+<TR><TD><font size=1>( ... )</font></TD><TD><font size=1>Grouping sub pattern.</font></TD></TR>
+<TR><TD><font size=1>(?i ... )</font></TD><TD><font size=1>Match sub pattern case insensitive.</font></TD></TR>
+<TR><TD><font size=1>(?I ... )</font></TD><TD><font size=1>Match sub pattern case sensitive.</font></TD></TR>
+<TR><TD><font size=1>(?n ... )</font></TD><TD><font size=1>Match sub pattern with newlines.</font></TD></TR>
+<TR><TD><font size=1>(?N ... )</font></TD><TD><font size=1>Match sub pattern with no newlines.</font></TD></TR>
+<TR><TD><font size=1>(?: ... )</font></TD><TD><font size=1>Non-capturing parentheses.</font></TD></TR>
+<TR><TD><font size=1>[ ... ]</font></TD><TD><font size=1>Character class.</font></TD></TR>
+<TR><TD><font size=1>[^ ... ]</font></TD><TD><font size=1>Negated character class.</font></TD></TR>
+
+<TR><TD colspan=2><font size=1><p><center>Greedy Repetitions<hr></center></font></TD></TR>
+<TR><TD><font size=1>*</font></TD><TD><font size=1>Match 0 or more.</font></TD></TR>
+<TR><TD><font size=1>+</font></TD><TD><font size=1>Match 1 or more.</font></TD></TR>
+<TR><TD><font size=1>?</font></TD><TD><font size=1>Match 0 or 1.</font></TD></TR>
+<TR><TD><font size=1>{}</font></TD><TD><font size=1>Match 0 or more.</font></TD></TR>
+<TR><TD><font size=1>{n}</font></TD><TD><font size=1>Match n times.</font></TD></TR>
+<TR><TD><font size=1>{,m}</font></TD><TD><font size=1>Match no more than m times.</font></TD></TR>
+<TR><TD><font size=1>{n,}</font></TD><TD><font size=1>Match n or more.</font></TD></TR>
+<TR><TD><font size=1>{n,m}</font></TD><TD><font size=1>Match at least n but no more than m times.</font></TD></TR>
+
+<TR><TD colspan=2><font size=1><p><center>Lazy Repetitions<hr></center></font></TD></TR>
+<TR><TD><font size=1>*?</font></TD><TD><font size=1>Match 0 or more.</font></TD></TR>
+<TR><TD><font size=1>+?</font></TD><TD><font size=1>Match 1 or more.</font></TD></TR>
+<TR><TD><font size=1>??</font></TD><TD><font size=1>Match 0 or 1.</font></TD></TR>
+<TR><TD><font size=1>{}?</font></TD><TD><font size=1>Match 0 or more times.</font></TD></TR>
+<TR><TD><font size=1>{n}?</font></TD><TD><font size=1>Match n times.</font></TD></TR>
+<TR><TD><font size=1>{,m}?</font></TD><TD><font size=1>Match no more than m times.</font></TD></TR>
+<TR><TD><font size=1>{n,}?</font></TD><TD><font size=1>Match n or more.</font></TD></TR>
+<TR><TD><font size=1>{n,m}?</font></TD><TD><font size=1>Match at least n but no more than m times.</font></TD></TR>
+
+<TR><TD colspan=2><font size=1><p><center>Special Characters<hr></center></font></TD></TR>
+<TR><TD><font size=1>\a</font></TD><TD><font size=1>Alarm, bell.</font></TD></TR>
+<TR><TD><font size=1>\e</font></TD><TD><font size=1>Escape character.</font></TD></TR>
+<TR><TD><font size=1>\t</font></TD><TD><font size=1>Tab.</font></TD></TR>
+<TR><TD><font size=1>\f</font></TD><TD><font size=1>Form feed.</font></TD></TR>
+<TR><TD><font size=1>\n</font></TD><TD><font size=1>Newline.</font></TD></TR>
+<TR><TD><font size=1>\r</font></TD><TD><font size=1>Return.</font></TD></TR>
+<TR><TD><font size=1>\v</font></TD><TD><font size=1>Vertical tab.</font></TD></TR>
+<TR><TD><font size=1>\cx</font></TD><TD><font size=1>Control character.</font></TD></TR>
+<TR><TD><font size=1>\033</font></TD><TD><font size=1>Octal.</font></TD></TR>
+<TR><TD><font size=1>\x1b</font></TD><TD><font size=1>Hex.</font></TD></TR>
+
+<TR><TD colspan=2><font size=1><p><center>Character Types<hr></center></font></TD></TR>
+<TR><TD><font size=1>.</TD><TD><font size=1>Match any character.</font></TD></TR>
+<TR><TD><font size=1>\w</font></TD><TD><font size=1>Word character [a-zA-Z_0-9].</font></TD></TR>
+<TR><TD><font size=1>\W</font></TD><TD><font size=1>Non-word character.</font></TD></TR>
+<TR><TD><font size=1>\l</font></TD><TD><font size=1>Letter [a-zA-Z].</font></TD></TR>
+<TR><TD><font size=1>\L</font></TD><TD><font size=1>Non-letter.</font></TD></TR>
+<TR><TD><font size=1>\s</font></TD><TD><font size=1>Space.</font></TD></TR>
+<TR><TD><font size=1>\S</font></TD><TD><font size=1>Non-space.</font></TD></TR>
+<TR><TD><font size=1>\d</font></TD><TD><font size=1>Digit [0-9].</font></TD></TR>
+<TR><TD><font size=1>\D</font></TD><TD><font size=1>Non-digit.</font></TD></TR>
+<TR><TD><font size=1>\h</font></TD><TD><font size=1>Hex digit [0-9a-fA-F].</font></TD></TR>
+<TR><TD><font size=1>\H</font></TD><TD><font size=1>Non-hex digit.</font></TD></TR>
+<TR><TD><font size=1>\u</font></TD><TD><font size=1>Single uppercase character.</font></TD></TR>
+<TR><TD><font size=1>\U</font></TD><TD><font size=1>Single lowercase character.</font></TD></TR>
+<TR><TD><font size=1>\p</font></TD><TD><font size=1>Punctuation (not including '_').</font></TD></TR>
+<TR><TD><font size=1>\P</font></TD><TD><font size=1>Non punctuation.</font></TD></TR>
+
+<TR><TD colspan=2><font size=1><p><center>Zero Width Assertions<hr></center></font></TD></TR>
+<TR><TD><font size=1>^</font></TD><TD><font size=1>Match begin of line [if at begin of pattern].</font></TD></TR>
+<TR><TD><font size=1>$</font></TD><TD><font size=1>Match end of line [if at end of pattern].</font></TD></TR>
+<TR><TD><font size=1>\&lt;</font></TD><TD><font size=1>Begin of word.</font></TD></TR>
+<TR><TD><font size=1>\&gt;</font></TD><TD><font size=1>End of word.</font></TD></TR>
+<TR><TD><font size=1>\b</font></TD><TD><font size=1>Word boundary.</font></TD></TR>
+<TR><TD><font size=1>\B</font></TD><TD><font size=1>Word interior.</font></TD></TR>
+<TR><TD><font size=1>\A</font></TD><TD><font size=1>Match only beginning of string.</font></TD></TR>
+<TR><TD><font size=1>\Z</font></TD><TD><font size=1>Match only and end of string.</font></TD></TR>
+<TR><TD><font size=1>(?= ... )</font></TD><TD><font size=1>Positive lookahead.</font></TD></TR>
+<TR><TD><font size=1>(?! ... )</font></TD><TD><font size=1>Negative lookahead.</font></TD></TR>
+
+<TR><TD colspan=2><font size=1><p><center>Other<hr></center></font></TD></TR>
+<TR><TD><font size=1>\1 ... \9</font></TD><TD><font size=1>Back reference.</font></TD></TR>
+<TR>
+</TR>
+</TABLE>
+</CENTER>
+<!--- INDENT END -->
+</ul>
+<!--- INDENT END -->
+<p>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id="HEADLINE"><b>
+The FXRex Class
+<br><img src='art/line.gif' width='100%' height=1></b></td></tr></table>
+<p>
+<!--- TOPIC TITLE -->
+
+
+<!--- INDENT BEGIN -->
+<ul>
+<!--- INDENT BEGIN -->
+
+The FXRex class is geared toward ultimate convenience:- simple things should
+be simple.  When you're interested in syntax errors, you can obtain the error
+code returned by the parser.  Otherwise, the compiled pattern will simply be
+set to the empty (fallback) pattern.  The fallback pattern will always
+fail to match.
+<p>
+FXRex contains the following member functions:
+<p>
+<P><BR><B>FXRex</B>()
+<BLOCKQUOTE>
+The default constructor initializes FXRex to the fallback or empty
+pattern.
+</BLOCKQUOTE>
+<p>
+<P><BR><B>FXRex</B>(const FXRex& <B><I>orig</I></B>)
+<BLOCKQUOTE>
+The copy constructor initializes FXRex to the a copy of the original
+pattern.
+</BLOCKQUOTE>
+<p>
+<P><BR><B>FXRex</B>(const FXchar* <B><I>pattern</I></B>,FXint <B><I>mode</I></B>=REX_NORMAL,FXRexError* <B><I>error</I></B>=NULL)
+<BLOCKQUOTE>
+Parse the given pattern by calling parse.  If the parameter <B><I>error</I></B> is not NULL, the return code
+of the parse will be assigned to its contents; this code will be set to REGERR_OK if the parse succeeded,
+or some error code if it failed.
+</BLOCKQUOTE>
+<p>
+<P><BR><B>FXRex</B>(const FXString& <B><I>pattern</I></B>,FXint <B><I>mode</I></B>=REX_NORMAL,FXRexError* <B><I>error</I></B>=NULL)
+<BLOCKQUOTE>
+Same as above, only taking an FXString as argument.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXRex&<B></B> operator=(const FXRex& <B><I>orig</I></B>)
+<BLOCKQUOTE>
+Assigns the compiled pattern of orig into this FXRex.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXbool<B></B> empty()
+<BLOCKQUOTE>
+Returns TRUE if the pattern is empty, i.e. equal to the fallback pattern which matches nothing.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXRexError<B> parse</B>(const FXchar* <B><I>pattern</I></B>,FXint <B><I>mode</I></B>=REX_NORMAL)
+<BLOCKQUOTE>
+Parse the given pattern, returning REGERR_OK if successful, and an error code if a syntax error has been detected.
+The <B><I>mode</I></B> parameter is the bitwise OR of some flags which control various aspects of
+the regular expression code being generated:
+<ul>
+<li><b>REX_NORMAL</b>. This is the default; the normal mode does not generate capturing
+parentheses; this corresponds to the most common use of regular expression matching.<p>
+<li><b>REX_CAPTURE</b>.  This flag enables the use of capturing parentheses, and back-references.<p>
+<li><b>REX_ICASE</b>.  Case insensitive matching is enabled.  When backreferences are also enabled,
+through the REX_CAPTURE flag, they become insensitive to case as well, so that a pattern "(aa)bb\1"
+will match "aabbAA".<br>
+The REX_ICASE mode can be changed using <em>cloistered</em> mode expressions
+of the form "(?i ... )", which enables case-insensitive mode only for the given subexpression,
+and "(?I ... )", which enables case-sensitive mode for the subexpression.<p>
+<li><b>REX_NEWLINE</b>.  This will cause the <em>any character</em> type operations to also match
+newlines.<br>
+The expressions "(?n ... )" and (?N ... )" can be used to change the REX_NEWLINE mode for a
+subexpression.<p>
+<li><b>REX_VERBATIM</b>.  This flag turns off all the magic characters (including backslash
+escape sequences).  The corresponding regular expression program therefore degenerates into
+a simple literal match.  If REX_ICASE has also been passed, a literal case-insensitive
+match results.<br>
+The REX_VERBATIM flag is useful to allow building regular expression programs even when no
+special matching is required.<p>
+<li><b>REX_SYNTAX</b>. When this flag is passed, the pattern is parsed normally, but no
+code is generated.  This option is useful to test the regular expression pattern for
+syntactical correctness only.
+</ul>
+When parsing fails, or when REX_SYNTAX is passed, the regular expression object will be
+initialized to the fallback program; in other words, the regular expression will
+be <em>empty</em>.  All matches attempted with the empty pattern will fail.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXRexError<B> parse</B>(const FXString& <B><I>pattern</I></B>,FXint <B><I>mode</I></B>=REX_NORMAL)
+<BLOCKQUOTE>
+Same as above, only taking an FXString as argument.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXbool<B> match</B>(const FXchar* <B><I>string</I></B>,FXint <B><I>len</I></B>,FXint* <B><I>beg</I></B>=NULL,FXint* <B><I>end</I></B>=NULL,FXint <B><I>mode</I></B>=REX_FORWARD,FXint <B><I>npar</I></B>=1,FXint <B><I>fm</I></B>=0,FXint <B><I>to</I></B>=2147483647)
+<BLOCKQUOTE>
+Match the given subject <B><I>string</I></B> of length <B><I>len</I></B>, and returns TRUE if the pattern matches.
+if <B><I>beg</I></B> and <B><I>end</I></B> are not NULL, (beg[0],end[0]) will contain the offsets relative
+to the begin of <B><I>string</I></B> where the match started/ended, and (beg[i],end[i]) will contain the
+offsets where sub-expression i started/ended, or (-1,-1) if the corresponding subexpression was not
+matched.
+The search is performed in the range [<B><I>fm</I></B>,<B><I>to</I></B>].
+<p>
+The <B><I>mode</I></B> parameter is a bitwise OR of some flags which control how the string is to
+be matched by the pattern:
+<ul>
+<li><b>REX_FORWARD</b>.  This is the default.  REX_FORWARD causes the matcher to scan the subject
+string starting from offset <B><I>fm</I></B> up to and including offset <B><I>to</I></B>.<p>
+<li><b>REX_BACKWARD</b>. Scan the subject string, moving backwards starting from <B><I>to</I></B>
+down to offset <B><I>fm</I></B>.
+An important special case is when <B><I>fm</I></B> and <B><I>to</I></B> are the same; in this case,
+only a single attempt is made at the indicated offset.
+Observe also that while the scan is performed between <B><I>fm</I></B> and <B><I>to</I></B>, the
+actual subject string matched may extend past this range!<p>
+<li><b>REX_NOT_BOL</b>. Normally, it is assumed that the start of the subject string is also the start of a
+line; however passing the flag REX_NOT_BOL suppresses this behavior.  When passed, only positions immediately
+following a newline will match the "^" assertion.<p>
+<li><b>REX_NOT_EOL</b>. This suppresses the interpretation of the end of the subject string as the end
+of a line; when passed, only positions preceding a newline will match the "$" assertion.<br>
+The flags REX_NOT_BOL and REX_NOT_EOL are useful when you need to match against a random chunk of
+text.<P>
+<li><b>REX_NOT_EMPTY</b>. Disallow empty strings from matching.  When passed,
+an empty string is <b>NOT</b> considered a match; for example, if the pattern:
+<p>
+<BLOCKQUOTE>
+a?b?
+</BLOCKQUOTE>
+<p>
+is applied to a string not beginning with  "a"  or  "b",  it
+matches  the  empty string at the start of the subject.
+With the REX_NOT_EMPTY flag, this match is not valid, so FXRex searches
+further into the string for occurrences of "a" or "b".
+
+For example, when searching for pattern "a*"
+in "bbba", normally "" would be matched, as zero repetitions of "a" is normally possible.  With REX_NOT_EMPTY,
+the single "a" will be matched instead. <br>
+This is usually what people expect to happen.
+</ul>
+
+<p>
+The parameter <B><I>npar</I></B> controls the length of the beg/end arrays.  It should
+be set to at least 1.
+If the pattern has been compiled with REX_CAPTURE, any capturing sub-expressions at a level
+greater than <B><I>npar</I></B> will operate as if they were non-capturing subexpressions.
+Thus, backreferences greater than <B><I>npar</I></B> will fail.<br>
+Hence it is important to pass a value for <B><I>npar</I></B> which is at least as large
+as the expected number of capturing subexpressions.
+<p>
+The parameters <B><I>fm</I></B> and <B><I>to</I></B> furnish the matcher with the range of the
+text to be searched.  Making <B><I>fm</I></B> and <B><I>to</I></B> equal will force the
+matcher to perform a single matching attemt at the given offset.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXbool<B> match</B>(const FXString& <B><I>string</I></B>,FXint* <B><I>beg</I></B>=NULL,FXint* <B><I>end</I></B>=NULL,FXint <B><I>mode</I></B>=REX_FORWARD,FXint <B><I>npar</I></B>=1,FXint <B><I>fm</I></B>=0,FXint <B><I>to</I></B>=2147483647)
+<BLOCKQUOTE>
+Same as above, only taking an FXString parameter.
+</BLOCKQUOTE>
+
+<p>
+<P><BR>static const FXchar*<B> getError</B>(FXRexError <B><I>error</I></B>)
+<BLOCKQUOTE>
+Returns a pointer to a string containing a human-readable error message for the given
+<B><I>error</I></B> code.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXbool<B> operator==</B>(const FXRex& <B><I>r1</I></B>,const FXRex& <B><I>r2</I></B>)
+<P>FXbool<B> operator!=</B>(const FXRex& <B><I>r1</I></B>,const FXRex& <B><I>r2</I></B>)
+<BLOCKQUOTE>
+Compares regular expression <B><I>r1</I></B> and <B><I>r2</I></B>.
+<B><I>error</I></B> code.
+</BLOCKQUOTE>
+<p>
+<P><BR>FXStream&<B> operator<<</B>(FXStream& <B><I>store</I></B>,const FXRex& <B><I>s</I></B>)
+<P>FXStream&<B> operator>></B>(FXStream& <B><I>store</I></B>,FXRex& <B><I>s</I></B>)
+<BLOCKQUOTE>
+Serialize and deserialize regular expression <B><I>s</I></B> to/from stream <B><I>store</I></B>.
+</BLOCKQUOTE>
+<p>
+
+<!--- INDENT END -->
+</ul>
+<!--- INDENT END -->
+<p>
+
+
+<!--- TOPIC TITLE -->
+<p>
+<table width=100% cellpadding=0 cellspacing=2><tr><td width=100% valign=bottom id="HEADLINE"><b>
+Using the FXRex class
+<br><img src='art/line.gif' width='100%' height=1></b></td></tr></table>
+<p>
+<!--- TOPIC TITLE -->
+
+
+<!--- INDENT BEGIN -->
+<ul>
+<!--- INDENT BEGIN -->
+
+FXRex is most easy to use.  The simplest usage is something like:
+<p>
+<center><table BORDER CELLSPACING=0 COLS=1 WIDTH="90%" BGCOLOR="#FFF8E1" NOSAVE >
+<tr>
+<td>
+<br><tt>// A letter or underscore followed by a letters, digits, or underscores</tt>
+<br><tt>FXRex identifier("[a-zA-Z_][a-zA-Z0-9_]*");</tt>
+<br><tt>FXString string;</tt>
+<br><tt>&nbsp; ...</tt>
+<br><tt>if(identifier.match(string)){  /* found it ... */ }</tt>
+</td>
+</tr>
+</table></center>
+<p>
+The usage above is the simplest possible:- we just want to know if the pattern is
+contained in the string.
+If we need to execute a pattern only once, more crufty C++ implementor would
+probably write:
+<p>
+<center><table BORDER CELLSPACING=0 COLS=1 WIDTH="90%" BGCOLOR="#FFF8E1" NOSAVE >
+<tr>
+<td>
+<br><tt>if(FXRex("[a-zA-Z_][a-zA-Z0-9_]*").match(string)){  /* found it ... */ }</tt>
+</td>
+</tr>
+</table></center>
+<p>
+Its so nice to be able to do that in 1 line of code, isn't it?<br>
+Most of the time, we want to know more; not only whether there was a match or not,
+but also where in the string the pattern was found:
+<p>
+<center><table BORDER CELLSPACING=0 COLS=1 WIDTH="90%" BGCOLOR="#FFF8E1" NOSAVE >
+<tr>
+<td>
+<br><tt>// A letter or underscore followed by a letters, digits, or underscores</tt>
+<br><tt>FXRex identifier("[a-zA-Z_][a-zA-Z0-9_]*");</tt>
+<br><tt>FXString string;</tt>
+<br><tt>FXint beg,end;</tt>
+<br><tt>&nbsp; ...</tt>
+<br><tt>if(identifier.match(string,&amp;beg,&amp;end)){ </tt>
+<br><tt>&nbsp;&nbsp;// Return the matching part</tt>
+<br><tt>&nbsp;&nbsp;return string.mid(beg,end-beg);</tt>
+<br><tt>&nbsp;&nbsp;}</tt>
+</td>
+</tr>
+</table></center>
+<p>
+If we have enabled capturing parentheses, we can extract even more information;
+not only where the whole pattern matched, but also where each subpattern was found.
+The following code fragment which breaks up a floating point number into a
+sign,mantissa, and exponent using the pattern "(-|\+|)(\d*\.\d*)(E(-|\+|)\d+)?"
+illustrates the technique:
+<p>
+<center><table BORDER CELLSPACING=0 COLS=1 WIDTH="90%" BGCOLOR="#FFF8E1" NOSAVE >
+<tr>
+<td>
+<br><tt>// Pick apart a floating point number</tt>
+<br><tt>// Note that backslashes must be escaped in C++!</tt>
+<br><tt>FXRex number("(-|\\+|)(\\d*\\.\\d*)(E(-|\\+|)\\d+)?",REX_CAPTURE);</tt>
+<br><tt>FXString string,sign,mantissa,exponent;</tt>
+<br><tt>FXint beg[5],end[5];</tt>
+<br><tt>&nbsp; ...</tt>
+<br><tt>if(number.match(string,beg,end,REX_FORWARD,5)){ </tt>
+<br><tt>&nbsp;&nbsp;// Get the sign</tt>
+<br><tt>&nbsp;&nbsp;sign=string.mid(beg[1],end[1]-beg[1]);</tt>
+<br><tt>&nbsp;&nbsp;// Get the mantissa</tt>
+<br><tt>&nbsp;&nbsp;mantissa=string.mid(beg[2],end[2]-beg[2]);</tt>
+<br><tt>&nbsp;&nbsp;// Get the exponent</tt>
+<br><tt>&nbsp;&nbsp;exponent=string.mid(beg[3],end[3]-beg[3]);</tt>
+<br><tt>&nbsp;&nbsp;}</tt>
+</td>
+</tr>
+</table></center>
+<p>
+Note that we're passing npar=5 as the last argument because there are 5 pairs
+of values returned in the beg[] and end[] arrays: (beg[0],end[0]) contains the
+entire pattern, (beg[1],end[1]) the sign, (beg[2],end[2]) the mantissa, (beg[3],end[3])
+the exponent, and (beg[4],end[4]) the sign of the exponent.<br>
+If a particular sub-expression is not matched (for example, if there is no exponent),
+then the corresponding entry will contain (-1,-1).<br>
+Because it needs to record where a sub-expression matches, its quite expensive
+to use capturing parentheses when we don't need to.  Fortunately, there's a
+solution for this:
+<p>
+<center><table BORDER CELLSPACING=0 COLS=1 WIDTH="90%" BGCOLOR="#FFF8E1" NOSAVE >
+<tr>
+<td>
+<br><tt>// Pick apart a floating point number</tt>
+<br><tt>FXRex number("(-|\\+|)(\\d*\\.\\d*)(E(?:-|\\+|)\\d+)?",REX_CAPTURE);</tt>
+<br><tt>FXString string,sign,mantissa,exponent;</tt>
+<br><tt>FXint beg[4],end[4];</tt>
+<br><tt>&nbsp; ...</tt>
+<br><tt>if(number.match(string,beg,end,REX_FORWARD,4)){ </tt>
+<br><tt>&nbsp;&nbsp;// Get the sign</tt>
+<br><tt>&nbsp;&nbsp;sign=string.mid(beg[1],end[1]-beg[1]);</tt>
+<br><tt>&nbsp;&nbsp;// Get the mantissa</tt>
+<br><tt>&nbsp;&nbsp;mantissa=string.mid(beg[2],end[2]-beg[2]);</tt>
+<br><tt>&nbsp;&nbsp;// Get the exponent</tt>
+<br><tt>&nbsp;&nbsp;exponent=string.mid(beg[3],end[3]-beg[3]);</tt>
+<br><tt>&nbsp;&nbsp;}</tt>
+</td>
+</tr>
+</table></center>
+<p>
+The syntax "(?: ... )" makes the enclosed expression a non-capturing one.  Note
+that this also means we can make do with one less entry in the beg and end arrays,
+as we're getting one fewer return value.
+<p>
+If the npar parameter is too small, then any capturing parentheses level greater
+than npar will behave as a non-capturing parenthesis (however, if back references
+are also used, a back reference to a capturing parenthesis greater than npar
+will cause the match to fail!).
+<p>
+The example below determines if there is a floating point number at
+offset pos in the string:
+<p>
+<center><table BORDER CELLSPACING=0 COLS=1 WIDTH="90%" BGCOLOR="#FFF8E1" NOSAVE >
+<tr>
+<td>
+<br><tt>// Does string starting at pos match a floating point number?</tt>
+<br><tt>FXRex number("(-|\\+|)(\\d*\\.\\d*)(E(-|\\+|)\\d+)?",REX_NORMAL);</tt>
+<br><tt>FXString string;</tt>
+<br><tt>FXint pos;</tt>
+<br><tt>&nbsp; ...</tt>
+<br><tt>if(number.match(string,NULL,NULL,REX_FORWARD,1,pos,pos)){ </tt>
+<br><tt>&nbsp;&nbsp;...</tt>
+<br><tt>&nbsp;&nbsp;// YES</tt>
+<br><tt>&nbsp;&nbsp;...</tt>
+<br><tt>&nbsp;&nbsp;}</tt>
+</td>
+</tr>
+</table></center>
+<p>
+Since both starting and ending offsets are the same, the matcher makes only
+a single attempt at matching the pattern at the offset pos; it does not scan
+the whole subject string.
+
+<!--- INDENT END -->
+</ul>
+<!--- INDENT END -->
+
+
+<!--- COPYRIGHT -->
+<p>
+<table width=100% cellpadding=0 cellspacing=0><tr><td width=100% valign=top id=HEADLINE align=right>
+<img src='art/line.gif' width=100% height=1><font size=-1>
+Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+</td></tr></table>
+</p>
+<!--- COPYRIGHT -->
+
+</body>
+</html>

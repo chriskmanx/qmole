@@ -1,0 +1,789 @@
+dnl Initialize autoconf and automake
+AC_INIT(src/main.cc)
+AC_PREREQ(2.52)
+AM_INIT_AUTOMAKE(fluxbox,1.3.2, no-define)
+
+dnl Determine default prefix
+test x$prefix = "xNONE" && prefix="$ac_default_prefix"
+
+dnl Check for various flavors of UNIX(r)
+dnl AC_AIX
+dnl AC_ISC_POSIX
+
+AC_LANG_CPLUSPLUS
+ 
+dnl Locate required external software
+AC_PROG_CC
+AC_PROG_CXX
+AC_PROG_INSTALL
+AC_PROG_RANLIB
+
+AC_C_CONST
+AC_C_INLINE
+
+AC_TYPE_PID_T
+AC_TYPE_SIZE_T
+
+
+AC_CHECK_PROGS(regex_cmd, sed)
+if test x$regex_cmd = "x"; then
+  AC_MSG_ERROR([error. sed is required to build the data files.])
+fi
+
+dnl Check for system header files
+AC_HEADER_STDC
+AC_HEADER_STDBOOL
+AC_CHECK_HEADERS(errno.h ctype.h dirent.h fcntl.h libgen.h \
+                 locale.h math.h nl_types.h process.h signal.h stdarg.h \
+                 stdio.h time.h unistd.h \
+                 sys/param.h sys/select.h sys/signal.h sys/stat.h \
+                 sys/time.h sys/types.h sys/wait.h \
+                 langinfo.h iconv.h)
+
+
+
+AC_CHECK_HEADERS(sstream, ,
+        [ AC_CHECK_HEADERS(strstream,,
+            [AC_MSG_ERROR([Your libstdc++ doesn't have the sstream or strstream classes])]
+        )]
+)
+
+AC_CHECK_HEADERS(cassert cctype cerrno cmath cstdarg cstdio cstdlib cstring ctime)
+
+
+dnl Check for existance of basename(), setlocale() and strftime()
+AC_FUNC_CLOSEDIR_VOID
+AC_FUNC_ERROR_AT_LINE
+AC_FUNC_FORK
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_FUNC_SELECT_ARGTYPES
+AC_FUNC_STAT
+
+AC_CHECK_FUNCS(basename, , AC_CHECK_LIB(gen, basename, LIBS="$LIBS -lgen"))
+AC_CHECK_FUNCS(catclose catgets catopen getpid gettimeofday memset mkdir \
+    nl_langinfo putenv regcomp select setenv setlocale sigaction snprintf \
+    sqrt strcasecmp strcasestr strchr strstr strtol strtoul vsnprintf)
+
+dnl The autoconf test for strftime is broken now (due to gcc 3.3 bug?):
+dnl Gcc 3.3 testprog = ``extern "C" char strftime;'', build with g++ test.cc
+dnl breaks with:
+dnl   test.cc:1: error: nonnull argument with out-of-range operand number 
+dnl   (arg 1, operand 3)
+
+
+AC_MSG_CHECKING(for strftime)
+
+AC_COMPILE_IFELSE(
+[AC_LANG_PROGRAM([#include <time.h>],
+[[
+char * s;
+time_t t = time(NULL);
+size_t x = strftime(s, 5, "%a", localtime(&t));
+]]
+)],
+[
+	AC_DEFINE(HAVE_STRFTIME, 1, [Define to 1 if you have the 'strftime' function.])
+	AC_MSG_RESULT(yes)
+],
+[AC_MSG_RESULT(no)])
+
+
+AC_STRUCT_TM
+
+dnl ---------------
+dnl CHECK FOR ICONV
+dnl ---------------
+dnl Find iconv. It may be in libiconv and may be iconv() or libiconv()
+if test "x$ac_cv_header_iconv_h" = "xyes"; then
+    ac_found_iconv=no
+    AC_COMPILE_IFELSE(
+        [AC_LANG_PROGRAM(
+        [[#include <stdlib.h>
+          #include <iconv.h>]],
+        [[
+          iconv_open(NULL, NULL);
+          return 0;
+        ]]
+        )],
+        [
+            ac_found_iconv=yes
+        ],
+        [ ])
+     
+    AC_COMPILE_IFELSE(
+        [AC_LANG_PROGRAM(
+        [[#include <stdlib.h>
+          #include <iconv.h>]],
+        [[
+          libiconv_open(NULL, NULL);
+          return 0;
+        ]]
+        )],
+        [
+            ac_found_iconv=yes
+        ],
+        [ ])
+
+    if test "x$ac_found_iconv" = xyes; then
+        AC_DEFINE(HAVE_ICONV, 1, [Define if you have the iconv() function.])
+        AC_CHECK_LIB([iconv], 
+                     [iconv_open], 
+                     [
+                        LIBS="$LIBS -liconv"
+                     ], 
+                     [])
+        AC_CHECK_LIB([iconv], 
+                     [libiconv_open], 
+                     [
+                        LIBS="$LIBS -liconv"
+                     ], 
+                     [])
+
+dnl Check if iconv uses const in prototype declaration
+        AC_CACHE_CHECK(for iconv declaration, 
+                        ac_cv_iconv_const,
+                        [AC_COMPILE_IFELSE(
+                            [AC_LANG_PROGRAM(
+                             [[#include <stdlib.h>
+                               #include <iconv.h>]],
+                             [[
+                               char **msg, **new_msg; 
+                               size_t result, inleft, outleft; 
+                               result = iconv((iconv_t)(-1), msg, &inleft, new_msg, &outleft);
+                               return 0;
+                             ]]
+                             )],
+                             [ac_cv_iconv_const=no],
+                             [ac_cv_iconv_const=yes])
+                        ])
+        if test "x$ac_cv_iconv_const" = xyes; then
+            AC_DEFINE(HAVE_CONST_ICONV, 1, [Define if you have the iconv() function.])
+        fi
+    fi
+fi
+
+AC_CHECK_LIB(nsl, t_open, LIBS="$LIBS -lnsl")
+AC_CHECK_LIB(socket, socket, LIBS="$LIBS -lsocket")
+
+dnl Check for X headers and libraries
+AC_PATH_X
+AC_PATH_XTRA
+
+test x$no_x = "xyes" && AC_MSG_ERROR([Fluxbox requires the X Window System libraries and headers.])
+
+test x$x_includes = "x" && x_includes="/usr/include"
+test x$x_libraries = "x" && x_libraries="/usr/lib"
+
+CFLAGS="$CFLAGS $X_CFLAGS"
+CXXFLAGS="$CXXFLAGS $X_CFLAGS"
+LIBS="$LIBS $X_LIBS"
+LDFLAGS="$LDFLAGS $LIBS $X_PRE_LIBS"
+
+
+dnl Check for required functions in -lX11
+AC_CHECK_LIB(X11, XOpenDisplay,
+  LIBS="$LIBS -lX11",
+  AC_MSG_ERROR([Could not find XOpenDisplay in -lX11.])
+)
+LIBS="$LIBS $X_EXTRA_LIBS"
+
+AC_CHECK_LIB(xpg4, setlocale, LIBS="$LIBS -lxpg4")
+
+AC_CHECK_PROGS(gencat_cmd, gencat)
+if test x$gencat_cmd = "x"; then
+  NLS=""
+fi
+
+Xext_lib=""
+
+
+dnl Check for the Slit
+AC_MSG_CHECKING([whether to include the Slit])
+AC_ARG_ENABLE(
+  slit, [  --enable-slit           include code for the Slit ([default=yes])],
+  if test x$enableval = "xyes"; then
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(SLIT, 1, " compile with slit")
+  else
+    AC_MSG_RESULT([no])
+  fi,
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(SLIT, 1, " compile with slit")
+)
+
+dnl Check for Remember options
+AC_MSG_CHECKING([whether to include remember functionality])
+AC_ARG_ENABLE(
+  remember, [  --enable-remember       include code for Remembering attributes ([default=yes])],
+  if test x$enableval = "xyes"; then
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(REMEMBER, 1, " compile with remember")
+    REMEMBER_SRC=true
+  else
+    AC_MSG_RESULT([no])
+    REMEMBER_SRC=false
+  fi,
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(REMEMBER, 1, " compile with remember")
+  REMEMBER_SRC=true
+)
+AM_CONDITIONAL(REMEMBER_SRC, test x$REMEMBER_SRC = xtrue)
+
+dnl Check for Toolbar options
+AC_MSG_CHECKING([whether to include Toolbar])
+AC_ARG_ENABLE(
+  toolbar, [  --enable-toolbar        include code for Toolbar ([default=yes])],
+  if test x$enableval = "xyes"; then
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(USE_TOOLBAR, 1, " compile with toolbar")
+    TOOLBAR_SRC=true
+  else
+    AC_MSG_RESULT([no])
+    TOOLBAR_SRC=false
+  fi,
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(USE_TOOLBAR, 1, " compile with toolbar")
+  TOOLBAR_SRC=true
+)
+AM_CONDITIONAL(TOOLBAR_SRC, test x$TOOLBAR_SRC = xtrue)
+
+AC_MSG_CHECKING([whether to have (POSIX) regular expression support])
+AC_ARG_ENABLE(
+  regexp,
+[  --enable-regexp         regular expression support ([default=yes])],
+  if test x$enableval = "xyes"; then
+        AC_EGREP_HEADER([regex_t],regex.h,
+                AC_DEFINE(USE_REGEXP, 1, "Regular Expression support")
+        	AC_MSG_RESULT([yes])
+                REGEXP_SRC=true,
+                AC_MSG_RESULT([no])
+                REGEXP_SRC=false
+        )
+  else
+    AC_MSG_RESULT([no])	
+    REGEXP_SRC=false
+  fi,  
+  AC_EGREP_HEADER([regex_t],regex.h,
+        AC_DEFINE(USE_REGEXP, 1, "Regular Expression support")
+        AC_MSG_RESULT([yes])
+        REGEXP_SRC=true,
+        AC_MSG_RESULT([no])
+        REGEXP_SRC=false
+  )
+)
+AM_CONDITIONAL(REGEXP_SRC, test x$REGEXP_SRC = xtrue)
+
+AC_MSG_CHECKING([whether to include the new WM Spec])
+AC_ARG_ENABLE(
+  newwmspec,
+[  --enable-newwmspec      include code for the new WM Spec ([default=yes])],
+  if test x$enableval = "xyes"; then
+	AC_MSG_RESULT([yes])
+	NEWWMSPEC=true
+    AC_DEFINE(USE_NEWWMSPEC, 1, " use extened window manager hints")
+  else
+    AC_MSG_RESULT([no])
+	NEWWMSPEC=false
+  fi,
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(USE_NEWWMSPEC, 1, " use extened window manager hints")
+  NEWWMSPEC=true
+)
+AM_CONDITIONAL(NEWWMSPEC, test x$NEWWMSPEC = xtrue)
+
+dnl Check whether to include debugging code
+DEBUG=""
+AC_MSG_CHECKING([whether to include verbose debugging code])
+AC_ARG_ENABLE(debug,
+  [  --enable-debug          include verbose debugging code ([default=no])],
+  if test x$enableval = "xyes"; then
+    AC_MSG_RESULT([yes])
+    DEBUG="-DDEBUG -Wall"
+  else
+    AC_MSG_RESULT([no])
+  fi,
+  AC_MSG_RESULT([no])
+)
+AC_SUBST(DEBUG)
+CXXFLAGS="$CXXFLAGS $DEBUG"
+
+dnl Check whether to build test programs
+AC_MSG_CHECKING([whether to build test programs])
+AC_ARG_ENABLE(test,
+  [  --enable-test           build programs used in testing fluxbox ([default=no])],
+  if test x$enableval = "xyes"; then
+    AC_MSG_RESULT([yes])
+    TEST=yes
+  else
+    AC_MSG_RESULT([no])
+    TEST=no
+  fi,
+  AC_MSG_RESULT([no])
+  TEST=no
+)
+AM_CONDITIONAL(TEST, test x$TEST = xyes)
+
+dnl Check whether to include native language support (i18n)
+AC_MSG_CHECKING([whether to include NLS support])
+AC_ARG_ENABLE(nls,
+  [  --enable-nls            include native language support ([default=no])],
+  if test x$enableval = "xyes"; then
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(NLS, 1, "Native language support")
+    NLS="-DNLS"
+  else
+    AC_MSG_RESULT([no])
+  fi,
+  AC_MSG_RESULT([no])
+)
+AC_SUBST(NLS)
+
+
+
+
+
+
+dnl Check for new timed pixmap cache
+AC_MSG_CHECKING([whether to use the new timed pixmap cache])
+AC_ARG_ENABLE(
+  timed-cache,
+[  --enable-timed-cache    use new timed pixmap cache ([default=yes])],
+  if test x$enableval = "xyes"; then
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(TIMEDCACHE, 1, "timed cache")
+  else
+    AC_MSG_RESULT([no])
+  fi,
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(TIMEDCACHE, 1, "timed cache")
+)
+
+
+AC_MSG_CHECKING([whether to have Xft support])
+AM_PATH_XFT(yes,
+	XFT=true,
+	XFT=false
+)
+
+if test "x$XFT" = "xtrue" ; then
+	AC_TRY_LINK([
+			#include <X11/Xft/Xft.h>
+		], [ XftFontClose(0, 0); return 1; ], 
+	[
+		
+		AC_DEFINE(USE_XFT, 1, "antialias support")
+	    AC_MSG_CHECKING([Xft UTF-8 support])
+   	     AC_TRY_LINK([
+			#include <X11/Xft/Xft.h>
+		], [ XftDrawStringUtf8(0, 0, 0, 0, 0, 0, 0); return 0; ],
+		AC_DEFINE(HAVE_XFT_UTF8_STRING, 1, "Xft UTF8 support")
+		AC_MSG_RESULT(yes),
+		AC_MSG_RESULT(no)
+		)
+	],
+	[	AC_MSG_RESULT([Could not link with Xft. Install Xft if you want support for it.])
+		XFT=false
+	])
+fi
+
+AM_CONDITIONAL(XFT, test x$XFT = xtrue)
+
+AC_MSG_CHECKING([whether to have Xrender (transparent) support])
+AC_ARG_ENABLE(
+  xrender,
+[  --enable-xrender        Xrender (transparent) support ([default=yes])],
+  if test x$enableval = "xyes"; then
+	AC_MSG_RESULT([yes])
+	AC_CHECK_LIB(Xrender, XRenderCreatePicture, 
+		AC_DEFINE(HAVE_XRENDER, 1, "Xrender support")
+		LIBS="$LIBS -lXrender")
+  else
+    AC_MSG_RESULT([no])	
+  fi,  
+  AC_MSG_RESULT([yes])
+  AC_CHECK_LIB(Xrender, XRenderCreatePicture, 
+	AC_DEFINE(HAVE_XRENDER, 1, "Xrender support")
+	LIBS="$LIBS -lXrender")
+)
+
+XPM=false
+AC_MSG_CHECKING([whether to have Xpm (pixmap themes) support])
+AC_ARG_ENABLE(
+  xpm,
+[  --enable-xpm            Xpm (pixmap themes) support ([default=yes])],
+  if test x$enableval = "xyes"; then
+	AC_MSG_RESULT([yes])
+	AC_CHECK_LIB(Xpm, XpmReadFileToPixmap,
+		AC_DEFINE(HAVE_XPM, 1, "Xpm support")
+		XPM=true
+		LIBS="$LIBS -lXpm")
+  else
+    AC_MSG_RESULT([no])	
+  fi,  
+  AC_MSG_RESULT([yes])
+  AC_CHECK_LIB(Xpm, XpmReadFileToPixmap,
+	AC_DEFINE(HAVE_XPM, 1, "Xpm support")
+	XPM=true
+	LIBS="$LIBS -lXpm")
+)
+
+AM_CONDITIONAL(XPM, test x$XPM = xtrue)
+
+dnl Check whether to use imlib2
+IMLIB2=false
+AC_MSG_CHECKING([whether to have Imlib2 (pixmap themes) support])
+AC_ARG_ENABLE(imlib2,
+    AC_HELP_STRING([--enable-imlib2],
+                   [Imlib2 (pixmap themes) support ([default=yes])]), ,
+                   [enable_imlib2=yes])
+if test x$enable_imlib2 = "xyes"; then
+    AC_MSG_RESULT([yes])
+    AC_PATH_GENERIC(imlib2, 1.0.0,
+      [
+         IMLIB2=true
+         AC_DEFINE(HAVE_IMLIB2, [], [Imlib2 support])
+         IMLIB2_LIBS=`imlib2-config --libs`
+         IMLIB2_CFLAGS=`imlib2-config --cflags`
+         LIBS="$LIBS $IMLIB2_LIBS"
+         CXXFLAGS="$CXXFLAGS $IMLIB2_CFLAGS"
+       ], [ AC_MSG_RESULT(no)]
+    )
+else
+    AC_MSG_RESULT([no])
+fi
+
+AM_CONDITIONAL(IMLIB2, test x$IMLIB2 = xtrue)
+
+
+
+AC_MSG_CHECKING([whether to have Xmb (multibyte font, utf-8) support])
+AC_ARG_ENABLE(
+  xmb,
+[  --enable-xmb            Xmb (multibyte font, utf-8) support ([default=yes])],
+  if test x$enableval = "xyes"; then
+	AC_MSG_RESULT([yes])
+	AC_DEFINE(USE_XMB, 1, "multibyte support")
+	MULTIBYTE=true
+  else
+    AC_MSG_RESULT([no])
+	MULTIBYTE=false
+  fi,  
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(USE_XMB, 1, "multibyte support")
+  MULTIBYTE=true
+)
+AM_CONDITIONAL(MULTIBYTE, test x$MULTIBYTE = xtrue)
+
+
+dnl Check for Xinerama support and proper library files.
+enableval="yes"
+AC_MSG_CHECKING([whether to build support for the Xinerama extension])
+AC_ARG_ENABLE(xinerama,
+	AC_HELP_STRING([--enable-xinerama],
+								 [enable support of the Xinerama extension [default=yes]]), ,
+							[enableval=yes])
+if test "x$enableval" = "xyes"; then
+  AC_MSG_RESULT([yes])
+  AC_CHECK_LIB(Xinerama, XineramaQueryScreens,
+    AC_MSG_CHECKING([for X11/extensions/Xinerama.h])
+    AC_TRY_COMPILE(
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/Xinerama.h>
+      , XineramaQueryScreens(0, 0),
+			AC_MSG_RESULT([yes])
+			AC_DEFINE(XINERAMA, [1], [Define to 1 if you have XINERAMA])
+			LIBS="$LIBS -lXinerama",
+		AC_MSG_RESULT([no])))
+else
+  AC_MSG_RESULT([no])
+  CONFIGOPTS="$CONFIGOPTS --disable-xinerama"
+fi
+
+dnl Check for XShape extension support and proper library files.
+enableval="yes"
+AC_MSG_CHECKING([whether to build support for the XShape extension])
+AC_ARG_ENABLE(shape,
+	AC_HELP_STRING([--enable-shape],
+								 [enable support of the XShape extension [default=yes]]), ,
+							[enableval=yes])
+if test "x$enableval" = "xyes"; then
+  AC_MSG_RESULT([yes])
+  AC_CHECK_LIB(Xext, XShapeCombineShape,
+    AC_MSG_CHECKING([for X11/extensions/shape.h])
+    AC_TRY_COMPILE(
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/shape.h>
+      , long foo = ShapeSet,
+			AC_MSG_RESULT([yes])
+			AC_DEFINE(SHAPE, [1], [Define to 1 if you have SHAPE])
+			LIBS="$LIBS -lXext"
+			FEATURES="$FEATURES XShape",
+		AC_MSG_RESULT([no])))
+else
+  AC_MSG_RESULT([no])
+  CONFIGOPTS="$CONFIGOPTS --disable-shape"
+fi
+
+
+
+dnl Check for RANDR support and proper library files.
+enableval="yes"
+AC_MSG_CHECKING([whether to build support for the Xrandr (X resize and rotate) extension])
+AC_ARG_ENABLE(randr,
+	AC_HELP_STRING([--enable-randr],
+								 [enable support of the Xrandr extension [default=yes]]), ,
+							[enableval=yes])
+if test "x$enableval" = "xyes"; then
+  AC_MSG_RESULT([yes])
+  AC_CHECK_LIB(Xrandr, XRRQueryExtension,
+    AC_MSG_CHECKING([for X11/extensions/Xrandr.h])
+    AC_TRY_COMPILE(
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/Xrandr.h>
+      , XRRQueryExtension(0, 0, 0),
+			AC_MSG_RESULT([yes])
+			AC_DEFINE(HAVE_RANDR, [1], [Define to 1 if you have RANDR])
+			LIBS="$LIBS -lXrandr",
+		AC_MSG_RESULT([no])))
+else
+  AC_MSG_RESULT([no])
+  CONFIGOPTS="$CONFIGOPTS --disable-randr"
+fi
+
+enableval="yes"
+AC_MSG_CHECKING([whether to have RANDR 1.2 support])
+AC_ARG_ENABLE(randr1.2,
+	AC_HELP_STRING([--enable-randr1.2],
+								 [RANDR 1.2 support [default=yes]]), ,
+							[enableval=yes])
+if test "x$enableval" = "xyes"; then
+  AC_MSG_RESULT([yes])
+  AC_CHECK_LIB(Xrandr, XRRQueryExtension,
+    AC_MSG_CHECKING([for X11/extensions/Xrandr.h])
+    AC_TRY_COMPILE(
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/Xrandr.h>
+      , XRRUpdateConfiguration(0),
+			AC_MSG_RESULT([yes])
+			AC_DEFINE(HAVE_RANDR1_2, [1], [Define to 1 if you have RANDR 1.2])
+			LIBS="$LIBS -lXrandr",
+		AC_MSG_RESULT([no])))
+else
+  AC_MSG_RESULT([no])
+  CONFIGOPTS="$CONFIGOPTS --disable-randr1.2"
+fi
+
+
+
+# # 
+# AC_MSG_CHECKING([whether to have RANDR 1.2 support])
+# AC_ARG_ENABLE(
+#   randr1.2,
+# [  --enable-randr1.2       RANDR 1.2 support ([default=yes])],
+#   if test x$enableval = "xyes"; then
+# 	AC_MSG_RESULT([yes])
+# 	AC_CHECK_LIB(Xrandr, XRRUpdateConfiguration,
+# 		AC_DEFINE(HAVE_RANDR1_2, 1, "randr 1.2 support"))
+#   else
+#     AC_MSG_RESULT([no])
+#   fi,  
+#   AC_MSG_RESULT([yes])
+#   AC_CHECK_LIB(Xrandr, XRRUpdateConfiguration,
+# 		AC_DEFINE(HAVE_RANDR1_2, 1, "randr 1.2 support"))
+# )
+
+
+enableval="yes"
+AC_MSG_CHECKING([whether to have FRIBIDI support])
+AC_ARG_ENABLE(fribidi,
+	AC_HELP_STRING([--enable-fribidi],
+								 [FRIBIDI support [default=yes]]), ,
+							[enableval=yes])
+if test "x$enableval" = "xyes"; then
+	AC_MSG_RESULT([yes])
+	AC_CHECK_LIB(fribidi, fribidi_version_info,
+		AC_MSG_CHECKING([for fribidi/fribidi.h])
+		AC_TRY_COMPILE(
+#include <fribidi/fribidi.h>
+      , fribidi_version_info,
+			AC_MSG_RESULT([yes])
+			AC_DEFINE(HAVE_FRIBIDI, [1], [Define to 1 if you have FRIBIDI])
+			LIBS="$LIBS -lfribidi",
+		AC_MSG_RESULT([no])))
+else
+  AC_MSG_RESULT([no])
+  CONFIGOPTS="$CONFIGOPTS --disable-fribidi"
+fi
+
+
+
+
+
+AC_ARG_WITH(
+  menu,
+  [  --with-menu=path        location menu file (PREFIX/share/fluxbox/menu)],
+  DEFAULT_MENU=$with_menu,
+  DEFAULT_MENU=\$\(prefix\)/share/fluxbox/menu
+)
+AC_SUBST(DEFAULT_MENU)
+
+AC_ARG_WITH(
+  windowmenu,
+  [  --with-windowmenu=path  location windowmenu file (PREFIX/share/fluxbox/windowmenu)],
+  DEFAULT_WINDOWMENU=$with_windowmenu,
+  DEFAULT_WINDOWMENU=\$\(prefix\)/share/fluxbox/windowmenu
+)
+AC_SUBST(DEFAULT_WINDOWMENU)
+
+AC_ARG_WITH(
+  style,
+  [  --with-style=path       style by default   (PREFIX/share/fluxbox/styles/bloe)],
+  DEFAULT_STYLE=$with_style,
+  DEFAULT_STYLE=\$\(prefix\)/share/fluxbox/styles/bloe
+)
+AC_SUBST(DEFAULT_STYLE)
+
+AC_ARG_WITH(
+  keys,
+  [  --with-keys=path        location keys file (PREFIX/share/fluxbox/keys)],
+  DEFAULT_KEYS=$with_keys,
+  DEFAULT_KEYS=\$\(prefix\)/share/fluxbox/keys
+)
+AC_SUBST(DEFAULT_KEYS)
+
+AC_ARG_WITH(
+  apps,
+  [  --with-apps=path        location apps file (PREFIX/share/fluxbox/apps)],
+  DEFAULT_APPS=$with_apps,
+  DEFAULT_APPS=\$\(prefix\)/share/fluxbox/apps
+)
+AC_SUBST(DEFAULT_APPS)
+
+AC_ARG_WITH(
+  overlay,
+  [  --with-overlay=path     location overlay file (PREFIX/share/fluxbox/overlay)],
+  DEFAULT_OVERLAY=$with_overlay,
+  DEFAULT_OVERLAY=\$\(prefix\)/share/fluxbox/overlay
+)
+AC_SUBST(DEFAULT_OVERLAY)
+
+AC_ARG_WITH(
+  init,
+  [  --with-init=path        location init file (PREFIX/share/fluxbox/init)],
+  DEFAULT_INIT=$with_init,
+  DEFAULT_INIT=\$\(prefix\)/share/fluxbox/init
+)
+AC_SUBST(DEFAULT_INIT)
+
+# we have to expand locale_path in the config.h file, but NOT in the makefiles!
+AC_ARG_WITH(
+  locale,
+  [  --with-locale=path      location for nls files (PREFIX/share/fluxbox/nls)],
+  LOCALE_PATH=$with_locale
+  AC_DEFINE_UNQUOTED(LOCALEPATH, "$LOCALE_PATH", "location for nls files")
+  ,
+  LOCALE_PATH=\$\(prefix\)/share/fluxbox/nls
+  AC_DEFINE_UNQUOTED(LOCALEPATH, "$prefix/share/fluxbox/nls", "location for nls files")
+)
+AC_SUBST(LOCALE_PATH)
+
+AC_SUBST(program_prefix)
+AC_SUBST(program_suffix)
+
+dnl Determine the return type of signal handlers
+AC_TYPE_SIGNAL
+
+dnl Determine if maintainer portions of the Makefiles should be included.
+dnl AM_MAINTAINER_MODE
+
+dnl Output files
+AM_CONFIG_HEADER(config.h)
+
+AC_OUTPUT(Makefile
+version.h
+src/Makefile
+src/FbTk/Makefile
+src/tests/Makefile
+util/Makefile
+util/fbrun/Makefile
+data/Makefile
+data/styles/Makefile
+data/styles/BlueFlux/Makefile
+data/styles/BlueFlux/pixmaps/Makefile
+data/styles/Emerge/Makefile
+data/styles/Emerge/pixmaps/Makefile
+data/styles/arch/Makefile
+data/styles/arch/pixmaps/Makefile
+data/styles/zimek_bisque/Makefile
+data/styles/zimek_darkblue/Makefile
+data/styles/zimek_green/Makefile
+data/styles/ostrich/Makefile
+data/styles/green_tea/Makefile
+data/styles/bora_black/Makefile
+data/styles/bora_blue/Makefile
+data/styles/bora_green/Makefile
+data/styles/carp/Makefile
+data/styles/bloe/Makefile
+data/styles/bloe/pixmaps/Makefile
+doc/Makefile
+nls/Makefile
+nls/C/Makefile
+nls/be_BY/Makefile
+nls/bg_BG/Makefile
+nls/cs_CZ/Makefile
+nls/da_DK/Makefile
+nls/de_AT/Makefile
+nls/de_CH/Makefile
+nls/de_DE/Makefile
+nls/el_GR/Makefile
+nls/en_GB/Makefile
+nls/en_US/Makefile
+nls/es_AR/Makefile
+nls/es_ES/Makefile
+nls/et_EE/Makefile
+nls/fi_FI/Makefile
+nls/fr_CH/Makefile
+nls/fr_FR/Makefile
+nls/it_IT/Makefile
+nls/ja_JP/Makefile
+nls/ko_KR/Makefile
+nls/lv_LV/Makefile
+nls/mk_MK/Makefile
+nls/nb_NO/Makefile
+nls/nl_NL/Makefile
+nls/no_NO/Makefile
+nls/pl_PL/Makefile
+nls/pt_BR/Makefile
+nls/pt_PT/Makefile
+nls/ru_RU/Makefile
+nls/sk_SK/Makefile
+nls/sl_SI/Makefile
+nls/sv_SE/Makefile
+nls/tr_TR/Makefile
+nls/uk_UA/Makefile
+nls/vi_VN/Makefile
+nls/zh_CN/Makefile
+nls/zh_TW/Makefile
+)
+
+dnl Print results
+AC_MSG_RESULT([])
+AC_MSG_RESULT([	$PACKAGE version $VERSION configured successfully.])
+AC_MSG_RESULT([])
+AC_MSG_RESULT([Using '$prefix' for installation.])
+AC_MSG_RESULT([Using '$DEFAULT_MENU' for location menu file.])
+AC_MSG_RESULT([Using '$DEFAULT_STYLE' by default style.])
+AC_MSG_RESULT([Using '$DEFAULT_KEYS' for location keys file.])
+AC_MSG_RESULT([Using '$DEFAULT_INIT' for location init file.])
+AC_MSG_RESULT([Using '$LOCALE_PATH' for nls files.])
+AC_MSG_RESULT([Using '$CXX' for C++ compiler.])
+AC_MSG_RESULT([Building with '$CXXFLAGS' for C++ compiler flags.])
+AC_MSG_RESULT([Building with '$LIBS' for linker flags.])
+AC_MSG_RESULT([])
+AC_MSG_RESULT([Now build $PACKAGE with 'make'])
+AC_MSG_RESULT([])

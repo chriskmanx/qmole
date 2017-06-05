@@ -1,0 +1,464 @@
+@node Authentication methods
+@chapter Authentication Methods
+
+The @acronym{TLS} protocol provides confidentiality and encryption,
+but also offers authentication, which is a prerequisite for a secure
+connection. The available authentication methods in @acronym{GnuTLS}
+are:
+
+@itemize
+
+@item Certificate authentication
+
+@item Anonymous authentication
+
+@item @acronym{SRP} authentication
+
+@item @acronym{PSK} authentication
+
+@end itemize
+
+@menu
+* Certificate authentication::
+* Anonymous authentication::
+* Authentication using SRP::
+* Authentication using PSK::
+* Authentication and credentials::
+* Parameters stored in credentials::
+@end menu
+
+@node Certificate authentication
+@section Certificate Authentication
+
+@subsection Authentication Using @acronym{X.509} Certificates
+@cindex @acronym{X.509} certificates
+
+@acronym{X.509} certificates contain the public parameters, of a
+public key algorithm, and an authority's signature, which proves the
+authenticity of the parameters.  @xref{The X.509 trust model}, for
+more information on @acronym{X.509} protocols.
+
+@subsection Authentication Using @acronym{OpenPGP} Keys
+@cindex @acronym{OpenPGP} Keys
+
+@acronym{OpenPGP} keys also contain public parameters of a public key
+algorithm, and signatures from several other parties. Depending on
+whether a signer is trusted the key is considered trusted or not.
+@acronym{GnuTLS}'s @acronym{OpenPGP} authentication implementation is
+based on the @xcite{TLSPGP} proposal.
+
+@xref{The OpenPGP trust model}, for more information about the
+@acronym{OpenPGP} trust model.  For a more detailed introduction to
+@acronym{OpenPGP} and @acronym{GnuPG} see @xcite{GPGH}.
+
+@subsection Using Certificate Authentication
+
+In @acronym{GnuTLS} both the @acronym{OpenPGP} and @acronym{X.509}
+certificates are part of the certificate authentication and thus are
+handled using a common API.
+
+When using certificates the server is required to have at least one
+certificate and private key pair. A client may or may not have such a
+pair. The certificate and key pair should be loaded, before any
+@acronym{TLS} session is initialized, in a certificate credentials
+structure. This should be done by using
+@ref{gnutls_certificate_set_x509_key_file} or
+@ref{gnutls_certificate_set_openpgp_key_file} depending on the
+certificate type.  In the @acronym{X.509} case, the functions will
+also accept and use a certificate list that leads to a trusted
+authority. The certificate list must be ordered in such way that every
+certificate certifies the one before it. The trusted authority's
+certificate need not to be included, since the peer should possess it
+already.
+
+As an alternative, a callback may be used so the server or the client
+specify the certificate and the key at the handshake time.  That
+callback can be set using the functions:
+
+@itemize
+
+@item @ref{gnutls_certificate_server_set_retrieve_function}
+
+@item @ref{gnutls_certificate_client_set_retrieve_function}
+
+@end itemize
+
+Clients and servers that will select certificates using callback
+functions should select a certificate according the peer's signature
+algorithm preferences. To get those preferences use
+@ref{gnutls_sign_algorithm_get_requested}.
+
+Certificate verification is possible by loading the trusted
+authorities into the credentials structure by using
+@ref{gnutls_certificate_set_x509_trust_file} or
+@ref{gnutls_certificate_set_openpgp_keyring_file} for openpgp
+keys. Note however that the peer's certificate is not automatically
+verified, you should call @ref{gnutls_certificate_verify_peers2},
+after a successful handshake, to verify the signatures of the
+certificate.  An alternative way, which reports a more detailed
+verification output, is to use @ref{gnutls_certificate_get_peers} to
+obtain the raw certificate of the peer and verify it using the
+functions discussed in @ref{The X.509 trust model}.
+
+In a handshake, the negotiated cipher suite depends on the
+certificate's parameters, so not all key exchange methods will be
+available with some certificates. @acronym{GnuTLS} will disable
+ciphersuites that are not compatible with the key, or the enabled
+authentication methods.  For example keys marked as sign-only, will
+not be able to access the plain RSA ciphersuites, but only the
+@code{DHE_RSA} ones. It is recommended not to use RSA keys for both
+signing and encryption. If possible use the same key for the
+@code{DHE_RSA} and @code{RSA_EXPORT} ciphersuites, which use signing,
+and a different key for the plain RSA ciphersuites, which use
+encryption.  All the key exchange methods shown below are available in
+certificate authentication.
+
+Note that the DHE key exchange methods are generally
+slower@footnote{It really depends on the group used.  Primes with
+lesser bits are always faster, but also easier to break.  Values less
+than 768 should not be used today} than plain RSA and require Diffie
+Hellman parameters to be generated and associated with a credentials
+structure, by the server.  The @code{RSA-EXPORT} method also requires
+512 bit RSA parameters, that should also be generated and associated
+with the credentials structure.  See the functions:
+
+@itemize
+
+@item @ref{gnutls_dh_params_generate2}
+
+@item @ref{gnutls_certificate_set_dh_params}
+
+@item @ref{gnutls_rsa_params_generate2}
+
+@item @ref{gnutls_certificate_set_rsa_export_params}
+
+@end itemize
+
+Sometimes in order to avoid bottlenecks in programs it is useful to
+store and read parameters from formats that can be generated by
+external programs such as @code{certtool}. This is possible with
+@acronym{GnuTLS} by using the following functions:
+
+@itemize
+
+@item @ref{gnutls_dh_params_import_pkcs3}
+
+@item @ref{gnutls_rsa_params_import_pkcs1}
+
+@item @ref{gnutls_dh_params_export_pkcs3}
+
+@item @ref{gnutls_rsa_params_export_pkcs1}
+
+@end itemize
+
+Key exchange algorithms for @acronym{OpenPGP} and @acronym{X.509}
+certificates:
+
+@table @code
+
+@item RSA:
+The RSA algorithm is used to encrypt a key and send it to the peer.
+The certificate must allow the key to be used for encryption.
+
+@item RSA_EXPORT:
+The RSA algorithm is used to encrypt a key and send it to the peer.
+In the EXPORT algorithm, the server signs temporary RSA parameters of
+512 bits --- which are considered weak --- and sends them to the
+client.
+
+@item DHE_RSA:
+The RSA algorithm is used to sign Ephemeral Diffie-Hellman parameters
+which are sent to the peer. The key in the certificate must allow the
+key to be used for signing. Note that key exchange algorithms which
+use Ephemeral Diffie-Hellman parameters, offer perfect forward
+secrecy. That means that even if the private key used for signing is
+compromised, it cannot be used to reveal past session data.
+
+@item DHE_DSS:
+The DSS algorithm is used to sign Ephemeral Diffie-Hellman parameters
+which are sent to the peer. The certificate must contain DSA
+parameters to use this key exchange algorithm. DSS stands for Digital
+Signature Standard.
+
+@end table
+
+@node Anonymous authentication
+@section Anonymous Authentication
+@cindex Anonymous authentication
+
+The anonymous key exchange performs encryption but there is no
+indication of the identity of the peer.  This kind of authentication
+is vulnerable to a man in the middle attack, but this protocol can be
+used even if there is no prior communication and trusted parties with
+the peer, or when full anonymity is required.  Unless really required,
+do not use anonymous authentication.  Available key exchange methods
+are shown below.
+
+Note that the key exchange methods for anonymous authentication
+require Diffie-Hellman parameters to be generated by the server and
+associated with an anonymous credentials structure.
+
+Supported anonymous key exchange algorithms:
+
+@table @code
+
+@item ANON_DH:
+This algorithm exchanges Diffie-Hellman parameters.
+
+@end table
+
+@node Authentication using SRP
+@section Authentication using @acronym{SRP}
+@cindex @acronym{SRP} authentication
+
+Authentication via the Secure Remote Password protocol,
+@acronym{SRP}@footnote{@acronym{SRP} is described in @xcite{RFC2945}},
+is supported.  The @acronym{SRP} key exchange is an extension to the
+@acronym{TLS} protocol, and it is a password based authentication
+(unlike @acronym{X.509} or @acronym{OpenPGP} that use certificates).
+The two peers can be identified using a single password, or there can
+be combinations where the client is authenticated using @acronym{SRP}
+and the server using a certificate.
+
+The advantage of @acronym{SRP} authentication, over other proposed
+secure password authentication schemes, is that @acronym{SRP} does not
+require the server to hold the user's password.  This kind of
+protection is similar to the one used traditionally in the @emph{UNIX}
+@file{/etc/passwd} file, where the contents of this file did not cause
+harm to the system security if they were revealed.  The @acronym{SRP}
+needs instead of the plain password something called a verifier, which
+is calculated using the user's password, and if stolen cannot be used
+to impersonate the user. Check @xcite{TOMSRP} for a detailed
+description of the @acronym{SRP} protocol and the Stanford
+@acronym{SRP} libraries, which includes a PAM module that synchronizes
+the system's users passwords with the @acronym{SRP} password
+files. That way @acronym{SRP} authentication could be used for all the
+system's users.
+
+The implementation in @acronym{GnuTLS} is based on paper
+@xcite{TLSSRP}.  The supported @acronym{SRP} key exchange methods are:
+
+@table @code
+
+@item SRP:
+Authentication using the @acronym{SRP} protocol.
+
+@item SRP_DSS:
+Client authentication using the @acronym{SRP} protocol. Server is
+authenticated using a certificate with DSA parameters.
+
+@item SRP_RSA:
+Client authentication using the @acronym{SRP} protocol. Server is
+authenticated using a certificate with RSA parameters.
+
+@end table
+
+If clients supporting @acronym{SRP} know the username and password
+before the connection, should initialize the client credentials and
+call the function @ref{gnutls_srp_set_client_credentials}.
+Alternatively they could specify a callback function by using the
+function @ref{gnutls_srp_set_client_credentials_function}.  This has
+the advantage that allows probing the server for @acronym{SRP}
+support.  In that case the callback function will be called twice per
+handshake.  The first time is before the ciphersuite is negotiated,
+and if the callback returns a negative error code, the callback will
+be called again if @acronym{SRP} has been negotiated.  This uses a
+special @acronym{TLS}-@acronym{SRP} handshake idiom in order to avoid,
+in interactive applications, to ask the user for @acronym{SRP}
+password and username if the server does not negotiate an
+@acronym{SRP} ciphersuite.
+
+In server side the default behaviour of @acronym{GnuTLS} is to read
+the usernames and @acronym{SRP} verifiers from password files. These
+password files are the ones used by the @emph{Stanford srp libraries}
+and can be specified using the
+@ref{gnutls_srp_set_server_credentials_file}.  If a different
+password file format is to be used, then the function
+@ref{gnutls_srp_set_server_credentials_function}, should be called,
+in order to set an appropriate callback.
+
+Some helper functions such as
+
+@itemize
+
+@item @ref{gnutls_srp_verifier}
+
+@item @ref{gnutls_srp_base64_encode}
+
+@item @ref{gnutls_srp_base64_decode}
+
+@end itemize
+
+are included in @acronym{GnuTLS}, and can be used to generate and
+maintain @acronym{SRP} verifiers and password files.  A program to
+manipulate the required parameters for @acronym{SRP} authentication is
+also included.  @xref{srptool}, for more information.
+
+
+@node Authentication using PSK
+@section Authentication using @acronym{PSK}
+@cindex @acronym{PSK} authentication
+
+Authentication using Pre-shared keys is a method to authenticate using
+usernames and binary keys. This protocol avoids making use of public
+key infrastructure and expensive calculations, thus it is suitable for
+constraint clients.
+
+The implementation in @acronym{GnuTLS} is based on paper
+@xcite{TLSPSK}.  The supported @acronym{PSK} key exchange methods are:
+
+@table @code
+
+@item PSK:
+Authentication using the @acronym{PSK} protocol.
+
+@item DHE-PSK:
+Authentication using the @acronym{PSK} protocol and Diffie-Hellman key
+exchange.  This method offers perfect forward secrecy.
+
+@end table
+
+Clients supporting @acronym{PSK} should supply the username and key
+before the connection to the client credentials by calling the
+function @ref{gnutls_psk_set_client_credentials}.  Alternatively they
+could specify a callback function by using the function
+@ref{gnutls_psk_set_client_credentials_function}.  This has the
+advantage that the callback will be called only if @acronym{PSK} has
+been negotiated.
+
+In server side the default behaviour of @acronym{GnuTLS} is to read
+the usernames and @acronym{PSK} keys from a password file. The
+password file should contain usernames and keys in hexadecimal
+format. The name of the password file can be stored to the credentials
+structure by calling @ref{gnutls_psk_set_server_credentials_file}.  If
+a different password file format is to be used, then the function
+@ref{gnutls_psk_set_server_credentials_function}, should be used
+instead.
+
+The server can help the client chose a suitable username and password,
+by sending a hint.  In the server, specify the hint by calling
+@ref{gnutls_psk_set_server_credentials_hint}.  The client can retrieve
+the hint, for example in the callback function, using
+@ref{gnutls_psk_client_get_hint}.
+
+There is no mechanism to derive a PSK key from a password
+specified by the TLS PSK document@footnote{GnuTLS used to provide
+@code{gnutls_psk_netconf_derive_key} which follows the algorithm
+specified in @file{draft-ietf-netconf-tls-02.txt}. This method
+is deprecated and might be removed in later versions of GnuTLS.}.
+For password-based authentication check @ref{Authentication using SRP}.
+
+Some helper functions such as:
+
+@itemize
+
+@item @ref{gnutls_hex_encode}
+
+@item @ref{gnutls_hex_decode}
+
+@end itemize
+
+are included in @acronym{GnuTLS}, and may be used to generate and
+maintain @acronym{PSK} keys.
+
+
+@node Authentication and credentials
+@section Authentication and Credentials
+
+In @acronym{GnuTLS} every key exchange method is associated with a
+credentials type. So in order to enable to enable a specific method,
+the corresponding credentials type should be initialized and set using
+@ref{gnutls_credentials_set}.  A mapping is shown below.
+
+Key exchange algorithms and the corresponding credential types:
+
+@multitable @columnfractions .3 .3 .3
+
+@headitem Key exchange @tab Client credentials @tab Server credentials
+
+@item @code{KX_RSA}
+@item @code{KX_DHE_RSA}
+@item @code{KX_DHE_DSS}
+@item @code{KX_RSA_EXPORT}
+@tab @code{CRD_CERTIFICATE}
+@tab @code{CRD_CERTIFICATE}
+
+@item @code{KX_SRP_RSA}
+@tab @code{CRD_SRP}
+@tab @code{CRD_SRP}
+@item @code{KX_SRP_DSS}
+@tab
+@tab @code{CRD_CERTIFICATE}
+
+@item @code{KX_SRP}
+@tab @code{CRD_SRP}
+@tab @code{CRD_SRP}
+
+@item @code{KX_ANON_DH}
+@tab @code{CRD_ANON}
+@tab @code{CRD_ANON}
+
+@item @code{KX_PSK}
+@tab @code{CRD_PSK}
+@tab @code{CRD_PSK}
+
+@end multitable
+
+@node Parameters stored in credentials
+@section Parameters Stored in Credentials
+
+Several parameters such as the ones used for Diffie-Hellman
+authentication are stored within the credentials structures, so all
+sessions can access them. Those parameters are stored in structures
+such as @code{gnutls_dh_params_t} and @code{gnutls_rsa_params_t}, and
+functions like @ref{gnutls_certificate_set_dh_params} and
+@ref{gnutls_certificate_set_rsa_export_params} can be used to
+associate those parameters with the given credentials structure.
+
+Since those parameters need to be renewed from time to time and a
+global structure such as the credentials, may not be easy to modify
+since it is accessible by all sessions, an alternative interface is
+available using a callback function.  This can be set using the
+@ref{gnutls_certificate_set_params_function}.  An example is shown
+below.
+
+@example
+#include <gnutls.h>
+
+gnutls_rsa_params_t rsa_params;
+gnutls_dh_params_t dh_params;
+
+/* This function will be called once a session requests DH
+ * or RSA parameters. The parameters returned (if any) will
+ * be used for the first handshake only.
+ */
+static int get_params( gnutls_session_t session,
+        gnutls_params_type_t type,
+        gnutls_params_st *st)
+@{
+   if (type == GNUTLS_PARAMS_RSA_EXPORT)
+      st->params.rsa_export = rsa_params;
+   else if (type == GNUTLS_PARAMS_DH)
+      st->params.dh = dh_params;
+   else return -1;
+
+   st->type = type;
+   /* do not deinitialize those parameters.
+    */
+   st->deinit = 0;
+
+   return 0;
+@}
+
+int main()
+@{
+   gnutls_certificate_credentials_t cert_cred;
+
+   initialize_params();
+
+   /* ...
+    */
+
+   gnutls_certificate_set_params_function( cert_cred, get_params);
+@}
+@end example

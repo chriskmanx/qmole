@@ -1,0 +1,581 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <link rel="stylesheet" href="page.css" type="text/css">
+  <title>Documentation: FOX Drag and Drop Facilities</title>
+</head>
+<body alink="#990033" bgcolor="#ffffff" link="#990033" text="#000000"
+ vlink="#990033">
+<!---- TOPIC TITLE WITH LOGO--->
+<table border="0" cellpadding="cellspacing=2" width="100%">
+  <tbody>
+    <tr>
+      <td><a href="http://www.fox-toolkit.org" target="_top"><img
+ src="art/foxlogo_small.jpg" border="0"></a></td>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Documentation:
+FOX Drag and Drop Facilities <a href="draganddrop.html" target="_top"
+ align="left"><font size="-2">[Remove Frame]</font></a>
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+<p></p>
+<!--- TOPIC TITLE WITH LOGO --->
+<ul>
+  <p>Drag and Drop refers to the facility in FOX that allows entities
+to be dragged not just from within one part of an application to
+another, but also <i>between applications.</i>&nbsp; The FOX Drag And
+Drop implementation is based on the&nbsp; <a
+ href="http://www.newplanetsoftware.com/xdnd/">XDND Protocol</a>&nbsp;
+developed by John Lindal.<br>
+FOX supports the latest version (XDND 5)&nbsp; of this protocol.&nbsp;
+On Windows, FOX uses a very similar protocol.<br>
+As FOX provides fairly high-level API's to access these features, it is
+actually fairly easy to instrument your programs with a Drag &amp; Drop
+facility.</p>
+  <p>For better understanding of how this works, it is important to
+define some terminology first:</p>
+  <ul>
+    <li>A <b><i>Drag Source</i></b> is a FOX Widget capable of
+sourcing one or more types of drag and drop data or Drag Types.</li>
+    <li>A <b><i>Drop Target</i></b> is a FOX Widget capable of
+accepting one or more types of Drag Types.</li>
+    <li>A <b><i>Drag Type</i></b> is an abstract handle to a type of
+drag and drop data.</li>
+    <li>A <b><i>Drag Action </i></b>determines what happens when a
+drop takes place; examples of drag actions are <i>copy</i>, <i>move</i>,
+and <i>link</i>.</li>
+  </ul>
+  <p>As mentioned before, the Drag Source and the Drop Target may or
+may not be in the same application.&nbsp; In fact, their corresponding
+applications could even be running on different machines.&nbsp; We
+assume, of course, that both drag source and drop target are shown on
+the same display.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Registering
+Drag Types
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>In order to communicate a particular data structure across
+applications, both partners need to first register a <b>Drag Type</b>.&nbsp;
+The Drag Type is created by calling the function:</p>
+  <pre>FXDragType FXApp::<b>registerDragType</b>(const FXString&amp; name) const;<br></pre>
+  <p>The registerDragType() function registers a new Drag Type "name"
+with the application's display, and returns an abstract handle to the
+Drag Type.&nbsp; The returned handle is used in all subsequent Drag and
+Drop operations.&nbsp; The Drag Type handle is unique for the display,
+that is, each application subsequently registering the same drag type
+name will receive the same handle.&nbsp; Obviously, the display must
+have been already opened before calling this function.</p>
+  <p>It is strongly suggested that if your application intends to
+communicate with others, the Drag Type Names you use should be those of
+the corresponding <a
+ href="ftp://ftp.isi.edu/in-notes/iana/assignments/media-types/">MIME
+types.</a> <br>
+This guarantees everybody else's applications can make sense of drag
+data originating in your application [and vice versa].&nbsp; Otherwise,
+Drag Type Names can be any ASCII string sequence.</p>
+  <p>A corresponding function:</p>
+  <pre>FXString FXApp::<b>getDragTypeName</b>(FXDragType type) const;<br></pre>
+  <p>Will return the Drag Type Name, given the Drag Type.&nbsp; You may
+need to use this in case your application receives a drop of an unknown
+type, and you need to decide what to do with it.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Becoming A Drop
+Target
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>In order to be able to receive drops, a FOX Widget first needs to
+make itself a Drop Target.&nbsp; It does this by calling:</p>
+  <pre>virtual void FXWindow::<b>dropEnable</b>();<br></pre>
+  <p>To cancel drop-ability, use a function:</p>
+  <pre>virtual void FXWindow::<b>dropDisable</b>();<br></pre>
+  <p>A Widget will not receive drag and drop messages unless it has
+been enabled as a drop target with dropEnable(). Note that the Widget
+may receive drag and drop messages with drop-data it does not
+understand, and thus it should only accept drops of the proper type.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Messages to the
+Drop Target
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>FOX Widgets which have have been enabled for Drop Targets may
+receive a number of messages during a drag-and-drop operation.&nbsp; To
+give a user feedback about what is going on, I suggest that the Widget
+somehow change its visual appearance based on receiving these messages.
+  </p>
+  <p>For example, a Folder Icon, normally shown in the closed state,
+may be changed to the opened state to indicate that a drop is pending
+and will be accepted if performed.&nbsp; Another method [which is
+usually performed by the Drag Source Widget, see later], is to change
+the shape of the cursor to a STOP sign when the drop will NOT be
+accepted; one could also use a combination of the two methods.</p>
+  <p>Drop Target Widgets may receive the following messages:</p>
+  <ul>
+    <li> <b>SEL_DND_ENTER</b>.&nbsp; This message is received when the
+cursor first enters the Widget.&nbsp; At this point, the Widget may
+inspect the Drag Types available, and determine whether or not to
+accept a drop.&nbsp; If necessary, the Widget could even tentatively
+request the Drop Data, and inspect the data itself.&nbsp; It must be
+prepared to throw the data away again, however.</li>
+    <li> <b>SEL_DND_LEAVE</b>.&nbsp; This message is received when the
+cursor leaves the Widget.&nbsp; If the Widget did not receive a
+SEL_DND_DROP before this message, it must release the data, if it has
+requested it.</li>
+    <li> <b>SEL_DND_DROP</b>.&nbsp; The Widget receives this message
+when an actual drop takes place.&nbsp; Typically, the Widget requests
+the Drop Data at this point.</li>
+    <li> <b>SEL_DND_MOTION</b>.&nbsp; This message indicates to the
+Widget the exact position of the cursor (and thus the Drop
+Point).&nbsp; Simple Widgets may not care about this, but more
+complicated Widgets will probably use the position to determine the
+exact action to take.&nbsp; For example, depending on position, the
+Widget may or may not accept certain Drop Types.</li>
+  </ul>
+  <p>At any point between receiving SEL_DND_ENTER and SEL_DND_LEAVE
+/SEL_DND_DROP, the Drop Target may call the following functions to
+inquire about the type of the data being dragged, the data
+itself,&nbsp; and the drag-action being performed.&nbsp; Based on this
+information, it can feed back information to the Drag Source to
+indicate whether or not it will accept the data:</p>
+  <pre>void FXWindow::<b>acceptDrop</b>(FXDragAction action=DRAG_ACCEPT);<br></pre>
+  <p>To accept or reject a drop, the Widget calls <b>acceptDrop</b>()
+with an argument specifying the <b>Drag Action</b> suggested by the
+Drop Target.&nbsp; The Widget can call this any number of times;
+however, the last value will be the one reported to the Drag Source
+Widget.&nbsp; For <b>acceptDrop(),</b> the following values are valid:
+  </p>
+  <ul>
+    <li> <b>DRAG_REJECT</b>. This indicates that the Drop Target will
+NOT accept any type of Drag Action.</li>
+    <li> <b>DRAG_ACCEPT</b>. The Drop Target chooses to accept the
+drop, no matter what the Drag Action is.&nbsp; The suggested Drag
+Action is the same as the one supplied by the Drag Source.</li>
+    <li> <b>DRAG_COPY</b>. The Drop Target accepts the drop, but
+suggests that the Drag Action be a <b><i>copy</i></b>.</li>
+    <li> <b>DRAG_MOVE</b>. The Drop Target accepts the drop and
+suggests that the Drag Action be a <b><i>move</i></b>.</li>
+    <li> <b>DRAG_LINK</b>. The Drop Target accepts the drop and
+suggests that the Drag Action be a <b><i>link</i></b>.</li>
+  </ul>
+  <p>Other Drag Actions may be supported in the future.&nbsp; The Drop
+Target can find out the Drag Action by calling the following function:</p>
+  <pre>FXDragAction FXWindow::<b>inquireDNDAction</b>() const;<br></pre>
+  <p>The Drag Source should change the cursor to reflect the Drag
+Action in effect; if necessary, the cursor should change to reflect the
+Drag Action suggested by the Drop Target.</p>
+  <p>Normally, a Widget may get many, many SEL_DND_MOTION
+messages.&nbsp; In order to cut down on the traffic, a Drop Target
+Widget may indicate a rectangle and whether or not it wants further
+updates while the cursor is inside this rectangle by calling:</p>
+  <pre>void FXWindow::<b>setDragRectangle</b>(FXint x,FXint y,FXint w,FXint h,FXbool wantupdates=TRUE);<br></pre>
+  <p>Widgets which do not care where the drop takes place may call
+setDragRectangle(0,0,width,height,FALSE), which will cause the Drag
+Source to send no further updates while the cursor is inside the Widget.</p>
+  <pre>void FXWindow::<b>clearDragRectangle</b>();<br></pre>
+  <p>Clearly, this is the opposite of setDragRectangle().&nbsp; It is
+equivalent to setDragRectangle(0,0,0,0,TRUE);</p>
+  <pre>FXbool FXWindow::<b>inquireDNDTypes</b>(FXDNDOrigin origin,const FXDragType*&amp; types,FXuint&amp; numtypes);<br>FXbool FXWindow::<b>offeredDNDType</b>(FXDNDOrigin origin,FXDragType type);</pre>
+  <p>The first call yields an array of Drag Types currently available
+from the Drag Source.&nbsp; The list is <b><i>read-only,</i></b> and
+should NOT be freed.&nbsp; The Widget should <b>NOT</b> keep pointers
+to this list, as the list ceases to exist after SEL_DND_LEAVE.&nbsp;
+The second call tests to see if a certain Drag Type is being offered by
+the Drag Source.</p>
+  <p><a name="GETDNDDATA"></a>If the Drag Type information is not
+enough, the Drop Target may have to inquire the actual data from the
+Drag Source and inspect it.&nbsp; It does this by calling:</p>
+  <pre>FXbool FXWindow::<b>getDNDData</b>(FXDNDOrigin origin,FXDragType type,FXuchar*&amp; data,FXuint&amp; size);<br></pre>
+  <p>This call acquires the Drag Type type from the Drag Source.&nbsp;
+Upon return, data points to an array of bytes containing the Drop Data,
+and size is set to the number of bytes in the array.&nbsp; The array is
+now owned by the Drop Target Widget, and should be freed with the
+FXFREE() macro.&nbsp; The corresponding function in the Drag Source is
+describes <a href="draganddrop.html#SETDNDDATA">elsewhere</a>.&nbsp;
+The parameter <b><i>origin</i></b> should be set to <b>FROM_DRAGNDROP</b>.</p>
+  <p></p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Becoming a Drag
+Source
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>Making a Widget a Drag Source is comparatively easy.&nbsp; The
+transaction begins when the mouse button goes down.&nbsp; The Widget
+will need to call <b>grab()</b> to capture the mouse to the Widget, so
+that all future mouse events will be reported to the Widget, even if
+they occur outside of the Widget. Next, the Widget will call:</p>
+  <pre>FXbool FXWindow::<b>beginDrag</b>(const FXDragType *types,FXuint numtypes);<br></pre>
+  <p>to start a drag-operation.&nbsp; The arguments to <b>beginDrag() </b>describe
+the list of types [which must have been registered previously] which
+are being offered.&nbsp; The Drag Source must be willing to furnish
+each of these types when requested by the Drop Target.&nbsp; The <b>beginDrag()</b>
+function returns FALSE if it failed to initiate a drag operation; the
+application should not proceed with dragging in this case.</p>
+  <p>Upon each mouse movement, the Drag Source needs to indicate the
+new mouse position to the system; it also notifies the Drop Target of
+the new Drag Action.&nbsp; It does this by calling the function:</p>
+  <pre>FXbool FXWindow::<b>handleDrag</b>(FXint x,FXint y,FXDragAction action=DRAG_COPY);<br></pre>
+  <p>The <b>handleDrag()</b> function determines the Widget under the
+cursor, and issues a SEL_DND_ENTER when it first enters a Widget, a
+SEL_DND_LEAVE when it leaves the Widget, and a SEL_DND_MOTION when the
+cursor simply has moved over the Widget [subject to the drag rectangle
+set by the Drop Target].&nbsp; It will not send any messages if the
+widget under the cursor has not called <b>dropEnable() </b>first to
+enable drops on it.</p>
+  <p> The <b>handleDrag() </b>function may return FALSE if it
+fails.&nbsp; To find out if a Drag Source is in the middle of a drag
+operation, applications may call the following member function:</p>
+  <pre>FXbool FXWindow::<b>isDragging</b>() const;<br></pre>
+  <p>While the Drag Source is dragging, it may want to inquire whether
+the Drop Target's accepted or rejected a drop.&nbsp; It does this by
+calling:</p>
+  <pre>FXDragAction FXWindow::<b>didAccept</b>() const;<br></pre>
+  <p>The function <b>didAccept()</b> simply returns DRAG_REJECT when
+the Drop Target would NOT accept the drop, and returns DRAG_COPY,
+DRAG_MOVE, DRAG_LINK if it did; the Drag Source should reflect the Drag
+Action returned by changing its cursor. For safety's sake, <b>didAccept()
+  </b>will also returns DRAG_REJECT if the Drop Target has not called <b>dropEnable(),</b>
+or if the Drop Target fails to respond to any drag-and-drop messages.</p>
+  <p>Applications may choose to change the cursor shape based on what
+didAccept() returned, as illustrated by the following code fragment:</p>
+  <pre>handleDrag(event-&gt;root_x,event-&gt;root_y);<br><br>if(didAccept()!=DRAG_REJECT){<br>  setDragCursor(drop_ok_cursor);<br>  }<br>else{<br>  setDragCursor(drop_not_ok_cursor);<br>  }<br></pre>
+  <p>The rationale is that even though Drop Targets may give a visual
+cue when a drop is OK, not all applications running on your system may
+be drag-and-drop aware;&nbsp; changing the cursor also will give an
+additional clue.</p>
+  <p>When the user releases the mouse button, the Widget needs to call
+ungrab() to release the mouse capture, and then calls:</p>
+  <pre>  FXDragAction FXWindow::<b>endDrag</b>(FXbool drop=TRUE);<br></pre>
+  <p>This will cause a SEL_DND_DROP message to be sent to the Drop
+Target, if and only if:</p>
+  <ul>
+    <li>The flag drop is TRUE.</li>
+    <li>The Drop Target has previously called acceptDrop().</li>
+    <li>The Drag Source has received status messages back from the Drop
+Target.</li>
+  </ul>
+  <p>Passing a flag drop allows the Drag Source to deny a drop even
+though the Drop Target may have accepted a drop.&nbsp; The endDrag()
+function returns the action actually performed by the drop target.<br>
+The XDND version 5 protocol returns the drag action performed by the
+target, since in processing the drop, the target may be unable to
+perform the requested action, perhaps due to some runtime error.&nbsp;
+Returning the action actually performed allows the drag source to take
+the appropriate action.<br>
+  </p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Messages to the
+Drag Source
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p><a name="SETDNDDATA"></a>During a drag operation, a drag source
+may receive one or more requests for the drag data. These requests take
+the form of a SEL_DND_REQUEST message sent to the owner of the drag
+data. When a drag source receives a request for its data, it should
+first inspect the requested drag type, which is found in the FXEvent's <b><i>target</i></b>
+member variable. If the drag source can supply its data in the
+requested drag type, it should then allocate an array (using the
+FXMALLOC macro) and stuff the data into it.</p>
+  <p>The drag source then calls</p>
+  <pre>  FXbool FXWindow::<b>setDNDData</b>(FXDNDOrigin origin,FXDragType type,FXuchar* data,FXuint size);<br></pre>
+  <p>To hand the array over to the system. At this point, ownership of
+the array passes to the system, and the drag source should <b>not</b>
+attempt to make any further references to this array. The <b><i>origin</i></b>
+parameter should be set to FROM_DRAGNDROP.</p>
+  <p>The drop target may make a request for the drag data from the drag
+source by calling getDNDData(), described <a
+ href="draganddrop.html#GETDNDDATA">above</a>.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Drag and Drop
+of FOX Objects
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>The data exchange described above takes place using raw
+bytes.&nbsp; In more realistic cases,&nbsp; complicated data structures
+may have to be exchanges.&nbsp; It is important to realize that:</p>
+  <ul>
+    <li>The Drag Source and Drop Target may be different
+programs.&nbsp; Thus, it is usually meaningless to exchange pointers to
+data structures.</li>
+    <li>The Drop Target and Drag Source may not only be different
+programs, but also may be programs running on different machines with
+different byte orders and different word lengths.</li>
+  </ul>
+  <p>FOX takes care of some of the latter troubles by furnishing
+special FOX primitive types, such as FXchar, FXshort, FXint and so
+on.&nbsp; A FOX implementation will ALWAYS make sure these types have
+the same size, although byte order may still be reversed on some
+machines.</p>
+  <p>More sophisticated data transfers can be accomplished using the
+FOX <b>FXMemoryStream</b> class.&nbsp; The FXMemoryStream is a
+subclass of FXStream that serializes/deserializes data to/from a <b>memory-buffer.</b>&nbsp;
+The FXStream classes also support <i>byte swapping </i>on the reader
+side, making it very convenient to exchange data between hererogeneous
+machines; moreover, the FOX Stream classes support serialization of FOX
+Objects.</p>
+  <p>Thus, entire networks of objects may be serialized, transmitted to
+the drop site, and then deserialized.</p>
+  <p><b><u>Example</u></b>:
+  </p>
+  <p>Serialize into a buffer, then give the buffer to the DND system:
+  <br>
+&nbsp;
+  </p>
+  <blockquote><font face="Courier New,Courier">FXMemoryStream str;</font>
+    <br>
+    <font face="Courier New,Courier">FXuchar *buffer;</font>
+    <br>
+    <font face="Courier New,Courier">FXuint size;</font>
+    <br>
+    <font face="Courier New,Courier">FXObject
+*myobjectptr;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// Pointer to the FXObject-derived object we wish to transfer</font>
+    <br>
+    <font face="Courier New,Courier">FXuchar endianness;</font>
+    <p><font face="Courier New,Courier">endianness=FXStream::isLittleEndian();</font>
+    </p>
+    <p><font face="Courier New,Courier">str.open(NULL,FXStreamSave);&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// The FXMemoryStream will create its own buffer</font>
+    <br>
+    <font face="Courier New,Courier">str &lt;&lt; endianness;</font>
+    <br>
+    <font face="Courier New,Courier">str &lt;&lt; myobjectptr;</font>
+    <br>
+    <font face="Courier New,Courier">str.takeBuffer(buffer,size);&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// Take ownership of the buffer away from the FXMemoryStream</font>
+    <br>
+    <font face="Courier New,Courier">str.close();</font>
+    <br>
+    <font face="Courier New,Courier">setDNDData(dndtype,buffer,size);&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// Give the buffer to the DND system</font></p>
+  </blockquote>
+  <p><br>
+Take data from the DND system, then give the buffer to the Stream
+and deserialize from it:
+  <br>
+  <br>
+  </p>
+  <blockquote><font face="Courier New,Courier">FXMemoryStream str;</font>
+    <br>
+    <font face="Courier New,Courier">FXuchar *buffer;</font>
+    <br>
+    <font face="Courier New,Courier">FXuint size;</font>
+    <br>
+    <font face="Courier New,Courier">FXObject
+*myobjectptr;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// When done, this points to an FXObject-derived object</font>
+    <br>
+    <font face="Courier New,Courier">FXuchar endianness;</font>
+    <p><font face="Courier New,Courier">getDNDData(dndtype,buffer,size);&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// Take possesion of the buffer from the DND system</font>
+    </p>
+    <p><font face="Courier New,Courier">str.open(buffer,size,FXStreamLoad);</font>
+    <br>
+    <font face="Courier New,Courier">str &gt;&gt; endianness;</font>
+    <br>
+    <font face="Courier New,Courier">str.swapBytes(endianness!=FXStream::isLittleEndian());&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// Swap bytes in the receiver if necessary!!</font>
+    <br>
+    <font face="Courier New,Courier">str &gt;&gt; myobjectptr;</font>
+    <br>
+    <font face="Courier New,Courier">str.close();</font>
+    <br>
+    <font face="Courier New,Courier">FXFREE(&amp;buffer);</font>
+    <br>
+&nbsp;</p>
+  </blockquote>
+As you see, this is a mighty fine way to transfer arbitrary objects
+between
+applications.&nbsp; All you have to do is derive certain objects from
+the
+FXObject base class, then properly inplement the <b>load()</b> and <b>save()</b>
+member functions for that class, so that all object member data may be
+properly serialized or deserialized.&nbsp; For more info, see the
+chapter
+on Serialization.
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Tips and Hints:
+Moving Data Between Applications
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>When data is being moved between applications, the Drop Target
+should perform the following sequence of operations:</p>
+  <p>Acquire the dropped data, using <b>getDNDData(</b>), exactly the
+same as what it would do for a Copy Drag Action;</p>
+  <p>Then do a <b>getDNDData(</b>) with the Drag Type DELETE, which
+must have been previously registered with <b>registerDragType("DELETE")</b>.</p>
+  <p>The Drag Source will not supply any data when a request for the
+DELETE drag type is received; instead, knowing the data has been
+properly received by the Drop Target, it will delete the data instead.</p>
+  <p>Thus, the getDNDData() call with Drag Type DELETE will yield a
+NULL data array pointer.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Tips and Hints:
+When to Copy and When to Move
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>This is no hard and fast rule, but generally speaking when data
+are being dragged <b>within</b> the same window, the default Drag
+Action should default to DRAG_MOVE, whereas when dragging <b>between</b>
+windows, the Drag Action should default to DRAG_COPY.&nbsp; These
+defaults can be overridden by holding down the Control-Key, which
+should force a DRAG_COPY, or the Shift-Key, which should force a
+DRAG_MOVE.&nbsp; Holding down the Alt-Key should probably force a
+DRAG_LINK.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Tips and Hints:
+When to Auto-Scroll
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>When dragging from within scrollable windows, no scrolling should
+take place while <b><i>outside</i></b> the window; instead, scrolling
+should happen <b><i>only</i></b> when the cursor is being moved very
+close to the window border.</p>
+</ul>
+<!--- TOPIC TITLE -->
+<p>
+<table cellpadding="0" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" valign="bottom" width="100%"><b>Tips and Hints:
+Let Cursor Reflect the Action
+      <br>
+      <img src="art/line.gif" height="1" width="100%"></b></td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- TOPIC TITLE -->
+<ul>
+  <p>There are two major schools of thought; some people prefer to let
+animate or highlight the drop-site to indicate an impending accept or
+reject of a drop, whereas others change the cursor instead.&nbsp; Apart
+from psychology, my take on this is do both:</p>
+  <ul>
+    <li>Changing the cursor has the advantage that there is some
+feedback while moving over inert backgrounds.</li>
+    <li>Changing the drop site has the advantage that it is very clear
+where the dropped data will wind up, especially if drop sites may be
+very small on the screen.</li>
+  </ul>
+  <p>This reflects my view that in the software world, we can make our
+own rules;&nbsp; we can diverge from the physical model of
+``manipulating rigid objects'' if this is appropriate or gives the user
+a better handle on things.</p>
+</ul>
+<!--- COPYRIGHT -->
+<p>
+<table cellpadding="0" cellspacing="0" width="100%">
+  <tbody>
+    <tr>
+      <td id="HEADLINE" align="right" valign="top" width="100%"><img
+ src="art/line.gif" height="1" width="100%">
+      <font size="-1">Copyright &copy; 1997-2005 Jeroen van der Zijp</font>
+      </td>
+    </tr>
+  </tbody>
+</table>
+</p>
+<!--- COPYRIGHT -->
+</body>
+</html>

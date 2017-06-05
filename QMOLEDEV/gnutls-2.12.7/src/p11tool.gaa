@@ -1,0 +1,89 @@
+#{
+
+/* C declarations */
+
+#include <config.h>
+#ifdef _WIN32
+# include <io.h>
+#endif
+
+#include "certtool-common.h"
+#include "p11tool.h"
+#include <gnutls/pkcs11.h>
+
+#}
+
+helpnode "p11tool help\nUsage: p11tool [options]"
+helpnode "Usage: p11tool --list-tokens"
+helpnode "Usage: p11tool --list-all"
+helpnode "Usage: p11tool --export 'pkcs11:...'\n"
+
+#char* pkcs11_url;
+option (export) STR "URL" { $action = ACTION_PKCS11_EXPORT_URL; $pkcs11_url = $1; } "Export an object specified by a pkcs11 URL"
+
+#int pkcs11_type;
+option (list-tokens) { $action = ACTION_PKCS11_TOKENS; } "List all available tokens"
+
+option (list-mechanisms) STR "URL" { $pkcs11_url = $1; $action = ACTION_PKCS11_MECHANISMS; } "List all available mechanisms in token."
+
+option (list-all) { $action = ACTION_PKCS11_LIST; $pkcs11_type=PKCS11_TYPE_ALL; } "List all objects specified by a PKCS#11 URL"
+option (list-all-certs) { $action = ACTION_PKCS11_LIST; $pkcs11_type=PKCS11_TYPE_CRT_ALL; } "List all certificates specified by a PKCS#11 URL"
+option (list-certs) { $action = ACTION_PKCS11_LIST; $pkcs11_type=PKCS11_TYPE_PK; } "List certificates that have a private key specified by a PKCS#11 URL"
+option (list-privkeys) { $action = ACTION_PKCS11_LIST; $pkcs11_type=PKCS11_TYPE_PRIVKEY; } "List private keys specified by a PKCS#11 URL"
+option (list-trusted) { $action = ACTION_PKCS11_LIST; $pkcs11_type=PKCS11_TYPE_TRUSTED; } "List certificates marked as trusted, specified by a PKCS#11 URL"
+
+#char* pkcs11_label;
+option (initialize) STR "URL" { $action = ACTION_PKCS11_TOKEN_INIT; $pkcs11_url = $1; } "Initializes a PKCS11 token."
+option (write) STR "URL" { $action = ACTION_PKCS11_WRITE_URL; $pkcs11_url = $1; } "Writes loaded certificates, private or secret keys to a PKCS11 token."
+option (delete) STR "URL" { $action = ACTION_PKCS11_DELETE_URL; $pkcs11_url = $1; } "Deletes objects matching the URL."
+
+
+option (label) STR "label" { $pkcs11_label = $1; } "Sets a label for the write operation."
+#int pkcs11_trusted;
+option (trusted) { $pkcs11_trusted = 1; } "Marks the certificate to be imported as trusted."
+
+#int pkcs11_login;
+option (login) { $pkcs11_login = 1; } "Force login to token"
+
+#int pkcs11_detailed_url;
+option (detailed-url) { $pkcs11_detailed_url = GNUTLS_PKCS11_URL_LIB; } "Export detailed URLs."
+option (no-detailed-url) { $pkcs11_detailed_url = 0; } "Export less detailed URLs."
+
+#char* secret_key;
+option (secret-key) STR "HEX_KEY" { $secret_key = $1; } "Provide a hex encoded secret key."
+
+#char *privkey;
+option (load-privkey) STR "FILE" { $privkey = $1 } "Private key file to use."
+
+#char *pubkey;
+option (load-pubkey) STR "FILE" { $pubkey = $1 } "Private key file to use."
+
+#char *cert;
+option (load-certificate) STR "FILE" { $cert = $1 } "Certificate file to use."
+
+#int pkcs8;
+option (8, pkcs8) { $pkcs8=1 } "Use PKCS #8 format for private keys."
+
+#int incert_format;
+option (inder) { $incert_format=GNUTLS_X509_FMT_DER } "Use DER format for input certificates and private keys."
+option (inraw) { $incert_format=GNUTLS_X509_FMT_DER } "Use RAW/DER format for input certificates and private keys."
+
+#char* pkcs11_provider;
+#int action;
+option (provider) STR "Library" { $pkcs11_provider = $1 } "Specify the pkcs11 provider library"
+
+#char *outfile;
+option (outfile) STR "FILE" { $outfile = $1 } "Output file."
+
+
+
+#int debug;
+option (d, debug) INT "LEVEL" { $debug = $1 } "specify the debug level. Default is 1."
+
+option (h, help) { gaa_help(); exit(0); } "shows this help text"
+
+init {
+	$action = -1; $pkcs11_provider= NULL; $outfile = NULL; $pubkey = NULL; $privkey = NULL;
+	$pkcs11_url = NULL; $pkcs11_type = PKCS11_TYPE_PK; $pubkey=NULL; $pkcs11_label = NULL; 
+	$pkcs11_trusted=0; $pkcs11_login = 0; $pkcs11_detailed_url = GNUTLS_PKCS11_URL_LIB; 
+	$secret_key = NULL; $cert = NULL; $incert_format = GNUTLS_X509_FMT_PEM; }

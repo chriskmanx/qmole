@@ -1,0 +1,395 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2005  John Finlay, Johan Dahlin
+ *
+ *   gtkiconview.override: overrides for the gtk.IconView object.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+ignore
+  gtk_icon_view_new_with_model
+%%
+new-constructor GTK_TYPE_ICON_VIEW
+%%
+override gtk_icon_view_new kwargs
+static int
+_wrap_gtk_icon_view_new(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "model", NULL };
+    PyGObject *pymodel = NULL;
+ 
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:GtkIconView.__init__",
+				     kwlist, &pymodel))
+        return -1;
+    if (pymodel == NULL || (PyObject *)pymodel == Py_None)
+        pygobject_construct(self, NULL);
+    else if (pygobject_check(pymodel, &PyGtkTreeModel_Type))
+        pygobject_construct(self, "model", GTK_TREE_MODEL(pymodel->obj), NULL);
+    else {
+	PyErr_SetString(PyExc_TypeError,
+			"model must be a gtk.TreeModel or None");
+	return -1;
+    }
+ 
+    if (!self->obj) {
+        PyErr_SetString(PyExc_RuntimeError,
+			"could not create GtkIconView object");
+        return -1;
+    }
+    return 0;
+}
+%%
+override gtk_icon_view_get_selected_items noargs
+static PyObject *
+_wrap_gtk_icon_view_get_selected_items(PyGObject *self)
+{
+    GList *paths;
+    PyObject *py_paths;
+    int plen, i;
+
+    paths = gtk_icon_view_get_selected_items(GTK_ICON_VIEW(self->obj));
+
+    plen = g_list_length(paths);
+    if ((py_paths = PyList_New(plen)) == NULL)
+        return NULL;
+    for (i = 0; i < plen; i++) {
+        GtkTreePath *path = (GtkTreePath *)g_list_nth_data(paths, i);
+        PyObject *pypath = pygtk_tree_path_to_pyobject(path);
+        PyList_SET_ITEM(py_paths, i, pypath);
+    }
+    g_list_foreach(paths, (GFunc)gtk_tree_path_free, NULL);
+    g_list_free(paths);
+    return py_paths;
+}
+%%
+override gtk_icon_view_selected_foreach kwargs
+static void
+pygtk_icon_view_selected_foreach_cb(GtkIconView *iconview,
+                                    GtkTreePath *path,
+                                    gpointer user_data)
+{
+    PyGILState_STATE state;
+    PyObject *callback, *args, *ret;
+ 
+    state = pyg_gil_state_ensure();
+    callback = PyTuple_GetItem((PyObject *)user_data, 0);
+    args = Py_BuildValue("(NNO)",
+                         pygobject_new((GObject *)iconview),
+                         pygtk_tree_path_to_pyobject(path),
+                         PyTuple_GetItem((PyObject *)user_data, 1));
+    ret = PyObject_CallObject(callback, args);
+    if (!ret)
+        PyErr_Print();
+    Py_XDECREF(ret);
+    Py_DECREF(args);
+    pyg_gil_state_release(state);
+}
+static PyObject *
+_wrap_gtk_icon_view_selected_foreach(PyGObject *self, PyObject *args,
+                                     PyObject *kwargs)
+{
+    static char *kwlist[] = { "func", "data",  NULL };
+    PyObject *func, *data, *py_data = Py_None;
+ 
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|O:GtkIconView.foreach",
+                                     kwlist, &func, &py_data)) {
+        return NULL;
+    }
+    if (!PyCallable_Check(func)) {
+        PyErr_SetString(PyExc_TypeError, "func must be callable");
+        return NULL;
+    }
+ 
+    data = Py_BuildValue("(OO)", func, py_data);
+     
+    gtk_icon_view_selected_foreach(GTK_ICON_VIEW(self->obj),
+                                   pygtk_icon_view_selected_foreach_cb,
+                                   (gpointer)data);
+    Py_DECREF(data);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_get_item_at_pos kwargs
+static PyObject *
+_wrap_gtk_icon_view_get_item_at_pos(PyGObject *self, PyObject *args, 
+				    PyObject *kwargs)
+{
+    static char *kwlist[] = { "x", "y", NULL };
+    GtkTreePath *path;
+    GtkCellRenderer *renderer;
+    gint x,y;
+    gboolean r;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "ii:GtkIconView.get_item_at_pos",
+                                     kwlist,
+                                     &x, &y))
+        return NULL;
+
+
+    r = gtk_icon_view_get_item_at_pos(GTK_ICON_VIEW(self->obj), x, y, &path, &renderer);
+    if (r && path) {
+        PyObject *py_path = pygtk_tree_path_to_pyobject(path);
+        gtk_tree_path_free(path);
+        return Py_BuildValue("(NN)", py_path, pygobject_new((GObject*)renderer));
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_get_visible_range noargs
+static PyObject *
+_wrap_gtk_icon_view_get_visible_range(PyGObject *self)
+{
+    GtkTreePath *start_path, *end_path;
+    gboolean r;
+    
+    r = gtk_icon_view_get_visible_range(GTK_ICON_VIEW(self->obj),
+					&start_path, &end_path);
+    if (r) {
+        PyObject *py_start_path = pygtk_tree_path_to_pyobject(start_path);
+        PyObject *py_end_path = pygtk_tree_path_to_pyobject(end_path);
+        gtk_tree_path_free(start_path);
+        gtk_tree_path_free(end_path); 
+       return Py_BuildValue("(NN)", py_start_path, py_end_path);
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_get_cursor noargs
+static PyObject *
+_wrap_gtk_icon_view_get_cursor(PyGObject *self)
+{
+    GtkTreePath *path;
+    GtkCellRenderer *renderer;
+    gboolean r;
+
+    r = gtk_icon_view_get_cursor(GTK_ICON_VIEW(self->obj), &path, &renderer);
+    if (r && path) {
+        PyObject *py_path = pygtk_tree_path_to_pyobject(path);
+        gtk_tree_path_free(path);
+        return Py_BuildValue("(NN)", py_path, pygobject_new((GObject*)renderer));
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_get_drag_dest_item noargs
+static PyObject *
+_wrap_gtk_icon_view_get_drag_dest_item(PyGObject *self)
+{
+    GtkTreePath *path;
+    GtkIconViewDropPosition pos;
+
+    gtk_icon_view_get_drag_dest_item(GTK_ICON_VIEW(self->obj), &path, &pos);
+    if (path) {
+        PyObject *py_path = pygtk_tree_path_to_pyobject(path);
+        gtk_tree_path_free(path);
+        return Py_BuildValue("(NN)", py_path,
+			     pyg_enum_from_gtype(GTK_TYPE_ICON_VIEW_DROP_POSITION, (gint)pos));
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_get_dest_item_at_pos kwargs
+static PyObject *
+_wrap_gtk_icon_view_get_dest_item_at_pos(PyGObject *self, PyObject *args, 
+					 PyObject *kwargs)
+{
+    static char *kwlist[] = { "x", "y", NULL };
+    GtkTreePath *path;
+    GtkIconViewDropPosition pos;
+    gint drag_x, drag_y;
+    gboolean r;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "ii:GtkIconView.get_dest_item_at_pos",
+                                     kwlist, &drag_x, &drag_y))
+        return NULL;
+
+
+    r = gtk_icon_view_get_dest_item_at_pos(GTK_ICON_VIEW(self->obj),
+					   drag_x, drag_y, &path, &pos);
+    if (r && path) {
+        PyObject *py_path = pygtk_tree_path_to_pyobject(path);
+        gtk_tree_path_free(path);
+        return Py_BuildValue("(NN)", py_path,
+			     pyg_enum_from_gtype(GTK_TYPE_ICON_VIEW_DROP_POSITION, (gint) pos));
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_enable_model_drag_source kwargs
+static PyObject *
+_wrap_gtk_icon_view_enable_model_drag_source(PyGObject *self, PyObject *args,
+                                             PyObject *kwargs)
+{
+    static char *kwlist[] = { "start_button_mask", "targets", "actions", NULL };
+    PyObject *py_sbmask, *py_targets, *py_actions;
+    GdkModifierType sbmask;
+    GtkTargetEntry *targets;
+    GdkDragAction actions;
+    gint n_targets, i;
+ 
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "OOO:GtkIconView.enable_model_drag_source",
+                                     kwlist,
+                                     &py_sbmask, &py_targets, &py_actions))
+        return NULL;
+    if (pyg_flags_get_value(GDK_TYPE_MODIFIER_TYPE,
+                             py_sbmask, (gint *)&sbmask))
+        return NULL;
+    if (pyg_flags_get_value(GDK_TYPE_DRAG_ACTION,
+                             py_actions, (gint *)&actions))
+        return NULL;
+    if (!PySequence_Check(py_targets)) {
+        PyErr_SetString(PyExc_TypeError, "targets must be a sequence");
+        return NULL;
+    }
+    n_targets = PySequence_Length(py_targets);
+    targets = g_new(GtkTargetEntry, n_targets);
+    for (i = 0; i < n_targets; i++) {
+        PyObject *item = PySequence_GetItem(py_targets, i);
+        Py_DECREF(item);
+        if (!PyArg_ParseTuple(item, "zii", &targets[i].target,
+                              &targets[i].flags, &targets[i].info)) {
+            PyErr_Clear();
+            PyErr_SetString(PyExc_TypeError,
+                            "list items should be of form (string,int,int)");
+            g_free(targets);
+            return NULL;
+        }
+    }
+    gtk_icon_view_enable_model_drag_source(GTK_ICON_VIEW(self->obj),
+                                           sbmask, targets, n_targets, actions);
+    g_free(targets);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_enable_model_drag_dest kwargs
+static PyObject *
+_wrap_gtk_icon_view_enable_model_drag_dest(PyGObject *self, PyObject *args,
+                                           PyObject *kwargs)
+{
+    static char *kwlist[] = { "targets", "actions", NULL };
+    PyObject *py_targets, *py_actions;
+    GtkTargetEntry *targets;
+    GdkDragAction actions;
+    gint n_targets, i;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "OO:GtkIconView.enable_model_drag_dest",
+                                     kwlist,
+                                     &py_targets, &py_actions))
+        return NULL;
+    if (pyg_flags_get_value(GDK_TYPE_DRAG_ACTION,
+                             py_actions, (gint *)&actions))
+        return NULL;
+    if (!PySequence_Check(py_targets)) {
+        PyErr_SetString(PyExc_TypeError, "targets must be a sequence");
+        return NULL;
+    }
+    n_targets = PySequence_Length(py_targets);
+    targets = g_new(GtkTargetEntry, n_targets);
+    for (i = 0; i < n_targets; i++) {
+        PyObject *item = PySequence_GetItem(py_targets, i);
+        Py_DECREF(item);
+        if (!PyArg_ParseTuple(item, "zii", &targets[i].target,
+                              &targets[i].flags, &targets[i].info)) {
+            PyErr_Clear();
+            PyErr_SetString(PyExc_TypeError,
+                            "list items should be of form (string,int,int)");
+            g_free(targets);
+            return NULL;
+        }
+    }
+    gtk_icon_view_enable_model_drag_dest(GTK_ICON_VIEW(self->obj),
+                                         targets, n_targets, actions);
+    g_free(targets);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_icon_view_get_tooltip_context kwargs
+static PyObject *
+_wrap_gtk_icon_view_get_tooltip_context(PyGObject *self,
+                                        PyObject *args,
+                                        PyObject *kwargs)
+{
+    static char *kwlist[] = { "x", "y", "keyboard_tip", NULL };
+    
+    gboolean        ret;
+    PyObject        *py_ret = Py_None, *py_keyboard_tip = Py_True;
+    gint            x, y;
+    GtkTreeModel    *tree_model;
+    GtkTreePath     *path;
+    GtkTreeIter     iter;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                        "iiO:GtkIconView.get_tooltip_context",
+                        kwlist, &x, &y, &py_keyboard_tip))
+        return NULL;
+    
+    ret = gtk_icon_view_get_tooltip_context(GTK_ICON_VIEW(self->obj), &x, &y,
+                                            PyObject_IsTrue(py_keyboard_tip),
+                                            &tree_model,
+                                            &path, &iter);
+    if (ret) {
+        py_ret = Py_BuildValue("(NNN)",
+                               pygobject_new((GObject *)tree_model),
+                               pygtk_tree_path_to_pyobject(path),
+                               pyg_boxed_new(GTK_TYPE_TREE_ITER, &iter,
+                                             TRUE, TRUE));
+
+        gtk_tree_path_free(path);
+        return py_ret;
+    }
+    Py_INCREF(py_ret);    
+    return py_ret;
+}
+%%
+override gtk_icon_view_convert_widget_to_bin_window_coords kwargs
+static PyObject*
+_wrap_gtk_icon_view_convert_widget_to_bin_window_coords(PyGObject *self,
+                                                        PyObject *args,
+                                                        PyObject *kwargs)
+{
+    static char *kwlist[] = { "widget_x", "widget_y", NULL };
+    gint widget_x, widget_y, window_x = 0, window_y = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                        "ii:GtkIconView.convert_widget_to_bin_window_coords",
+                        kwlist, &widget_x, &widget_y))
+        return NULL;
+    
+    gtk_icon_view_convert_widget_to_bin_window_coords(GTK_ICON_VIEW(self->obj),
+                                          widget_x, widget_y,
+                                          &window_x, &window_y);
+    
+    return Py_BuildValue("(ii)", window_x, window_y);
+}

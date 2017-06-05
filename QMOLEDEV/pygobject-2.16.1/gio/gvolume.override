@@ -1,0 +1,147 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygobject - Python bindings for GObject
+ * Copyright (C) 2008  Johan Dahlin
+ *
+ *   gvolume.override: module overrides for GVolume
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+ */
+%%
+override g_volume_mount kwargs
+static PyObject *
+_wrap_g_volume_mount(PyGObject *self,
+		     PyObject *args,
+		     PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "mount_operation",
+			      "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *mount_operation;
+    PyGObject *py_cancellable = NULL;
+    GMountMountFlags flags = G_MOUNT_MOUNT_NONE;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!O|OOO:Volume.mount",
+				     kwlist,
+				     &PyGMountOperation_Type,
+				     &mount_operation,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_MOUNT_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_volume_mount(G_VOLUME(self->obj),
+		   flags,
+		   G_MOUNT_OPERATION(mount_operation->obj),
+		   cancellable,
+		   (GAsyncReadyCallback)async_result_callback_marshal,
+		   notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_volume_eject kwargs
+static PyObject *
+_wrap_g_volume_eject(PyGObject *self,
+		     PyObject *args,
+		     PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags",
+			      "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *py_cancellable = NULL;
+    GMountUnmountFlags flags = G_MOUNT_UNMOUNT_NONE;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OOO:Volume.eject",
+				     kwlist,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_UNMOUNT_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_volume_eject(G_VOLUME(self->obj),
+		   flags,
+		   cancellable,
+		   (GAsyncReadyCallback)async_result_callback_marshal,
+		   notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override-slot GVolume.tp_repr
+static PyObject *
+_wrap_g_volume_tp_repr(PyGObject *self)
+{
+    char *name = g_volume_get_name(G_VOLUME(self->obj));
+    gchar *representation;
+    PyObject *result;
+
+    if (name) {
+	representation = g_strdup_printf("<%s at %p: %s>", self->ob_type->tp_name, self, name);
+	g_free(name);
+    }
+    else
+	representation = g_strdup_printf("<%s at %p: UNKNOWN NAME>", self->ob_type->tp_name, self);
+
+    result = PyString_FromString(representation);
+    g_free(representation);
+    return result;
+}

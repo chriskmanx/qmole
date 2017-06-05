@@ -1,0 +1,265 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2006  John Finlay
+ *
+ *   atkrectangle.override: atk.Rectangle overrides
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+headers
+
+static gboolean
+pyatk_rectangle_from_pyobject(PyObject *object, AtkRectangle *rectangle)
+{
+    g_return_val_if_fail(rectangle != NULL, FALSE);
+ 
+    if (pyg_boxed_check(object, ATK_TYPE_RECTANGLE)) {
+        *rectangle = *pyg_boxed_get(object, AtkRectangle);
+        return TRUE;
+    }
+    if (PyArg_ParseTuple(object, "iiii", &rectangle->x, &rectangle->y,
+                                &rectangle->width, &rectangle->height)) {
+        return TRUE;
+    }
+    PyErr_Clear();
+    PyErr_SetString(PyExc_TypeError, "could not convert to AtkRectangle");
+    return FALSE;
+}
+
+static PyObject *
+PyAtkRectangle_from_value(const GValue *value)
+{
+    AtkRectangle *rect = (AtkRectangle *)g_value_get_boxed(value);
+
+    return pyg_boxed_new(ATK_TYPE_RECTANGLE, rect, TRUE, TRUE);
+}
+static int
+PyAtkRectangle_to_value(GValue *value, PyObject *object)
+{
+    AtkRectangle rect;
+
+    if (!pyatk_rectangle_from_pyobject(object, &rect))
+        return -1;
+
+    g_value_set_boxed(value, &rect);
+    return 0;
+}
+
+void
+_pyatk_register_boxed_types(void)
+{
+    pyg_register_boxed_custom(ATK_TYPE_RECTANGLE,
+                              PyAtkRectangle_from_value,
+                              PyAtkRectangle_to_value);
+}
+%%
+override atk_rectangle_new kwargs
+static int
+_wrap_atk_rectangle_new(PyGBoxed *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "x", "y", "width", "height", NULL };
+    AtkRectangle rect = {0, 0, 0, 0};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "|iiii:AtkRectangle.__init__",
+				     kwlist, &(rect.x), &(rect.y),
+				     &(rect.width), &(rect.height)))
+	return -1;
+
+    self->boxed =  g_boxed_copy(ATK_TYPE_RECTANGLE, &rect);
+    self->free_on_dealloc = TRUE;
+    self->gtype = ATK_TYPE_RECTANGLE;
+    
+    return 0;
+}
+%%
+override-slot AtkRectangle.tp_as_sequence
+static Py_ssize_t
+_wrap_atk_rectangle_length(PyGBoxed *self)
+{
+    return 4;
+}
+static PyObject *
+_wrap_atk_rectangle_getitem(PyGBoxed *self, Py_ssize_t pos)
+{
+    AtkRectangle *rect;
+
+    if (pos < 0) pos += 4;
+    if (pos < 0 || pos >= 4) {
+        PyErr_SetString(PyExc_IndexError, "index out of range");
+        return NULL;
+    }
+    rect = pyg_boxed_get(self, AtkRectangle);
+    switch (pos) {
+    case 0: return PyInt_FromLong(rect->x);
+    case 1: return PyInt_FromLong(rect->y);
+    case 2: return PyInt_FromLong(rect->width);
+    case 3: return PyInt_FromLong(rect->height);
+    default:
+        g_assert_not_reached();
+        return NULL;
+    }
+}
+static int
+_wrap_atk_rectangle_setitem(PyGBoxed *self, Py_ssize_t pos, PyObject *value)
+{
+    AtkRectangle *rect;
+    gint val;
+
+    if (pos < 0) pos += 4;
+    if (pos < 0 || pos >= 4) {
+        PyErr_SetString(PyExc_IndexError, "index out of range");
+        return -1;
+    }
+    rect = pyg_boxed_get(self, AtkRectangle);
+    val = PyInt_AsLong(value);
+    if (PyErr_Occurred())
+        return -1;
+    switch(pos) {
+    case 0: rect->x      = val; break;
+    case 1: rect->y      = val; break;
+    case 2: rect->width  = val; break;
+    case 3: rect->height = val; break;
+    default:
+        g_assert_not_reached();
+        return -1;
+    }
+    return 0;
+}
+static PySequenceMethods _wrap_atk_rectangle_tp_as_sequence = {
+    (lenfunc)_wrap_atk_rectangle_length, /* sq_length */
+    0,                          /* sq_concat */
+    0,                          /* sq_repeat */
+    (ssizeargfunc)_wrap_atk_rectangle_getitem, /* sq_item */
+    0,                          /* sq_slice */
+    (ssizeobjargproc)_wrap_atk_rectangle_setitem, /* sq_ass_item */
+    0,                          /* sq_contains */
+    0,                          /* sq_inplace_concat */
+    0                           /* sq_inplace_repeat */
+};
+%%
+override-attr AtkRectangle.x
+static int
+_wrap_atk_rectangle__set_x(PyGBoxed *self, PyObject *value, void *closure)
+{
+    gint val;
+
+    val = PyInt_AsLong(value);
+    if (PyErr_Occurred())
+        return -1;
+    pyg_boxed_get(self, AtkRectangle)->x = val;
+    return 0;
+}
+%%
+override-attr AtkRectangle.y
+static int
+_wrap_atk_rectangle__set_y(PyGBoxed *self, PyObject *value, void *closure)
+{
+    gint val;
+
+    val = PyInt_AsLong(value);
+    if (PyErr_Occurred())
+        return -1;
+    pyg_boxed_get(self, AtkRectangle)->y = val;
+    return 0;
+}
+%%
+override-attr AtkRectangle.width
+static int
+_wrap_atk_rectangle__set_width(PyGBoxed *self, PyObject *value, void *closure)
+{
+    gint val;
+
+    val = PyInt_AsLong(value);
+    if (PyErr_Occurred())
+        return -1;
+    pyg_boxed_get(self, AtkRectangle)->width = val;
+    return 0;
+}
+%%
+override-attr AtkRectangle.height
+static int
+_wrap_atk_rectangle__set_height(PyGBoxed *self, PyObject *value, void *closure)
+{
+    gint val;
+
+    val = PyInt_AsLong(value);
+    if (PyErr_Occurred())
+        return -1;
+    pyg_boxed_get(self, AtkRectangle)->height = val;
+    return 0;
+}
+%%
+override atk_rectangle_intersect kwargs
+static PyObject *
+_wrap_atk_rectangle_intersect(PyGObject *self, PyObject *args,
+			      PyObject *kwargs)
+{
+    static char *kwlist[] = { "src", NULL };
+    PyObject *py_src;
+    AtkRectangle src, dest = {0, 0, 0, 0};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:AtkRectangle.intersect",
+				     kwlist, &py_src)) {
+        return NULL;
+    }
+    
+    if (!pyg_boxed_check(py_src, ATK_TYPE_RECTANGLE)) {
+	if (!pyatk_rectangle_from_pyobject(py_src, &src)) {
+	    PyErr_Clear();
+	    PyErr_SetString(PyExc_TypeError,
+			    "src must be a AtkRectangle or 4-tuple");
+	    return NULL;
+	}
+    } else {
+	src = *pyg_boxed_get(py_src, AtkRectangle);
+    }
+
+    atk_rectangle_intersect(pyg_boxed_get(self, AtkRectangle), &src, &dest);
+                            
+    return pyg_boxed_new(ATK_TYPE_RECTANGLE, &dest, TRUE, TRUE);
+}
+%%
+override atk_rectangle_union kwargs
+static PyObject *
+_wrap_atk_rectangle_union(PyGObject *self, PyObject *args,
+			  PyObject *kwargs)
+{
+    static char *kwlist[] = { "src", NULL };
+    PyObject *py_src;
+    AtkRectangle src, dest;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:AtkRectangle.union",
+				     kwlist, &py_src)) {
+        return NULL;
+    }
+    
+    if (!pyg_boxed_check(py_src, ATK_TYPE_RECTANGLE)) {
+	if (!pyatk_rectangle_from_pyobject(py_src, &src)) {
+	    PyErr_Clear();
+	    PyErr_SetString(PyExc_TypeError,
+			    "src must be a AtkRectangle or 4-tuple");
+	    return NULL;
+	}
+    } else {
+	src = *pyg_boxed_get(py_src, AtkRectangle);
+    }
+
+    atk_rectangle_union(pyg_boxed_get(self, AtkRectangle), &src, &dest);
+                            
+    return pyg_boxed_new(ATK_TYPE_RECTANGLE, &dest, TRUE, TRUE);
+}

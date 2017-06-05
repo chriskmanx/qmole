@@ -1,0 +1,208 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygobject - Python bindings for GObject
+ * Copyright (C) 2008  Johan Dahlin
+ * Copyright (C) 2008  Gian Mario Tagliaretti
+ *
+ *   gappinfo.override: module overrides for GInputStream
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+ */
+%%
+define _install_app_info_meta
+static PyObject *
+_wrap__install_app_info_meta(PyObject *self, PyObject *args)
+{
+    PyObject *metaclass;
+
+    if (!PyArg_ParseTuple(args, "O", &metaclass))
+	return NULL;
+
+    Py_INCREF(metaclass);
+    PyGAppInfo_Type.ob_type = (PyTypeObject*)metaclass;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+define _app_info_init kwargs
+static PyObject *
+_wrap__app_info_init(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "commandline", "application_name",
+			      "flags", NULL };
+    char *commandline, *application_name = NULL;
+    PyObject *py_flags = NULL;
+    GAppInfo *ret;
+    GError *error = NULL;
+    GAppInfoCreateFlags flags = G_APP_INFO_CREATE_NONE;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s|zO:gio.AppInfo",
+				     kwlist,
+				     &commandline, &application_name,
+				     &py_flags))
+        return NULL;
+    if (py_flags && pyg_flags_get_value(G_TYPE_APP_INFO_CREATE_FLAGS,
+					py_flags, (gpointer)&flags))
+        return NULL;
+
+    ret = g_app_info_create_from_commandline(commandline,
+					     application_name, flags, &error);
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    /* pygobject_new handles NULL checking */
+    return pygobject_new((GObject *)ret);
+}
+%%
+override g_app_info_launch_uris kwargs
+static PyObject *
+_wrap_g_app_info_launch_uris(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "files", "launch_context", NULL };
+
+    GList *file_list = NULL;
+    PyGObject *pycontext = NULL;
+    GAppLaunchContext *ctx;
+    PyObject *pyfile_list = Py_None;
+    int ret;
+    GError *error = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "|OO:gio.AppInfo.launch_uris",
+				     kwlist,
+				     &pyfile_list, &pycontext))
+        return NULL;
+
+    if (!pygio_check_launch_context(pycontext, &ctx))
+	return NULL;
+
+    if (pyfile_list == Py_None)
+        file_list = NULL;
+
+    else if (PySequence_Check (pyfile_list))
+        file_list = pygio_pylist_to_uri_glist(pyfile_list);
+
+    else {
+        PyErr_SetString(PyExc_TypeError,
+                        "file_list should be a list of strings or None");
+        return NULL;
+    }
+
+    ret = g_app_info_launch_uris(G_APP_INFO(self->obj),
+                                 file_list, ctx, &error);
+
+    g_list_free(file_list);
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    return PyBool_FromLong(ret);
+}
+%%
+override g_app_info_launch kwargs
+static PyObject *
+_wrap_g_app_info_launch(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "files", "launch_context", NULL };
+
+    GList *file_list = NULL;
+    PyGObject *pycontext = NULL;
+    GAppLaunchContext *ctx;
+    PyObject *pyfile_list = Py_None;
+    int ret;
+    GError *error = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "|OO:gio.AppInfo.launch",
+				     kwlist,
+				     &pyfile_list, &pycontext))
+        return NULL;
+
+    if (!pygio_check_launch_context(pycontext, &ctx))
+	return NULL;
+
+    if (pyfile_list == Py_None)
+        file_list = NULL;
+
+    else if (PySequence_Check (pyfile_list))
+        file_list = pygio_pylist_to_gfile_glist(pyfile_list);
+
+    else {
+        PyErr_SetString(PyExc_TypeError,
+                        "file_list should be a list of strings or None");
+        return NULL;
+    }
+
+    ret = g_app_info_launch(G_APP_INFO(self->obj),
+                            file_list, ctx, &error);
+
+    g_list_free(file_list);
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    return PyBool_FromLong(ret);
+}
+%%
+override-slot GAppInfo.tp_richcompare
+static PyObject *
+_wrap_g_app_info_tp_richcompare(PyGObject *self, PyGObject *other, int op)
+{
+    PyObject *result;
+
+    if (PyObject_TypeCheck(self, &PyGAppInfo_Type)
+        && PyObject_TypeCheck(other, &PyGAppInfo_Type)) {
+        GAppInfo *info1 = G_APP_INFO(self->obj);
+        GAppInfo *info2 = G_APP_INFO(other->obj);
+
+        switch (op) {
+        case Py_EQ:
+            result = (g_app_info_equal(info1, info2)
+                      ? Py_True : Py_False);
+            break;
+        case Py_NE:
+            result = (!g_app_info_equal(info1, info2)
+                      ? Py_True : Py_False);
+            break;
+        default:
+            result = Py_NotImplemented;
+        }
+    }
+    else
+        result = Py_NotImplemented;
+
+    Py_INCREF(result);
+    return result;
+}
+%%
+override-slot GAppInfo.tp_repr
+static PyObject *
+_wrap_g_app_info_tp_repr(PyGObject *self)
+{
+    const char *name = g_app_info_get_name(G_APP_INFO(self->obj));
+    gchar *representation;
+    PyObject *result;
+
+    representation = g_strdup_printf("<%s at %p: %s>",
+				     self->ob_type->tp_name, self,
+				     name ? name : "UNKNOWN NAME");
+
+    result = PyString_FromString(representation);
+    g_free(representation);
+    return result;
+}

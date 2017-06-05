@@ -1,0 +1,65 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2009 Paul Pogonyshev
+ *
+ *   gtkstatusbar.override: overrides for the gtk.Statusbar object.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+override gtk_statusbar_remove_compatibility kwargs
+
+static PyObject *
+_wrap_gtk_statusbar_remove(PyGObject *self, PyObject *args, PyObject *kwargs);
+
+static PyObject *
+_wrap_gtk_statusbar_remove_compatibility(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "widget", NULL };
+    PyGObject *widget;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,"O!:gtk.Statusbar.remove", kwlist,
+                                     &PyGtkWidget_Type, &widget)) {
+        PyObject *exc_type, *exc_value, *exc_traceback;
+        PyObject *result;
+
+        PyErr_Fetch(&exc_type, &exc_value, &exc_traceback);
+
+        /* For compatibility reasons, call remove_message().  See bug #564587. */
+        result = _wrap_gtk_statusbar_remove(self, args, kwargs);
+        if (result) {
+            Py_XDECREF(exc_type);
+            Py_XDECREF(exc_value);
+            Py_XDECREF(exc_traceback);
+
+            if (PyErr_Warn(PyExc_DeprecationWarning, "use gtk.Statusbar.remove_message")) {
+                Py_DECREF(result);
+                return NULL;
+            }
+
+            return result;
+        }
+        else {
+            PyErr_Restore(exc_type, exc_value, exc_traceback);
+            return NULL;
+        }
+    }
+
+    gtk_container_remove(GTK_CONTAINER(self->obj), GTK_WIDGET(widget->obj));
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}

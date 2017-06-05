@@ -1,0 +1,170 @@
+The mapping of GTK+ onto Python
+===============================
+
+This file documents the mapping of the C GTK+ functions and types in
+the pygtk package.  If you want just enough information on how to use
+C documentation to help you program with pygtk or help you read or
+translate GTK+ programs written in C, then see the "Mapping of GTK+
+functions to gtk.py" section.
+
+
+The _gtk module
+===============
+
+This module is almost a direct mapping of the GTK+ functions.  It has
+no object oriented constructs and is the part written in C.  Large
+parts of it are generated from .defs files (which are also used in the
+guile and perl bindings), while some is written in hand crafted C.
+Note that this module is mainly a convenience that makes it easier to
+code the higher level gtk.py.
+
+There are a number of types defined by this module.  The main one is a
+wrapper for GtkObject and all its descendants.  This type is just a
+wrapper round the pointer, and calls gtk_object_ref on creation, and
+gtk_object_unref on destruction (hence the C structure will not be
+freed while python has a reference to it).
+
+For all the functions in _gtk that take GtkObject descendents as
+arguments, the type conversion is done automatically (so you don't
+have to call GTK_WIDGET or GTK_CONTAINER type macros).  So at this
+level, reference counting and type casting has already been taken care
+of.
+
+Also a number of other types are defined in this module.  For these
+objects, there are relatively few functions and attributes specific to
+the individual types, so I have spent some time writing nice
+interfaces to them.  Outlines of the available attributes and methods
+of these types are available in the file description.py, which is
+distributed with pygtk.  These types include:
+  GtkCTreeNode
+  GtkStyle
+  GtkSelectionData
+  GdkAtom
+  GdkColor
+  GdkColormap
+  GdkCursor
+  GdkDragContext
+  GdkEvent
+  GdkFont
+  GdkGC
+  GdkWindow (aka GdkDrawable aka GdkPixmap aka GdkBitmap)
+
+Also, for the functions defined in _gtk, enumerations and flags are
+handled specially.  Where an enumeration value is to be passed to a
+function, you can give it an integer representing its value, or a
+string representing the name.  For the list of names that can be used,
+see the file gtk.defs that comes with the GTK+ distribution.  The
+(define-enum) and (define-flags) sections list the possible values.
+For flags, you can pass any value that would be accepted as an enum
+value in adition to a tuple of strings, which would be converted to
+their corresponding numeric values and ORed together.
+
+GTK.py and GDK.py
+=================
+
+These python modules define the numerical values for the host of enums
+and flags in gtk and gdk respectively.  The GTK_ prefix has been
+removed from the gtk enums, and the GDK_ prefix from the GDK ones
+(where this would leave the identifier starting with a digit, an
+underscore has been prepended).  This way if you do an "import GTK",
+you reference the constants with a gtk prefix (eg GTK.STATE_NORMAL),
+or if you do a "from GTK import *" you can access the constants via
+shorter names (eg STATE_NORMAL).
+
+With _gtk, GTK.py and GDK.py, you should be able to write programs
+that quite closely resemble the what they would look like in C (minus
+type casts and occasional referencing/dereferencing).
+
+gtk.py
+======
+
+This module is meant to be the high level interface that will be used
+by most programmers.  It defines a number of classes that mirror the
+class heirachy of the GtkObject descendents found in GTK+.  Each of
+these classes has an _o attribute which points to an instance of the
+GtkObject wrapper type from _gtk.
+
+Because of reference counting problems (we don't want the GTK object
+to die while we have a reference to the python one, and we don't want
+the python one to die while we have a reference to the GTK object --
+circular reference alert :), there will usually be more than one of
+these python wrappers existing for a single GtkObject (ie. a 1 to many
+relationship).  The bigest example of this is signal handlers where a
+different object will always be passed in.  This means that any
+attributes you set on the object (ie. obj.foo = "bar") will not be
+visible inside the callback.  You can get round this by using the
+object data mechanisms:
+  obj.set_data("string_tag", data)
+  data = obj.get_data("string_tag")
+
+This data will be accessible to every instance pointing to a single
+GtkObject.
+
+Since there are two times you may want to create instances of these
+classes, there are two ways to call their constructors:
+  - as normal to create a new C level object.
+  - as 'GtkSomething(_obj=obj)', which does not create a new C level
+    object, but creates a new python instance that represents the C
+    level object wrapped by obj.
+
+The second way of creating instances is done by giving default values
+for all the constructor arguments, and adding "_obj=None" to the end
+of the argument list.  Then the first line of the constructor is set
+to:
+    if _obj: self._o = _obj; return
+
+Mapping of GTK+ functions to gtk.py
+===================================
+
+For each GtkObject descendent, there is a python class of the same
+name.  It will list the C class's superclass as its superclass.  For
+each desendant, say GtkSomething, there will be a function defined in
+GTK+ called gtk_something_new() or similar.  This is mapped to the
+constructor for the class.
+
+There are usually a number of other functions starting with
+gtk_something_ in GTK+.  These functions will generally take an
+instance of GtkSomething as the first argument.  These map to methods
+of the python class.  So the following:
+  gtk_something_method(GtkSomething *something, args, ...)
+maps to this:
+  something.method(args, ...)
+
+Note that this means that methods of the parent class are accessed as
+easily as those of the actual class.
+
+There are a few special cases of course.  For instance, all the
+gtk_drag_*() functions have been mapped to GtkWidget.drag_*(), and the
+gtk_selection_*() functions have been mapped to
+GtkWidget.selection_*().
+
+The object argument mechanisms are also implemented in pygtk.  You can
+query and change these properties on an already instantiated object
+using the mapping behaviour similar to the way you can in Tkinter (eg
+label_widget['label'] = 'Hello' will change a label's text).  You can
+also create new objects and setting their object arguments at creation
+time with the new() method.  The first argument should be the class
+object for the instance you want.  The rest of the arguments should be
+keyword arguments specifying the object arguments you want to set (eg
+label = new(GtkLabel, label='Hello')).
+
+There are also a number of other functions not associated with any
+particular class that are accessible through the global scope of the
+gtk.py module.  It is probably easiest to read the end of gtk.py to
+get a feel for these functions.
+
+gtk.py also imports the GTK constants with "from GTK import *", and
+the GDK constants with "import GDK".  The reasons for using "from GTK
+import *" are partly for convenience and partly because thats how I
+did it when I first wrote pygtk :)
+
+Conclusions
+===========
+
+That about sums up the language mapping in pygtk.  The best way of
+learning how to program in pygtk is to read sample code.  Take a look
+at the examples/ directory, and go through the examples there.
+
+If you think something is missing from this document, please mail me
+at <james@daa.com.au>.
+

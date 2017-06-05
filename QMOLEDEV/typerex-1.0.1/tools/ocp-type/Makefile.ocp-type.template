@@ -1,0 +1,79 @@
+##########################################################################
+#                                                                        #
+#    TypeRex OCaml Studio                                                #
+#      Thomas Gazagnaire, Fabrice Le Fessant                             #
+#                                                                        #
+#    OCaml                                                               #
+#      Xavier Leroy, projet Cristal, INRIA Rocquencourt                  #
+#                                                                        #
+#  Copyright 2011-2012 OCamlPro                                          #
+#  Copyright 1996-2011 INRIA.                                            #
+#  All rights reserved.  This file is distributed under the terms of     #
+#  the GNU Public License version 3.0.                                   #
+#                                                                        #
+#  TypeRex is distributed in the hope that it will be useful,            #
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+#  GNU General Public License for more details.                          #
+#                                                                        #
+##########################################################################
+
+#Generic Makefile for adding cmt(i) files into a simple OCaml project
+
+#Usage:
+# - copy this file in your project's root directory and rename it to
+#   Makefile.ocp-type
+# - set the following configuration variables appropriately
+# - make -f Makefile.ocp-type
+
+# Use 'make -f Makefile.ocp-type clean' to delete the .cmt(i) and
+# .depend.ocp-type files
+
+include ../../Makefile.config
+
+# Where to find the .cmti files for the OCaml stdlib, if not in `ocamlc -where`
+#OCAMLLIB=
+
+# Path to the ocp-type binary
+OCP_TYPE=ocp-type
+
+# Put the path to any additional dependencies here
+#LIBS=
+
+# Use this to filter out subdirectories (example from ocaml-compiler)
+#FIND_FILTER=-not -path "./cmocompat*" -not -path "./approx*"
+
+
+#Generic part follows
+#####################
+
+
+DIRS=$(subst ./,,$(filter-out .,$(shell find . -type d $(FIND_FILTER))))
+ML=$(subst ./,,$(shell find . -name "*.ml" $(FIND_FILTER)))
+MLI=$(subst ./,,$(shell find . -name "*.mli" $(FIND_FILTER)))
+CMT=$(ML:.ml=.cmt)
+CMTI=$(MLI:.mli=.cmti)
+INCLUDES=$(addprefix -I ,$(OCAMLLIB) $(LIBS) $(DIRS))
+
+all type:
+	make -f Makefile.ocp-type $(CMT) $(CMTI)
+
+.SUFFIXES: .mli .cmti .ml .cmt
+
+.mli.cmti:
+	$(OCP_TYPE) $(INCLUDES) -save-types $<
+
+.ml.cmt:
+	$(OCP_TYPE) $(INCLUDES) -save-types $<
+
+depend .depend.ocp-type:
+	$(OCAMLDEP) $(addprefix -I ,$(DIRS)) $(MLI) $(ML) \
+	| sed s/\\.cmo/.cmt/g | sed s/\\.cmi/.cmti/g \
+	>.depend.ocp-type
+
+.PHONY: .depend.ocp-type
+
+include .depend.ocp-type
+
+clean:
+	rm -rf $(CMT) $(CMTI) .depend.ocp-type

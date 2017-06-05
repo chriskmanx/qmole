@@ -1,0 +1,295 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 1998-2003  James Henstridge
+ *
+ *   gtkwindow.override: overrides for the gtk.Window object.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+ignore
+  gtk_window_add_embedded_xid
+  gtk_window_remove_embedded_xid
+%%
+override gtk_window_list_toplevels noargs
+static PyObject *
+_wrap_gtk_window_list_toplevels(PyGObject *self)
+{
+    GList *list, *tmp;
+    PyObject *py_list;
+    PyObject *gtk_obj;
+
+    list = gtk_window_list_toplevels();
+
+    /* See bug #574259.  We temporarily reference each window.  After
+     * the list is created, windows will be referenced from PyGTK
+     * wrappers, so we remove the temporary refs. */
+    g_list_foreach(list, (GFunc) g_object_ref, NULL);
+    
+    if ((py_list = PyList_New(0)) == NULL) {
+        g_list_foreach(list, (GFunc) g_object_unref, NULL);
+        g_list_free(list);
+        return NULL;
+    }
+    for (tmp = list; tmp != NULL; tmp = tmp->next) {
+        gtk_obj = pygobject_new(G_OBJECT(tmp->data));
+        if (gtk_obj == NULL) {
+            g_list_foreach(list, (GFunc) g_object_unref, NULL);
+            g_list_free(list);
+            Py_DECREF(py_list);
+            return NULL;
+        }
+        PyList_Append(py_list, gtk_obj);
+        Py_DECREF(gtk_obj);
+    }
+
+    g_list_foreach(list, (GFunc) g_object_unref, NULL);
+    g_list_free(list);
+    return py_list;
+}
+%%
+override gtk_window_set_geometry_hints kwargs
+static PyObject *
+_wrap_gtk_window_set_geometry_hints(PyGObject *self, PyObject *args,
+                                    PyObject *kwargs)
+{
+    static char *kwlist[] = { "geometry_widget", "min_width", "min_height",
+                              "max_width", "max_height", "base_width",
+                              "base_height", "width_inc", "height_inc",
+                              "min_aspect", "max_aspect", NULL };
+    PyObject *py_geometry_widget = Py_None;
+    GtkWidget *geometry_widget = NULL;
+    gint min_width = -1, min_height = -1, max_width = -1, max_height = -1;
+    gint base_width = -1, base_height = -1, width_inc = -1, height_inc = -1;
+    gdouble min_aspect = -1.0, max_aspect = -1.0;
+    GdkGeometry geometry = { 0 };
+    GdkWindowHints geom_mask = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                        "|Oiiiiiiiidd:GtkWindow.set_geometry_hints", kwlist,
+                                     &py_geometry_widget, &min_width,
+                                     &min_height, &max_width, &max_height,
+                                     &base_width, &base_height, &width_inc,
+                                     &height_inc, &min_aspect, &max_aspect))
+        return NULL;
+    if (pygobject_check(py_geometry_widget, &PyGtkWidget_Type))
+        geometry_widget = GTK_WIDGET(pygobject_get(py_geometry_widget));
+    else if (py_geometry_widget != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "geometry_widget must be a GtkWidget or None");
+        return NULL;
+    }
+    if (min_width >= 0 || min_height >= 0) {
+        geometry.min_width = MAX(min_width, 0);
+        geometry.min_height = MAX(min_height, 0);
+        geom_mask |= GDK_HINT_MIN_SIZE;
+    }
+    if (max_width >= 0 || max_height >= 0) {
+        geometry.max_width = MAX(max_width, 0);
+        geometry.max_height = MAX(max_height, 0);
+        geom_mask |= GDK_HINT_MAX_SIZE;
+    }
+    if (base_width >= 0 || base_height >= 0) {
+        geometry.base_width = MAX(base_width, 0);
+        geometry.base_height = MAX(base_height, 0);
+        geom_mask |= GDK_HINT_BASE_SIZE;
+    }
+    if (width_inc >= 0 || height_inc >= 0) {
+        geometry.width_inc = MAX(width_inc, 0);
+        geometry.height_inc = MAX(height_inc, 0);
+        geom_mask |= GDK_HINT_RESIZE_INC;
+    }
+    if (min_aspect >= 0.0 || max_aspect >= 0.0) {
+        if (min_aspect <= 0.0 || max_aspect <= 0.0) {
+            PyErr_SetString(PyExc_TypeError, "aspect ratios must be positive");
+            return NULL;
+        }
+        geometry.min_aspect = min_aspect;
+        geometry.max_aspect = max_aspect;
+        geom_mask |= GDK_HINT_ASPECT;
+    }
+    gtk_window_set_geometry_hints(GTK_WINDOW(self->obj), geometry_widget,
+                                  &geometry, geom_mask);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_window_get_position
+static PyObject *
+_wrap_gtk_window_get_position(PyGObject *self)
+{
+    gint root_x, root_y;
+
+    gtk_window_get_position(GTK_WINDOW(self->obj), &root_x, &root_y);
+    return Py_BuildValue("(ii)", root_x, root_y);
+}
+%%
+override gtk_window_get_size
+static PyObject *
+_wrap_gtk_window_get_size(PyGObject *self)
+{
+    gint width, height;
+
+    gtk_window_get_size(GTK_WINDOW(self->obj), &width, &height);
+    return Py_BuildValue("(ii)", width, height);
+}
+%%
+override gtk_window_get_default_size
+static PyObject *
+_wrap_gtk_window_get_default_size(PyGObject *self)
+{
+    gint width, height;
+
+    gtk_window_get_default_size(GTK_WINDOW(self->obj), &width, &height);
+    return Py_BuildValue("(ii)", width, height);
+}
+%%
+override gtk_window_get_frame_dimensions  noargs
+static PyObject *
+_wrap_gtk_window_get_frame_dimensions(PyGObject *self)
+{
+    int left, top, right, bottom;
+
+    gtk_window_get_frame_dimensions(GTK_WINDOW(self->obj),
+				    &left, &top, &right, &bottom);
+    return Py_BuildValue("(iiii)", left, top, right, bottom);
+}
+%%
+override gtk_widget_get_size_request  noargs
+static PyObject *
+_wrap_gtk_widget_get_size_request(PyGObject *self)
+{
+    int width, height;
+
+    gtk_widget_get_size_request(GTK_WIDGET(self->obj), &width, &height);
+    return Py_BuildValue("(ii)", width, height);
+}
+%%
+override gtk_window_set_icon_list args
+static PyObject *
+_wrap_gtk_window_set_icon_list(PyGObject *self, PyObject *args)
+{
+    GList *icon_list = NULL;
+    PyObject *pyicon;
+    gint len, i;
+
+    len = PyTuple_Size(args);
+    for (i = 0; i < len; i++) {
+	pyicon = PyTuple_GetItem(args, i);
+	if (!pygobject_check(pyicon, &PyGdkPixbuf_Type)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "icons must be GdkPixbufs");
+	    g_list_free(icon_list);
+            return NULL;
+        }
+	icon_list = g_list_prepend(icon_list, pygobject_get(pyicon));
+    }
+    gtk_window_set_icon_list(GTK_WINDOW(self->obj), icon_list);
+    g_list_free(icon_list);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_window_get_icon_list noargs
+static PyObject *
+_wrap_gtk_window_get_icon_list(PyGObject *self)
+{
+    GList *icon_list = NULL;
+    PyObject *pyicon;
+
+    if ((icon_list = gtk_window_get_icon_list(GTK_WINDOW(self->obj)))) {
+        PyObject *py_list;
+        GList *tmp;
+
+        if ((py_list = PyList_New(0)) == NULL) {
+            g_list_free(icon_list);
+            return NULL;
+        }
+        for (tmp = icon_list; tmp != NULL; tmp = tmp->next) {
+            pyicon = pygobject_new(G_OBJECT(tmp->data));
+
+            if (pyicon == NULL) {
+                g_list_free(icon_list);
+                Py_DECREF(py_list);
+                return NULL;
+            }
+            PyList_Append(py_list, pyicon);
+            Py_DECREF(pyicon);
+        }
+        g_list_free(icon_list);
+        return py_list;
+    }
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_window_set_default_icon_list args
+static PyObject *
+_wrap_gtk_window_set_default_icon_list(PyGObject *self, PyObject *args)
+{
+    GList *icon_list = NULL;
+    PyObject *pyicon;
+    gint len, i;
+
+    len = PyTuple_Size(args);
+    for (i = 0; i < len; i++) {
+	pyicon = PyTuple_GetItem(args, i);
+	if (!pygobject_check(pyicon, &PyGdkPixbuf_Type)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "icons must be GdkPixbufs");
+	    g_list_free(icon_list);
+            return NULL;
+        }
+	icon_list = g_list_prepend(icon_list, pygobject_get(pyicon));
+    }
+    gtk_window_set_default_icon_list(icon_list);
+    g_list_free(icon_list);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_window_get_default_icon_list noargs
+static PyObject *
+_wrap_gtk_window_get_default_icon_list(PyGObject *self)
+{
+    GList *icon_list = NULL;
+    PyObject *pyicon;
+
+    if ((icon_list = gtk_window_get_default_icon_list())) {
+        PyObject *py_list;
+        GList *tmp;
+
+        if ((py_list = PyList_New(0)) == NULL) {
+            g_list_free(icon_list);
+            return NULL;
+        }
+        for (tmp = icon_list; tmp != NULL; tmp = tmp->next) {
+            pyicon = pygobject_new(G_OBJECT(tmp->data));
+
+            if (pyicon == NULL) {
+                g_list_free(icon_list);
+                Py_DECREF(py_list);
+                return NULL;
+            }
+            PyList_Append(py_list, pyicon);
+            Py_DECREF(pyicon);
+        }
+        g_list_free(icon_list);
+        return py_list;
+    }
+    Py_INCREF(Py_None);
+    return Py_None;
+}

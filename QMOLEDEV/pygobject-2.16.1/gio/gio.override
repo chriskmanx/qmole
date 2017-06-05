@@ -1,0 +1,701 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2008  Johan Dahlin
+ *
+ *   gio.override: module wrapping the GIO library
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+ */
+%%
+modulename gio
+%%
+import gobject.GObject as PyGObject_Type
+%%
+headers
+#define NO_IMPORT_PYGOBJECT
+#include <pygobject.h>
+#include <gio/gio.h>
+#include "pygio-utils.h"
+#include "pyglib.h"
+
+#define BUFSIZE 8192
+
+typedef struct {
+    gboolean  referenced;
+    PyObject *callback;
+    PyObject *data;
+    gboolean  attach_self;
+    gpointer  buffer;
+    gsize     buffer_size;
+} PyGIONotify;
+
+static GQuark
+pygio_notify_get_internal_quark(void)
+{
+    static GQuark quark = 0;
+    if (!quark)
+        quark = g_quark_from_string("pygio::notify");
+    return quark;
+}
+
+static PyGIONotify *
+pygio_notify_new(void)
+{
+    return g_slice_new0(PyGIONotify);
+}
+
+static gboolean
+pygio_notify_using_optional_callback(PyGIONotify *notify)
+{
+    if (notify->callback)
+        return TRUE;
+    else {
+        notify->data = NULL;
+        return FALSE;
+    }
+}
+
+static gboolean
+pygio_notify_callback_is_valid_full(PyGIONotify *notify, const gchar *name)
+{
+    if (!notify->callback) {
+        PyErr_SetString(PyExc_RuntimeError, "internal error: callback is not set");
+        return FALSE;
+    }
+
+    if (!PyCallable_Check(notify->callback)) {
+        gchar *error_message = g_strdup_printf("%s argument not callable", name);
+
+	PyErr_SetString(PyExc_TypeError, error_message);
+        g_free(error_message);
+	return FALSE;
+    }
+
+    return TRUE;
+}
+
+static gboolean
+pygio_notify_callback_is_valid(PyGIONotify *notify)
+{
+    return pygio_notify_callback_is_valid_full(notify, "callback");
+}
+
+static void
+pygio_notify_reference_callback(PyGIONotify *notify)
+{
+    if (!notify->referenced) {
+        notify->referenced = TRUE;
+        Py_XINCREF(notify->callback);
+        Py_XINCREF(notify->data);
+    }
+}
+
+static void
+pygio_notify_copy_buffer(PyGIONotify *notify, gpointer buffer, gsize buffer_size)
+{
+    if (buffer_size > 0) {
+	notify->buffer = g_slice_copy(buffer_size, buffer);
+	notify->buffer_size = buffer_size;
+    }
+}
+
+static gboolean
+pygio_notify_allocate_buffer(PyGIONotify *notify, gsize buffer_size)
+{
+    if (buffer_size > 0) {
+        notify->buffer = g_slice_alloc(buffer_size);
+        if (!notify->buffer) {
+            PyErr_Format(PyExc_MemoryError, "failed to allocate %d bytes", buffer_size);
+            return FALSE;
+        }
+
+        notify->buffer_size = buffer_size;
+    }
+
+    return TRUE;
+}
+
+static void
+pygio_notify_attach_to_result(PyGIONotify *notify)
+{
+    notify->attach_self = TRUE;
+}
+
+static PyGIONotify *
+pygio_notify_get_attached(PyGObject *result)
+{
+    return g_object_get_qdata(G_OBJECT(result->obj), pygio_notify_get_internal_quark());
+}
+
+static void
+pygio_notify_free(PyGIONotify *notify)
+{
+    if (notify) {
+        if (notify->referenced) {
+            Py_XDECREF(notify->callback);
+            Py_XDECREF(notify->data);
+        }
+
+        if (notify->buffer)
+            g_slice_free1(notify->buffer_size, notify->buffer);
+
+        g_slice_free(PyGIONotify, notify);
+    }
+}
+
+static void
+async_result_callback_marshal(GObject *source_object,
+			      GAsyncResult *result,
+			      PyGIONotify *notify)
+{
+    PyObject *ret;
+    PyGILState_STATE state;
+
+    state = pyg_gil_state_ensure();
+
+    if (!notify->referenced)
+        g_warning("pygio_notify_reference_callback() hasn't been called before using the structure");
+
+    if (notify->attach_self) {
+        g_object_set_qdata_full(G_OBJECT(result), pygio_notify_get_internal_quark(),
+                                notify, (GDestroyNotify) pygio_notify_free);
+    }
+
+    if (notify->data)
+	ret = PyEval_CallFunction(notify->callback, "NNO",
+				  pygobject_new(source_object),
+				  pygobject_new((GObject *)result),
+				  notify->data);
+    else
+	ret = PyObject_CallFunction(notify->callback, "NN",
+				    pygobject_new(source_object),
+				    pygobject_new((GObject *)result));
+
+    if (ret == NULL) {
+	PyErr_Print();
+	PyErr_Clear();
+    }
+
+    Py_XDECREF(ret);
+
+    /* Otherwise the structure is attached to 'result' and will be
+     * freed when that object dies. */
+    if (!notify->attach_self)
+        pygio_notify_free(notify);
+
+    pyg_gil_state_release(state);
+}
+%%
+include
+  gappinfo.override
+  gapplaunchcontext.override
+  gfile.override
+  gfileattribute.override
+  gfileenumerator.override
+  gfileinfo.override
+  gicon.override
+  ginputstream.override
+  goutputstream.override
+  gvolume.override
+  gvolumemonitor.override
+%%
+ignore-glob
+  *_get_type
+  *free
+  g_async_result_get_user_data
+  g_file_new_from_commandline_arg
+  g_file_new_from_path
+  g_file_new_from_uri
+  g_file_hash
+  g_io_error_quark
+  g_simple_async_result_new_error
+  g_simple_async_report_error_in_idle
+  g_simple_async_result_set_op_res_gpointer
+  g_simple_async_result_get_op_res_gpointer
+  g_simple_async_result_get_source_tag
+  g_simple_async_result_run_in_thread
+  g_simple_async_result_set_from_error
+  g_simple_async_result_set_error
+  g_simple_async_result_set_error_va
+  g_io_module*
+  g_io_scheduler_*
+%%
+override g_drive_get_volumes noargs
+static PyObject *
+_wrap_g_drive_get_volumes (PyGObject *self)
+{
+  GList *list, *l;
+  PyObject *ret;
+
+  pyg_begin_allow_threads;
+
+  list = g_drive_get_volumes (G_DRIVE (self->obj));
+
+  pyg_end_allow_threads;
+
+  ret = PyList_New(0);
+  for (l = list; l; l = l->next) {
+    GVolume *volume = l->data;
+    PyObject *item = pygobject_new((GObject *)volume);
+    PyList_Append(ret, item);
+    Py_DECREF(item);
+    g_object_unref(volume);
+  }
+  g_list_free(list);
+
+  return ret;
+}
+%%
+override g_drive_eject kwargs
+static PyObject *
+_wrap_g_drive_eject(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    GMountUnmountFlags flags = G_MOUNT_UNMOUNT_NONE;
+    PyGObject *py_cancellable = NULL;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OOO:gio.Drive.eject",
+				     kwlist,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_UNMOUNT_FLAGS,
+					py_flags, (gpointer) &flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_drive_eject(G_DRIVE(self->obj),
+		  flags,
+		  cancellable,
+		  (GAsyncReadyCallback) async_result_callback_marshal,
+		  notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_drive_poll_for_media kwargs
+static PyObject *
+_wrap_g_drive_poll_for_media(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyGObject *py_cancellable = NULL;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OO:gio.Drive.eject",
+				     kwlist,
+				     &notify->callback,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    pyg_begin_allow_threads;
+
+    g_drive_poll_for_media(G_DRIVE(self->obj),
+			   cancellable,
+			   (GAsyncReadyCallback) async_result_callback_marshal,
+			   notify);
+    
+    pyg_end_allow_threads;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override-slot GDrive.tp_repr
+static PyObject *
+_wrap_g_drive_tp_repr(PyGObject *self)
+{
+    char *name = g_drive_get_name(G_DRIVE(self->obj));
+    gchar *representation;
+    PyObject *result;
+
+    if (name) {
+	representation = g_strdup_printf("<%s at %p: %s>", self->ob_type->tp_name, self, name);
+	g_free(name);
+    }
+    else
+	representation = g_strdup_printf("<%s at %p: UNKNOWN NAME>", self->ob_type->tp_name, self);
+
+    result = PyString_FromString(representation);
+    g_free(representation);
+    return result;
+}
+%%
+override g_app_info_get_all noargs
+static PyObject *
+_wrap_g_app_info_get_all (PyGObject *self)
+{
+  GList *list, *l;
+  PyObject *ret;
+
+  list = g_app_info_get_all ();
+
+  ret = PyList_New(0);
+  for (l = list; l; l = l->next) {
+    GObject *obj = l->data;
+    PyObject *item = pygobject_new(obj);
+    PyList_Append(ret, item);
+    Py_DECREF(item);
+  }
+  g_list_free(list);
+
+  return ret;
+}
+%%
+override g_app_info_get_all_for_type args
+static PyObject *
+_wrap_g_app_info_get_all_for_type (PyGObject *self, PyObject *args)
+{
+  GList *list, *l;
+  PyObject *ret;
+  gchar *type;
+
+  if (!PyArg_ParseTuple (args, "s:app_info_get_all_for_type", &type))
+    return NULL;
+
+  list = g_app_info_get_all_for_type (type);
+
+  ret = PyList_New(0);
+  for (l = list; l; l = l->next) {
+    GObject *obj = l->data;
+    PyObject *item = pygobject_new(obj);
+    PyList_Append(ret, item);
+    Py_DECREF(item);
+  }
+  g_list_free(list);
+
+  return ret;
+}
+%%
+override g_content_type_guess kwargs
+static PyObject *
+_wrap_g_content_type_guess(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    char *kwlist[] = {"filename", "data", "want_uncertain", NULL};
+    char *filename = NULL, *data = NULL, *type;
+    int data_size = 0;
+    gboolean result_uncertain, want_uncertain = FALSE;
+    PyObject *ret;
+
+    if (!PyArg_ParseTupleAndKeywords (args, kwargs,
+				      "|zz#i:g_content_type_guess",
+				      kwlist,
+				      &filename, &data, &data_size,
+				      &want_uncertain))
+      return NULL;
+
+    if (!filename && !data) {
+      PyErr_SetString(PyExc_TypeError, "need at least one argument");
+      return NULL;
+    }
+
+    type = g_content_type_guess(filename, (guchar *) data,
+				data_size, &result_uncertain);
+
+    if (want_uncertain) {
+	ret = Py_BuildValue("zN", type, PyBool_FromLong(result_uncertain));
+    
+    } else {
+        ret = PyString_FromString(type);
+    }
+
+    g_free(type);
+    return ret;
+}
+%%
+override g_mount_unmount kwargs
+static PyObject *
+_wrap_g_mount_unmount(PyGObject *self,
+		      PyObject *args,
+		      PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags",
+			      "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *py_cancellable = NULL;
+    GMountUnmountFlags flags = G_MOUNT_UNMOUNT_NONE;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OOO:GMount.unmount",
+				     kwlist,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_UNMOUNT_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    pyg_begin_allow_threads;
+
+    g_mount_unmount(G_MOUNT(self->obj),
+		    flags,
+		    cancellable,
+		    (GAsyncReadyCallback)async_result_callback_marshal,
+		    notify);
+
+    pyg_end_allow_threads;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_mount_eject kwargs
+static PyObject *
+_wrap_g_mount_eject(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    GMountUnmountFlags flags = G_MOUNT_UNMOUNT_NONE;
+    PyGObject *py_cancellable = NULL;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OOO:gio.Mount.eject",
+				     kwlist,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_UNMOUNT_FLAGS,
+					py_flags, (gpointer) &flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    pyg_begin_allow_threads;
+
+    g_mount_eject(G_MOUNT(self->obj),
+		  flags,
+		  cancellable,
+		  (GAsyncReadyCallback) async_result_callback_marshal,
+		  notify);
+
+    pyg_end_allow_threads;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_mount_remount kwargs
+static PyObject *
+_wrap_g_mount_remount(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "mount_operation",
+			      "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    GMountUnmountFlags flags = G_MOUNT_UNMOUNT_NONE;
+    PyObject *py_mount_operation = Py_None;
+    GMountOperation *mount_operation = NULL;
+    PyGObject *py_cancellable = NULL;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OOOO:gio.Mount.remount",
+				     kwlist,
+				     &notify->callback,
+				     &py_flags,
+				     &py_mount_operation,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_mount_operation != Py_None) {
+	if (!pygobject_check(py_mount_operation, &PyGMountOperation_Type)) {
+	    PyErr_SetString(PyExc_TypeError,
+			    "mount_operation must be a gio.MountOperation or None");
+            goto error;
+	}
+
+	mount_operation = G_MOUNT_OPERATION(pygobject_get(py_mount_operation));
+    }
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_UNMOUNT_FLAGS,
+					py_flags, (gpointer) &flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    pyg_begin_allow_threads;
+
+    g_mount_remount(G_MOUNT(self->obj),
+		    flags,
+		    mount_operation,
+		    cancellable,
+		    (GAsyncReadyCallback) async_result_callback_marshal,
+		    notify);
+
+    pyg_end_allow_threads;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override-slot GMount.tp_repr
+static PyObject *
+_wrap_g_mount_tp_repr(PyGObject *self)
+{
+    char *name = g_mount_get_name(G_MOUNT(self->obj));
+    char *uuid = g_mount_get_uuid(G_MOUNT(self->obj));
+    gchar *representation;
+    PyObject *result;
+
+    if (name) {
+	if (uuid) {
+	    representation = g_strdup_printf("<%s at %p: %s (%s)>",
+					     self->ob_type->tp_name, self, name, uuid);
+	}
+	else {
+	    representation = g_strdup_printf("<%s at %p: %s>",
+					     self->ob_type->tp_name, self, name);
+	}
+    }
+    else
+	representation = g_strdup_printf("<%s at %p: UNKNOWN NAME>", self->ob_type->tp_name, self);
+
+    g_free(name);
+    g_free(uuid);
+
+    result = PyString_FromString(representation);
+    g_free(representation);
+    return result;
+}
+%%
+override g_vfs_get_supported_uri_schemes noargs
+static PyObject *
+_wrap_g_vfs_get_supported_uri_schemes(PyGObject *self)
+{
+    const char * const *names;
+    PyObject *ret;
+
+    names = g_vfs_get_supported_uri_schemes(G_VFS(self->obj));
+
+    ret = PyList_New(0);
+    while (names && *names) {
+        PyObject *item = PyString_FromString(names[0]);
+        PyList_Append(ret, item);
+        Py_DECREF(item);
+
+        names++;
+    }
+
+    return ret;
+}
+%%
+override g_content_types_get_registered noargs
+static PyObject *
+_wrap_g_content_types_get_registered(PyObject *self)
+{
+    GList *list, *l;
+    PyObject *ret;
+
+    list = g_content_types_get_registered();
+
+    ret = PyList_New(0);
+    for (l = list; l; l = l->next) {
+	char *content_type = l->data;
+	PyObject *string = PyString_FromString(content_type);
+	PyList_Append(ret, string);
+	Py_DECREF(string);
+	g_free(content_type);
+    }
+    g_list_free(list);
+
+    return ret;
+}

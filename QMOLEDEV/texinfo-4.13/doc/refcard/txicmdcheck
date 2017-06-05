@@ -1,0 +1,131 @@
+#!/usr/bin/env perl
+# $Id: txicmdcheck,v 1.1 2008/09/07 22:47:47 karl Exp $
+# Copyright 2008 Free Software Foundation, Inc.
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License,
+# or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Original author: Karl Berry.
+#
+# Kludge of a script to check command lists in refcard vs. refman
+# for consistency.  Would be nice to check makeinfo, too.
+
+exit (&main ());
+
+sub main
+{
+  my @cardcmds = &read_refcard ("txirefcard.tex");
+  my @mancmds = &read_refman ("../texinfo.txi");
+  my (%mancmds, %cardcmds);
+  @mancmds{@mancmds} = ();
+  @cardcmds{@cardcmds} = ();
+
+  my @found = ();
+  for my $cc (@cardcmds) {
+    if (exists $mancmds{$cc}) {
+      push (@found, $cc);
+      delete $mancmds{$cc};
+      delete $cardcmds{$cc};
+    }
+  }
+  printf "    common %d: @{[sort @found]}\n", @found + 0;
+  my @card_only = keys %cardcmds;
+  printf "refcard only %s: @{[sort @card_only]}\n", @card_only + 0;
+  my @man_only = keys %mancmds;
+  printf "refman  only %s: @{[sort @man_only]}\n", @man_only + 0;
+  
+  return @card_only + @man_only;
+}
+
+
+# Return command names given in the reference card.
+# 
+sub read_refcard
+{
+  my ($fname) = @_;
+  my @ret = ();
+
+  local *FILE;
+  $FILE = $fname;
+  open (FILE) || die "open($FILE) failed: $!";
+  while (<FILE>) {
+    next unless /^\\txicmd/;
+    chomp;
+    my $xcmd = 0;
+    s/\\txicmdarg{.*?}}?//; # first get rid of the arguments
+    s/}{.*//;               # then the descriptions
+    s/^\\txicmdx{// && ($xcmd = 1);  # used for the @def...x
+    s/^\\txicmd{//;         # finally the markup cmd itself
+    
+    my (@cmds) = split (/, */, $_);  # a couple of times we combine cmds
+    
+    # we typeset these specially in TeX.
+    if ("@cmds" eq "@#1footing") {
+      @cmds = ('@oddfooting', '@evenfooting', '@everyfooting');
+    } elsif ("@cmds" eq "@#1heading") {
+      @cmds = ('@oddheading', '@evenheading', '@everyheading');
+    }
+    
+    # add each command from this line to the return.
+    for my $c (@cmds) {
+#warn "refcard $c\n";
+#warn "refcard $c{x}\n" if $xcmd;
+      if ($c eq '@\tildechar') { # TeX specialties, forcibly make them match
+        $c = '@~';
+      } elsif ($c eq '@\var{whitespace}') {
+        $c = '@var{whitespace}';
+      }
+      $c = '@~' if $c eq '@\tildechar';  # TeX
+      $c = '@\\' if $c eq '@\bschar';  # TeX
+      $c = '@{' if $c eq '@\lbracechar';  # TeX
+      $c = '@}' if $c eq '@\rbracechar';  # TeX
+      push (@ret, $c);
+      push (@ret, "${c}x") if $xcmd;
+    }
+  }
+  push (@ret, '@,');  # our non-parsing above lost the comma
+  push (@ret, '@end', '@uref', '@appendixsection');  # described in text
+  close (FILE) || warn "close($FILE) failed: $!";
+  return @ret;
+}
+
+
+# Return command names from the @-Command List summary node in the
+# reference manual.
+# 
+sub read_refman
+{
+  my ($fname) = @_;
+  my @ret = ();
+
+  local *FILE;
+  $FILE = $fname;
+  open (FILE) || die "open($FILE) failed: $!";
+  while (<FILE>) {
+    last if /^\@appendix \@\@-Command List/;  # ignore until right appendix
+  }
+  while (<FILE>) {
+    last if /^\@end table/; # ignore again after the summary
+    next unless s/^\@itemx? *\@//;  # only want item[x]s in the table
+    chomp;
+    s/\@\{.*//;  # remove braced arguments
+    s/ .*//;     # remove arguments following a space
+    s/\@\@/@/g;  # @@ -> @
+    next if $_ =~ /^\@(br|ctrl)$/;  # @ignore-d in text
+    push (@ret, $_);
+  }
+  push (@ret, '@{'); # our non-parsing above fails on this one
+
+  close (FILE) || warn "close($FILE) failed: $!";
+  return @ret;
+}

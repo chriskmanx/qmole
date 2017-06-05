@@ -1,0 +1,273 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2005 Gustavo Carneiro
+ *
+ *   gdkcairo.override: GdkCairo overrides
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+body
+
+#ifdef HAVE_PYCAIRO
+
+
+static PyTypeObject *_PyPangoCairoContext_Type;
+#define PyPangoCairoContext_Type (*_PyPangoCairoContext_Type)
+
+static PyObject *
+_wrap_gdk_cairo_set_source_color(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "color", NULL };
+    PyObject *py_color;
+    GdkColor *color = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:gtk.gdk.CairoContext.set_source_color", kwlist, &py_color))
+        return NULL;
+    if (pyg_boxed_check(py_color, GDK_TYPE_COLOR))
+        color = pyg_boxed_get(py_color, GdkColor);
+    else {
+        PyErr_SetString(PyExc_TypeError, "color should be a GdkColor");
+        return NULL;
+    }
+    gdk_cairo_set_source_color(PycairoContext_GET(self), color);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_gdk_cairo_set_source_pixbuf(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "pixbuf", "pixbuf_x", "pixbuf_y", NULL };
+    PyGObject *pixbuf;
+    double pixbuf_x, pixbuf_y;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!dd:gtk.gdk.CairoContext.set_source_pixbuf", kwlist,
+                                     &PyGdkPixbuf_Type, &pixbuf, &pixbuf_x, &pixbuf_y))
+        return NULL;
+    gdk_cairo_set_source_pixbuf(PycairoContext_GET(self), GDK_PIXBUF(pixbuf->obj),
+                                pixbuf_x, pixbuf_y);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_gdk_cairo_rectangle(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "rectangle", NULL };
+    PyObject *py_rectangle;
+    GdkRectangle rectangle;
+    double x, y, width, height;
+
+    if (PyArg_ParseTuple (args, "dddd:Context.rectangle",
+			   &x, &y, &width, &height))
+    {
+        cairo_rectangle(PycairoContext_GET(self), x, y, width, height);
+    } else {
+        PyErr_Clear();
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:gtk.gdk.CairoContext.rectangle", kwlist,
+                                         &py_rectangle)) {
+            PyErr_SetString(PyExc_TypeError, "gtk.gdk.CairoContext.rectangle accepts either"
+                            " (x, y, width, height) or a single gtk.gdk.Rectangle parameter");
+            return NULL;
+        }
+        if (!pyg_boxed_check(py_rectangle, GDK_TYPE_RECTANGLE)) {
+            if (!pygdk_rectangle_from_pyobject(py_rectangle, &rectangle)) {
+                PyErr_Clear();
+                PyErr_SetString(PyExc_TypeError,
+                                "rectangle must be a GdkRectangle or 4-tuple");
+                return NULL;
+            }
+        } else {
+            rectangle = *pyg_boxed_get(py_rectangle, GdkRectangle);
+        }
+ 
+        gdk_cairo_rectangle(PycairoContext_GET(self), &rectangle);
+    }
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_gdk_cairo_region(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "region", NULL };
+    PyGObject *py_region;
+    GdkRegion *region;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:gtk.gdk.CairoContext.region", kwlist,
+                                     &py_region))
+        return NULL;
+ 
+    if (pyg_boxed_check(py_region, PYGDK_TYPE_REGION))
+        region = pyg_boxed_get(py_region, GdkRegion);
+    else {
+        PyErr_SetString(PyExc_TypeError, "region should be a gtk.gdk.Region");
+        return NULL;
+    }
+     
+    gdk_cairo_region(PycairoContext_GET(self), region);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_gdk_cairo_reset_clip(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "cr", "drawable", NULL };
+    PyGObject *drawable;
+    PycairoContext *cr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,"O!O!:gtk.gdk.CairoContext.reset_clip", kwlist,
+				     &PycairoContext_Type, &cr, &PyGdkDrawable_Type,
+				     &drawable))
+        return NULL;
+    
+    gdk_cairo_reset_clip(cr->ctx, GDK_DRAWABLE(drawable->obj));
+    
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+#if GTK_CHECK_VERSION(2, 9, 3)
+static PyObject *
+_wrap_gdk_cairo_set_source_pixmap(PyObject *self, PyObject *args,
+                                  PyObject *kwargs)
+{
+    static char *kwlist[] = { "pixmap", "pixmap_x", "pixmap_y", NULL };
+    PyGObject *pixmap;
+    double pixmap_x, pixmap_y;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!dd:cairo_set_source_pixmap", kwlist,
+                                     &PyGdkDrawable_Type, &pixmap,
+                                     &pixmap_x, &pixmap_y))
+        return NULL;
+    gdk_cairo_set_source_pixmap(PycairoContext_GET(self),
+                                GDK_DRAWABLE(pixmap->obj),
+                                pixmap_x, pixmap_y);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+#endif
+
+static PyMethodDef _PyGdkCairoContext_methods[] = {
+    { "set_source_pixbuf", (PyCFunction)_wrap_gdk_cairo_set_source_pixbuf, METH_VARARGS|METH_KEYWORDS },
+    { "set_source_color", (PyCFunction)_wrap_gdk_cairo_set_source_color, METH_VARARGS|METH_KEYWORDS },
+    { "rectangle", (PyCFunction)_wrap_gdk_cairo_rectangle, METH_VARARGS|METH_KEYWORDS },
+    { "region", (PyCFunction)_wrap_gdk_cairo_region, METH_VARARGS|METH_KEYWORDS },
+    { "reset_clip", (PyCFunction)_wrap_gdk_cairo_reset_clip, METH_VARARGS|METH_KEYWORDS },
+#if GTK_CHECK_VERSION(2, 9, 3)
+    { "set_source_pixmap", (PyCFunction)_wrap_gdk_cairo_set_source_pixmap, METH_VARARGS|METH_KEYWORDS },
+#endif
+    { NULL, NULL, 0 }
+};
+
+
+PyTypeObject PyGdkCairoContext_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                  /* ob_size */
+    "gtk.gdk.CairoContext",             /* tp_name */
+    0,           			/* tp_basicsize */
+    0,                                  /* tp_itemsize */
+    /* methods */
+    (destructor)0,     			/* tp_dealloc */
+    (printfunc)0,                       /* tp_print */
+    (getattrfunc)0,                     /* tp_getattr */
+    (setattrfunc)0,                     /* tp_setattr */
+    (cmpfunc)0,                         /* tp_compare */
+    (reprfunc)0,                        /* tp_repr */
+    0,                                  /* tp_as_number */
+    0,                                  /* tp_as_sequence */
+    0,                                  /* tp_as_mapping */
+    (hashfunc)0,                        /* tp_hash */
+    (ternaryfunc)0,                     /* tp_call */
+    (reprfunc)0,                        /* tp_str */
+    (getattrofunc)0,                    /* tp_getattro */
+    (setattrofunc)0,                    /* tp_setattro */
+    0,                                  /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,   		/* tp_flags */
+    "A pangocairo.CairoContext enhanced with some additional gdk methods", /* Documentation string */
+    (traverseproc)0,                    /* tp_traverse */
+    (inquiry)0,                         /* tp_clear */
+    (richcmpfunc)0,                     /* tp_richcompare */
+    0,                                  /* tp_weaklistoffset */
+    (getiterfunc)0,                     /* tp_iter */
+    (iternextfunc)0,                    /* tp_iternext */
+    _PyGdkCairoContext_methods,         /* tp_methods */
+    0,                                  /* tp_members */
+    0,                                  /* tp_getset */
+    (PyTypeObject *)0,                  /* tp_base */
+    (PyObject *)0,                      /* tp_dict */
+    0,                                  /* tp_descr_get */
+    0,                                  /* tp_descr_set */
+    0,                                  /* tp_dictoffset */
+    (initproc)0,          		/* tp_init */
+    0,                			/* tp_alloc */
+    0,         				/* tp_new */
+    0,                                  /* tp_free */
+    (inquiry)0,                         /* tp_is_gc */
+    (PyObject *)0,                      /* tp_bases */
+};
+
+#endif /* #ifdef HAVE_PYCAIRO */
+
+%%
+ignore
+  gdk_cairo_set_source_color
+  gdk_cairo_set_source_pixbuf
+  gdk_cairo_rectangle
+  gdk_cairo_region
+  gdk_cairo_set_source_pixmap
+  gdk_cairo_reset_clip
+
+%%
+init
+#ifdef HAVE_PYCAIRO
+    if ((module = PyImport_ImportModule("pangocairo")) != NULL) {
+        PyObject *moddict = PyModule_GetDict(module);
+
+        _PyPangoCairoContext_Type = (PyTypeObject *)PyDict_GetItemString(moddict, "CairoContext");
+        if (_PyPangoCairoContext_Type == NULL) {
+            PyErr_SetString(PyExc_ImportError,
+                "cannot import name CairoContext from pangocairo");
+            return;
+        }
+    } else {
+        return;
+    }
+
+    PyGdkCairoContext_Type.tp_base = &PyPangoCairoContext_Type;
+    if (PyType_Ready(&PyGdkCairoContext_Type) < 0) {
+        g_return_if_reached();
+    }
+    if (PyDict_SetItemString(d, "CairoContext", (PyObject *)&PyGdkCairoContext_Type) < 0) {
+        g_return_if_reached();
+    }
+#endif
+
+%%
+override gdk_cairo_create noargs
+static PyObject *
+_wrap_gdk_cairo_create(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    cairo_t *ret;
+
+    ret = gdk_cairo_create(GDK_DRAWABLE(self->obj));
+    return PycairoContext_FromContext(ret, &PyGdkCairoContext_Type, NULL);
+}
+

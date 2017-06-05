@@ -1,0 +1,119 @@
+-*- mode: text; mode: auto-fill -*-
+
+Requirements to get threading to work with pygtk2
+=================================================
+
+Python side
+-----------
+* Python has a global interpreter lock, so no two threads can execute
+  code at the same time.
+
+* In order to execute python code, you need to hold the interpreter
+  lock, and have the correct PyThreadState object set
+  (PyThreadState_Swap is used for this).  As a convenience, the
+  following functions can be used:
+    void PyEval_AcquireThread(PyThreadState *tstate);
+    void PyEval_ReleaseThread(PyThreadState *tstate);
+
+* When C functions are called from python, the global interpreter lock
+  is held.  If the function blocks, then no python code can execute in
+  other threads during this time.  Python provides two macros to allow
+  threads to run while the function executes:
+    Py_BEGIN_ALLOW_THREADS
+    Py_END_ALLOW_THREADS
+  between these two macro calls, the global interpreter lock is
+  released, and the current thread state is set to NULL.  This means
+  that in order to execute python code, AcquireThread must be called.
+
+GLib side
+---------
+* The glib main loop function blocks, so we need to allow threads so
+  that other threads don't hang while in the event loop.
+
+* Destroy notifies and signal handlers may be called in response to
+  some function call (such as GObject.set_data or GtkButton.clicked),
+  or while the main loop is running.  In the first case, the global
+  interpreter lock will be held, and a thread state will be acquired.
+  In the second case, the global interpreter lock will not be held by
+  us and there will be a NULL thread state.  Example:
+---- Cut Here ----
+  import gtk
+  ...
+  b = gtk.GtkButton("Click me")
+  def f(button):
+      ... some python code ...
+  b.connect("clicked", f)
+  b.clicked()  # the signal handler f is called with the interpreter
+               # lock held
+  ...
+  gtk.main()   # if the button is clicked while in the main loop, the
+               # interpreter lock may be held by someone else
+---- Cut Here ----
+
+* We need to have a valid thread state before executing one of these
+  callbacks, or bad things happen.
+
+* Ideally, the solution chosen should work at the GObject level,
+  rather than GTK/GDK level.
+
+* In gtk 1.2 based PyGTK, we used a bit of code from Paul Fisher to
+  handle this problem.  It relied on the global GDK lock to serialise
+  requests to unblock threading.  As the GObject functions do not rely
+  on a global lock being held, we can't use this.  Here is the
+  existing code:
+---- Cut Here ----
+/* The threading code has been enhanced to be a little better with multiple
+ * threads accessing GTK+.  Here are some notes on the changes by
+ * Paul Fisher:
+ *
+ * If threading is enabled, we create a recursive version of Python's
+ * global interpreter mutex using TSD.  This scheme makes it possible,
+ * although rather hackish, for any thread to make a call into PyGTK,
+ * as long as the GDK lock is held (that is, Python code is wrapped
+ * around a threads_{enter,leave} pair).
+ *
+ * A viable alternative would be to wrap each and every GTK call, at
+ * the Python/C level, with Py_{BEGIN,END}_ALLOW_THREADS.  However,
+ * given the nature of Python threading, this option is not
+ * particularly appealing.
+ */
+
+static GStaticPrivate pythreadstate_key = G_STATIC_PRIVATE_INIT;
+static GStaticPrivate counter_key = G_STATIC_PRIVATE_INIT;
+
+/* The global Python lock will be grabbed by Python when entering a
+ * Python/C function; thus, the initial lock count will always be one.
+ */
+#  define INITIAL_LOCK_COUNT 1
+#  define PyGTK_BLOCK_THREADS                                              \
+   {                                                                       \
+     gint counter = GPOINTER_TO_INT(g_static_private_get(&counter_key));   \
+     if (counter == -INITIAL_LOCK_COUNT) {                                 \
+       PyThreadState *_save;                                               \
+       _save = g_static_private_get(&pythreadstate_key);                   \
+       Py_BLOCK_THREADS;                                                   \
+     }                                                                     \
+     counter++;                                                            \
+     g_static_private_set(&counter_key, GINT_TO_POINTER(counter), NULL);   \
+   }
+
+#  define PyGTK_UNBLOCK_THREADS                                            \
+   {                                                                       \
+     gint counter = GPOINTER_TO_INT(g_static_private_get(&counter_key));   \
+     counter--;                                                            \
+     if (counter == -INITIAL_LOCK_COUNT) {                                 \
+       PyThreadState *_save;                                               \
+       Py_UNBLOCK_THREADS;                                                 \
+       g_static_private_set(&pythreadstate_key, _save, NULL);              \
+     }                                                                     \
+     g_static_private_set(&counter_key, GINT_TO_POINTER(counter), NULL);   \
+   }
+---- Cut Here ----
+
+* One possible solution is to wrap every single pygtk call in
+  Py_BEGIN_ALLOW_THREADS/Py_END_ALLOW_THREADS calls.  This would
+  probably be quite slow.
+
+* Can Paul Fisher's code be modified to work without needing the GDK
+  lock for serialisation?
+

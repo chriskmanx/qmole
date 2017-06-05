@@ -1,0 +1,1079 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 1998-2003  James Henstridge
+ *
+ *   gdkevent.override: gtk.gdk.Event overrides
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+override-slot GdkEvent.tp_setattr
+#define INT_CHECK() \
+	    if (!PyInt_Check(value)) { \
+		PyErr_Format(PyExc_TypeError, "%s must be an int", attr); \
+		return -1; \
+	    } 
+#define INT_OR_LONG_CHECK() \
+	    if (!PyInt_Check(value) && !PyLong_Check(value)) { \
+		PyErr_Format(PyExc_TypeError, "%s must be an int or a long", attr); \
+		return -1; \
+	    }
+#define FLOAT_CHECK() \
+	    if (!PyFloat_Check(value)) { \
+		PyErr_Format(PyExc_TypeError, "%s must be a float", attr); \
+		return -1; \
+	    } 
+#define STRING_CHECK() \
+	    if (!PyString_Check(value)) { \
+		PyErr_Format(PyExc_TypeError, "%s must be a string", attr); \
+		return -1; \
+	    } 
+static int
+_wrap_gdk_event_tp_setattr(PyObject *self, char *attr, PyObject *value)
+{
+    GdkEvent *event;
+
+    if (value == NULL) {
+        PyErr_SetString(PyExc_TypeError, "can't delete attributes");
+        return -1;
+    }
+
+    event = pyg_boxed_get(self, GdkEvent);
+
+    /* Common members */
+    if (attr[0] == 't' && !strcmp(attr, "type")) {
+	PyErr_SetString(PyExc_AttributeError, "type is not writable");
+	return -1;
+    } else if (attr[0] == 'w' && !strcmp(attr, "window")) {
+	if (!pygobject_check(value, &PyGdkWindow_Type)) {
+	    PyErr_SetString(PyExc_TypeError, "window must be a GdkWindow");
+	    return -1;
+	}
+	if (event->any.window)
+            g_object_unref(event->any.window);
+	event->any.window = g_object_ref(GDK_WINDOW(((PyGObject*)value)->obj));
+	return 0;
+    } else if (attr[0] == 's' && !strcmp(attr, "send_event")) {
+	INT_CHECK();
+	event->any.send_event = PyInt_AsLong(value);
+	return 0;
+    }
+	
+    switch(event->type) {
+    case GDK_NOTHING: break;
+    case GDK_DELETE: break;
+    case GDK_DESTROY: break;
+    case GDK_EXPOSE:            /*GdkEventExpose            expose*/
+        if (!strcmp(attr, "area")) {
+	    if (!pygdk_rectangle_from_pyobject(value, &event->expose.area))
+		return -1;
+            return 0;
+	} else if (!strcmp(attr, "count")) {
+	    INT_CHECK();
+	    event->expose.count = PyInt_AsLong(value);
+            return 0;
+	}
+        break;
+    case GDK_MOTION_NOTIFY:     /*GdkEventMotion            motion*/
+	if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->motion.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (attr[0] == 'x' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->motion.x = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (attr[0] == 'y' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->motion.y = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "axes")) {
+	    PyErr_SetString(PyExc_TypeError, "axes is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "state")) {
+	    INT_CHECK();
+	    event->motion.state = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "is_hint")) {
+	    INT_CHECK();
+	    event->motion.is_hint = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "device")) {
+	    PyErr_SetString(PyExc_TypeError, "device is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "x_root")) {
+	    FLOAT_CHECK()
+	    event->motion.x_root = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "y_root")) {
+	    FLOAT_CHECK()
+	    event->motion.y_root = PyFloat_AsDouble(value);
+	    return 0;
+	}
+        break;
+    case GDK_BUTTON_PRESS:      /*GdkEventButton            button*/
+    case GDK_2BUTTON_PRESS:     /*GdkEventButton            button*/
+    case GDK_3BUTTON_PRESS:     /*GdkEventButton            button*/
+    case GDK_BUTTON_RELEASE:    /*GdkEventButton            button*/
+	if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->button.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (attr[0] == 'x' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->button.x = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (attr[0] == 'y' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->button.y = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "axes")) {
+	    PyErr_SetString(PyExc_TypeError, "axes is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "state")) {
+	    INT_CHECK();
+	    event->button.state = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "button")) {
+	    INT_CHECK();
+	    event->button.button = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "device")) {
+	    PyErr_SetString(PyExc_TypeError, "device is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "x_root")) {
+	    FLOAT_CHECK();
+	    event->button.x_root = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "y_root")) {
+	    FLOAT_CHECK();
+	    event->button.y_root = PyFloat_AsDouble(value);
+	    return 0;
+	}
+	break;
+    case GDK_KEY_PRESS:         /*GdkEventKey               key*/
+    case GDK_KEY_RELEASE:       /*GdkEventKey               key*/
+	if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->key.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (!strcmp(attr, "state")) {
+	    INT_CHECK();
+	    event->key.state = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "keyval")) {
+	    INT_CHECK();
+	    event->key.keyval = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "string")) {
+	    STRING_CHECK();
+            g_free(event->key.string);
+	    event->key.string = g_strdup(PyString_AsString(value));
+	    return 0;
+	} else if (!strcmp(attr, "hardware_keycode")) {
+	    INT_CHECK();
+	    event->key.hardware_keycode = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "group")) {
+	    INT_CHECK();
+	    event->key.group = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "is_modifier")) {
+	    INT_CHECK();
+	    event->key.is_modifier = PyInt_AsLong(value);
+	    return 0;
+	}
+        break;
+    case GDK_ENTER_NOTIFY:      /*GdkEventCrossing          crossing*/
+    case GDK_LEAVE_NOTIFY:      /*GdkEventCrossing          crossing*/
+        if (!strcmp(attr, "subwindow")) {
+          if (!pygobject_check(value, &PyGdkWindow_Type)) {
+              PyErr_SetString(PyExc_TypeError, "subwindow must be a GdkWindow");
+              return -1;
+          }
+          if (event->crossing.subwindow)
+              g_object_unref(event->crossing.subwindow);
+          event->crossing.subwindow = g_object_ref(GDK_WINDOW(((PyGObject*)value)->obj));
+          return 0;
+	} else if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->crossing.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (attr[0] == 'x' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->crossing.x = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (attr[0] == 'y' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->crossing.y = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "x_root")) {
+	    FLOAT_CHECK();
+	    event->crossing.x_root = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "y_root")) {
+	    FLOAT_CHECK();
+	    event->crossing.y_root = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "mode")) {
+	    INT_CHECK();
+	    event->crossing.mode = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "detail")) {
+	    INT_CHECK();
+	    event->crossing.detail = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "focus")) {
+	    INT_CHECK();
+	    event->crossing.focus = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "state")) {
+	    INT_CHECK();
+	    event->crossing.state = PyInt_AsLong(value);
+	    return 0;
+	}
+        break;	
+    case GDK_FOCUS_CHANGE:      /*GdkEventFocus             focus_change*/
+	if (!strcmp(attr, "in_")) {
+	    INT_CHECK();
+	    event->focus_change.in = PyInt_AsLong(value);
+	    return 0;
+	}
+	break;
+    case GDK_CONFIGURE:
+	if (!strcmp(attr, "x")) {
+	    INT_CHECK();
+	    event->configure.x = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "y")) {
+	    INT_CHECK();
+	    event->configure.y = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "width")) {
+	    INT_CHECK();
+	    event->configure.width = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "height")) {
+	    INT_CHECK();
+	    event->configure.height = PyInt_AsLong(value);
+	    return 0;
+	}
+    case GDK_MAP: break;
+    case GDK_UNMAP: break;
+    case GDK_PROPERTY_NOTIFY:   /*GdkEventProperty          property*/
+        if (!strcmp(attr, "atom")) {
+	    PyErr_SetString(PyExc_TypeError, "atom is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->property.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (!strcmp(attr, "state")) {
+	    INT_CHECK();
+	    event->property.state = PyInt_AsLong(value);
+	    return 0;
+	}
+        break;	
+    case GDK_SELECTION_CLEAR:   /*GdkEventSelection         selection*/
+    case GDK_SELECTION_REQUEST: /*GdkEventSelection         selection*/
+    case GDK_SELECTION_NOTIFY:  /*GdkEventSelection         selection*/
+        if (!strcmp(attr, "selection")) {
+	    PyErr_SetString(PyExc_TypeError, "selection is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "target")) {
+	    PyErr_SetString(PyExc_TypeError, "target is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "property")) {
+	    PyErr_SetString(PyExc_TypeError, "property is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "requestor")) {
+	    INT_CHECK();
+	    event->selection.requestor = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->selection.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	}
+	
+	break;
+    case GDK_PROXIMITY_IN:      /*GdkEventProximity         proximity*/
+    case GDK_PROXIMITY_OUT:     /*GdkEventProximity         proximity*/
+	if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->proximity.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (!strcmp(attr, "device")) {
+	    PyErr_SetString(PyExc_TypeError, "device is not writable");
+	    return -1;
+	}
+	break;
+    case GDK_DRAG_ENTER:        /*GdkEventDND               dnd*/
+    case GDK_DRAG_LEAVE:        /*GdkEventDND               dnd*/
+    case GDK_DRAG_MOTION:       /*GdkEventDND               dnd*/
+    case GDK_DRAG_STATUS:       /*GdkEventDND               dnd*/
+    case GDK_DROP_START:        /*GdkEventDND               dnd*/
+    case GDK_DROP_FINISHED:     /*GdkEventDND               dnd*/
+	if (!strcmp(attr, "context")) {
+	    PyErr_SetString(PyExc_TypeError, "context is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->dnd.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (!strcmp(attr, "x_root")) {
+	    FLOAT_CHECK();
+	    event->dnd.x_root = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "y_root")) {
+	    FLOAT_CHECK();
+	    event->dnd.y_root = PyFloat_AsDouble(value);
+	    return 0;
+	}
+	break;
+    case GDK_CLIENT_EVENT:      /*GdkEventClient            client*/
+        if (!strcmp(attr, "message_type")) {
+            GdkAtom message_type = pygdk_atom_from_pyobject(value);
+            if (PyErr_Occurred())
+                return -1;
+            event->client.message_type = message_type;
+	    return 0;
+	} else if (!strcmp(attr, "data_format")) {
+	    INT_CHECK();
+	    event->client.data_format = PyInt_AsLong(value);
+            return 0;
+	} else if (!strcmp(attr, "data")) {
+	    char *tmp;
+	    STRING_CHECK();
+	    tmp = PyString_AsString(value);
+	    strncpy((char *) &event->client.data, tmp,
+                    sizeof(event->client.data));
+	    return 0;
+	}
+	break;
+    case GDK_VISIBILITY_NOTIFY: /*GdkEventVisibility        visibility*/
+	if (!strcmp(attr, "state")) {
+	    INT_CHECK();
+	    event->visibility.state = PyInt_AsLong(value);
+	    return 0;
+	}
+	break;
+    case GDK_NO_EXPOSE:         /*GdkEventNoExpose          no_expose*/
+        break;
+    case GDK_SCROLL:            /*GdkEventScroll            scroll*/
+	if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->scroll.time = PyInt_AsUnsignedLongMask(value);
+	    return 0;
+	} else if (attr[0] == 'x' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->scroll.x = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (attr[0] == 'y' && attr[1] == '\0') {
+	    FLOAT_CHECK();
+	    event->scroll.y = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "state")) {
+	    INT_CHECK();
+	    event->scroll.state = PyInt_AsLong(value);
+	    return 0;
+	} else if (!strcmp(attr, "direction")) {
+	    INT_CHECK(); /* XXX: ENUM */
+	    event->scroll.direction = PyInt_AsLong(value);
+            return 0;
+	} else if (!strcmp(attr, "device")) {
+	    PyErr_SetString(PyExc_TypeError, "device is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "x_root")) {
+	    FLOAT_CHECK();
+	    event->scroll.x_root = PyFloat_AsDouble(value);
+	    return 0;
+	} else if (!strcmp(attr, "y_root")) {
+	    FLOAT_CHECK();
+	    event->scroll.y_root = PyFloat_AsDouble(value);
+	    return 0;
+	}
+	break;
+    case GDK_WINDOW_STATE:      /*GdkEventWindowState       window_state*/
+	if (!strcmp(attr, "changed_mask")) {
+	    INT_CHECK();
+	    event->window_state.changed_mask = PyInt_AsLong(value);
+            return 0;
+	} else if (!strcmp(attr, "new_window_state")) {
+	    INT_CHECK();
+	    event->window_state.new_window_state = PyInt_AsLong(value);
+            return 0;
+	}
+	break;
+    case GDK_SETTING:           /*GdkEventSetting           setting*/
+        if (!strcmp(attr, "action")) {
+	    INT_CHECK();
+	    event->setting.action = PyInt_AsLong(value);
+            return 0;
+	} else if (!strcmp(attr, "name")) {
+	    STRING_CHECK();
+	    event->setting.name = PyString_AsString(value);
+	    return 0;
+	}
+	break;
+    case GDK_OWNER_CHANGE:
+        if (!strcmp(attr, "owner")) {
+	    INT_CHECK();
+	    event->owner_change.owner = PyInt_AsLong(value);
+	} else if (!strcmp(attr, "reason")) {
+	    INT_CHECK();
+	    event->owner_change.reason = PyInt_AsLong(value);
+	} else if (!strcmp(attr, "selection")) {
+	    PyErr_SetString(PyExc_TypeError, "selection is not writable");
+	    return -1;
+	} else if (!strcmp(attr, "time")) {
+	    INT_OR_LONG_CHECK();
+	    event->owner_change.time = PyInt_AsUnsignedLongMask(value);
+	} else if (!strcmp(attr, "selection_time")) {
+	    INT_CHECK();
+	    event->owner_change.selection_time = PyInt_AsLong(value);
+	}
+	break;
+    case GDK_GRAB_BROKEN:
+        if (!strcmp(attr, "keyboard")) {
+	    INT_CHECK();
+	    event->grab_broken.keyboard = PyInt_AsLong(value);
+	} else if (!strcmp(attr, "implicit")) {
+	    INT_CHECK();
+	    event->grab_broken.keyboard = PyInt_AsLong(value);
+	} else if (!strcmp(attr, "grab_window")) {
+	    PyErr_SetString(PyExc_TypeError, "grab_window is not writable");
+	    return -1;
+	}
+        break;
+    default:
+	break;
+    }
+    
+    PyErr_SetString(PyExc_AttributeError, "could not write attribute");
+    return -1;
+}
+#undef INT_CHECK
+#undef INT_OR_LONG_CHECK
+#undef FLOAT_CHECK
+#undef STRING_CHECK	
+%%
+override-slot GdkEvent.tp_getattr
+static PyObject *
+_wrap_gdk_event_tp_getattr(PyObject *self, char *attr)
+{
+    GdkEvent *event = pyg_boxed_get(self, GdkEvent);
+    guint i;
+    gchar *name;
+    PyObject *ret;
+
+    switch(event->type) {
+    case GDK_NOTHING: break;
+    case GDK_DELETE: break;
+    case GDK_DESTROY: break;
+    case GDK_EXPOSE:            /*GdkEventExpose            expose*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssss]",
+                                 "type", "window", "send_event",
+                                 "area", "region", "count");
+        if (!strcmp(attr, "area"))
+            return pyg_boxed_new(GDK_TYPE_RECTANGLE, &event->expose.area,
+                                 TRUE, TRUE);
+	if (!strcmp(attr, "region"))
+            return pyg_boxed_new(PYGDK_TYPE_REGION, &event->expose.region,
+                                 TRUE, TRUE);
+        if (!strcmp(attr, "count"))
+            return PyInt_FromLong(event->expose.count);
+        break;
+    case GDK_MOTION_NOTIFY:     /*GdkEventMotion            motion*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssssssssss]",
+                                 "type", "window", "send_event",
+                                 "time", "x", "y", "axes", "state",
+                                 "is_hint", "device", "x_root", "y_root");
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->motion.time);
+        if (!strcmp(attr, "x"))
+            return PyFloat_FromDouble(event->motion.x);
+        if (!strcmp(attr, "y"))
+            return PyFloat_FromDouble(event->motion.y);
+        if (!strcmp(attr, "axes")) {
+            if (event->motion.axes) {
+                PyObject *v = PyTuple_New(event->motion.device->num_axes);
+                if (!v) return NULL;
+                for (i = 0; i < event->motion.device->num_axes; i++)
+                    PyTuple_SetItem(v, i,PyFloat_FromDouble(
+                                                event->motion.axes[i]));
+                return v;
+            } else {
+                Py_INCREF(Py_None);
+                return Py_None;
+            }
+        }
+        if (!strcmp(attr, "state"))
+            return pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE,
+                                        event->motion.state);
+        if (!strcmp(attr, "is_hint"))
+            return PyInt_FromLong(event->motion.is_hint);
+        if (!strcmp(attr, "device"))
+            return pygobject_new((GObject *)event->motion.device);
+        if (!strcmp(attr, "x_root"))
+            return PyFloat_FromDouble(event->motion.x_root);
+        if (!strcmp(attr, "y_root"))
+            return PyFloat_FromDouble(event->motion.y_root);
+        break;
+    case GDK_BUTTON_PRESS:      /*GdkEventButton            button*/
+    case GDK_2BUTTON_PRESS:     /*GdkEventButton            button*/
+    case GDK_3BUTTON_PRESS:     /*GdkEventButton            button*/
+    case GDK_BUTTON_RELEASE:    /*GdkEventButton            button*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssssssssss]",
+                                 "type", "window", "send_event",
+                                 "time", "x", "y", "axes", "state",
+                                 "button", "device", "x_root", "y_root");
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->button.time);
+        if (!strcmp(attr, "x"))
+            return PyFloat_FromDouble(event->button.x);
+        if (!strcmp(attr, "y"))
+            return PyFloat_FromDouble(event->button.y);
+        if (!strcmp(attr, "axes")) {
+            if (event->button.axes) {
+                PyObject *v = PyTuple_New(event->button.device->num_axes);
+                if (!v) return NULL;
+                for (i = 0; i < event->button.device->num_axes; i++)
+                    PyTuple_SetItem(v, i,PyFloat_FromDouble(
+                                                event->button.axes[i]));
+                return v;
+            } else {
+                Py_INCREF(Py_None);
+                return Py_None;
+            }
+        }
+        if (!strcmp(attr, "state"))
+            return pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE,
+                                        event->button.state);
+        if (!strcmp(attr, "button"))
+            return PyInt_FromLong(event->button.button);
+        if (!strcmp(attr, "device"))
+            return pygobject_new((GObject *)event->button.device);
+        if (!strcmp(attr, "x_root"))
+            return PyFloat_FromDouble(event->button.x_root);
+        if (!strcmp(attr, "y_root"))
+            return PyFloat_FromDouble(event->button.y_root);
+        break;
+    case GDK_KEY_PRESS:         /*GdkEventKey               key*/
+    case GDK_KEY_RELEASE:       /*GdkEventKey               key*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssssssss]",
+                                 "type", "window", "send_event",
+                                 "time", "state", "keyval", "string",
+				 "hardware_keycode", "group", "is_modifier");
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->key.time);
+        if (!strcmp(attr, "state"))
+            return pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE,
+                                        event->key.state);
+        if (!strcmp(attr, "keyval"))
+            return PyInt_FromLong(event->key.keyval);
+        if (!strcmp(attr, "string"))
+            return PyString_FromStringAndSize(event->key.string,
+                                              event->key.length);
+        if (!strcmp(attr, "hardware_keycode"))
+            return PyInt_FromLong(event->key.hardware_keycode);
+        if (!strcmp(attr, "group"))
+            return PyInt_FromLong(event->key.group);
+        if (!strcmp(attr, "is_modifier"))
+            return PyInt_FromLong(event->key.is_modifier);
+        break;
+    case GDK_ENTER_NOTIFY:      /*GdkEventCrossing          crossing*/
+    case GDK_LEAVE_NOTIFY:      /*GdkEventCrossing          crossing*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssssssssssss]",
+                                 "type", "window", "send_event",
+                                 "subwindow", "time", "x", "y",
+                                 "x_root", "y_root", "mode", "detail",
+                                 "focus", "state");
+        if (!strcmp(attr, "subwindow"))
+            return pygobject_new((GObject *)event->crossing.subwindow);
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->crossing.time);
+        if (!strcmp(attr, "x"))
+            return PyFloat_FromDouble(event->crossing.x);
+        if (!strcmp(attr, "y"))
+            return PyFloat_FromDouble(event->crossing.y);
+        if (!strcmp(attr, "x_root"))
+            return PyFloat_FromDouble(event->crossing.x_root);
+        if (!strcmp(attr, "y_root"))
+            return PyFloat_FromDouble(event->crossing.y_root);
+        if (!strcmp(attr, "mode"))
+            return pyg_enum_from_gtype(GDK_TYPE_CROSSING_MODE,
+                                       event->crossing.mode);
+        if (!strcmp(attr, "detail"))
+            return pyg_enum_from_gtype(GDK_TYPE_NOTIFY_TYPE,
+                                        event->crossing.detail);
+        if (!strcmp(attr, "focus"))
+            return PyInt_FromLong(event->crossing.focus);
+        if (!strcmp(attr, "state"))
+            return pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE,
+                                        event->crossing.state);
+        break;
+    case GDK_FOCUS_CHANGE:      /*GdkEventFocus             focus_change*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssss]",
+                                 "type", "window", "send_event",
+                                 "in_");
+        if (!strcmp(attr, "in_"))
+            return PyInt_FromLong(event->focus_change.in);
+        break;
+    case GDK_CONFIGURE:         /*GdkEventConfigure         configure*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssssss]",
+                                 "type", "window", "send_event",
+                                 "x", "y", "width", "height");
+        if (!strcmp(attr, "x"))
+            return PyInt_FromLong(event->configure.x);
+        if (!strcmp(attr, "y"))
+            return PyInt_FromLong(event->configure.y);
+        if (!strcmp(attr, "width"))
+            return PyInt_FromLong(event->configure.width);
+        if (!strcmp(attr, "height"))
+            return PyInt_FromLong(event->configure.height);
+        break;
+    case GDK_MAP: break;
+    case GDK_UNMAP: break;
+    case GDK_PROPERTY_NOTIFY:   /*GdkEventProperty          property*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssss]",
+                                 "type", "window", "send_event",
+                                 "atom", "time", "state");
+        if (!strcmp(attr, "atom")) {
+            name = gdk_atom_name(event->property.atom);
+            ret = PyString_FromString(name);
+            g_free(name);
+            return ret;
+        }
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->property.time);
+        if (!strcmp(attr, "state"))
+            return pyg_enum_from_gtype(GDK_TYPE_PROPERTY_STATE, event->property.state);
+        break;
+    case GDK_SELECTION_CLEAR:   /*GdkEventSelection         selection*/
+    case GDK_SELECTION_REQUEST: /*GdkEventSelection         selection*/
+    case GDK_SELECTION_NOTIFY:  /*GdkEventSelection         selection*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssssss]",
+                                 "type", "window", "send_event",
+                                 "selection", "target", "property",
+                                 "requestor", "time");
+        if (!strcmp(attr, "selection")) {
+            name = gdk_atom_name(event->selection.selection);
+            ret = PyString_FromString(name);
+            g_free(name);
+            return ret;
+        }
+        if (!strcmp(attr, "target")) {
+            name = gdk_atom_name(event->selection.target);
+            ret = PyString_FromString(name);
+            g_free(name);
+            return ret;
+        }
+        if (!strcmp(attr, "property")) {
+           name = gdk_atom_name(event->selection.property);
+            ret = PyString_FromString(name);
+            g_free(name);
+            return ret;
+        }
+        if (!strcmp(attr, "requestor"))
+            return PyInt_FromLong(event->selection.requestor);
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->selection.time);
+        break;
+    case GDK_PROXIMITY_IN:      /*GdkEventProximity         proximity*/
+    case GDK_PROXIMITY_OUT:     /*GdkEventProximity         proximity*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssss]",
+                                 "type", "window", "send_event",
+                                 "time", "device");
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->proximity.time);
+        if (!strcmp(attr, "device"))
+            return pygobject_new((GObject *)event->proximity.device);
+        break;
+    case GDK_DRAG_ENTER:        /*GdkEventDND               dnd*/
+    case GDK_DRAG_LEAVE:        /*GdkEventDND               dnd*/
+    case GDK_DRAG_MOTION:       /*GdkEventDND               dnd*/
+    case GDK_DRAG_STATUS:       /*GdkEventDND               dnd*/
+    case GDK_DROP_START:        /*GdkEventDND               dnd*/
+    case GDK_DROP_FINISHED:     /*GdkEventDND               dnd*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssssss]",
+                                 "type", "window", "send_event",
+                                 "context", "time", "x_root", "y_root");
+        if (!strcmp(attr, "context"))
+            return pygobject_new((GObject *)event->dnd.context);
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->dnd.time);
+        if (!strcmp(attr, "x_root"))
+            return PyFloat_FromDouble(event->dnd.x_root);
+        if (!strcmp(attr, "y_root"))
+            return PyFloat_FromDouble(event->dnd.y_root);
+        break;
+    case GDK_CLIENT_EVENT:      /*GdkEventClient            client*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssss]",
+                                 "type", "window", "send_event",
+                                 "message_type", "data_format", "data");
+        if (!strcmp(attr, "message_type")) {
+            name = gdk_atom_name(event->client.message_type);
+            ret = PyString_FromString(name);
+            g_free(name);
+            return ret;
+        }
+        if (!strcmp(attr, "data_format"))
+            return PyInt_FromLong(event->client.data_format);
+        if (!strcmp(attr, "data"))
+            return PyString_FromStringAndSize((char *) &event->client.data,
+                                              sizeof(event->client.data));
+        break;
+    case GDK_VISIBILITY_NOTIFY: /*GdkEventVisibility        visibility*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssss]",
+                                 "type", "window", "send_event",
+                                 "state");
+        if (!strcmp(attr, "state"))
+            return pyg_enum_from_gtype(GDK_TYPE_VISIBILITY_STATE, event->visibility.state);
+        break;
+    case GDK_NO_EXPOSE:         /*GdkEventNoExpose          no_expose*/
+        break;
+    case GDK_SCROLL:            /*GdkEventScroll            scroll*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssssssssss]",
+                                 "type", "window", "send_event",
+                                 "time", "x", "y", "state", "direction",
+                                 "device", "x_root", "y_root");
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->scroll.time);
+        if (!strcmp(attr, "x"))
+            return PyFloat_FromDouble(event->scroll.x);
+        if (!strcmp(attr, "y"))
+            return PyFloat_FromDouble(event->scroll.y);
+        if (!strcmp(attr, "state"))
+            return pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE,
+                                        event->scroll.state);
+        if (!strcmp(attr, "direction"))
+            return pyg_enum_from_gtype(GDK_TYPE_SCROLL_DIRECTION, event->scroll.direction);
+        if (!strcmp(attr, "device"))
+            return pygobject_new((GObject *)event->scroll.device);
+        if (!strcmp(attr, "x_root"))
+            return PyFloat_FromDouble(event->scroll.x_root);
+        if (!strcmp(attr, "y_root"))
+            return PyFloat_FromDouble(event->scroll.y_root);
+        break;
+    case GDK_WINDOW_STATE:      /*GdkEventWindowState       window_state*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssss]",
+                                 "type", "window", "send_event",
+                                 "changed_mask", "new_window_state");
+        if (!strcmp(attr, "changed_mask"))
+            return pyg_flags_from_gtype(GDK_TYPE_WINDOW_STATE,
+                                        event->window_state.changed_mask);
+        if (!strcmp(attr, "new_window_state"))
+            return pyg_flags_from_gtype(GDK_TYPE_WINDOW_STATE,
+                                        event->window_state.new_window_state);
+        break;
+    case GDK_SETTING:           /*GdkEventSetting           setting*/
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[sssss]",
+                                 "type", "window", "send_event",
+                                 "action", "name");
+        if (!strcmp(attr, "action"))
+            return pyg_enum_from_gtype(GDK_TYPE_SETTING_ACTION, event->setting.action);
+        if (!strcmp(attr, "name"))
+            return PyString_FromString(event->setting.name);
+        break;
+    /* New in 2.8 */
+    case GDK_OWNER_CHANGE:
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssssss]",
+                                 "type", "window", "send_event", "owner",
+                                 "reason", "selection", "time",
+                                 "selection_time");
+        if (!strcmp(attr, "owner"))
+            return PyInt_FromLong(event->owner_change.owner);
+        if (!strcmp(attr, "reason"))
+            return pyg_enum_from_gtype(GDK_TYPE_OWNER_CHANGE,
+				       event->owner_change.reason);
+        if (!strcmp(attr, "selection")) {
+            name = gdk_atom_name(event->owner_change.selection);
+            ret = PyString_FromString(name);
+            g_free(name);
+            return ret;
+        }
+        if (!strcmp(attr, "time"))
+            return PyInt_FromLong(event->owner_change.time);
+        if (!strcmp(attr, "selection_time"))
+            return PyInt_FromLong(event->owner_change.selection_time);
+	break;
+    case GDK_GRAB_BROKEN:
+        if (!strcmp(attr, "__members__"))
+            return Py_BuildValue("[ssssss]",
+                                 "type", "window", "send_event",
+                                 "keyboard", "implicit",
+				 "grab_window");
+        if (!strcmp(attr, "keyboard"))
+            return PyBool_FromLong(event->grab_broken.keyboard);
+        if (!strcmp(attr, "implicit"))
+            return PyBool_FromLong(event->grab_broken.implicit);
+        if (!strcmp(attr, "grab_window"))
+            return pygobject_new((GObject *)event->grab_broken.grab_window);
+        break;
+	
+    default:
+        break;
+    }
+    
+    if (!strcmp(attr, "type"))
+        return pyg_enum_from_gtype(GDK_TYPE_EVENT_TYPE, event->type);
+    if (!strcmp(attr, "window"))
+        return pygobject_new((GObject *)event->any.window);
+    if (!strcmp(attr, "send_event"))
+        return PyInt_FromLong(event->any.send_event);
+    if (!strcmp(attr, "__members__"))
+        return Py_BuildValue("[sss]", "type", "window", "send_event");
+
+    return Py_FindMethod((PyMethodDef*)_PyGdkEvent_methods, self, attr);
+}
+%%
+override gdk_event_get_axis args
+static PyObject *
+_wrap_gdk_event_get_axis(PyGObject *self, PyObject *args)
+{
+    GdkEvent *event = pyg_boxed_get(self, GdkEvent);
+    gint axis_use;
+    gdouble value;
+
+    if (!PyArg_ParseTuple(args, "i:gdk.event_get_axis",
+                          &axis_use))
+        return NULL;
+                                     
+    if (gdk_event_get_axis(event, axis_use, &value)) {
+        return PyFloat_FromDouble(value);
+    } else {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}
+%%
+override gdk_event_get_coords noargs
+static PyObject *
+_wrap_gdk_event_get_coords(PyGObject *self)
+{
+    GdkEvent *event = pyg_boxed_get(self, GdkEvent);
+    gdouble x, y;
+
+    if (gdk_event_get_coords(event, &x, &y))
+        return Py_BuildValue("(dd)", x, y);
+    else
+        return Py_BuildValue("()");
+}
+%%
+override gdk_event_get_root_coords noargs
+static PyObject *
+_wrap_gdk_event_get_root_coords(PyGObject *self)
+{
+    GdkEvent *event = pyg_boxed_get(self, GdkEvent);
+    gdouble x, y;
+
+    if (gdk_event_get_root_coords(event, &x, &y))
+        return Py_BuildValue("(dd)", x, y);
+    else
+        return Py_BuildValue("()");
+}
+%%
+override gdk_event_get_state noargs
+static PyObject *
+_wrap_gdk_event_get_state(PyGObject *self)
+{
+    GdkEvent *event = pyg_boxed_get(self, GdkEvent);
+    GdkModifierType state = 0;
+
+    gdk_event_get_state(event, &state);
+    return pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE, state);
+}
+%%
+override gdk_event_free noargs
+static PyObject *
+_wrap_gdk_event_free(PyObject *self)
+{
+    if (PyErr_Warn(PyExc_DeprecationWarning, "gtk.gdk.Event.free should not be used") < 0)
+        return NULL;
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override-slot GdkEvent.tp_repr
+static PyObject *
+_wrap_gdk_event_tp_repr(PyGObject *self)
+{
+    static char buffer[0x400];
+    int length = 0;
+
+    GdkEvent *event = pyg_boxed_get(self, GdkEvent);
+    GEnumValue *type = g_enum_get_value(g_type_class_peek(GDK_TYPE_EVENT_TYPE), event->type);
+
+    length += g_snprintf(buffer + length, sizeof buffer - length, "<%s at %p: %s",
+                         self->ob_type->tp_name, self, type ? type->value_name : "UNKNOWN TYPE");
+
+    /* Depending on event type we will append values of some most important attributes to
+     * representation string.  In any case, this information is not enough to reconstruct
+     * the event object (and in any case gtk.gdk.Event is incapable of doing so),
+     * therefore the <...> syntax.
+     */
+    switch(event->type) {
+    case GDK_NOTHING: break;
+    case GDK_DELETE: break;
+    case GDK_DESTROY: break;
+    case GDK_EXPOSE:
+        {
+            length += g_snprintf(buffer + length, sizeof buffer - length, " area=[%d, %d, %d, %d]",
+                                 event->expose.area.x, event->expose.area.y,
+                                 event->expose.area.width, event->expose.area.height);
+            break;
+        }
+    case GDK_MOTION_NOTIFY:
+        {
+            length += g_snprintf(buffer + length, sizeof buffer - length, " x=%.2f, y=%.2f",
+                                 event->motion.x, event->motion.y);
+            break;
+        }
+    case GDK_BUTTON_PRESS:
+    case GDK_2BUTTON_PRESS:
+    case GDK_3BUTTON_PRESS:
+    case GDK_BUTTON_RELEASE:
+        {
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " x=%.2f, y=%.2f, button=%d",
+                                 event->button.x, event->button.y, event->button.button);
+            break;
+        }
+    case GDK_KEY_PRESS:
+    case GDK_KEY_RELEASE:
+        {
+            const gchar *key = gdk_keyval_name(event->key.keyval);
+
+            if (key)
+                length += g_snprintf(buffer + length, sizeof buffer - length, " keyval=%s", key);
+            else
+                length += g_snprintf(buffer + length, sizeof buffer - length,
+                                     " keyval=%d", event->key.keyval);
+            break;
+        }
+    case GDK_ENTER_NOTIFY:
+    case GDK_LEAVE_NOTIFY:
+        {
+            GEnumValue *mode = g_enum_get_value(g_type_class_peek(GDK_TYPE_CROSSING_MODE),
+                                                event->crossing.mode);
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " x=%.2f, y=%.2f, mode=%s",
+                                 event->crossing.x, event->crossing.y,
+                                 mode ? mode->value_name : "UNKNOWN");
+            break;
+        }
+    case GDK_FOCUS_CHANGE: break;
+    case GDK_CONFIGURE:
+        {
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " x=%d, y=%d, width=%d, height=%d",
+                                 event->configure.x, event->configure.y,
+                                 event->configure.width, event->configure.height);
+            break;
+        }
+    case GDK_MAP: break;
+    case GDK_UNMAP: break;
+    case GDK_PROPERTY_NOTIFY:
+        {
+            length += g_snprintf(buffer + length, sizeof buffer - length, " atom=%s",
+                                 gdk_atom_name(event->property.atom));
+            break;
+        }
+    case GDK_SELECTION_CLEAR:
+    case GDK_SELECTION_REQUEST:
+    case GDK_SELECTION_NOTIFY:
+        {
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " selection=%s, target=%s, property=%s",
+                                 gdk_atom_name(event->selection.selection),
+                                 gdk_atom_name(event->selection.target),
+                                 gdk_atom_name(event->selection.property));
+            break;
+        }
+    case GDK_PROXIMITY_IN: break;
+    case GDK_PROXIMITY_OUT: break;
+    case GDK_DRAG_ENTER: break;
+    case GDK_DRAG_LEAVE: break;
+    case GDK_DRAG_MOTION: break;
+    case GDK_DRAG_STATUS: break;
+    case GDK_DROP_START: break;
+    case GDK_DROP_FINISHED: break;
+    case GDK_CLIENT_EVENT: break;
+    case GDK_VISIBILITY_NOTIFY:
+        {
+            GEnumValue *state = g_enum_get_value(g_type_class_peek(GDK_TYPE_VISIBILITY_STATE),
+                                                event->visibility.state);
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " state=%s", state ? state->value_name : "UNKNOWN");
+            break;
+        }
+    case GDK_NO_EXPOSE: break;
+    case GDK_SCROLL:
+        {
+            GEnumValue *direction = g_enum_get_value(g_type_class_peek(GDK_TYPE_SCROLL_DIRECTION),
+                                                     event->scroll.direction);
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " x=%.2f, y=%.2f, direction=%s",
+                                 event->scroll.x, event->scroll.y,
+                                 direction ? direction->value_name : "UNKNOWN");
+            break;
+        }
+    case GDK_WINDOW_STATE: break;
+    case GDK_SETTING:
+        {
+            GEnumValue *action = g_enum_get_value(g_type_class_peek(GDK_TYPE_SETTING_ACTION),
+                                                  event->setting.action);
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " action=%s, name=%s",
+                                 action ? action->value_name : "UNKNOWN",
+                                 event->setting.name);
+            break;
+        }
+    case GDK_OWNER_CHANGE:
+        {
+            GEnumValue *reason = g_enum_get_value(g_type_class_peek(GDK_TYPE_OWNER_CHANGE),
+                                                  event->owner_change.reason);
+            length += g_snprintf(buffer + length, sizeof buffer - length,
+                                 " reason=%s, selection=%s",
+                                 reason ? reason->value_name : "UNKNOWN",
+                                 gdk_atom_name(event->owner_change.selection));
+            break;
+        }
+    default:
+        break;
+    }
+
+    length += g_snprintf(buffer + length, sizeof buffer - length, ">");
+    return PyString_FromStringAndSize(buffer, length);
+}

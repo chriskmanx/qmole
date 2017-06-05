@@ -1,0 +1,48 @@
+#!/usr/bin/env perl
+
+chdir "../../../rox";
+
+system "cvs rel .";
+
+open(VER, "ROX-Filer/AppRun --version 2>&1 |") or die "open(): $!";
+while (<VER>) {
+  last if /^ROX-Filer/;
+}
+close(VER);
+
+/(\d+(\.\d+)*)$/;
+
+$version = $1;
+$_=$1;
+s/\./_/g;
+$dash = $_;
+
+print "Check the manual is up-to-date!\n";
+print "Version $version ($dash) --- OK?\n";
+
+<STDIN> =~ /^[yY]/ or die "OK, fix the version number!\n";
+
+system "cvs tag -F Release-$dash";
+system "cd ROX-Filer/src/po; ./update-po; ./dist";
+
+chdir;
+
+mkdir "rox-$version", 0775 or warn "mkdir() failed: $!\n";
+chdir "rox-$version";
+
+system "cvs -dtal197\@cvs.sourceforge.net:/cvsroot/rox export -r Release-$dash rox";
+#system "cvs -d:pserver:anonymous\@cvs.sourceforge.net:/cvsroot/rox export -r Release-$a-$b-$c rox";
+
+system "cd rox/ROX-Filer/src; autoconf; cd Docs; make";
+system "cp -r ~/Projects/rox/ROX-Filer/Messages/*.gmo rox/ROX-Filer/Messages";
+
+system "mv rox/* .";
+rmdir "rox";
+
+system "find -name '.cvsignore' | xargs rm";
+
+chdir "..";
+system "tar czf rox-$version.tgz rox-$version";
+system "rm -r rox-$version";
+
+print "OK, done\n";

@@ -1,0 +1,549 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 1998-2003  James Henstridge
+ *
+ *   libglade.override: overrides for the gtk.glade module.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+headers
+#define NO_IMPORT_PYGOBJECT
+#include <pygobject.h>
+#include <glade/glade.h>
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#include <libintl.h>
+
+#include <glib-object.h>
+
+typedef struct {
+    GladeXML parent;
+    PyObject *typedict;
+} PyGladeXML;
+
+typedef struct {
+    GladeXMLClass parent_class;
+} PyGladeXMLClass;
+
+static void  pyglade_xml_init (PyGladeXML *self);
+static void  pyglade_xml_class_init (PyGladeXMLClass *class);
+static GType        pyglade_xml_get_type            (void);
+static GType pyglade_xml_lookup_type (GladeXML*self, const char *gtypename);
+
+#define PYGLADE_TYPE_XML            (pyglade_xml_get_type())
+#define PYGLADE_XML(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), PYGLADE_TYPE_XML, PyGladeXML))
+#define PYGLADE_XML_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), PYGLADE_TYPE_XML, PyGladeXMLClass))
+#define PYGLADE_IS_XML(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), PYGLADE_TYPE_XML))
+#define PYGLADE_IS_XML_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((obj), PYGLADE_TYPE_XML))
+#define PYGLADE_XML_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj), PYGLADE_TYPE_XML, PygladeXMLClass))
+
+static GType
+pyglade_xml_get_type (void)
+{
+    static GType xml_type = 0;
+
+    if (!xml_type) {
+	static const GTypeInfo xml_info = {
+	    sizeof(PyGladeXMLClass),
+	    (GBaseInitFunc) NULL,
+	    (GBaseFinalizeFunc) NULL,
+	    (GClassInitFunc) pyglade_xml_class_init,
+	    (GClassFinalizeFunc) NULL,
+	    NULL,
+
+	    sizeof (PyGladeXML),
+	    0, /* n_preallocs */
+	    (GInstanceInitFunc) pyglade_xml_init,
+	};
+
+	xml_type = g_type_register_static(GLADE_TYPE_XML, "PyGladeXML",
+					  &xml_info, 0);
+    }
+    return xml_type;
+
+}
+
+static void
+pyglade_xml_init (PyGladeXML *self)
+{
+    self->typedict = PyDict_New();
+}
+
+static void
+pyglade_xml_class_init (PyGladeXMLClass *class)
+{
+    GladeXMLClass *xml_class = (GladeXMLClass*)class;
+    xml_class->lookup_type = pyglade_xml_lookup_type;
+}
+
+static GType
+pyglade_xml_lookup_type(GladeXML *glade, const char *gtypename)
+{
+    PyGladeXML *self;
+    PyObject *item;
+
+    g_return_val_if_fail (PYGLADE_IS_XML (glade), G_TYPE_INVALID);
+
+    self = PYGLADE_XML(glade);
+    if (self->typedict) {
+        item = PyMapping_GetItemString(self->typedict, (char *) gtypename);
+	if (!item) {
+	    PyErr_Clear();
+	    item = NULL;
+	}
+    } else
+        item = NULL;
+
+    if (item != NULL) {
+	GType type;
+
+	if ((type = pyg_type_from_object(item)) == 0)
+            type = G_TYPE_INVALID;
+
+        Py_DECREF(item);
+	return type;
+    }
+    
+    return g_type_from_name(gtypename);
+}
+
+static PyGladeXML *
+pyglade_xml_new (char * fname, char * root, char *domain, PyObject *dict)
+{
+    PyGladeXML *self = g_object_new(PYGLADE_TYPE_XML, NULL);
+
+    /* This must be done before, since it's used inside of
+     * glade_xml_construct
+     */
+    self->typedict = dict;
+    if (!glade_xml_construct(GLADE_XML(self), fname, root, domain)) {
+	g_object_unref(self);
+	return NULL;
+    }
+      /* the reference is borrowed, and we don't need anymore */
+    self->typedict = NULL;
+    
+    return self;
+}
+
+%%
+modulename gtk.glade
+%%
+import gobject.GObject as PyGObject_Type
+import gtk.Widget as PyGtkWidget_Type
+%%
+ignore-glob *_get_type
+%%
+ignore
+  glade_init
+  glade_provide
+  glade_require
+  glade_xml_construct
+  glade_xml_signal_connect_data
+  glade_xml_signal_connect_full
+  glade_xml_signal_autoconnect_full
+%%
+override glade_xml_signal_connect
+static void
+connect_one(const gchar *handler_name, GObject *obj,
+            const gchar *signal_name, const gchar *signal_data,
+            GObject *connect_object, gboolean after, gpointer user_data)
+{
+    GClosure *closure = NULL;
+    PyObject *callback = PyTuple_GetItem((PyObject *)user_data, 0);
+    PyObject *extra = PyTuple_GetItem((PyObject *)user_data, 1);
+    PyObject *self;
+
+    if (connect_object) {
+        PyObject *other;
+
+        other = pygobject_new(connect_object);
+	closure = pyg_closure_new(callback, extra, other);
+    } else {
+	closure = pyg_closure_new(callback, extra, NULL);
+    }
+
+    self = pygobject_new(obj);
+    g_signal_connect_closure(obj, signal_name, closure, after);
+    pygobject_watch_closure(self, closure);
+    Py_DECREF(self);
+}
+
+static PyObject *
+_wrap_glade_xml_signal_connect(PyGObject *self, PyObject *args)
+{
+    guint len;
+    PyObject *first, *callback, *extra_args = NULL, *data;
+    gchar *handler_name;
+
+    len = PyTuple_Size(args);
+    if (len < 2) {
+	PyErr_SetString(PyExc_TypeError,
+		"GladeXML.signal_connect requires at least 2 arguments");
+	return NULL;
+    }
+    first = PySequence_GetSlice(args, 0, 2);
+    if (!PyArg_ParseTuple(first, "sO:GladeXML.signal_connect", &handler_name,
+			  &callback)) {
+	Py_DECREF(first);
+	return NULL;
+    }
+    Py_DECREF(first);
+    if (!PyCallable_Check(callback)) {
+	PyErr_SetString(PyExc_TypeError, "second argument must be callable");
+	return NULL;
+    }
+    extra_args = PySequence_GetSlice(args, 2, len);
+    if (extra_args == NULL)
+	return NULL;
+    data = Py_BuildValue("(ON)", callback, extra_args);
+    glade_xml_signal_connect_full(GLADE_XML(self->obj), handler_name,
+				  connect_one, data);
+    Py_DECREF(data);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override glade_xml_signal_autoconnect kwargs
+static void
+connect_many(const gchar *handler_name, GObject *obj,
+	     const gchar *signal_name, const gchar *signal_data,
+	     GObject *connect_object, gboolean after, gpointer user_data)
+{
+    PyObject *handler_dict = user_data;
+    PyObject *tuple, *self;
+    GClosure *closure = NULL;
+
+    tuple = PyMapping_GetItemString(handler_dict, (gchar *)handler_name);
+    if (!tuple) {
+	PyErr_Clear();	
+        tuple = PyObject_GetAttrString(handler_dict, (gchar *)handler_name);
+        if (!tuple) {
+            PyErr_Clear();
+            return;
+        }
+    }
+    
+    if (PyTuple_Check(tuple)) {
+	PyObject *callback = PyTuple_GetItem(tuple, 0);
+	PyObject *extra = PySequence_GetSlice(tuple, 1, PyTuple_Size(tuple));
+	PyObject *other = NULL;
+
+	if (connect_object)
+	    other = pygobject_new((GObject *)connect_object);
+
+	closure = pyg_closure_new(callback, extra, other);
+	Py_DECREF(extra);
+    } else if (PyCallable_Check(tuple)) {
+	PyObject *other = NULL;
+
+	if (connect_object)
+	    other = pygobject_new((GObject *)connect_object);
+
+	closure = pyg_closure_new(tuple, NULL, other);
+    } else {
+	g_warning("handler for `%s' not callable or a tuple", handler_name);
+	Py_DECREF(tuple);
+	return;
+    }
+    Py_DECREF(tuple);
+    self = pygobject_new(obj);
+    g_signal_connect_closure(obj, signal_name, closure, after);
+    pygobject_watch_closure(self, closure);
+    Py_DECREF(self);
+}
+
+static PyObject *
+_wrap_glade_xml_signal_autoconnect(PyGObject *self, PyObject *args,
+				   PyObject *kwargs)
+{
+    static char *kwlist[] = { "dict", NULL };
+    PyObject *object;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "O:GladeXML.signal_autoconnect", kwlist,
+				     &object))
+	return NULL;
+
+    glade_xml_signal_autoconnect_full(GLADE_XML(self->obj),
+				      connect_many,
+				      object);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override glade_xml_get_widget_prefix kwargs
+static PyObject *
+_wrap_glade_xml_get_widget_prefix(PyGObject *self, PyObject *args,
+				  PyObject *kwargs)
+{
+    static char *kwlist[] = { "name", NULL };
+    char *name;
+    GList *ret, *tmp;
+    PyObject *py_ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s:GladeXML.get_widget_prefix", kwlist,
+				     &name))
+	return NULL;
+    ret = glade_xml_get_widget_prefix(GLADE_XML(self->obj), name);
+    py_ret = PyList_New(0);
+    for (tmp = ret; tmp != NULL; tmp = tmp->next) {
+	GtkWidget *widget = tmp->data;
+	PyObject *py_widget = pygobject_new((GObject *)widget);
+
+	if (!py_widget) {
+	    g_list_free(ret);
+	    Py_DECREF(py_ret);
+	    return NULL;
+	}
+	PyList_Append(py_ret, py_widget);
+	Py_DECREF(py_widget);
+    }
+    g_list_free(ret);
+    return py_ret;
+}
+%%
+override glade_bindtextdomain kwargs
+static PyObject *
+_wrap_glade_bindtextdomain(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "domainname", "dirname", NULL };
+    char *domainname, *dirname = NULL, *ret;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s|s:glade.bindtextdomain", kwlist,
+				     &domainname, &dirname))
+	return NULL;
+    ret = bindtextdomain(domainname, dirname);
+    if (!ret) {
+	PyErr_SetString(PyExc_MemoryError, "Not enough memory available.");
+	return NULL;
+    }
+#ifdef HAVE_BIND_TEXTDOMAIN_CODESET
+    bind_textdomain_codeset(domainname, "UTF-8");
+#endif
+    return PyString_FromString(ret);
+}
+%%
+override glade_textdomain kwargs
+static PyObject *
+_wrap_glade_textdomain(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "domainname", NULL };
+    char *domainname = NULL, *ret;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "|s:glade.textdomain", kwlist,
+				     &domainname))
+	return NULL;
+    ret = textdomain(domainname);
+    if (!ret) {
+	PyErr_SetString(PyExc_MemoryError, "Not enough memory available.");
+	return NULL;
+    }
+    return PyString_FromString(ret);
+}
+%%
+override glade_set_custom_handler
+
+/* stores the handler set by set_custom_handler */
+static PyObject *pyglade_handler = NULL;
+static PyObject *pyglade_user_data = NULL;
+
+static GtkWidget *
+pyglade_custom_widget_handler(GladeXML *xml,
+			      gchar *func_name,
+			      gchar *name,
+			      gchar *string1,
+			      gchar *string2,
+			      gint int1,
+			      gint int2,
+			      gpointer user_data)
+{
+    PyObject *firstargs, *args;
+    PyObject *widget;
+    GtkWidget *ret;
+
+    g_return_val_if_fail(pyglade_handler != NULL, NULL);
+    g_return_val_if_fail(pyglade_user_data != NULL, NULL);
+
+    firstargs = Py_BuildValue("Nssssii", pygobject_new((GObject *)xml),
+			      func_name, name, string1, string2,
+			      int1, int2);
+    args = PySequence_Concat(firstargs, pyglade_user_data);
+    Py_DECREF(firstargs);
+
+    widget = PyObject_CallObject(pyglade_handler, args);
+    Py_DECREF(args);
+    if (!widget) {
+	PyErr_Print();
+	ret = NULL;
+    } else if (pygobject_check(widget, &PyGtkWidget_Type)) {
+	/* this leaks a reference :( */
+	ret = GTK_WIDGET(pygobject_get(widget));
+    } else {
+	Py_DECREF(widget);
+	g_warning("return value of custom widget handler was not a GtkWidget");
+	ret = NULL;
+    }
+    
+    return ret;
+}
+
+static PyObject *
+_wrap_glade_set_custom_handler(PyObject *self, PyObject *args)
+{
+    PyObject *first, *handler, *user_data;
+    gint len;
+
+    len = PyTuple_Size(args);
+    if (len < 1) {
+	PyErr_SetString(PyExc_TypeError, "set_custom_handler requires at least 1 argument");
+	return NULL;
+    }
+    first = PySequence_GetSlice(args, 0, 1);
+    if (!PyArg_ParseTuple(first, "O:set_custom_handler", &handler)) {
+	Py_DECREF(first);
+	return NULL;
+    }
+    Py_DECREF(first);
+    if (!PyCallable_Check(handler)) {
+	PyErr_SetString(PyExc_TypeError, "handler must be callable");
+	return NULL;
+    }
+    user_data = PySequence_GetSlice(args, 1, len);
+
+    /* clear saved data */
+    Py_XDECREF(pyglade_handler);
+    pyglade_handler = NULL;
+    Py_XDECREF(pyglade_user_data);
+    pyglade_user_data = NULL;
+
+    /* store new handlers */
+    Py_INCREF(handler);
+    pyglade_handler = handler;
+    pyglade_user_data = user_data;
+
+    /* set handler */
+    glade_set_custom_handler(pyglade_custom_widget_handler, NULL);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override glade_set_custom_widget_callbacks kwargs
+static GtkWidget *
+pyglade_custom_widget_callbacks_handler(GladeXML *xml,
+					gchar *func_name,
+					gchar *name,
+					gchar *string1,
+					gchar *string2,
+					gint int1,
+					gint int2,
+					gpointer user_data)
+{
+    PyObject *handler, *widget;
+    GtkWidget *ret;
+
+    handler = PyMapping_GetItemString(pyglade_user_data, func_name);
+    if (!handler) {
+        PyErr_Clear();
+        handler = PyObject_GetAttrString(pyglade_user_data, func_name);
+        if (!handler) {
+            PyErr_Clear();
+	    g_warning("could not find handler %s", func_name);
+            return NULL;
+        }
+    }
+    if (!PyCallable_Check(handler)) {
+	g_warning("object is not callable");
+	return NULL;
+    }
+    
+    widget = PyObject_CallFunction(handler, NULL);
+    if (pygobject_check(widget, &PyGtkWidget_Type)) {
+	/* this leaks a reference :( */
+	ret = GTK_WIDGET(pygobject_get(widget));
+    } else {
+	Py_DECREF(widget);
+	g_warning("return value of custom widget handler was not a GtkWidget");
+	ret = NULL;
+    }
+    return ret;
+}
+static PyObject *
+_wrap_glade_set_custom_widget_callbacks(PyObject *self, PyObject *args,
+					PyObject *kwargs)
+{
+    static char *kwlist[] = { "dict", NULL };
+    PyObject *object;
+
+    if (PyErr_Warn(PyExc_DeprecationWarning, "use set_custom_handler instead") < 0)
+	return NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "O:GladeXML.set_custom_widget_callbacks",
+				     kwlist, &object))
+	return NULL;
+
+    /* clear saved data */
+    Py_XDECREF(pyglade_handler);
+    pyglade_handler = NULL;
+    Py_XDECREF(pyglade_user_data);
+    pyglade_user_data = NULL;
+
+    /* store new handlers */
+    Py_INCREF(object);
+    pyglade_user_data = object;
+
+    glade_set_custom_handler(pyglade_custom_widget_callbacks_handler, NULL);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override glade_xml_new kwargs
+static int
+_wrap_glade_xml_new(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "fname", "root", "domain", "typedict", NULL };
+    char *fname, *root = NULL, *domain = NULL;
+    PyObject *pydict = NULL;
+	
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s|zzO:GladeXML.__init__",
+				     kwlist, &fname, &root, &domain,
+				     &pydict))
+        return -1;
+
+    if (pydict && !PyMapping_Check(pydict)) {
+        PyErr_SetString(PyExc_TypeError,
+			"typedict must be a mapping");
+	return -1;
+    }
+
+    self->obj = (GObject *) pyglade_xml_new(fname, root, domain, pydict);
+
+    if (!self->obj) {
+        PyErr_SetString(PyExc_RuntimeError, "could not create GladeXML object");
+        return -1;
+    }
+    pygobject_register_wrapper((PyObject *)self);
+    return 0;
+}

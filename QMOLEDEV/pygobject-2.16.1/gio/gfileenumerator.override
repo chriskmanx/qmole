@@ -1,0 +1,138 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygobject - Python bindings for GObject
+ * Copyright (C) 2008  Johan Dahlin
+ *
+ *   gfileenumerator.override: module overrides for GFileEnumerator
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+ */
+%%
+override-slot GFileEnumerator.tp_iter
+static PyObject*
+_wrap_g_file_enumerator_tp_iter(PyGObject *self)
+{
+    Py_INCREF (self);
+    return (PyObject *) self;
+}
+%%
+override-slot GFileEnumerator.tp_iternext
+static PyObject*
+_wrap_g_file_enumerator_tp_iternext(PyGObject *iter)
+{
+    GFileInfo *file_info;
+    GError *error = NULL;
+
+    if (!iter->obj) {
+	PyErr_SetNone(PyExc_StopIteration);
+	return NULL;
+    }
+
+    file_info = g_file_enumerator_next_file(G_FILE_ENUMERATOR(iter->obj),
+					    NULL,
+					    &error);
+    if (pyg_error_check(&error)) {
+        return NULL;
+    }
+    
+    if (!file_info) {
+	PyErr_SetNone(PyExc_StopIteration);
+	return NULL;
+    }
+
+    return pygobject_new((GObject*)file_info);
+}
+%%
+override g_file_enumerator_next_files_async kwargs
+static PyObject *
+_wrap_g_file_enumerator_next_files_async(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "num_files", "callback",
+			      "io_priority", "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    int num_files;
+    int io_priority = G_PRIORITY_DEFAULT;
+    GCancellable *cancellable = NULL;
+    PyGObject *py_cancellable = NULL;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "iO|iOO:GFileEnumerator.enumerate_children_async",
+				     kwlist,
+				     &num_files,
+				     &notify->callback,
+				     &io_priority,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+	goto error;
+
+    pygio_notify_reference_callback(notify);  
+    
+    g_file_enumerator_next_files_async(G_FILE_ENUMERATOR(self->obj),
+				       num_files,
+				       io_priority,
+				       (GCancellable *) cancellable,
+				       (GAsyncReadyCallback)async_result_callback_marshal,
+				       notify);
+    
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_enumerator_next_files_finish kwargs
+static PyObject *
+_wrap_g_file_enumerator_next_files_finish(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "result", NULL };
+    PyGObject *result;
+    GList *next_files, *l;
+    GError *error = NULL;
+    PyObject *ret;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "O!:GFileEnumerator.next_files_finish",
+				     kwlist,
+				     &PyGAsyncResult_Type, &result))
+        return NULL;
+    
+    next_files = g_file_enumerator_next_files_finish(G_FILE_ENUMERATOR(self->obj),
+						     G_ASYNC_RESULT(result->obj),
+						     &error);
+    if (pyg_error_check(&error))
+        return NULL;
+
+    ret = PyList_New(0);
+    for (l = next_files; l; l = l->next) {
+	GFileInfo *file_info = l->data;
+	PyObject *item = pygobject_new((GObject *)file_info);
+	PyList_Append(ret, item);
+	Py_DECREF(item);
+	g_object_unref(file_info);
+    }
+    g_list_free(next_files);
+
+    return ret;
+}

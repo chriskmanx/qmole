@@ -1,0 +1,215 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygobject - Python bindings for GObject
+ * Copyright (C) 2008  Johan Dahlin
+ *
+ *   goutputstream.override: module overrides for GOutputStream
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+ */
+%%
+override g_output_stream_write kwargs
+static PyObject *
+_wrap_g_output_stream_write(PyGObject *self,
+			    PyObject *args,
+			    PyObject *kwargs)
+{
+  static char *kwlist[] = { "buffer", "cancellable", NULL };
+  PyGObject *pycancellable = NULL;
+  gchar *buffer;
+  long count = 0; 
+  GCancellable *cancellable;
+  GError *error = NULL;
+  gssize written;
+  
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				   "s#|O!:OutputStream.write",
+				   kwlist, &buffer, &count,
+				   &PyGCancellable_Type, &pycancellable))
+    return NULL;
+  
+  if (!pygio_check_cancellable(pycancellable, &cancellable))
+      return NULL;
+
+  pyg_begin_allow_threads;
+  written = g_output_stream_write(G_OUTPUT_STREAM(self->obj),
+				  buffer, count, cancellable, &error);
+  pyg_end_allow_threads;
+
+  if (pyg_error_check(&error))
+    return NULL;
+      
+  return PyInt_FromLong(written);
+}
+%%
+override g_output_stream_write_all kwargs
+static PyObject *
+_wrap_g_output_stream_write_all(PyGObject *self,
+				PyObject *args,
+				PyObject *kwargs)
+{
+  static char *kwlist[] = { "buffer", "cancellable", NULL };
+  PyGObject *pycancellable = NULL;
+  gchar *buffer;
+  long count = 0; 
+  GCancellable *cancellable;
+  GError *error = NULL;
+  gsize written;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				   "s#|O!:OutputStream.write",
+				   kwlist, &buffer, &count,
+				   &PyGCancellable_Type, &pycancellable))
+    return NULL;
+
+  if (!pygio_check_cancellable(pycancellable, &cancellable))
+      return NULL;
+
+  pyg_begin_allow_threads;
+  g_output_stream_write_all(G_OUTPUT_STREAM(self->obj),
+			    buffer, count, &written, cancellable, &error);
+  pyg_end_allow_threads;
+
+  if (pyg_error_check(&error))
+    return NULL;
+      
+  return PyInt_FromLong(written);
+}
+%%
+override g_output_stream_write_async kwargs
+static PyObject *
+_wrap_g_output_stream_write_async(PyGObject *self,
+				  PyObject *args,
+				  PyObject *kwargs)
+{
+  static char *kwlist[] = { "buffer", "callback", "io_priority", "cancellable",
+			    "user_data", NULL };
+  gchar *buffer;
+  long count = -1;
+  int io_priority = G_PRIORITY_DEFAULT;
+  PyGObject *pycancellable = NULL;
+  GCancellable *cancellable;
+  PyGIONotify *notify;
+
+  notify = pygio_notify_new();
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				   "s#O|iOO:OutputStream.write_async",
+				   kwlist, &buffer,
+				   &count,
+				   &notify->callback,
+				   &io_priority,
+				   &pycancellable,
+				   &notify->data))
+      goto error;
+
+  if (!pygio_notify_callback_is_valid(notify))
+      goto error;
+  
+  if (!pygio_check_cancellable(pycancellable, &cancellable))
+      goto error;
+
+  pygio_notify_reference_callback(notify);
+  pygio_notify_copy_buffer(notify, buffer, count);
+
+  g_output_stream_write_async(G_OUTPUT_STREAM(self->obj),
+			      notify->buffer,
+			      notify->buffer_size,
+			      io_priority,
+			      cancellable,
+			      (GAsyncReadyCallback)async_result_callback_marshal,
+			      notify);
+  
+  Py_INCREF(Py_None);
+  return Py_None;
+
+ error:
+  pygio_notify_free(notify);
+  return NULL;
+}
+%%
+override g_output_stream_close_async kwargs
+static PyObject *
+_wrap_g_output_stream_close_async(PyGObject *self,
+				  PyObject *args,
+				  PyObject *kwargs)
+{
+  static char *kwlist[] = { "callback", "io_priority",
+			    "cancellable", "user_data", NULL };
+  int io_priority = G_PRIORITY_DEFAULT;
+  PyGObject *pycancellable = NULL;
+  GCancellable *cancellable;
+  PyGIONotify *notify;
+
+  notify = pygio_notify_new();
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				   "O|iOO:OutputStream.close_async",
+				   kwlist,
+				   &notify->callback,
+				   &io_priority,
+				   &pycancellable,
+				   &notify->data))
+      goto error;
+
+  if (!pygio_notify_callback_is_valid(notify))
+      goto error;
+
+  if (!pygio_check_cancellable(pycancellable, &cancellable))
+      goto error;
+
+  pygio_notify_reference_callback(notify);
+  
+  g_output_stream_close_async(G_OUTPUT_STREAM(self->obj),
+			      io_priority,
+			      cancellable,
+			      (GAsyncReadyCallback)async_result_callback_marshal,
+			      notify);
+  
+  Py_INCREF(Py_None);
+  return Py_None;
+
+ error:
+  pygio_notify_free(notify);
+  return NULL;
+}
+%%
+override g_memory_output_stream_new noargs
+static int
+_wrap_g_memory_output_stream_new(PyGObject *self)
+{
+    self->obj = (GObject *)g_memory_output_stream_new(NULL, 0, g_realloc, g_free);
+
+    if (!self->obj) {
+        PyErr_SetString(PyExc_RuntimeError, "could not create gio.MemoryOutputStream object");
+        return -1;
+    }
+
+    pygobject_register_wrapper((PyObject *)self);
+    return 0;
+}
+%%
+override g_memory_output_stream_get_data noargs
+static PyObject *
+_wrap_g_memory_output_stream_get_data(PyGObject *self)
+{
+    GMemoryOutputStream *stream = G_MEMORY_OUTPUT_STREAM(self->obj);
+    return PyString_FromStringAndSize(g_memory_output_stream_get_data(stream),
+				      g_seekable_tell(G_SEEKABLE(stream)));
+}
+
+/* GOutputStream.write_all: No ArgType for const-void* */
+/* GOutputStream.splice_async: No ArgType for GAsyncReadyCallback */
+/* GOutputStream.flush_async: No ArgType for GAsyncReadyCallback */

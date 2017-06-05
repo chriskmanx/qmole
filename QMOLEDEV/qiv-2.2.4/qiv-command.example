@@ -1,0 +1,138 @@
+#!/bin/sh
+
+###
+### QUICK IMAGE VIEWER "qiv-command" file
+### http://qiv.spiegl.de/
+###
+### This file will be launched by QIV if you push 0-9 (or any other free key)
+### NEW:  Now you can use all free keys for qiv-command.
+### NEW:  If you press "X" followed by any string,
+###       qiv-command is called with X and this string
+###
+### Just put it in a directory that is in your path
+###
+### Note:
+###  If the first line of the output is like "NEWNAME=xxxxxxx" then qiv
+###  thinks that the filename of the currently displayed image has
+###  changed to this new name and updates its internal filelist.
+###  This is very useful when using qiv-command to rename files.
+
+#
+# some examples by Andy Spiegl <qiv.andy@spiegl.de>
+# Created:     2002-05-12
+# Last change: 2010-12-28
+#
+# more examples (renaming, jpg comments) by Clint Pachl <pachl@ecentryx.com>
+#
+# needs jhead to rotate JPEG without loss of Exif Jpeg headers
+# jhead is:
+# Program for extracting Digicam setting information from Exif Jpeg headers
+# used by most Digital Cameras.  v2.6 by Matthias Wandel, Dec 26 2006
+# http://www.sentex.net/~mwandel/jhead  mwandel@sentex.net
+
+# Syntax: qiv-command [pressed_key] [image_filename_with_full_path]
+pressed_key=$1  	# key(s) pressed in qiv
+filename=$2         # image filename with full path
+
+echo "You pressed the $pressed_key key while watching $filename"
+
+case "$pressed_key" in
+
+  0)
+    # do something with the image ($2) ->
+    #
+    # example: copy
+    # cp "$2" "/home/myfiles/download/";
+    #
+    # example: move
+    # mv "$2" "/home/myfiles/download/";
+    # echo "NEWNAME=/home/myfiles/download/$2";
+    #
+    # example: show EXIF Header using "exiftool" or "jhead"
+    # exiftool "$filename"
+    # jhead "$filename"
+
+    echo -ne "0 was pushed.\nStart your own programs by editing the\n\"$0\" file!";
+    ;;
+
+
+  1|2|3|4|5)
+    echo -ne "$pressed_key was pushed.\nStart your own programs by editing the\n\"$0\" file!";
+    ;;
+
+  6)
+    # Modify comment header. Fire up an xterm running EDITOR to edit comment.
+    #xterm -e jhead -ce $filename
+    jhead -ce $filename
+    ;;
+
+  7)
+    echo -ne "$pressed_key was pushed.\nStart your own programs by editing the\n\"$0\" file!";
+    ;;
+
+  8) # lossless rotation of JPG, without losing EXIF tags
+    echo 2>&1 "Rotating to the left."
+    jhead -cmd "jpegtran -perfect -rotate 270 -outfile &o &i" $filename >/dev/null
+    jhead -ft $filename >/dev/null # reset timestamp
+    ;;
+
+  9) # lossless rotation of JPG, without losing EXIF tags
+    echo 2>&1 "Rotating to the right."
+    jhead -cmd "jpegtran -perfect -rotate 90 -outfile &o &i" $filename >/dev/null
+    jhead -ft $filename >/dev/null # reset timestamp
+    ;;
+
+  # with "^"-prefix: forced (i.e. possibly NOT lossless) rotation
+  ^8) # rotate JPG, but possibly losing quality
+    echo 2>&1 "Forcing rotation to the left."
+    jhead -cmd "jpegtran -rotate 270 -outfile &o &i" $filename >/dev/null
+    jhead -ft $filename >/dev/null # reset timestamp
+    ;;
+
+  ^9) # rotate JPG, but possibly losing quality
+    echo 2>&1 "Forcing rotation to the right."
+    jhead -cmd "jpegtran -rotate 90 -outfile &o &i" $filename >/dev/null
+    jhead -ft $filename >/dev/null # reset timestamp
+    ;;
+
+  ^*)
+    # Rename image directly from qiv. The timestamp of the current image will be
+    # automatically embedded in the new filename. This action is invoked by typing:
+    #
+    #	^<new_img_name><RETURN>
+    #
+    # Echoing the `NEWNAME=new_img_name` line signals qiv to update it's file list
+    # with the new filename.
+    img_timestamp=$(date -r `stat -f '%m' $filename` +'%y%m%d%H%M%S')
+    new_img_name=${pressed_key#^}
+    new_img_name=`echo "$new_img_name" | tr ' ' '_'`
+    new_img_name=${new_img_name%.[Jj][Pp][Gg]}-${img_timestamp}.jpg
+
+    [[ -f $new_img_name ]] && exit 1
+    mv $filename $new_img_name
+    echo "NEWNAME=$new_img_name"
+    ;;
+
+  V)
+    qiv -h
+    ;;
+
+  *)
+    cat <<-EOF
+	Commands:
+	  0 		show EXIF header
+	  6 		edit JPEG comment
+	  8 		lossless rotate left
+	  9 		lossless rotate right
+	  ^8		non-perfect rotate left  (use if '8' fails)
+	  ^9		non-perfect rotate right (use if '9' fails)
+	  ^STRING 	rename current file to STRING
+
+	  Within qiv you simply press a key from 0-9 or any other unused key!
+	  "$pressed_key" not defined yet.  Quitting.
+	EOF
+    exit 1
+esac
+
+
+exit 0

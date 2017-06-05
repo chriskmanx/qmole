@@ -1,0 +1,703 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+"/usr/share/sgml/docbook/dtd/xml/4.1.2/docbookx.dtd" [
+  <!ENTITY updated "15 Oct 2003">
+  <!ENTITY version "0.13">
+]>
+<article id="index">
+
+<articleinfo>
+	<authorgroup>
+		<corpauthor>
+			<ulink url="http://www.freedesktop.org">
+			X Desktop Group
+			</ulink>
+		</corpauthor>
+		<author>
+			<firstname>Thomas</firstname>
+			<surname>Leonard</surname>
+			<affiliation>
+				<address><email>tal197 at users.sf.net</email></address>
+			</affiliation>
+		</author>
+	</authorgroup>
+
+	<title>Shared MIME-info Database</title>
+	<date>&updated;</date>
+</articleinfo>
+
+<sect1>
+	<title>Introduction</title>
+	<sect2>
+		<title>Version</title>
+		<para>
+This is version &version; of the Shared MIME-info Database specification, last updated &updated;.</para>
+	</sect2>
+	<sect2>
+		<title>What is this spec?</title>
+		<para>
+Many programs and desktops use the MIME system<citation>MIME</citation>
+to represent the types of files. Frequently, it is necessary to work out the
+correct MIME type for a file. This is generally done by examining the file's
+name or contents, and looking up the correct MIME type in a database.
+		</para>
+		<para>
+It is also useful to store information about each type, such as a textual
+description of it, or a list of applications that can be used to view or edit
+files of that type.
+		</para>
+		<para>
+For interoperability, it is useful for different programs to use the same
+database so that different programs agree on the type of a file and
+information is not duplicated. It is also helpful for application authors to
+only have to install new information in one place.
+		</para>
+		<para>
+This specification attempts to unify the MIME database systems currently in
+use by GNOME<citation>GNOME</citation>, KDE<citation>KDE</citation> and
+ROX<citation>ROX</citation>, and provide room for future extensibility.
+		</para>
+		<para>
+The MIME database does NOT store user preferences (such as a user's preferred
+application for handling files of a particular type). It may be used to store
+static information, such as that files of a certain type may be viewed with
+a particular application.
+		</para>
+	</sect2>
+	<sect2>
+		<title>Language used in this specification</title>
+		<para>
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
+"SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this document are to be
+interpreted as described in RFC 2119<citation>RFC-2119</citation>.
+		</para>
+	</sect2>
+</sect1>
+
+<sect1>
+	<title>Unified system</title>
+	<para>
+In discussions about the previous systems used by GNOME, KDE and ROX (see the
+"History and related systems" document), it was clear that the differences
+between the databases were simply a result of them being separate, and not due
+to any fundamental disagreements between developers. Everyone is keen to see
+them merged.
+	</para>
+	<para>
+This specification proposes:
+
+		<itemizedlist>
+			<listitem><para>
+A standard way for applications to install new MIME related information.
+			</para></listitem>
+			<listitem><para>
+A standard way of getting the MIME type for a file.
+			</para></listitem>
+			<listitem><para>
+A standard way of getting information about a MIME type.
+			</para></listitem>
+			<listitem><para>
+Standard locations for all the files, and methods of resolving conflicts.
+			</para></listitem>
+		</itemizedlist>
+Further, the existing databases have been merged into a single package
+<citation>SharedMIME</citation>.
+	</para>
+	<sect2 id="s2_layout">
+		<title>Directory layout</title>
+		<para>
+There are two important requirements for the way the MIME database is stored:
+			<itemizedlist>
+				<listitem><para>
+Applications must be able to extend the database in any way when they are installed,
+to add both new rules for determining type, and new information about specific types.
+				</para></listitem>
+				<listitem><para>
+It must be possible to install applications in /usr, /usr/local and the user's home directory
+(in the normal Unix way) and have the MIME information used.
+				</para></listitem>
+			</itemizedlist>
+		</para>
+		<para>
+This specification uses the XDG Base Directory Specification<citation>BaseDir</citation> to
+define the prefixes below which the database is stored.
+In the rest of this document, paths shown with the prefix
+<filename>&lt;MIME&gt;</filename> indicate the files should be loaded from
+the <filename>mime</filename> subdirectory of every directory in
+<envar>XDG_DATA_HOME</envar>:<envar>XDG_DATA_DIRS</envar>.
+		</para>
+		<para>
+For example, when using the default paths, <quote>Load all the
+<filename>&lt;MIME&gt;/text/html.xml</filename> files</quote> means to
+load <filename>/usr/share/mime/text/html.xml</filename>,
+<filename>/usr/local/share/mime/text/html.xml</filename>, and
+<filename>~/.local/share/mime/text/html.xml</filename> (if they exist).
+		</para>
+		<para>
+Each application that wishes to contribute to the MIME database will install a
+single XML file, named after the application, into one of the three
+<filename>&lt;MIME&gt;/packages/</filename> directories (depending on where the user requested
+the application be installed). After installing, uninstalling or modifying this
+file, the application MUST run the <command>update-mime-database</command> command,
+which is provided by the freedesktop.org shared database<citation>SharedMIME</citation>.
+		</para>
+		<para>
+<command>update-mime-database</command> is passed the <filename>mime</filename>
+directory containing the <filename>packages</filename> subdirectory which was
+modified as its only argument. It scans all the XML files in the <filename>packages</filename>
+subdirectory, combines the information in them, and creates a number of output files.
+		</para>
+		<para>
+Where the information from these files is conflicting, information from directories
+lower in the list takes precedence.
+Any file named <filename>Override.xml</filename> takes precedence over all other files in
+the same <filename>packages</filename> directory. This can be used by
+tools which let the user edit the database to ensure that the user's
+changes take effect.
+		</para>
+		<para>
+The files created by <command>update-mime-database</command> are:
+			<itemizedlist>
+				<listitem><para>
+<filename>&lt;MIME&gt;/globs</filename> (contains a mapping from names to MIME types)
+				</para></listitem>
+				<listitem><para>
+<filename>&lt;MIME&gt;/magic</filename> (contains a mapping from file contents to MIME types)
+				</para></listitem>
+				<listitem><para>
+<filename>&lt;MIME&gt;/XMLnamespaces</filename> (contains a mapping from XML
+(namespaceURI, localName) pairs to MIME types)
+				</para></listitem>
+				<listitem><para>
+<filename>&lt;MIME&gt;/MEDIA/SUBTYPE.xml</filename> (one file for each MIME
+type, giving details about the type)
+				</para></listitem>
+			</itemizedlist>
+The format of these generated files and the source files in <filename>packages</filename>
+are explained in the following sections. This step serves several purposes. First, it allows
+applications to quickly get the data they need without parsing all the source XML files (the
+base package alone is over 700K). Second, it allows the database to be used for other
+purposes (such as creating the <filename>/etc/mime.types</filename> file if
+desired). Third, it allows validation to be performed on the input data,
+and removes the need for other applications to carefully check the input for
+errors themselves.
+		</para>
+	</sect2>
+	<sect2>
+		<title>The source XML files</title>
+		<para>
+Each application provides only a single XML source file, which is installed in the
+<filename>packages</filename> directory as described above. This file is an XML file
+whose document element is named <userinput>mime-info</userinput> and whose namespace URI
+is <ulink url="http://www.freedesktop.org/standards/shared-mime-info"/>. All elements
+described in this specification MUST have this namespace too.
+		</para><para>
+The document element may contain zero or more <userinput>mime-type</userinput> child nodes,
+in any order, each describing a single MIME type. Each element has a <userinput>type</userinput>
+attribute giving the MIME type that it describes.
+		</para><para>
+Each <userinput>mime-type</userinput> node may contain any combination of the following elements,
+and in any order:
+			<itemizedlist>
+				<listitem><para>
+<userinput>glob</userinput> elements have a <userinput>pattern</userinput> attribute. Any file
+whose name matches this pattern will be given this MIME type (subject to conflicting rules in
+other files, of course).
+		</para>
+		<para>
+KDE's glob system replaces GNOME's and ROX's ext/regex fields, since it
+is trivial to detect a pattern in the form '*.ext' and store it in an
+extension hash table internally. The full power of regular expressions was
+not being used by either desktop, and glob patterns are more suitable for
+filename matching anyway.
+				</para></listitem>
+				<listitem><para>
+<userinput>magic</userinput> elements contain a list of
+<userinput>match</userinput> elements, any of which may match, and an optional
+<userinput>priority</userinput> attribute for all of the contained rules. Low
+numbers should be used for more generic types (such as 'gzip compressed data')
+and higher values for specific subtypes (such as a word processor format that
+happens to use gzip to compress the file). The default priority value is 50, and
+the maximum is 100.
+				</para><para>
+Each <userinput>match</userinput> element has a number of attributes:
+
+<informaltable>
+	<tgroup cols="3">
+	<thead><row><entry>Attribute</entry><entry>Required?</entry><entry>Value</entry></row></thead>
+	<tbody>
+
+	<row><entry>type</entry><entry>Yes</entry><entry>
+<userinput>string</userinput>, <userinput>host16</userinput>,
+<userinput>host32</userinput>, <userinput>big16</userinput>,
+<userinput>big32</userinput>, <userinput>little16</userinput>,
+<userinput>little32</userinput> or <userinput>byte</userinput>.
+	</entry></row>
+
+	<row><entry>offset</entry><entry>Yes</entry><entry>The byte offset(s)
+	in the file to check. This may be a single number or a range in the
+	form `start:end', indicating that all offsets in the range should be
+	checked. The range is inclusive.</entry></row>
+
+	<row><entry>value</entry><entry>Yes</entry><entry>
+	The value to compare the file contents with, in the format indicated by the type
+	attribute.
+	</entry></row>
+
+	<row><entry>mask</entry><entry>No</entry><entry>
+	The number to AND the value in the file with before comparing it to
+	`value'. Masks for numerical types can be any number, while masks for strings
+	must be in base 16, and start with 0x.
+	</entry></row>
+
+	</tbody></tgroup>
+</informaltable>
+
+Each element corresponds to one line of
+<citerefentry><refentrytitle>file</refentrytitle>
+<manvolnum>1</manvolnum></citerefentry>'s <filename>magic.mime</filename> file.
+They can be nested in the same way to provide the equivalent of continuation
+lines. That is, <![CDATA[<a><b/><c/></a>]]> means 'a and (b or c)'.
+				</para></listitem>
+				<listitem><para>
+<userinput>alias</userinput> elements indicate that the type is also sometimes
+known by another name, given by the <userinput>type</userinput> attribute. For
+example, <userinput>audio/midi</userinput> has an alias of
+<userinput>audio/x-midi</userinput>. Note that there should not be a
+<userinput>mime-type</userinput> element defining each alias; a single
+element defines the canonical name for the type and lists all its aliases.
+				</para></listitem>
+				<listitem><para>
+<userinput>sub-class-of</userinput> elements indicate that any data of this
+type is also some other type, given by the <userinput>type</userinput>
+attribute. See <xref linkend="subclassing"/>.
+				</para></listitem>
+				<listitem><para>
+<userinput>comment</userinput> elements give a human-readable textual description of the MIME
+type. There may be many of these elements with different <userinput>xml:lang</userinput> attributes
+to provide the text in multiple languages.
+				</para></listitem>
+				<listitem><para>
+<userinput>root-XML</userinput> elements have <userinput>namespaceURI</userinput> 
+and <userinput>localName</userinput> attributes. If a file is identified as being an XML file,
+these rules allow a more specific MIME type to be chosen based on the namespace and localname
+of the document element.
+				</para><para>
+If <userinput>localName</userinput> is present but empty then the document element may have
+any name, but the namespace must still match.
+				</para></listitem>
+			</itemizedlist>
+Applications may also define their own elements, provided they are namespaced to prevent collisions.
+Unknown elements are copied directly to the output XML files like <userinput>comment</userinput>
+elements. A typical use for this would be to indicate the default handler
+application for a particular desktop
+("Galeon is the GNOME default text/html browser"). Note that this doesn't
+indicate the user's preferred application, only the (fixed) default.
+		</para>
+		<para>
+Here is an example source file, named <filename>diff.xml</filename>:
+		<programlisting><![CDATA[
+<?xml version="1.0"?>
+<mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>
+  <mime-type type="text/x-diff">
+    <comment>Differences between files</comment>
+    <comment xml:lang="af">verskille tussen lêers</comment>
+    ...
+    <magic priority="50">
+      <match type="string" offset="0" value="diff\t"/>
+      <match type="string" offset="0" value="***\t"/>
+      <match type="string" offset="0" value="Common subdirectories: "/>
+    </magic>
+    <glob pattern="*.diff"/>
+    <glob pattern="*.patch"/>
+  </mime-type>
+</mime-info>
+]]></programlisting>
+		</para><para>
+In practice, common types such as text/x-diff are provided by the freedesktop.org shared
+database. Also, only new information needs to be provided, since this information will be merged
+with other information about the same type.
+		</para>
+	</sect2>
+	<sect2>
+		<title>The MEDIA/SUBTYPE.xml files</title>
+		<para>
+These files have a <userinput>mime-type</userinput> element as the root node. The format is
+as described above. They are created by merging all the <userinput>mime-type</userinput>
+elements from the source files and creating one output file per MIME type. Each file may contain
+information from multiple source files. The <userinput>magic</userinput>,
+<userinput>glob</userinput> and <userinput>root-XML</userinput> elements will
+have been removed.
+		</para>
+		<para>
+The example source file given above would (on its own) create an output file called
+<filename>&lt;MIME&gt;/text/x-diff.xml</filename> containing the following:
+			<programlisting><![CDATA[
+<?xml version="1.0" encoding="utf-8"?>
+<mime-type xmlns="http://www.freedesktop.org/standards/shared-mime-info" type="text/x-diff">
+<!--Created automatically by update-mime-database. DO NOT EDIT!-->
+  <comment>Differences between files</comment>
+  <comment xml:lang="af">verskille tussen lêers</comment>
+  ...
+</mime-type>
+
+]]></programlisting>
+		</para>
+	</sect2>
+	<sect2>
+		<title>The glob files</title>
+		<para>
+This is a simple list of lines containing a MIME type and pattern, separated by a colon.
+For example:
+			<programlisting><![CDATA[
+# This file was automatically generated by the
+# update-mime-database command. DO NOT EDIT!
+...
+text/x-diff:*.diff
+text/x-diff:*.patch
+...
+]]></programlisting>
+		</para>
+		<para>
+Applications MUST first try a case-sensitive match, then try again with the
+filename converted to lower-case if that fails.
+This is so that <filename>main.C</filename> will be seen as a C++ file,
+but <filename>IMAGE.GIF</filename> will still use the *.gif pattern.
+		</para>
+		<para>
+If several patterns match then the longest pattern SHOULD be used. In
+particular, files with multiple extensions (such as
+<filename>Data.tar.gz</filename>) MUST match the longest sequence of extensions
+(eg '*.tar.gz' in preference to '*.gz'). Literal patterns (eg, 'Makefile') must
+be matched before all others. It is suggested that patterns beginning with `*.'
+and containing no other special characters (`*?[') should be placed in a hash
+table for efficient lookup, since this covers the majority of the patterns. Thus,
+patterns of this form should be matched before other wildcarded patterns.
+		</para>
+		<para>
+There may be several rules mapping to the same type. They should all be merged.
+If the same pattern is defined twice, then they MUST be ordered by the
+directory the rule came from, as described above.
+		</para>
+		<para>
+Lines beginning with `#' are comments and should be ignored. Everything from
+the `:' character to the newline is part of the pattern; spaces should not be
+stripped. The file is in the UTF-8 encoding. The format of the glob pattern
+is as for fnmatch(3). The format does not allow a pattern to contain a literal
+newline character, but this is not expected to be a problem.
+		</para>
+		<para>
+Common types (such as MS Word Documents) will be provided in the X Desktop
+Group's package, which MUST be required by all applications using this
+specification. Since each application will then only be providing information
+about its own types, conflicts should be rare.
+		</para>
+	</sect2>
+	<sect2>
+		<title>The magic files</title>
+		<para>
+The magic data is stored in a binary format for ease of parsing. The old magic database
+had complex escaping rules; these are now handled by <command>update-mime-database</command>.
+		</para><para>
+The file starts with the magic string "MIME-Magic\0\n".
+There is no version number in the file. Incompatible changes will be handled by
+creating both the current `magic' file and a newer `magic2' in the new format.
+Where possible, compatible changes only will be made.
+All numbers are big-endian, so need to be byte-swapped on little-endian machines.
+		</para><para>
+The rest of the file is made up of a sequence of small sections.
+Each section is introduced by giving the priority and type in brackets, followed by
+a newline character. Higher priority entries come first. Example:
+<screen>[50:text/x-diff]\n</screen>
+Each line in the section takes the form:
+<screen>[ indent ] ">" start-offset "=" value
+[ "&amp;" mask ] [ "~" word-size ] [ "+" range-length ] "\n"</screen>
+<informaltable>
+	<tgroup cols="3">
+	<thead><row><entry>Part</entry><entry>Example</entry><entry>Meaning</entry></row></thead>
+	<tbody>
+
+	<row><entry>indent</entry><entry>1</entry><entry>The nesting
+	depth of the rule, corresponding to the number of '>' characters in the traditional file format.</entry></row>
+	<row><entry>">" start-offset</entry><entry>&gt;4</entry><entry>The offset into the
+	file to look for a match.</entry></row>
+	<row><entry>"=" value</entry><entry>=\0x0\0x2\0x55\0x40</entry><entry>
+	Two bytes giving the (big-endian) length of the value, followed by the value itself.
+	</entry></row>
+	<row><entry>"&amp;" mask</entry><entry>&amp;\0xff\0xf0</entry><entry>
+	The mask, which (if present) is exactly the same length as the value.
+	</entry></row>
+	<row><entry>"~" word-size</entry><entry>~2</entry><entry>On little-endian machines, the
+	size of each group to byte-swap.</entry></row>
+	<row><entry>"+" range-length</entry><entry>+8</entry><entry>The length of the region
+	in the file to check.
+	</entry></row>
+	</tbody>
+	</tgroup>
+</informaltable>
+		</para><para>
+Note that the value, value length and mask are all binary, whereas everything
+else is textual. Each of the elements begins with a single character to
+identify it, except for the indent level.
+		</para><para>
+The word size is used for byte-swapping. Little-endian systems should reverse
+the order of groups of bytes in the value and mask if this is greater than one.
+This only affects `host' matches (`big32' entries still have a word size of 1,
+for example, because no swapping is necessary, whereas `host32' has a word size
+of 4).
+		</para><para>
+The indent, range-length, word-size and mask components are optional. If
+missing, indent defaults to 0, range-length to 1, the word-size to 1, and the
+mask to all 'one' bits.
+		</para><para>
+Indent corresponds to the nesting depth of the rule. Top-level rules have an
+indent of zero. The parent of an entry is the preceding entry with an indent
+one less than the entry.
+		</para><para>
+If an unknown character is found where a newline is expected then the whole
+line should be ignored (there will be no binary data after the new
+character, so the next line starts after the next "\n" character). This is for
+future extensions.
+		</para><para>
+The text/x-diff above example would (on its own) create this magic file:
+			<programlisting><![CDATA[
+00000000  4d 49 4d 45 2d 4d 61 67  69 63 00 0a 5b 35 30 3a  |MIME-Magic..[50:|
+00000010  74 65 78 74 2f 78 2d 64  69 66 66 5d 0a 3e 30 3d  |text/x-diff].>0=|
+00000020  00 05 64 69 66 66 09 0a  3e 30 3d 00 04 2a 2a 2a  |..diff..>0=..***|
+00000030  09 0a 3e 30 3d 00 17 43  6f 6d 6d 6f 6e 20 73 75  |..>0=..Common su|
+00000040  62 64 69 72 65 63 74 6f  72 69 65 73 3a 20 0a     |bdirectories: .|
+]]></programlisting>
+		</para>
+	</sect2>
+	<sect2>
+		<title>The XMLnamespaces files</title>
+		<para>
+Each <filename>XMLnamespaces</filename> file is a list of lines in the form:
+<screen>namespaceURI " " localName " " MIME-Type "\n"</screen>
+For example:
+<screen>
+http://www.w3.org/1999/xhtml html application/xhtml+xml
+</screen>
+The lines are sorted (using strcmp) and there are no lines with the same namespaceURI and
+localName in one file. If the localName was empty then there will be two spaces following
+the namespaceURI.
+		</para>
+	</sect2>
+	<sect2>
+		<title>Storing the MIME type using Extended Attributes</title>
+		<para>
+An implementation MAY also get a file's MIME type from the
+<userinput>user.mime_type</userinput> extended attribute. <!-- The attr(5) man
+page documents this name --> The type given here should normally be used in
+preference to any guessed type, since the user is able to set it explicitly.
+Applications MAY choose to set the type when saving files. Since many
+applications and filesystems do not support extended attributes,
+implementations MUST NOT rely on this method being available.
+		</para>
+	</sect2>
+	<sect2 id="subclassing">
+		<title>Subclassing</title>
+		<para>
+A type is a subclass of another type if any instance of the first type is
+also an instance of the second. For example, all image/svg files are also
+text/xml, text/plain and application/octet-stream files. Subclassing is about
+the format, rather than the catagory of the data (for example, there is no
+'generic spreadsheet' class that all spreadsheets inherit from).
+		</para>
+		<para>
+Some subclass rules are implicit:
+			<itemizedlist>
+<listitem><para>All text/* types are subclasses of text/plain.</para></listitem>
+<listitem><para>All streamable types (ie, everything except the inode/* types)
+are subclasses of application/octet-stream.</para></listitem>
+			</itemizedlist>
+In addition to these rules, explicit subclass information may be given using
+the <userinput>sub-class-of</userinput> element.
+		</para>
+		<para>
+Note that some file formats are also compressed files (application/x-jar files
+are also application/zip files). However, this is different to a case such as a
+compressed postscript file, which is not a valid postscript file itself (so
+application/x-gzpostscript does not inherit from application/postscript,
+because an application that can handle the latter may not cope with the
+former).
+		</para>
+		<para>
+Some types may or may not be instances of other types. For example, a
+spreadsheet file may be compressed or not. It is a valid spreadsheet file
+either way, but only inherits from application/x-gzip in one case. This
+information cannot be represented statically; instead an application
+interested in this information should run all of the magic rules, and
+use the list of types returned as the subclasses.
+		</para>
+	</sect2>
+	<sect2>
+		<title>Recommended checking order</title>
+		<para>
+Because different applications have different requirements, they may choose to
+use the various methods provided by this specification in any order. However, the
+RECOMMENDED order to perform the checks is:
+			<itemizedlist>
+				<listitem><para>
+If a MIME type is provided explicitly (eg, by a ContentType HTTP header, a MIME
+email attachment, an extended attribute or some other means) then that should
+be used instead of guessing.
+				</para></listitem>
+				<listitem><para>
+If no explicit type is present, magic rules with a priority of 80 or more
+should be tried next. These rules have a very low false-positive rate.
+				</para></listitem>
+				<listitem><para>
+If there is still no match, the glob rules should be applied to the name to
+get the type.
+				</para></listitem>
+				<listitem><para>
+If no glob rules match, the remaining magic rules should be tried next.
+				</para></listitem>
+				<listitem><para>
+If nothing matches, the default type of application/octet-stream should be used
+for binary data, or text/plain for textual data. Checking the first 32
+bytes of the file for ASCII control characters is a good way to guess
+whether a file is binary or text, but note that files with high-bit-set
+characters should still be treated as text since these can appear in UTF-8
+text, unlike control characters.
+				</para></listitem>
+			</itemizedlist>
+		</para>
+		<para>
+There are several reasons for checking most of the glob patterns before the magic.
+Some applications don't check the magic at all, and this makes it more likely
+that both will get the same type. Users can easily understand why calling their
+text file <filename>README.mp3</filename> makes the system think it's an MP3,
+whereas they have trouble understanding why their computer thinks
+<filename>README.txt</filename> is a PostScript file. If the system guesses wrongly,
+the user can often rename the file to fix the problem.
+		</para>
+	</sect2>
+	<sect2>
+		<title>Non-regular files</title>
+		<para>
+Sometimes it is useful to assign MIME types to other objects in the filesystem,
+such as directories, sockets and device files. This could be useful when looking up
+an icon for a type, or for providing a textual description of one of these objects.
+The media type 'inode' is provided for this purpose, with the following types corresponding
+to the standard types of object found in a Unix filesystem:
+		</para>
+		<simplelist>
+			<member>inode/blockdevice</member>
+			<member>inode/chardevice</member>
+			<member>inode/directory</member>
+			<member>inode/fifo</member>
+			<member>inode/mount-point</member>
+			<member>inode/socket</member>
+			<member>inode/symlink</member>
+		</simplelist>
+		<para>
+An inode/mount-point is a subclass of inode/directory. It can be useful when adding extra
+actions for these directories, such as 'mount' or 'eject'. Mounted directories can be
+detected by comparing the 'st_dev' of a directory with that of its parent. If
+they differ, they are from different devices and the directory is a mount
+point.
+		</para>
+	</sect2>
+	<sect2>
+		<title>Security implications</title>
+		<para>
+The system described in this document is intended to allow different programs
+to see the same file as having the same type. This is to help interoperability.
+The type determined in this way is only a guess, and an application MUST NOT
+trust a file based simply on its MIME type. For example, a downloader should
+not pass a file directly to a launcher application without confirmation simply
+because the type looks `harmless' (eg, text/plain).
+		</para>
+		<para>
+Do not rely on two applications getting the same type for the same file, even
+if they both use this system. The spec allows some leeway in implementation,
+and in any case the programs may be following different versions of the spec.
+		</para>
+	</sect2>
+	<sect2>
+		<title>User modification</title>
+		<para>
+The MIME database is NOT intended to store user preferences. Users should never
+edit the database. If they wish to make corrections or provide MIME entries for
+software that doesn't provide these itself, they should do so by means of the
+Override.xml mentioned in <xref linkend="s2_layout"/>. Information such as
+"text/html files need to be opened with Mozilla" should NOT go in the database.
+		</para>
+	</sect2>
+</sect1>
+
+<sect1>
+	<title>Contributors</title>
+	<simplelist>
+		<member>
+			Thomas Leonard <email>tal197 at users.sf.net</email>
+		</member>
+		<member>
+			David Faure <email>david at mandrakesoft.com</email>
+		</member>
+		<member>
+			Alex Larsson <email>alexl at redhat.com</email>
+		</member>
+		<member>
+			Seth Nickell <email>snickell at stanford.edu</email>
+		</member>
+		<member>
+			Keith Packard <email>keithp at keithp.com</email>
+		</member>
+		<member>
+			Filip Van Raemdonck <email>mechanix at debian.org</email>
+		</member>
+		<member>
+			Christos Zoulas <email>christos at zoulas.com</email>
+		</member>
+	</simplelist>
+</sect1>
+
+<bibliography>
+	<title>References</title>
+
+	<bibliomixed>
+		<abbrev>GNOME</abbrev><citetitle>The GNOME desktop,
+		<ulink url="http://www.gnome.org"/></citetitle>
+	</bibliomixed>
+	<bibliomixed>
+		<abbrev>KDE</abbrev><citetitle>The KDE desktop,
+		<ulink url="http://www.kde.org"/></citetitle>
+	</bibliomixed>
+	<bibliomixed>
+		<abbrev>ROX</abbrev><citetitle>The ROX desktop,
+		<ulink url="http://rox.sourceforge.net"/></citetitle>
+	</bibliomixed>
+	<bibliomixed>
+		<abbrev>DesktopEntries</abbrev><citetitle>Desktop Entry Specification,
+		<ulink url="http://www.freedesktop.org/standards/desktop-entry-spec.html"/>
+		</citetitle>
+	</bibliomixed>
+	<bibliomixed>
+		<abbrev>SharedMIME</abbrev><citetitle>Shared MIME-info Database,
+		<ulink url="http://www.freedesktop.org/standards/shared-mime-info.html"/>
+		</citetitle>
+	</bibliomixed>
+	<bibliomixed>
+		<abbrev>RFC-2119</abbrev>
+		<citetitle>Key words for use in RFCs to Indicate Requirement Levels,
+		<ulink url="http://www.ietf.org/rfc/rfc2119.txt?number=2119"/>
+		</citetitle>
+	</bibliomixed>
+	<bibliomixed>
+		<abbrev>BaseDir</abbrev>
+		<citetitle>XDG Base Directory Specification
+		<ulink url="http://www.freedesktop.org/standards/basedir/draft/basedir-spec/basedir-spec.html"/>
+		</citetitle>
+	</bibliomixed>
+	<bibliomixed>
+		<abbrev>ACAP</abbrev>
+		<citetitle>ACAP Media Type Dataset Class
+		<ulink url="ftp://ftp.ietf.org/internet-drafts/draft-ietf-acap-mediatype-01.txt"/>
+		</citetitle>
+	</bibliomixed>
+</bibliography>
+
+</article>

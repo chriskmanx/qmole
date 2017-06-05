@@ -1,0 +1,251 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2006  John Finlay
+ *
+ *   gtkunixprint.override: overrides for the gtkunixprint module.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+headers
+#define NO_IMPORT_PYGOBJECT
+#include <pygobject.h>
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#include <libintl.h>
+
+#include <glib-object.h>
+#include "pygtk-private.h"
+#include <gtk/gtk.h>
+#include <gtk/gtkunixprint.h>
+
+#include <pycairo.h>
+extern Pycairo_CAPI_t *Pycairo_CAPI;
+
+#ifndef GTK_TYPE_PRINT_CAPABILITIES
+GType gtk_print_capabilites_get_type (void) G_GNUC_CONST;
+#define GTK_TYPE_PRINT_CAPABILITIES (gtk_print_capabilites_get_type())
+
+GType
+gtk_print_capabilites_get_type (void)
+{
+  static GType etype = 0;
+  if (etype == 0) {
+    static const GFlagsValue values[] = {
+      { GTK_PRINT_CAPABILITY_PAGE_SET, "GTK_PRINT_CAPABILITY_PAGE_SET", "page_set" },
+      { GTK_PRINT_CAPABILITY_COPIES, "GTK_PRINT_CAPABILITY_COPIES", "copies" },
+      { GTK_PRINT_CAPABILITY_COLLATE, "GTK_PRINT_CAPABILITY_COLLATE", "collate" },
+      { GTK_PRINT_CAPABILITY_REVERSE, "GTK_PRINT_CAPABILITY_REVERSE", "reverse" },
+      { GTK_PRINT_CAPABILITY_SCALE, "GTK_PRINT_CAPABILITY_SCALE", "scale" },
+      { 0, NULL, NULL }
+    };
+    etype = g_flags_register_static (g_intern_static_string ("GtkPrintCapabilites"), values);
+  }
+  return etype;
+}
+#endif
+
+ 
+void
+pygtk_custom_destroy_notify(gpointer user_data)
+{
+    PyGtkCustomNotify *cunote = user_data;
+    PyGILState_STATE state;
+ 
+    g_return_if_fail(user_data);
+    state = pyg_gil_state_ensure();
+    Py_XDECREF(cunote->func);
+    Py_XDECREF(cunote->data);
+    pyg_gil_state_release(state);
+     
+    g_free(cunote);
+}
+
+
+%%
+modulename gtkunixprint
+%%
+import gobject.GObject as PyGObject_Type
+import gtk.Dialog as PyGtkDialog_Type
+import gtk.PageSetup as PyGtkPageSetup_Type
+import gtk.PrintSettings as PyGtkPrintSettings_Type
+import gtk.Widget as PyGtkWidget_Type
+import gtk.Window as PyGtkWindow_Type
+%%
+ignore-glob *_get_type
+%%
+ignore
+%%
+override gtk_print_job_get_surface noargs
+static PyObject*
+_wrap_gtk_print_job_get_surface(PyGObject *self)
+{
+    GError *error = NULL;
+    cairo_surface_t * surface;
+
+    surface = gtk_print_job_get_surface(GTK_PRINT_JOB(self->obj), &error);
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+#if PYCAIRO_VERSION_HEX >= 0x1010600
+    return PycairoSurface_FromSurface(cairo_surface_reference(surface), NULL);
+#else
+    return PycairoSurface_FromSurface(cairo_surface_reference(surface), NULL, NULL);
+#endif
+}
+%%
+override gtk_print_job_send kwargs
+static void
+pygtk_print_job_complete_func_cb(GtkPrintJob *print_job, gpointer user_data,
+                                 GError *error)
+{
+    PyGILState_STATE state;
+    PyGtkCustomNotify *cunote = user_data;
+    PyObject *retobj, *data;
+    gchar *errorstr = NULL;
+                                                                               
+    g_assert(cunote->func);
+                                                                               
+    state = pyg_gil_state_ensure();
+                                                                               
+    if (cunote->data)
+        data = cunote->data;
+    else
+        data = Py_None;
+
+    if (error)
+        errorstr = error->message;
+
+    retobj = PyEval_CallFunction(cunote->func, "(NOz)",
+                                 pygobject_new((GObject *)print_job),
+                                 data, errorstr);
+                                                                               
+    if (retobj == NULL)
+        PyErr_Print();
+
+    Py_XDECREF(retobj);
+                                                                               
+    pyg_gil_state_release(state);
+}
+static PyObject*
+_wrap_gtk_print_job_send(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "user_data", NULL };
+    PyObject *pyfunc, *pyarg = NULL;
+    PyGtkCustomNotify *cunote;
+  
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|O:gtkunixprint.PrintJob.send",
+                                     kwlist, &pyfunc, &pyarg))
+        return NULL;
+  
+    if (!PyCallable_Check(pyfunc)) {
+        PyErr_SetString(PyExc_TypeError, "callback must be a callable object");
+        return NULL;
+    }
+    cunote = g_new0(PyGtkCustomNotify, 1);
+    cunote->func = pyfunc;
+    cunote->data = pyarg;
+    Py_INCREF(cunote->func);
+    Py_XINCREF(cunote->data);
+ 
+    gtk_print_job_send(GTK_PRINT_JOB(self->obj),
+                             pygtk_print_job_complete_func_cb,
+                             cunote, pygtk_custom_destroy_notify);
+ 
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_enumerate_printers kwargs
+static gboolean
+pygtk_printer_func_cb(GtkPrinter *printer, gpointer user_data)
+{
+    PyGILState_STATE state;
+    PyGtkCustomNotify *cunote = user_data;
+    PyObject *retobj;
+    gboolean ret = TRUE;
+                                                                               
+    g_assert(cunote->func);
+    state = pyg_gil_state_ensure();
+                                                                               
+    if (cunote->data)
+        retobj = PyEval_CallFunction(cunote->func, "(NO)",
+                                     pygobject_new((GObject *)printer),
+                                     cunote->data);
+   else
+        retobj = PyEval_CallFunction(cunote->func, "(N)",
+                                     pygobject_new((GObject *)printer));
+                                                                               
+    if (retobj == NULL)
+        PyErr_Print();
+    else if (retobj == Py_False)
+        ret = FALSE;
+
+    Py_XDECREF(retobj);
+    pyg_gil_state_release(state);
+                                                                               
+    return ret;
+}
+static PyObject*
+_wrap_gtk_enumerate_printers(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "func", "data", "wait",  NULL };
+    PyObject *pyfunc, *pyarg = NULL;
+    PyGtkCustomNotify *cunote;
+    gboolean wait = TRUE;
+  
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|Oi:gtkunixprint.enumerate_printers",
+                                     kwlist, &pyfunc, &pyarg, &wait))
+        return NULL;
+  
+    if (!PyCallable_Check(pyfunc)) {
+        PyErr_SetString(PyExc_TypeError, "func must be a callable object");
+        return NULL;
+    }
+    cunote = g_new0(PyGtkCustomNotify, 1);
+    cunote->func = pyfunc;
+    cunote->data = pyarg;
+    Py_INCREF(cunote->func);
+    Py_XINCREF(cunote->data);
+ 
+    gtk_enumerate_printers(pygtk_printer_func_cb, cunote,
+                           pygtk_custom_destroy_notify, wait);
+ 
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_printer_list_papers noargs
+static PyObject*
+_wrap_gtk_printer_list_papers(PyGObject *self)
+{
+    GList *list;
+    PyObject *ret;
+
+    list = gtk_printer_list_papers(GTK_PRINTER(self->obj));
+
+    if (list) {
+        PYLIST_FROMGLIST(ret, list, pygobject_new(list_item), NULL, NULL);
+        return ret;
+    } else {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}

@@ -1,0 +1,195 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(main.c)
+AC_CONFIG_HEADER(config.h)
+
+[ if [ -f configure ]; then ]
+	AC_MSG_ERROR([Please run configure from the build directory (try ../AppRun --compile)])
+	exit 1
+fi
+
+dnl Checks for programs.
+AC_PROG_CC
+
+dnl Use -Wall, etc if possible
+dnl Note: GTK uses func(), so can't use -Wstrict-prototypes 
+dnl -fno-stack-protector must be used to avoid GLIBC2.4 dependency,
+dnl but is only available from 4.1 onwards
+[
+if test "x$GCC" = "xyes"; then
+  CFLAGS="$CFLAGS -Wall -Wmissing-prototypes"
+]
+  AC_MSG_CHECKING(for GCC version)
+  if $CC --version | grep -i gcc > /dev/null; then 
+[
+    ver=`$CC --version | head -1 | sed -e 's/.* \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][-_0-9a-zA-Z]*\).*/\1/'`
+]
+    major=`echo $ver | cut -d"." -f 1`
+    minor=`echo $ver | cut -d"." -f 2`
+    AC_MSG_RESULT($ver)
+[
+    case $major in
+      [1-3]) 
+        gcc_pointer=no
+        gcc_stack=no;;
+      4)
+        gcc_pointer=yes
+        if test "$minor" -ge 1 ; then gcc_stack=yes; else gcc_stack=no; fi ;;
+      [5-9])
+        gcc_pointer=yes
+        gcc_stack=yes;;
+      *)
+        gcc_pointer=no
+        gcc_stack=no;;
+    esac
+]
+    AC_MSG_CHECKING(whether to disable pointer sign warning)
+    if test "$gcc_pointer" = yes ; then
+      AC_MSG_RESULT(yes)
+      CFLAGS="$CFLAGS -Wno-pointer-sign"
+    else
+      AC_MSG_RESULT(no)
+    fi
+    AC_MSG_CHECKING(whether to disable stack protector)
+    if test "$gcc_stack" = yes ; then
+      AC_MSG_RESULT(yes)
+      CFLAGS="$CFLAGS -fno-stack-protector"
+    else
+      AC_MSG_RESULT(no)
+    fi
+  fi
+fi
+
+if test -z "$PKG_CONFIG"; then
+  PKG_CONFIG=pkg-config
+fi
+AC_SUBST(PKG_CONFIG)
+
+AC_MSG_CHECKING(that pkg-config runs)
+if "$PKG_CONFIG" --version > /dev/null 2>&1 ; then
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+  AC_MSG_ERROR([*** $PKG_CONFIG missing ***
+
+\'$PKG_CONFIG --version\' failed to run - make sure it is inside one of the
+directories in your PATH environment variable!
+
+pkg-config comes with the developement packages for GTK+-2.4, available at:
+
+    http://www.gtk.org])
+fi
+
+AC_DEFUN(ROX_REQUIRE, [
+AC_MSG_CHECKING(that $1 (version >= $2) is installed)
+if "$PKG_CONFIG" --atleast-version=$2 $1 ; then
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+  if "$PKG_CONFIG" --exists $1 ; then
+    AC_MSG_ERROR(Current version is only `"$PKG_CONFIG" "$1" --modversion`)
+  else
+    AC_MSG_ERROR(Package is not installed)
+  fi
+fi
+])
+
+ROX_REQUIRE(gtk+-2.0, 2.12.0)
+ROX_REQUIRE(libxml-2.0, 2.0.0)
+ROX_REQUIRE(shared-mime-info, 0.14)
+
+GTK_VERSION=`"$PKG_CONFIG" --modversion gtk+-2.0`
+AC_DEFINE_UNQUOTED(GTK_VERSION, "$GTK_VERSION")
+
+AC_MSG_CHECKING(if pango (version >= 1.1.2) is installed)
+if "$PKG_CONFIG" --atleast-version=1.1.2 pango ; then
+  AC_DEFINE(USE_PANGO_WRAP_WORD_CHAR)
+  AC_MSG_RESULT(yes; enabling better wrapping)
+else
+  AC_MSG_RESULT(no; better wrapping not enabled)
+fi
+
+dnl Find the X libraries
+AC_PATH_XTRA
+if test x$no_x = xyes ; then
+  AC_MSG_ERROR([X development libraries not found])
+fi
+LIBS="$LIBS $X_LIBS -lX11 $X_EXTRA_LIBS"
+CFLAGS="$CFLAGS $X_CFLAGS"
+
+dnl Does file(1) support '-b' ?
+AC_MSG_CHECKING(whether file -b works)
+if file -b / > /dev/null 2> /dev/null
+then
+  AC_DEFINE(FILE_B_FLAG)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+
+AC_MSG_CHECKING(for large file support)
+case `uname -s` in
+OpenBSD*)
+  AC_MSG_RESULT(yes)
+  AC_DEFINE(LARGE_FILE_SUPPORT)
+  ;;
+FreeBSD*)
+  AC_MSG_RESULT(yes)
+  AC_DEFINE(LARGE_FILE_SUPPORT)
+  ;;
+*)
+  if getconf LFS64_CFLAGS > /dev/null 2> /dev/null; then
+    AC_MSG_RESULT(yes)
+    LFS_CFLAGS="`getconf LFS_CFLAGS`"
+    LFS_LDFLAGS="`getconf LFS_LDFLAGS`"
+    LFS_LIBS="`getconf LFS_LIBS`"
+    AC_DEFINE(LARGE_FILE_SUPPORT)
+  else
+    AC_MSG_RESULT(no)
+    LFS_CFLAGS=""
+    LFS_LDFLAGS=""
+    LFS_LIBS=""
+  fi
+  ;;
+esac
+
+AC_SUBST(LFS_CFLAGS)
+AC_SUBST(LFS_LDFLAGS)
+AC_SUBST(LFS_LIBS)
+
+dnl Checks for header files.
+AC_HEADER_DIRENT
+AC_HEADER_STDC
+AC_HEADER_SYS_WAIT
+AC_CHECK_HEADERS(fcntl.h sys/time.h unistd.h mntent.h sys/ucred.h sys/mntent.h apsymbols.h apbuild/apsymbols.h sys/statvfs.h sys/vfs.h wctype.h libintl.h sys/inotify.h)
+
+AC_CHECK_HEADER([X11/SM/SMlib.h], [],
+  [AC_MSG_ERROR([Session management library (libsm) missing. It is part of the X server distribution. Try installing the libsm-dev package.])]
+)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_UID_T
+AC_TYPE_SIZE_T
+
+dnl Checks for library functions.
+AC_CHECK_FUNCS(gethostname unsetenv mkdir rmdir strdup strtol statvfs statfs mbrtowc)
+dnl Since we're using libintl.h, check if libintl needs to be linked in
+AC_CHECK_LIB(intl, gettext)
+
+dnl getopt_long may be in an addtional library
+AC_CHECK_LIB(gnugetopt, getopt_long)
+AC_CHECK_FUNCS(getopt_long)
+
+dnl Check for extended attribute support
+AC_CHECK_FUNCS(attropen getxattr)
+AC_CHECK_HEADERS(attr/xattr.h sys/xattr.h)
+
+dnl Extract version info from AppInfo.xml
+AC_MSG_CHECKING(extracting version information)
+[
+VERSION=`sed -n 's/^.*<Version>\([.0-9]*\).*<\/Version>.*$/\1/p' ${srcdir}/../AppInfo.xml`
+]
+AC_DEFINE_UNQUOTED(VERSION, "$VERSION")
+AC_MSG_RESULT(version $VERSION)
+
+AC_OUTPUT(Makefile)

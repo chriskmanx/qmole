@@ -1,0 +1,315 @@
+/* -*- Mode: C; c-basic-offset: 4 -*- */
+%%
+headers
+#define NO_IMPORT_PYGOBJECT
+#include <pygobject.h>
+#include <pango/pangocairo.h>
+#include <pycairo.h>
+
+
+extern Pycairo_CAPI_t *Pycairo_CAPI;
+
+GType pypango_layout_line_type; /*  See bug 305975 */
+
+#ifndef PANGO_TYPE_LAYOUT_LINE
+# define PANGO_TYPE_LAYOUT_LINE pypango_layout_line_type
+#endif
+
+%%
+import pango.FontMap as PyPangoFontMap_Type
+import pango.Context as PyPangoContext_Type
+import pango.Layout as PyPangoLayout_Type
+import pango.Font as PyPangoFont_Type
+
+%%
+ignore
+  pango_cairo_update_context
+  pango_cairo_create_layout
+  pango_cairo_update_layout
+  pango_cairo_show_glyph_string
+  pango_cairo_show_layout_line
+  pango_cairo_show_layout
+  pango_cairo_glyph_string_path
+  pango_cairo_layout_line_path
+  pango_cairo_layout_path
+%%
+ignore-glob
+  *_get_type
+%%
+define context_get_font_options kwargs
+static PyObject *
+_wrap_context_get_font_options(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "context", NULL };
+    PyGObject *context;
+    const cairo_font_options_t *font_options;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:pangocairo.context_get_font_options",
+                                     kwlist, &PyPangoContext_Type, &context))
+        return NULL;
+    font_options = pango_cairo_context_get_font_options(PANGO_CONTEXT(context->obj));
+    if (!font_options) {
+	Py_INCREF(Py_None);
+	return Py_None;
+    }
+    return PycairoFontOptions_FromFontOptions(cairo_font_options_copy(font_options));
+}
+
+%%
+define context_set_font_options kwargs
+static PyObject *
+_wrap_context_set_font_options(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "context", "font_options", NULL };
+    PyGObject *context;
+    PyGObject *py_options;
+    const cairo_font_options_t *options;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O:pangocairo.context_set_font_options",
+                                     kwlist, &PyPangoContext_Type, &context,
+				     &py_options))
+        return NULL;
+    if ((PyObject*)py_options == Py_None)
+        options = NULL;
+    else if (pygobject_check(py_options, &PycairoFontOptions_Type))
+        options = ((PycairoFontOptions *)py_options)->font_options;
+    else {
+        PyErr_SetString(PyExc_TypeError, "font_options must be a cairo.FontOptions or None");
+        return NULL;
+    }
+    pango_cairo_context_set_font_options(PANGO_CONTEXT(context->obj), options);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+
+%%
+body
+
+static PyObject *
+pypango_cairo_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    PyObject *o;
+    PycairoContext *ctx;
+
+    if (!PyArg_ParseTuple(args, "O!:CairoContext.__new__", 
+			  &PycairoContext_Type, &ctx))
+	return NULL;
+
+    cairo_reference(ctx->ctx);
+    o = PycairoContext_FromContext(ctx->ctx, type, NULL);
+    return o;
+}
+
+static PyObject *
+_wrap_pango_cairo_update_context(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "context", NULL };
+    PyGObject *context;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:CairoContext.update_context", kwlist,
+                                     &PyPangoContext_Type, &context))
+        return NULL;
+    pango_cairo_update_context(PycairoContext_GET(self), PANGO_CONTEXT(context->obj));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_pango_cairo_create_layout(PyGObject *self)
+{
+    PangoLayout *ret;
+
+    ret = pango_cairo_create_layout(PycairoContext_GET(self));
+    /* pygobject_new handles NULL checking */
+    return pygobject_new((GObject *)ret);
+}
+
+static PyObject *
+_wrap_pango_cairo_update_layout(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "layout", NULL };
+    PyGObject *layout;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:CairoContext.update_layout",
+                                     kwlist, &PyPangoLayout_Type, &layout))
+        return NULL;
+    pango_cairo_update_layout(PycairoContext_GET(self), PANGO_LAYOUT(layout->obj));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_pango_cairo_show_glyph_string(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "font", "glyphs", NULL };
+    PyGObject *font;
+    PangoGlyphString *glyphs = NULL;
+    PyObject *py_glyphs;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O:CairoContext.show_glyph_string",
+                                     kwlist, &PyPangoFont_Type, &font, &py_glyphs))
+        return NULL;
+    if (pyg_boxed_check(py_glyphs, PANGO_TYPE_GLYPH_STRING))
+        glyphs = pyg_boxed_get(py_glyphs, PangoGlyphString);
+    else {
+        PyErr_SetString(PyExc_TypeError, "glyphs should be a PangoGlyphString");
+        return NULL;
+    }
+    pango_cairo_show_glyph_string(PycairoContext_GET(self), PANGO_FONT(font->obj), glyphs);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_pango_cairo_show_layout_line(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "line", NULL };
+    PangoLayoutLine *line = NULL;
+    PyObject *py_line;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:CairoContext.show_layout_line",
+                                     kwlist, &py_line))
+        return NULL;
+    if (pyg_boxed_check(py_line, PANGO_TYPE_LAYOUT_LINE))
+        line = pyg_boxed_get(py_line, PangoLayoutLine);
+    else {
+        PyErr_SetString(PyExc_TypeError, "line should be a PangoLayoutLine");
+        return NULL;
+    }
+    pango_cairo_show_layout_line(PycairoContext_GET(self), line);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_pango_cairo_show_layout(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "layout", NULL };
+    PyGObject *layout;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:CairoContext.show_layout",
+                                     kwlist, &PyPangoLayout_Type, &layout))
+        return NULL;
+    pango_cairo_show_layout(PycairoContext_GET(self), PANGO_LAYOUT(layout->obj));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_pango_cairo_glyph_string_path(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "font", "glyphs", NULL };
+    PyGObject *font;
+    PangoGlyphString *glyphs = NULL;
+    PyObject *py_glyphs;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O:CairoContext.glyph_string_path",
+                                     kwlist, &PyPangoFont_Type, &font, &py_glyphs))
+        return NULL;
+    if (pyg_boxed_check(py_glyphs, PANGO_TYPE_GLYPH_STRING))
+        glyphs = pyg_boxed_get(py_glyphs, PangoGlyphString);
+    else {
+        PyErr_SetString(PyExc_TypeError, "glyphs should be a PangoGlyphString");
+        return NULL;
+    }
+    pango_cairo_glyph_string_path(PycairoContext_GET(self), PANGO_FONT(font->obj), glyphs);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_pango_cairo_layout_line_path(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "line", NULL };
+    PangoLayoutLine *line = NULL;
+    PyObject *py_line;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:CairoContext.layout_line_path",
+                                     kwlist, &py_line))
+        return NULL;
+    if (pyg_boxed_check(py_line, PANGO_TYPE_LAYOUT_LINE))
+        line = pyg_boxed_get(py_line, PangoLayoutLine);
+    else {
+        PyErr_SetString(PyExc_TypeError, "line should be a PangoLayoutLine");
+        return NULL;
+    }
+    pango_cairo_layout_line_path(PycairoContext_GET(self), line);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+_wrap_pango_cairo_layout_path(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "layout", NULL };
+    PyGObject *layout;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:CairoContext.layout_path",
+                                     kwlist, &PyPangoLayout_Type, &layout))
+        return NULL;
+    pango_cairo_layout_path(PycairoContext_GET(self), PANGO_LAYOUT(layout->obj));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyMethodDef _PyCairoContext_methods[] = {
+    { "update_context", (PyCFunction)_wrap_pango_cairo_update_context, METH_VARARGS|METH_KEYWORDS },
+    { "create_layout", (PyCFunction)_wrap_pango_cairo_create_layout, METH_NOARGS },
+    { "update_layout", (PyCFunction)_wrap_pango_cairo_update_layout, METH_VARARGS|METH_KEYWORDS },
+    { "show_glyph_string", (PyCFunction)_wrap_pango_cairo_show_glyph_string, METH_VARARGS|METH_KEYWORDS },
+    { "show_layout_line", (PyCFunction)_wrap_pango_cairo_show_layout_line, METH_VARARGS|METH_KEYWORDS },
+    { "show_layout", (PyCFunction)_wrap_pango_cairo_show_layout, METH_VARARGS|METH_KEYWORDS },
+    { "glyph_string_path", (PyCFunction)_wrap_pango_cairo_glyph_string_path, METH_VARARGS|METH_KEYWORDS },
+    { "layout_line_path", (PyCFunction)_wrap_pango_cairo_layout_line_path, METH_VARARGS|METH_KEYWORDS },
+    { "layout_path", (PyCFunction)_wrap_pango_cairo_layout_path, METH_VARARGS|METH_KEYWORDS },
+    { NULL, NULL, 0 }
+};
+
+
+PyTypeObject PyPangoCairoContext_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                  /* ob_size */
+    "pangocairo.CairoContext",          /* tp_name */
+    0,           			/* tp_basicsize */
+    0,                                  /* tp_itemsize */
+    /* methods */
+    (destructor)0,     			/* tp_dealloc */
+    (printfunc)0,                       /* tp_print */
+    (getattrfunc)0,                     /* tp_getattr */
+    (setattrfunc)0,                     /* tp_setattr */
+    (cmpfunc)0,                         /* tp_compare */
+    (reprfunc)0,                        /* tp_repr */
+    0,                                  /* tp_as_number */
+    0,                                  /* tp_as_sequence */
+    0,                                  /* tp_as_mapping */
+    (hashfunc)0,                        /* tp_hash */
+    (ternaryfunc)0,                     /* tp_call */
+    (reprfunc)0,                        /* tp_str */
+    (getattrofunc)0,                    /* tp_getattro */
+    (setattrofunc)0,                    /* tp_setattro */
+    0,                                  /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,   		/* tp_flags */
+    "A cairo.Context enhanced with some additional pango methods", /* Documentation string */
+    (traverseproc)0,                    /* tp_traverse */
+    (inquiry)0,                         /* tp_clear */
+    (richcmpfunc)0,                     /* tp_richcompare */
+    0,                                  /* tp_weaklistoffset */
+    (getiterfunc)0,                     /* tp_iter */
+    (iternextfunc)0,                    /* tp_iternext */
+    _PyCairoContext_methods,            /* tp_methods */
+    0,                                  /* tp_members */
+    0,                                  /* tp_getset */
+    (PyTypeObject *)0,                  /* tp_base */
+    (PyObject *)0,                      /* tp_dict */
+    0,                                  /* tp_descr_get */
+    0,                                  /* tp_descr_set */
+    0,                                  /* tp_dictoffset */
+    (initproc)0,          		/* tp_init */
+    0,                			/* tp_alloc */
+    pypango_cairo_new,         		/* tp_new */
+    0,                                  /* tp_free */
+    (inquiry)0,                         /* tp_is_gc */
+    (PyObject *)0,                      /* tp_bases */
+};
+

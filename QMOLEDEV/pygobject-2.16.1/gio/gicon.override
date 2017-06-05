@@ -1,0 +1,296 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2008  Johan Dahlin
+ *
+ *   gicon.override: module overrides for GIcon and related types
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+ */
+%%
+ignore-glob
+  g_icon_hash
+  g_themed_icon_new_from_names
+  g_themed_icon_new_with_default_fallbacks
+%%
+override-slot GIcon.tp_richcompare
+static PyObject *
+_wrap_g_icon_tp_richcompare(PyGObject *self, PyGObject *other, int op)
+{
+    PyObject *result;
+
+    if (PyObject_TypeCheck(self, &PyGIcon_Type)
+        && PyObject_TypeCheck(other, &PyGIcon_Type)) {
+        GIcon *icon1 = G_ICON(self->obj);
+        GIcon *icon2 = G_ICON(other->obj);
+
+        switch (op) {
+        case Py_EQ:
+            result = (g_icon_equal(icon1, icon2)
+                      ? Py_True : Py_False);
+            break;
+        case Py_NE:
+            result = (!g_icon_equal(icon1, icon2)
+                      ? Py_True : Py_False);
+            break;
+        default:
+            result = Py_NotImplemented;
+        }
+    }
+    else
+        result = Py_NotImplemented;
+
+    Py_INCREF(result);
+    return result;
+}
+%%
+override-slot GIcon.tp_hash
+static long
+_wrap_g_icon_tp_hash(PyGObject *self)
+{
+    return g_icon_hash(G_ICON(self->obj));
+}
+%%
+override g_loadable_icon_load kwargs
+static PyObject *
+_wrap_g_loadable_icon_load(PyGObject *self,
+                           PyObject *args,
+                           PyObject *kwargs)
+{
+    static char *kwlist[] = { "size", "cancellable", NULL };
+    int size = 0;
+    char *type = NULL;
+    PyGObject *pycancellable = NULL;
+    GCancellable *cancellable;
+    GError *error = NULL;
+    GInputStream *stream;
+    PyObject *result;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "|iO:gio.LoadableIcon.load",
+				     kwlist,
+				     &size, &pycancellable))
+        return NULL;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+	return NULL;
+
+    stream = g_loadable_icon_load(G_LOADABLE_ICON(self->obj), size, &type,
+				  cancellable, &error);
+    if (pyg_error_check(&error))
+        return NULL;
+
+    result = Py_BuildValue("Ns", pygobject_new((GObject *) stream), type);
+    g_free(type);
+    return result;
+}
+%%
+override g_loadable_icon_load_async kwargs
+static PyObject *
+_wrap_g_loadable_icon_load_async(PyGObject *self,
+				 PyObject *args,
+				 PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "size", "cancellable", "user_data", NULL };
+    int size = 0;
+    PyGObject *pycancellable = NULL;
+    GCancellable *cancellable;
+    PyGIONotify *notify;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|iOO:gio.LoadableIcon.load_async",
+				     kwlist,
+				     &notify->callback, &size, &pycancellable, &notify->data))
+	goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+	goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_loadable_icon_load_async(G_LOADABLE_ICON(self->obj),
+			       size,
+			       cancellable,
+			       (GAsyncReadyCallback) async_result_callback_marshal,
+			       notify);
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_loadable_icon_load_finish kwargs
+static PyObject *
+_wrap_g_loadable_icon_load_finish(PyGObject *self,
+				  PyObject *args,
+				  PyObject *kwargs)
+{
+    static char *kwlist[] = { "res", NULL };
+    PyGObject *res;
+    char *type = NULL;
+    GError *error = NULL;
+    GInputStream *stream;
+    PyObject *result;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!:gio.LoadableIcon.load_finish",
+				     kwlist,
+				     &PyGAsyncResult_Type, &res))
+        return NULL;
+
+    stream = g_loadable_icon_load_finish(G_LOADABLE_ICON(self->obj),
+					 G_ASYNC_RESULT(res->obj), &type, &error);
+    if (pyg_error_check(&error))
+        return NULL;
+
+    result = Py_BuildValue("Ns", pygobject_new((GObject *) stream), type);
+    g_free(type);
+    return result;
+}
+%%
+override-slot GFileIcon.tp_repr
+static PyObject *
+_wrap_g_file_icon_tp_repr(PyGObject *self)
+{
+    GFile *file = g_file_icon_get_file(G_FILE_ICON(self->obj));
+    char *uri = (file ? g_file_get_uri(file) : NULL);
+    gchar *representation;
+    PyObject *result;
+
+    if (uri) {
+	representation = g_strdup_printf("<%s at %p: %s>", self->ob_type->tp_name, self, uri);
+	g_free(uri);
+    }
+    else
+	representation = g_strdup_printf("<%s at %p: UNKNOWN URI>", self->ob_type->tp_name, self);
+
+    result = PyString_FromString(representation);
+    g_free(representation);
+    return result;
+}
+%%
+new-constructor G_TYPE_THEMED_ICON
+%%
+override g_themed_icon_new kwargs
+static int
+_wrap_g_themed_icon_new(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "name", "use_default_fallbacks", NULL };
+    PyObject *name;
+    gboolean use_default_fallbacks = FALSE;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i:gio.ThemedIcon.__init__",
+				     kwlist, &name, &use_default_fallbacks))
+	return -1;
+
+    if (PyString_Check(name)) {
+	pygobject_construct(self,
+			    "name", PyString_AsString(name),
+			    "use-default-fallbacks", use_default_fallbacks, NULL);
+	return 0;
+    }
+    else if (PySequence_Check(name)) {
+	PyObject *tuple = PySequence_Tuple(name);
+
+	if (tuple) {
+	    int k;
+	    int length = PyTuple_Size(tuple);
+	    char **names = g_new(char *, length + 1);
+
+	    for (k = 0; k < length; k++) {
+		PyObject *str = PyTuple_GetItem(tuple, k);
+		if (str && PyString_Check(str))
+		    names[k] = PyString_AsString(str);
+		else {
+		    Py_DECREF(tuple);
+		    g_free(names);
+		    goto error;
+		}
+	    }
+
+	    names[length] = NULL;
+	    pygobject_construct(self,
+				"names", names,
+				"use-default-fallbacks", use_default_fallbacks, NULL);
+	    Py_DECREF(tuple);
+	    g_free(names);
+	    return 0;
+	}
+    }
+
+ error:
+    if (!PyErr_Occurred()) {
+	PyErr_SetString(PyExc_TypeError,
+			"argument 1 of gio.ThemedIcon.__init__ "
+			"must be either a string or a sequence of strings");
+    }
+    return -1;
+}
+%%
+override g_themed_icon_get_names noargs
+static PyObject *
+_wrap_g_themed_icon_get_names(PyGObject *self)
+{
+    const char * const *names;
+    PyObject *ret;
+
+    names = g_themed_icon_get_names(G_THEMED_ICON(self->obj));
+
+    ret = PyList_New(0);
+    while (names && *names) {
+        PyObject *item = PyString_FromString(names[0]);
+        PyList_Append(ret, item);
+        Py_DECREF(item);
+
+        names++;
+    }
+
+    return ret;
+}
+%%
+override-slot GThemedIcon.tp_repr
+static PyObject *
+_wrap_g_themed_icon_tp_repr(PyGObject *self)
+{
+    const char * const *names = g_themed_icon_get_names(G_THEMED_ICON(self->obj));
+    GString *representation = g_string_new(NULL);
+    PyObject *result;
+
+    g_string_append_printf(representation, "<%s at %p: ", self->ob_type->tp_name, self);
+
+    if (names) {
+	gboolean first_name = TRUE;
+	while (*names) {
+	    if (!first_name)
+		g_string_append(representation, ", ");
+	    else
+		first_name = FALSE;
+
+	    g_string_append(representation, *names++);
+	}
+    }
+
+    g_string_append(representation, ">");
+    result = PyString_FromString(representation->str);
+    g_string_free(representation, TRUE);
+    return result;
+}

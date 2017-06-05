@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+#
+# stunnel3      Perl wrapper to use stunnel 3.x syntax in stunnel >=4.05
+# Copyright (C) 2004-2012 Michal Trojnara <Michal.Trojnara@mirt.net>
+# Version:      2.03
+# Date:         2011.10.22
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, see <http://www.gnu.org/licenses>.
+
+use POSIX;
+use Getopt::Std;
+
+# Configuration - path to stunnel (version >=4.05)
+$stunnel_bin='/usr/local/bin/stunnel';
+
+# stunnel3 script body begins here
+($read_fd, $write_fd)=POSIX::pipe();
+$pid=fork;
+die "Can't fork" unless defined $pid;
+if($pid) { # parent
+    POSIX::close($write_fd);
+    exec "$stunnel_bin -fd $read_fd";
+    die "$stunnel_bin exec failed";
+}
+# child
+POSIX::close($read_fd);
+open(STUNNEL, ">&$write_fd");
+# comment out the next line to see the config file
+select(STUNNEL);
+
+getopts('cTWfD:O:o:C:p:v:a:A:t:N:u:n:E:R:B:I:d:s:g:P:r:L:l:');
+
+print("client = yes\n") if defined $opt_c;
+print("transparent = yes\n") if defined $opt_T;
+print("RNDoverwrite = yes\n") if defined $opt_W;
+print("foreground = yes\n") if defined $opt_f;
+print("debug = $opt_D\n") if defined $opt_D;
+print("socket = $opt_O\n") if defined $opt_O;
+print("output = $opt_o\n") if defined $opt_o;
+print("ciphers = $opt_C\n") if defined $opt_C;
+print("cert = $opt_p\n") if defined $opt_p;
+print("verify = $opt_v\n") if defined $opt_v;
+print("CApath = $opt_a\n") if defined $opt_a;
+print("CAfile = $opt_A\n") if defined $opt_A;
+print("session = $opt_t\n") if defined $opt_t;
+print("service = $opt_N\n") if defined $opt_N;
+print("ident = $opt_u\n") if defined $opt_u;
+print("protocol = $opt_n\n") if defined $opt_n;
+print("EGD = $opt_E\n") if defined $opt_E;
+print("RNDfile = $opt_R\n") if defined $opt_R;
+print("RNDbytes = $opt_B\n") if defined $opt_B;
+print("local = $opt_I\n") if defined $opt_I;
+print("accept = $opt_d\n") if defined $opt_d;
+print("setuid = $opt_s\n") if defined $opt_s;
+print("setgid = $opt_g\n") if defined $opt_g;
+print("pid = $opt_P\n") if defined $opt_P;
+print("connect = $opt_r\n") if defined $opt_r;
+print("pty = yes\n"), $opt_l=$opt_L if defined $opt_L;
+print("exec = $opt_l\nexecArgs = " . join(' ', $opt_l, @ARGV) . "\n") if defined $opt_l;
+print("[stunnel3]\n") if defined $opt_d;
+
+close(STUNNEL);
+
+# stunnel3 script body ends here

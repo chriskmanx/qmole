@@ -1,0 +1,513 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                        %
+%                        TypeRex OCaml Studio                            %
+%                                                                        %
+%                           Tiphaine Turpin                              %
+%                                                                        %
+%  Copyright 2011-2012 INRIA Saclay - Ile-de-France / OCamlPro           %
+%  All rights reserved.  This file is distributed under the terms of     %
+%  the GNU Public License version 3.0.                                   %
+%                                                                        %
+%  TypeRex is distributed in the hope that it will be useful,            %
+%  but WITHOUT ANY WARRANTY; without even the implied warranty of        %
+%  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         %
+%  GNU General Public License for more details.                          %
+%                                                                        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%\chapter{Boosting productivity with {\tt ocp-wizard}}
+
+This chapter explains how to enable and use the \typerex\ environment
+for editing an OCaml program.
+
+\section{\typerex\ environment setup}
+
+Using the \typerex\ environment for an OCaml project requires two
+configuration steps: ensuring the generation of required binary
+annotations, and providing a minimal description of the project's
+paths. Those steps are detailed in the following.
+
+\subsubsection*{Keeping binary annotations up-to-date}
+
+The binary annotations must be up-to-date for \typerex\ to
+function properly, in particular for refactoring, and these
+annotations are not updated by \typerex\ itself. This implies that
+successive refactoring actions require a recompilation of the impacted
+part of the program at each step.
+
+\subsection{Generating .cmt(i) files}
+
+The most simple way of generating binary annotations is to setup your
+build process to use the provided \verb!ocp-*! versions of the OCaml
+compilers, for example \verb!ocp-ocamlc.opt! instead of
+\verb!ocamlc.opt!.  These are wrappers which behave as the original
+compilers, but additionally run \verb!ocp-type! on the sources.
+
+In some cases, a more expressive solution is required which
+consists in prefixing the compiler commands with
+\verb!ocp-wrapper -save-types! with specific arguments (see chapter
+``Tools''
+%~\ref{chap:tools}\ cross-references don't work
+for more details).
+
+Here are examples of how to achieve this depending on your build system.
+
+\subsubsection{make}
+Use as compiler a variable defined by
+{\verbsize \begin{verbatim}
+        OCAMLC=ocp-ocamlc.opt
+or
+        OCAMLC=ocp-wrapper -save-types [<other options>] ocamlc.opt
+\end{verbatim}}
+%\noindent and similarly for ocamlopt.
+
+% \subsubsection{ocp-build}
+% Add
+% {\verbsize \begin{verbatim}
+%         ocamlc = ["ocp-wrapper" ; "-save-types" ; "ocamlc.opt"]
+% \end{verbatim}}
+% \noindent to the ``main'' .ocp file inherited by your whole project.
+
+\subsubsection{ocamlbuild}
+Add
+{\verbsize \begin{verbatim}
+        Options.ocamlc := S [ A "ocp-ocamlc"]
+or
+        Options.ocamlc :=
+          S [ A"ocp-wrapper"; A"-save-types"; ... ; A"ocamlc"]
+\end{verbatim}}
+\noindent to your \verb!myocamlbuild.ml! file.
+Another option is to invoke ocamlbuild with options:
+{\verbsize \begin{verbatim}
+ocamlbuild -ocamlc ocp-ocamlc.opt -ocamlopt ocp-ocamlopt.opt
+\end{verbatim}}
+\noindent Finally, don't forget t add \verb!CMT _build! to your \verb!.typerex! file
+(see below).
+
+\subsubsection{ocamlfind (without ocamlbuild)}
+Add
+{\verbsize \begin{verbatim}
+        ocamlc = "ocp-ocamlc.opt"
+\end{verbatim}}
+\noindent or
+{\verbsize \begin{verbatim}
+        ocamlc(typerex) = "ocp-ocamlc.opt"
+\end{verbatim}}
+\noindent to your \verb!/etc/findlib.conf! (or \verb!ocamlfind.conf!,
+or the file pointed to by \verb!$OCAMLFIND_CONF!).  The first
+option tells \verb!ocamlfind! to use \verb!ocp-wrapper! globally ; the
+second defines a tool-chain "typerex" which you then specify by calling
+{\verbsize \begin{verbatim} ocamlfind -toolchain typerex ocamlc
+\end{verbatim}}
+
+\subsubsection{Using a separate build process}
+Alternatively, ocp-type provides a file Makefile.ocp-type.template,
+which is able to perform the ocp-type compilation automatically for
+simple projects.
+
+\subsection{Project configuration: .typerex file}
+
+Most functionalities of \typerex\ rely on some knowledge of the edited
+program (source files, libraries\ldots) which should be specified in a
+very simple project file at the ``root'' of its source tree with name
+\verb!.typerex!.
+% in one of the following ways.
+%
+%\subsubsection{.typerex file}
+%This is a very simple configuration file describing a project's
+%directories and libraries.
+When \typerex\ is invoked on a source file \verb!<file.ml>!, it looks
+for file \verb!.typerex! in the directory containing \verb!<file.ml>!,
+or its parent directories, back to the file system's root. This file
+is read at each command invocation (except syntax coloring and
+auto-completion) so modifications are taken into account immediately.
+
+\subsubsection*{Syntax of .typerex files}
+The \verb!.typerex! file should specify the set of directories to
+search for OCaml source files, and the set of directories to include
+in the load path (\emph{i.e.}, libraries). It is also possible to
+exclude some source files or whole compilation units, or to force
+files to be included whatever their extension (if any).
+
+The syntax of the \verb!.typerex! file is as follows:
+
+{\verbsize\begin{verbatim}
+        <project file> := <line>* // file must end with a newline
+
+        <line> := <dirs>        // add all contained source files (non-recursive)
+                | I<dirs>       // include <dirs> as external libraries
+                                // +<dir> means <stdlib>/<dir>
+                | -<files>      // ignore these source files
+                | IMPL <files>  // treat these as implementation files
+                | INTF <files>  // treat these as interface files
+                | CMT <dir>     // search .cmt(i)s here instead of in source dir
+                | NOSTDLIB      // do not include the standard library path
+                | #<comment>
+
+        <dirs> := white-space-separated list of directories
+        <files> := white-space-separated list of files
+\end{verbatim}}
+\noindent Relative directory names are interpreted with respect to the
+directory containing the project file \verb!.typerex!, and the project
+directory itself may be denoted by '.', but the shortcuts '$\sim$' and
+'$\sim$\verb!user!' are not supported. Note that \verb!-<prefix>! is a
+shorthand for \verb!-<prefix>.ml <prefix>.mli ...! See \verb!.typerex! in
+the \typerex\ root directory for an example.
+
+\subsubsection*{Meaning of project and library directories}
+Lines starting with
+\verb!I! indicate that the specified directories are considered as
+\emph{library} and not as project's directories. The meaning of this
+distinction, which may change in the future, is currently the
+following:
+\begin{itemize}
+\item All source files (.ml, .mli, .mll, .mly) in a project directory
+  are considered, whether they have corresponding compiled files
+  (.cmi, .cmti, .cmt) or not, while compiled files without sources are
+  ignored. This is exactly the opposite for libraries: all .cmi,
+  .cmti, .cmt are considered, and uncompiled sources are simply
+  ignored.
+\item Refactoring and browsing stops at the boundary of libraries, and
+  no binding propagation is performed on the implementation of
+  libraries (see the documentation for renaming and grep). This saves
+  some computation time and is sound unless a library depends on the
+  program (but the same question arises when the considered program is
+  meant to be a library)
+\end{itemize}
+
+\subsubsection*{Pack modules (experimental)}
+Pack modules are understood by
+\typerex\ if the source directories contain either a file
+\begin{itemize}
+\item \verb!pack.mlpack! in the ocamlbuild format: a list of module
+  names, possibly qualified (using \verb!/!) by a path relative to the
+  directory containing the \verb!pack.mlpack! file, or
+\item \verb!pack.cmt!, whose contents is a pack module (such as
+  generated by \verb!ocp-type -pack!. This option only works if the
+  packed modules are in the same directory as the resulting pack,
+  which is not the case when compiling with \verb!ocamlbuild!.
+\end{itemize}
+
+\subsubsection*{Other options}
+
+{\bf \verb!CMT <dir>! syntax:} It is possible to specify a \verb!CMT!
+directory to search for \verb!.cmt(i)! files when they are not found
+at the same place as the source files. This is needed if the build
+system moves the files around, but then if several modules (in
+different directories) have the same name, then outdated cmts won't be
+assigned unless there only is one (matching with the source digest to
+resolve ambiguity).
+
+{\bf \verb!IMPL <files>!, \verb!INTF <files>!:} Use this to use
+\typerex\ on source files with special extension (or none). The
+subdirectory containing these files still needs to be specified in the
+\verb!.typerex! file. You will also have to enable \typerex\ mode for
+those, either manually with \verb!M-x typerex-mode!, or by extending
+\verb!auto-mode-alist!  or \verb!interpreter-mode-alist! (see
+\verb!emacs.append!).
+
+{\bf \verb!NOSTDLIB!:} Do not implicitely include the standard library
+path.  This is required when using \typerex\ on the OCaml compiler.
+
+%An absent project file is allowed and means a project consisting of
+%only the current directory, with no library.
+
+%\subsubsection{ocp-build}
+%Getting project info from ocp-build is currently disabled.
+
+\subsubsection{Fallback}
+
+If no specific configuration is provided, \typerex\ considers as
+program the set of OCaml source files present in the directory
+containing the edited source file, with no libraries other than the
+OCaml stdlib.
+
+\section{Browsing OCaml code with \typerex}
+
+{\bf Note on browsing commands:} Each cursor motion incurred by a
+browsing action (except when clicking on grep results) is undoable
+with the standard Emacs shortcut (C-\_).
+
+\subsection{Grep (C-o g / C-o t g)}
+(C-o g) display a click-able list (compile minor mode) of the connected
+definitions and occurrences of the identifier under the cursor. Invocation
+is the same as for renaming. Use (C-o t g) to grep the top-level module
+defined by the current file instead of an identifier.
+
+\subsection{Goto-definition (C-o d)}
+Places the cursor on the definition of the identifier under the cursor,
+opening the appropriate file in the current window if necessary.
+
+\subsection{Cycle-definitions (C-o a)}
+Places the cursor on an alternate definition of the identifier declaration
+under the cursor, opening the appropriate file in the current window
+if necessary. The typical effect is to switch between .ml and .mli
+files, but at the right place. This may be used only for top-level
+let-bindings (i.e. 'let' and not 'let..in', external statements, type
+declarations, exception declarations, and (recursive) module and
+module type declarations
+
+\subsection{Comment-definition (C-o c)}
+Display a description of the identifier under the cursor, with its lookup
+path,
+% (unless the cursor is on the definition itself)
+and any comments associated with it (in the sense of OCamldoc).
+The description is:
+\begin{itemize}
+\item the type, for a value or field
+\item the type declaration, for a type constructor
+\item the argument types (or "constant"), for a constructor or exception
+\item the module type, for a module or module type.
+\end{itemize}
+% This command is very similar to the (C-c C-t) command of Tuareg, but
+% with the following additional differences:
+% \begin{itemize}
+% \item It cannot handle partially typed code, but can recover correct
+%   information for unmodified parts (even with unsaved buffers)
+% \item
+% \end{itemize}
+
+\section{Refactoring OCaml code with \typerex}
+
+{\bf Note on reverting and undoing:} For all refactoring actions, the
+reverting of modified buffers and the undoing take one of the two
+following modes:
+
+\begin{itemize}
+\item If the modification is local to the current buffer, then it is
+  reverted while keeping its history, and renamed if needed. This
+  enables undoing with the standard emacs shortcut (C-\_).
+\item If several files are modified, then all relevant buffers are
+  reverted and their ``local'' undo-lists are cleared. Instead, the
+  multiple-file modification is added to a global undo list and can
+  only be undone with ``C-o u''. A call to ``C-o u'' is also pushed
+  onto the local undo lists of all modified buffers for convenience,
+  so that (C-\_) will also work.
+\end{itemize}
+
+\subsection{Multiple-file undo (C-o u)}
+Undo the last multiple-file modification. Warning! This discards any
+subsequent modification of the affected files (a confirmation is asked
+in this case). All buffers editing one of the affected files are
+reverted, and their local undo lists are cleared (and then receive a
+single new ``global-undo'' item).
+
+\subsection{Renaming (C-o r / C-o t r)}
+Rename an identifier through an OCaml program.
+
+\paragraph{(C-o r):} The cursor must be placed on an identifier
+definition or reference (for example, a let binding or a pattern).
+
+\paragraph{(C-o t r):} Rename the top-level module defined by the
+current file instead of an identifier.\\
+
+\begin{htmlonly}
+\smallskip
+\end{htmlonly}
+Renaming takes care of necessary propagation (e.g., when distinct
+values with the same name need to be renamed consistently because this
+name appears in a common interface), and capture is detected.
+
+Renaming is implemented for: values, types, modules (non-recursive),
+module types, fields, constructors, and exceptions. Aa a convenience,
+a partial, unsound renaming of classes and class types is supported,
+but will miss all references to the ``secondary'' bindings of a class
+or class type, \emph{i.e.}, the closed and open types, and, for a
+class, the class type. Type variables, instance variable, methods,
+argument labels, and polymorphic variants are not supported.
+
+The replacement is intended to be complete, up to the following known
+bugs:
+\begin{itemize}
+\item labels, e.g. renaming \verb!x! in \verb!let x = .. in f !%
+  $\sim$\verb!x! yields \verb!f !$\sim$\verb!y! instead of \verb!f !%
+  $\sim$\verb!x:y!, and similarly with \verb!fun !$\sim$\verb!x -> ..!
+  \item renaming a type which is in fact a class or a class type, or
+    such that its renaming ``propagates'' to one (through module
+    constraints and functor applications) will not rename the class or
+    class type itself, or its references.
+\end{itemize}
+Note also the following limitation:
+\begin{itemize}
+  \item including a module where an element is renamed with an afterwards masked
+    name causes a capture error.
+\end{itemize}
+
+
+\subsection{Reference pruning (C-o p)}
+Simplify the identifier references (longidents) by removing unnecessary
+qualification. This operation ranges on the current buffer.
+
+\subsection{Open elimination (C-o q) (for "qualify")}
+Remove (if possible) the open statement under the cursor and qualify
+the subsequent references as required. the \verb!let open .. in!
+syntax is also supported by open elimination. This operation is
+currently slightly conservative, when the same module is opened again
+inside one of the items in the elimination scope (sub-modules,
+\verb!let open!, and \verb!M.(...)!) but a duplicate open at the same
+level will be correctly handled.
+% Running \verb!(C-o p)! just after
+
+\section{Syntax coloring}
+
+\typerex\ implements its own version of syntax coloring. It is not
+yet fully stable, but already has some new features such as the inline
+marking of lexing errors (with help-info) and a smarter treatment of
+unterminated strings and comments.
+
+Syntax coloring is not specialized for ocamlyacc/ocamllex files, but
+will usually give an acceptable result except for C-style comments.
+
+\section{Auto-completion}
+
+An experimental completion feature is proposed in typerex, currently
+only for identifiers (including methods, tags, labels and type
+variables). Once enabled, a menu of candidates is triggered when
+typing test or with the appropriate key (\verb!<`>! by default) which
+also completes the longest common prefix. Other keys allow to select a
+candidate and insert it (\verb!<C-n>!, \verb!<C-p>!, and \verb!<\>! by
+default), or to cycle between them (with \verb!<TAB>!, see the Auto
+Complete Mode user manual).
+
+The candidates computation takes into account the load path which is
+configured for the project, the open and include statements and
+unqualified identifiers until the current position in the edited file (in a
+very approximative and simplistic way) and the module qualification
+possibly prefixing the identifier to be completed.
+
+% {\Large Completion is currently broken and unavailable}
+
+% Three completion actions are available:
+
+% \begin{itemize}
+
+% \item Path completion (F12): complete a long identifier (value, record
+%   field, module name), interactively, given a (possibly empty) prefix.
+%   Empty prefixes are allowed in record (re-)definitions and record
+%   patterns, such as:
+% \begin{itemize}
+%     \item let r $=$ \{f1 = $<$expr$>$ ; .	    (at least one field must be given)
+%     \item let r $=$ \{$<$expr$>$ with $<$maybe some fields$>$ .
+%     \item in a pattern: \{f1 $=$ $<$patt$>$ .
+% \end{itemize}
+
+% \item Pattern expansion (F11): expand a variable or wildcard inside a
+%   pattern, according to the inferred sub-pattern's type. The variable
+%   under the cursor is only expanded once, possibly introducing new
+%   wildcards, and the cursor is positioned on the first created
+%   wildcard, if any (allowing further expansion by typing F11 again).
+
+% \item Match cases completion (F3): create a pattern-matching template
+%   after a match-with construct. This may be invoked just after:
+% \begin{itemize}
+%     \item match $<$expr$>$ .
+%     \item match $<$expr$>$ with .
+%     \item match $<$expr$>$ with $<$match cases$>$ .
+% \end{itemize}
+%   The result is very similar to pattern expansion, except that for a
+%   constructor type (most frequent case), constructors are put on
+%   successive lines.
+% \end{itemize}
+
+
+% {\bf Remark:} Completion still needs to be improved in many respects. See
+% the test cases for a detailed overview of the current behavior.
+
+\section{\typerex\ assumptions and supported code}
+
+\subsection{Preprocessors}
+
+The browsing commands of \typerex\ support ocamlyacc/ocamllex sources,
+and should work with other pre-processors which generate OCaml source
+files with appropriate line numbers directives.
+%
+More precisely, the identifiers in a pre-processed source file which are
+actual identifiers of the source (i.e., not generated or transformed during
+pre-processing) should be OK to grep or jump from and to, if no
+generated code has the same location.
+
+For ocamlyacc and ocamllex files, these "actual" identifiers correspond to
+the quoted OCaml code (between braces). Jumping to ocamlyacc entry
+points is not supported however, because the generated interface has
+no line number directives.
+%
+Renaming may work in pre-processed or ocamllex/ocamlyacc source files,
+but has not been thoroughly tested. Other refactoring commands won't
+work on ocamlyacc/ocamllex sources.
+
+The \verb!camlp4! pre-processor (version 3.12.1) is supported, but
+only partially because its output is an ast which has insufficient
+location information (or a source file but without line numbers
+directives).  \verb!ocp-type! (or \verb!ocp-wrapper!) can generate
+binary annotations with \verb!camlp4!, but the result of \typerex\
+commands will sometimes be inaccurate on camlp4-processed sources (in
+particular, renaming should only be attempted for local or unexported
+value bindings).
+
+\subsection{Module packs}
+
+Module packing is supported to the extent of its treatment in the
+project description (see above), but is still experimental (and with
+the limitation that ``goto'' does not go through packs while ``grep''
+does, as for include directives).
+
+\subsection{Dealing with outdated binary annotations}
+
+\typerex\ is usually able to overcome sparse changes to the edited
+files (saved or not) \emph{w.r.t} the last compiled version, and to
+recompute the right positions. This feature relies on the source
+snapshots which are embedded in .cmt files. This works also for
+refactoring commands, but in this case a confirmation will be asked
+before proceeding.
+
+\subsection{Permissive behavior}
+
+Some internal errors which could occur while processing some files
+(for example due to unhandled language features) may be caught and
+reported to the user (asking for a confirmation in the case of
+refactoring). This avoids giving up too soon on errors which are
+clearly harmless to a specific action.
+
+\section{Recovery and debugging}
+
+Except for restarting the server, this section is more intended to
+developing and debugging \typerex.
+
+\subsubsection{Errors and server restart}
+
+If the OCP server crashes for any reason (or becomes crazy), it is
+possible to restart it using
+{\verbsize\begin{verbatim}
+    M-x ocp-restart-server
+\end{verbatim}}
+
+\subsubsection{Logging:}
+
+First, the \typerex\ environment for Emacs will echo minimal
+information as messages in the mini-buffer, the history of
+which is kept in the special buffer \verb!*Messages*!. This includes
+the startup procedure, feedback about the executed commands, and in
+case of unexpected error (which is a bug), a complete exception backtrace.
+
+You may enable logging of debug information in
+$\sim$\verb!/.ocp-wizard-log! by setting the \verb!ocp-debug! variable to
+\verb!t! (the trace will be huge and hard to read).  The value of
+\verb!ocp-debug! may also be a string, which is a comma-separated list
+(without whitespace) of uncapitalized module names in the \typerex\
+code.
+
+\subsubsection{Fail fast}
+In the context of debugging, it is usually easier to disable most
+exception handling to get a backtrace closer to the real problem. This
+can be done by setting \verb!ocp-dont-catch-errors! to \verb!t!. Note
+however that this will lead \typerex\ to fail in cases which would
+normally have triggered tolerant behavior.
+
+\subsubsection{Profiling}
+
+\typerex\ may dump profile information in
+$\sim$\verb!/.ocp-wizard-profile.out! if \verb!ocp-profile! is set to
+the name of a \typerex\ command (see
+\verb!tools/ocp-wizard/main/owzServer.ml!). Run
+\verb!profile !$\sim$\verb!/.ocp-wizard-profile.out! to generate a dot file (note
+that \verb!profile! is not compiled or installed by default).

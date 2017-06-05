@@ -1,0 +1,94 @@
+**************************************************************************
+*                                                                        *
+*                        TypeRex OCaml Studio                            *
+*                                                                        *
+*                           Tiphaine Turpin                              *
+*                                                                        *
+*  Copyright 2011-2012 INRIA Saclay - Ile-de-France / OCamlPro           *
+*  All rights reserved.  This file is distributed under the terms of     *
+*  the GNU Public License version 3.0.                                   *
+*                                                                        *
+*  TypeRex is distributed in the hope that it will be useful,            *
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+*  GNU General Public License for more details.                          *
+*                                                                        *
+**************************************************************************
+
+See user-manual.tex for user documentation. The following describes the
+implementation of ocp-wizard.
+
+- OCP Wizard API
+~~~~~~~~~~~~~~~~
+
+module OcpWizard provides a direct access to the binding-related
+features of ocp-wizard and may be used as a library. The user
+interface (in OwzUI) is built on top of it.
+
+
+- Editor interface
+~~~~~~~~~~~~~~~~~~
+
+OCP Wizard should be used as a server, which is launched (as an
+asynchronous process) by a text editor (one server per editor
+instance). The editor must setup a socket listening for callbacks and
+pass the port to ocp-wizard as a parameter.
+
+The communication protocol is generic (see library rpc).
+
+The representation of transmitted data (and of course the
+implementation of callbacks) are editor-specific (see ocp-ide)
+
+
+- Internal working overview
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Details on syntax coloring:
+...........................
+
+The editor must advise the server of any modification, using simple
+"replace by" instructions. OCP Wizard maintains the buffer's contents
+in a gap buffer, as well as a token buffer (built from OCaml's lexer)
+which is updated without re-lexing everything each time. Coloring is
+computed from the token changes.
+
+
+!! The following is about pattern and matching completion (disabled) !!
+
+Details about completion:
+.........................
+
+- It parses an types the buffer up to the editing position, trivially
+  cloing all the opened syntactical constructs at the cut point. The
+  answer is computed using information from the resulting typedtree.
+
+- The decision of what to perform (kind of completion, for example) is
+  partly made during the parsing (in a rather intricate way).
+
+- Communication with emacs: before calling OCP Wwizard, the emacs code
+  calls the do-auto-save function to write #file.ml# if needed.
+  OCP Wizard checks if an auto-save exists. For positioning the
+  cursor at the right place (first wildcard for example), OCP Wizard
+  inserts a $ character before it, which is searched backward by
+  emacs, then deleted.
+
+
+- Source code organization
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Directory "common" provides general utility functions, and a robust
+  atomically undoable multiple-file text substitution API.
+
+- Directory "semantics" contains everything related to binding,
+  including refactoring and browsing.
+
+- Directory "completion" is forked from Ocamlwizard and is about
+  completion (currently disabled)
+
+- Directory "syntax" implements on-the-fly lexing of OCaml buffers,
+  syntax coloring, and ident completion
+
+- Directory "main" is about workflow and editor interaction.
+
+- Directory "emacs" is contains the lisp code for the interaction,
+  rellying on ocp-ide and rpc

@@ -1,0 +1,1217 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygobject - Python bindings for GObject
+ * Copyright (C) 2008  Johan Dahlin
+ *
+ *   gfile.override: module overrides for GInputStream
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+ */
+%%
+headers
+
+static void
+file_progress_callback_marshal(goffset current_num_bytes,
+			       goffset total_num_bytes,
+			       PyGIONotify *notify)
+{
+    PyObject *ret;
+    PyGILState_STATE state;
+
+    state = pyg_gil_state_ensure();
+
+    if (notify->data)
+	ret = PyObject_CallFunction(notify->callback, "(KKO)",
+				    current_num_bytes,
+				    total_num_bytes,
+				    notify->data);
+    else
+	ret = PyObject_CallFunction(notify->callback, "(KK)",
+				    current_num_bytes,
+				    total_num_bytes);
+
+    if (ret == NULL)
+      {
+	PyErr_Print();
+	PyErr_Clear();
+      }
+
+    Py_XDECREF(ret);
+    pyg_gil_state_release(state);
+}
+%%
+define _install_file_meta
+static PyObject *
+_wrap__install_file_meta(PyObject *self, PyObject *args)
+{
+    PyObject *metaclass;
+
+    if (!PyArg_ParseTuple(args, "O", &metaclass))
+	return NULL;
+
+    Py_INCREF(metaclass);
+    PyGFile_Type.ob_type = (PyTypeObject*)metaclass;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+define _file_init kwargs
+static PyObject*
+_wrap__file_init(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    GFile *file;
+    Py_ssize_t n_args, n_kwargs;
+    char *arg;
+    PyObject *py_ret;
+
+    n_args = PyTuple_Size(args);
+    n_kwargs = kwargs != NULL ? PyDict_Size(kwargs) : 0;
+
+    if (n_args == 1 && n_kwargs == 0) {
+	if (!PyArg_ParseTuple(args, "s:GFile", &arg))
+	    return NULL;
+	file = g_file_new_for_commandline_arg(arg);
+    } else if (n_args == 0 && n_kwargs == 1) {
+	if (PyDict_GetItemString(kwargs, "path")) {
+	    char *kwlist[] = { "path", NULL };
+	    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+					     "s:gio.File", kwlist, &arg))
+		return NULL;
+	    file = g_file_new_for_path(arg);
+	} else if (PyDict_GetItemString(kwargs, "uri")) {
+	    char *kwlist[] = { "uri", NULL };
+	    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+					     "s:gio.File", kwlist, &arg))
+		return NULL;
+	    file = g_file_new_for_uri(arg);
+	} else {
+	    PyErr_Format(PyExc_TypeError,
+			 "gio.File() got an unexpected keyword argument '%s'",
+			 "unknown");
+	    return NULL;
+	}
+    } else {
+	PyErr_Format(PyExc_TypeError,
+		     "gio.File() takes exactly 1 argument (%zd given)",
+		     n_args + n_kwargs);
+	return NULL;
+    }
+
+    if (!file) {
+        PyErr_SetString(PyExc_RuntimeError,
+			"could not create GFile object");
+        return NULL;
+    }
+
+    py_ret = pygobject_new((GObject *)file);
+    g_object_unref(file);
+
+    return py_ret;
+}
+%%
+override g_file_read_async kwargs
+static PyObject *
+_wrap_g_file_read_async(PyGObject *self,
+			PyObject *args,
+			PyObject *kwargs)
+{
+  static char *kwlist[] = { "callback", "io_priority",
+			    "cancellable", "user_data", NULL };
+  int io_priority = G_PRIORITY_DEFAULT;
+  PyGObject *pycancellable = NULL;
+  GCancellable *cancellable;
+  PyGIONotify *notify;
+
+  notify = pygio_notify_new();
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                   "O|iOO:File.read_async",
+                                   kwlist,
+                                   &notify->callback,
+                                   &io_priority,
+                                   &pycancellable,
+                                   &notify->data))
+      goto error;
+
+  if (!pygio_notify_callback_is_valid(notify))
+      goto error;
+
+  if (!pygio_check_cancellable(pycancellable, &cancellable))
+      goto error;
+
+  pygio_notify_reference_callback(notify);
+
+  g_file_read_async(G_FILE(self->obj),
+                    io_priority,
+                    cancellable,
+                    (GAsyncReadyCallback)async_result_callback_marshal,
+                    notify);
+
+  Py_INCREF(Py_None);
+  return Py_None;
+
+ error:
+  pygio_notify_free(notify);
+  return NULL;
+}
+%%
+override g_file_load_contents kwargs
+static PyObject *
+_wrap_g_file_load_contents(PyGObject *self,
+                           PyObject *args,
+                           PyObject *kwargs)
+{
+    static char *kwlist[] = { "cancellable", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    gchar *contents, *etag_out;
+    gsize length;
+    GError *error = NULL;
+    gboolean ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "|O:File.load_contents",
+                                      kwlist,
+                                      &pycancellable))
+        return NULL;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+	return NULL;
+
+    pyg_begin_allow_threads;
+
+    ret = g_file_load_contents(G_FILE(self->obj), cancellable,
+                               &contents, &length, &etag_out, &error);
+
+    pyg_end_allow_threads;
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    if (ret) {
+        PyObject *pyret;
+
+        pyret = Py_BuildValue("(s#ks)", contents, length, length, etag_out);
+        g_free(contents);
+	g_free(etag_out);
+        return pyret;
+    } else {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}
+%%
+override g_file_load_contents_async kwargs
+static PyObject *
+_wrap_g_file_load_contents_async(PyGObject *self,
+                                 PyObject *args,
+                                 PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "cancellable", "user_data", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    PyGIONotify *notify;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OO:File.load_contents_async",
+                                      kwlist,
+                                      &notify->callback,
+                                      &pycancellable,
+                                      &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_load_contents_async(G_FILE(self->obj),
+			       cancellable,
+			       (GAsyncReadyCallback)async_result_callback_marshal,
+			       notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_load_contents_finish kwargs
+static PyObject *
+_wrap_g_file_load_contents_finish(PyGObject *self,
+                           PyObject *args,
+                           PyObject *kwargs)
+{
+    static char *kwlist[] = { "res", NULL };
+    PyGObject *res;
+    gchar *contents, *etag_out;
+    gsize length;
+    GError *error = NULL;
+    gboolean ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!:File.load_contents_finish",
+                                      kwlist,
+                                      &PyGAsyncResult_Type,
+                                      &res))
+        return NULL;
+
+    ret = g_file_load_contents_finish(G_FILE(self->obj),
+                                      G_ASYNC_RESULT(res->obj), &contents,
+                                      &length, &etag_out, &error);
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    if (ret) {
+        PyObject *pyret;
+
+        pyret = Py_BuildValue("(s#ks)", contents, length, length, etag_out);
+        g_free(contents);
+	g_free(etag_out);
+        return pyret;
+    } else {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}
+%%
+override g_file_enumerate_children_async kwargs
+static PyObject *
+_wrap_g_file_enumerate_children_async(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "attributes", "callback", "flags",
+			      "io_priority", "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    char *attributes;
+    PyObject *py_flags = NULL;
+    int io_priority = G_PRIORITY_DEFAULT;
+    GFileQueryInfoFlags flags = G_FILE_QUERY_INFO_NONE;
+    GCancellable *cancellable = NULL;
+    PyGObject *py_cancellable = NULL;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "sO|OiOO:GFile.enumerate_children_async",
+				     kwlist,
+				     &attributes,
+				     &notify->callback,
+				     &py_flags,
+				     &io_priority,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_QUERY_INFO_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+	goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_enumerate_children_async(G_FILE(self->obj),
+				    attributes,
+				    flags,
+				    io_priority,
+				    (GCancellable *) cancellable,
+				    (GAsyncReadyCallback)async_result_callback_marshal,
+				    notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_mount_mountable kwargs
+static PyObject *
+_wrap_g_file_mount_mountable(PyGObject *self,
+			     PyObject *args,
+			     PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "mount_operation",
+			      "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *mount_operation;
+    PyGObject *py_cancellable = NULL;
+    GMountMountFlags flags = G_MOUNT_MOUNT_NONE;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!O|OOO:File.mount_mountable",
+				     kwlist,
+				     &PyGMountOperation_Type,
+				     &mount_operation,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_MOUNT_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_mount_mountable(G_FILE(self->obj),
+			   flags,
+			   G_MOUNT_OPERATION(mount_operation->obj),
+			   cancellable,
+			   (GAsyncReadyCallback)async_result_callback_marshal,
+			   notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_unmount_mountable kwargs
+static PyObject *
+_wrap_g_file_unmount_mountable(PyGObject *self,
+			     PyObject *args,
+			     PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags",
+			      "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *py_cancellable = NULL;
+    GMountUnmountFlags flags = G_MOUNT_UNMOUNT_NONE;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OOO:File.unmount_mountable",
+				     kwlist,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_UNMOUNT_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_unmount_mountable(G_FILE(self->obj),
+			     flags,
+			     cancellable,
+			     (GAsyncReadyCallback)async_result_callback_marshal,
+			     notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_mount_enclosing_volume kwargs
+static PyObject *
+_wrap_g_file_mount_enclosing_volume(PyGObject *self,
+				    PyObject *args,
+				    PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "mount_operation",
+			      "cancellable", "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *mount_operation;
+    PyGObject *py_cancellable = NULL;
+    GMountMountFlags flags = G_MOUNT_MOUNT_NONE;
+    GCancellable *cancellable;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!O|OOO:File.mount_enclosing_volume",
+				     kwlist,
+				     &PyGMountOperation_Type,
+				     &mount_operation,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_MOUNT_MOUNT_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_mount_enclosing_volume(G_FILE(self->obj),
+				  flags,
+				  G_MOUNT_OPERATION(mount_operation->obj),
+				  cancellable,
+				  (GAsyncReadyCallback)async_result_callback_marshal,
+				  notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_copy kwargs
+static PyObject *
+_wrap_g_file_copy(PyGObject *self,
+		  PyObject *args,
+		  PyObject *kwargs)
+{
+    static char *kwlist[] = { "destination", "progress_callback",
+			      "flags", "cancellable", 
+			      "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *destination = NULL;
+    PyGObject *py_cancellable = NULL;
+    GFileCopyFlags flags = G_FILE_COPY_NONE;
+    GCancellable *cancellable;
+    int ret;
+    GError *error = NULL;
+    GFileProgressCallback callback = NULL;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!|OOOO:File.copy",
+				     kwlist,
+				     &PyGFile_Type,
+				     &destination,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (pygio_notify_using_optional_callback(notify)) {
+        callback = (GFileProgressCallback)file_progress_callback_marshal;
+        if (!pygio_notify_callback_is_valid(notify))
+            goto error;
+    }
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_COPY_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    /* No need to reference callback here, because it will be used
+     * only while this function is in progress. */
+
+    pyg_begin_allow_threads;
+
+    ret = g_file_copy(G_FILE(self->obj),
+		      G_FILE(destination->obj),
+		      flags,
+		      cancellable,
+		      callback,
+		      notify,
+		      &error);
+
+    pyg_end_allow_threads;
+
+    if (pyg_error_check(&error))
+        goto error;
+
+    pygio_notify_free(notify);
+    return PyBool_FromLong(ret);
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_move kwargs
+static PyObject *
+_wrap_g_file_move(PyGObject *self,
+		  PyObject *args,
+		  PyObject *kwargs)
+{
+    static char *kwlist[] = { "destination", "progress_callback",
+			      "flags", "cancellable", 
+			      "user_data", NULL };
+    PyGIONotify *notify;
+    PyObject *py_flags = NULL;
+    PyGObject *destination = NULL;
+    PyGObject *py_cancellable = NULL;
+    GFileCopyFlags flags = G_FILE_COPY_NONE;
+    GCancellable *cancellable;
+    int ret;
+    GError *error = NULL;
+    GFileProgressCallback callback = NULL;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!|OOOO:File.move",
+				     kwlist,
+				     &PyGFile_Type,
+				     &destination,
+				     &notify->callback,
+				     &py_flags,
+				     &py_cancellable,
+				     &notify->data))
+        goto error;
+
+    if (pygio_notify_using_optional_callback(notify)) {
+        callback = (GFileProgressCallback)file_progress_callback_marshal;
+        if (!pygio_notify_callback_is_valid(notify))
+            goto error;
+    }
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_COPY_FLAGS,
+					py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(py_cancellable, &cancellable))
+        goto error;
+
+    /* No need to reference callback here, because it will be used
+     * only while this function is in progress. */
+
+    pyg_begin_allow_threads;
+
+    ret = g_file_move(G_FILE(self->obj),
+		      G_FILE(destination->obj),
+		      flags,
+		      cancellable,
+		      callback,
+		      notify,
+		      &error);
+    
+    pyg_end_allow_threads;
+
+    if (pyg_error_check(&error))
+        goto error;
+
+    pygio_notify_free(notify);
+    return PyBool_FromLong(ret);
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_set_attribute kwargs
+static PyObject *
+_wrap_g_file_set_attribute(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "attribute", "type", "value_p",
+                              "flags", "cancellable", NULL };
+    GFileQueryInfoFlags flags = G_FILE_QUERY_INFO_NONE;
+    int ret;
+    GCancellable *cancellable = NULL;
+    GError *error = NULL;
+    char *attribute;
+    PyObject *py_type = NULL, *py_flags = NULL, *value_p;
+    PyGObject *pycancellable = NULL;
+    GFileAttributeType type;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,"sOO|OO:GFile.set_attribute",
+                                     kwlist, &attribute, &py_type, &value_p,
+                                     &py_flags, &pycancellable))
+        return NULL;
+
+    if (pyg_enum_get_value(G_TYPE_FILE_ATTRIBUTE_TYPE, py_type,
+                            (gpointer)&type))
+        return NULL;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_QUERY_INFO_FLAGS, py_flags,
+                                        (gpointer)&flags))
+        return NULL;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        return NULL;
+
+    ret = g_file_set_attribute(G_FILE(self->obj), attribute, type,
+                               (gpointer)value_p, flags, (GCancellable *)
+                               cancellable, &error);
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    return PyBool_FromLong(ret);
+}
+%%
+override g_file_query_settable_attributes kwargs
+static PyObject *
+_wrap_g_file_query_settable_attributes(PyGObject *self,
+                                       PyObject *args,
+                                       PyObject *kwargs)
+{
+    static char *kwlist[] = { "cancellable", NULL };
+    PyGObject *pycancellable = NULL;
+    GCancellable *cancellable = NULL;
+    GFileAttributeInfoList *ret;
+    GError *error = NULL;
+    gint i, n_infos;
+    GFileAttributeInfo *infos;
+    PyObject *py_ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "|O:GFile.query_settable_attributes",
+                                     kwlist, &pycancellable))
+        return NULL;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        return NULL;
+
+    ret = g_file_query_settable_attributes(G_FILE(self->obj),
+                                           (GCancellable *) cancellable,
+                                           &error);
+    if (pyg_error_check(&error))
+        return NULL;
+
+    n_infos = ret->n_infos;
+    infos = ret->infos;
+
+    if (n_infos > 0) {
+        py_ret = PyList_New(n_infos);
+        for (i = 0; i < n_infos; i++) {
+            PyList_SetItem(py_ret, i, pyg_file_attribute_info_new(&infos[i]));
+        }
+        g_file_attribute_info_list_unref(ret);
+        return py_ret;
+
+    } else {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}
+%%
+override g_file_query_writable_namespaces kwargs
+static PyObject *
+_wrap_g_file_query_writable_namespaces(PyGObject *self,
+                                       PyObject *args,
+                                       PyObject *kwargs)
+{
+    static char *kwlist[] = { "cancellable", NULL };
+    PyGObject *pycancellable = NULL;
+    GCancellable *cancellable = NULL;
+    GFileAttributeInfoList *ret;
+    GError *error = NULL;
+    gint i, n_infos;
+    GFileAttributeInfo *infos;
+    PyObject *py_ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "|O:GFile.query_writable_namespaces",
+                                     kwlist, &pycancellable))
+        return NULL;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        return NULL;
+
+    ret = g_file_query_writable_namespaces(G_FILE(self->obj),
+                                           (GCancellable *) cancellable,
+                                           &error);
+    if (pyg_error_check(&error))
+        return NULL;
+
+    n_infos = ret->n_infos;
+    infos = ret->infos;
+
+    if (n_infos > 0) {
+        py_ret = PyList_New(n_infos);
+        for (i = 0; i < n_infos; i++) {
+            PyList_SetItem(py_ret, i, pyg_file_attribute_info_new(&infos[i]));
+        }
+        g_file_attribute_info_list_unref(ret);
+        return py_ret;
+
+    } else {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}
+%%
+override g_file_append_to_async kwargs
+static PyObject *
+_wrap_g_file_append_to_async(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "io_priority",
+                              "cancellable", "user_data", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    GFileCreateFlags flags = G_FILE_CREATE_NONE;
+    PyObject *py_flags = NULL;
+    int io_priority = G_PRIORITY_DEFAULT;
+    PyGIONotify *notify;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OiOO:File.append_to_async",
+                                      kwlist,
+                                      &notify->callback,
+                                      &flags, &io_priority,
+                                      &pycancellable,
+                                      &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_CREATE_FLAGS,
+                                        py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_append_to_async(G_FILE(self->obj), flags, io_priority, cancellable,
+                           (GAsyncReadyCallback)async_result_callback_marshal,
+                           notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_create_async kwargs
+static PyObject *
+_wrap_g_file_create_async(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "flags", "io_priority",
+                              "cancellable", "user_data", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    GFileCreateFlags flags = G_FILE_CREATE_NONE;
+    PyObject *py_flags = NULL;
+    int io_priority = G_PRIORITY_DEFAULT;
+    PyGIONotify *notify;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|OiOO:File.create_async",
+                                      kwlist,
+                                      &notify->callback,
+                                      &flags, &io_priority,
+                                      &pycancellable,
+                                      &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_CREATE_FLAGS,
+                                        py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_create_async(G_FILE(self->obj), flags, io_priority, cancellable,
+                        (GAsyncReadyCallback)async_result_callback_marshal,
+                        notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_replace_async kwargs
+static PyObject *
+_wrap_g_file_replace_async(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "etag", "make_backup", "flags",
+                              "io_priority", "cancellable", "user_data", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    GFileCreateFlags flags = G_FILE_CREATE_NONE;
+    PyObject *py_flags = NULL;
+    int io_priority = G_PRIORITY_DEFAULT;
+    char *etag = NULL;
+    gboolean make_backup = TRUE;
+    PyObject *py_backup = Py_True;
+    PyGIONotify *notify;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O|zOOiOO:File.replace_async",
+                                      kwlist,
+                                      &notify->callback,
+                                      &etag, &py_backup,
+                                      &flags, &io_priority,
+                                      &pycancellable,
+                                      &notify->data))
+        goto error;
+
+    make_backup = PyObject_IsTrue(py_backup) ? TRUE : FALSE;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_CREATE_FLAGS,
+                                        py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_replace_async(G_FILE(self->obj), etag, make_backup, flags,
+                         io_priority, cancellable,
+                         (GAsyncReadyCallback)async_result_callback_marshal,
+                         notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_query_info_async kwargs
+static PyObject *
+_wrap_g_file_query_info_async(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "callback", "attributes", "flags",
+                              "io_priority", "cancellable", "user_data", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    GFileQueryInfoFlags flags = G_FILE_QUERY_INFO_NONE;
+    PyObject *py_flags = NULL;
+    int io_priority = G_PRIORITY_DEFAULT;
+    char *attributes;
+    PyGIONotify *notify;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "Os|OiOO:File.query_info_async",
+                                      kwlist,
+                                      &notify->callback,
+                                      &attributes,
+                                      &flags, &io_priority,
+                                      &pycancellable,
+                                      &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_CREATE_FLAGS,
+                                        py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+
+    g_file_query_info_async(G_FILE(self->obj), attributes, flags,
+                         io_priority, cancellable,
+                         (GAsyncReadyCallback)async_result_callback_marshal,
+                         notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override g_file_replace_contents kwargs
+static PyObject *
+_wrap_g_file_replace_contents(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "contents", "etag", "make_backup",
+                              "flags", "cancellable", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    GFileCreateFlags flags = G_FILE_CREATE_NONE;
+    PyObject *py_flags = NULL;
+    gsize length;
+    gboolean make_backup = FALSE;
+    char *contents;
+    char *etag = NULL;
+    char *new_etag = NULL;
+    GError *error = NULL;
+    gboolean ret;
+    PyObject *py_ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "s#|zbOO:File.replace_contents",
+                                     kwlist,
+                                     &contents,
+                                     &length,
+                                     &etag,
+                                     &make_backup,
+                                     &flags,
+                                     &cancellable))
+    {
+        return NULL;
+    }
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_CREATE_FLAGS,
+                                        py_flags, (gpointer)&flags))
+        return NULL;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        return NULL;
+
+    pyg_begin_allow_threads;
+
+    ret = g_file_replace_contents(G_FILE(self->obj), contents, length, etag,
+                                  make_backup, flags, &new_etag, cancellable,
+                                  &error);
+
+    pyg_end_allow_threads;
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    if (ret) {
+        py_ret = PyString_FromString(new_etag);
+    } else {
+        py_ret = Py_None;
+        Py_INCREF(py_ret);
+    }
+
+    g_free(new_etag);
+    return py_ret;
+}
+%%
+override g_file_replace_contents_finish kwargs
+static PyObject *
+_wrap_g_file_replace_contents_finish(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "result", NULL };
+    PyGObject *res;
+    gchar *etag_out = NULL;
+    GError *error = NULL;
+    gboolean ret;
+    PyObject *py_ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!:File.replace_contents_finish",
+                                      kwlist,
+                                      &PyGAsyncResult_Type,
+                                      &res))
+        return NULL;
+
+    ret = g_file_replace_contents_finish(G_FILE(self->obj),
+                                         G_ASYNC_RESULT(res->obj), &etag_out,
+                                         &error);
+
+    if (pyg_error_check(&error))
+        return NULL;
+
+    if (ret) {
+        py_ret = PyString_FromString(etag_out);
+        return py_ret;
+    } else {
+        py_ret = Py_None;
+        Py_INCREF(py_ret);
+    }
+
+    g_free(etag_out);
+    return py_ret;
+}
+%%
+override g_file_replace_contents_async kwargs
+static PyObject *
+_wrap_g_file_replace_contents_async(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "contents", "callback", "etag", "make_backup",
+                              "flags", "cancellable", "user_data", NULL };
+    GCancellable *cancellable;
+    PyGObject *pycancellable = NULL;
+    PyGIONotify *notify;
+    GFileCreateFlags flags = G_FILE_CREATE_NONE;
+    PyObject *py_flags = NULL;
+    gsize length;
+    gboolean make_backup = FALSE;
+    char *contents;
+    char *etag = NULL;
+
+    notify = pygio_notify_new();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "s#O|zbOOO:File.replace_contents_async",
+                                      kwlist,
+                                      &contents,
+                                      &length,
+                                      &notify->callback,
+                                      &etag,
+                                      &make_backup,
+                                      &py_flags,
+                                      &pycancellable,
+                                      &notify->data))
+        goto error;
+
+    if (!pygio_notify_callback_is_valid(notify))
+        goto error;
+
+    if (py_flags && pyg_flags_get_value(G_TYPE_FILE_CREATE_FLAGS,
+                                        py_flags, (gpointer)&flags))
+        goto error;
+
+    if (!pygio_check_cancellable(pycancellable, &cancellable))
+        goto error;
+
+    pygio_notify_reference_callback(notify);
+    pygio_notify_copy_buffer(notify, contents, length);
+
+    g_file_replace_contents_async(G_FILE(self->obj),
+                                  notify->buffer,
+                                  notify->buffer_size,
+                                  etag,
+                                  make_backup,
+                                  flags,
+                                  cancellable,
+                                  (GAsyncReadyCallback)async_result_callback_marshal,
+                                  notify);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+
+ error:
+    pygio_notify_free(notify);
+    return NULL;
+}
+%%
+override-slot GFile.tp_richcompare
+static PyObject *
+_wrap_g_file_tp_richcompare(PyGObject *self, PyGObject *other, int op)
+{
+    PyObject *result;
+
+    if (PyObject_TypeCheck(self, &PyGFile_Type)
+        && PyObject_TypeCheck(other, &PyGFile_Type)) {
+        GFile *file1 = G_FILE(self->obj);
+        GFile *file2 = G_FILE(other->obj);
+
+        switch (op) {
+        case Py_EQ:
+            result = (g_file_equal(file1, file2)
+                      ? Py_True : Py_False);
+            break;
+        case Py_NE:
+            result = (!g_file_equal(file1, file2)
+                      ? Py_True : Py_False);
+            break;
+        default:
+            result = Py_NotImplemented;
+        }
+    }
+    else
+        result = Py_NotImplemented;
+
+    Py_INCREF(result);
+    return result;
+}
+%%
+override-slot GFile.tp_hash
+static long
+_wrap_g_file_tp_hash(PyGObject *self)
+{
+    return g_file_hash(G_FILE(self->obj));
+}
+%%
+override-slot GFile.tp_repr
+static PyObject *
+_wrap_g_file_tp_repr(PyGObject *self)
+{
+    char *uri = g_file_get_uri(G_FILE(self->obj));
+    gchar *representation;
+    PyObject *result;
+
+    if (uri) {
+	representation = g_strdup_printf("<%s at %p: %s>", self->ob_type->tp_name, self, uri);
+	g_free(uri);
+    }
+    else
+	representation = g_strdup_printf("<%s at %p: UNKNOWN URI>", self->ob_type->tp_name, self);
+
+    result = PyString_FromString(representation);
+    g_free(representation);
+    return result;
+}
+
+/* GFile.eject_mountable */
+/* GFile.find_enclosing_mount_async */
+/* GFile.set_attributes_async */
+/* GFile.set_display_name_async */
+/* GFile.load_partial_contents_async: No ArgType for GFileReadMoreCallback */
+/* GFile.move: No ArgType for GFileProgressCallback */
+/* GFile.set_attributes_finish: No ArgType for GFileInfo** */
+/* GFile.load_partial_contents_finish: No ArgType for char** */

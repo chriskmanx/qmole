@@ -1,0 +1,1608 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 1998-2003  James Henstridge
+ *
+ *   gdk.override: overrides for the gtk.gdk module.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+headers
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#define NO_IMPORT_PYGOBJECT
+#include "pygobject.h"
+#include <glib.h>
+#include <gdk/gdk.h>
+#include <gtk/gtk.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
+#include "pygtk-private.h"
+
+#if defined(GDK_WINDOWING_X11)
+#include <gdk/gdkx.h>
+#elif defined(GDK_WINDOWING_WIN32)
+#include <gdk/gdkwin32.h>
+#elif defined(GDK_WINDOWING_QUARTZ)
+#include <gdk/gdkquartz.h>
+#endif
+
+/* make GDK_DISPLAY() the case macro */
+#undef GDK_DISPLAY
+#define GDK_DISPLAY(object) (GDK_DISPLAY_OBJECT(object))
+
+#ifdef HAVE_NUMPY
+#  include <numpy/arrayobject.h>
+static int have_numpy(void);
+#endif
+
+extern PyTypeObject PyGtkWidget_Type;
+
+#ifdef HAVE_PYCAIRO
+# include <pycairo.h>
+extern Pycairo_CAPI_t *Pycairo_CAPI;
+extern PyTypeObject PyGdkCairoContext_Type;
+#endif
+
+#ifndef GDK_TYPE_REGION
+GType
+pygdk_region_get_type (void)
+{
+  static GType our_type = 0;
+  
+  if (our_type == 0)
+    our_type = g_boxed_type_register_static ("GdkRegion",
+					     (GBoxedCopyFunc)gdk_region_copy,
+					     (GBoxedFreeFunc)gdk_region_destroy);
+  return our_type;
+}
+#endif
+
+#ifndef GDK_TYPE_PIXBUF_SIMPLE_ANIM_ITER
+GType gtk_print_capabilites_get_type (void) G_GNUC_CONST;
+#define GDK_TYPE_PIXBUF_SIMPLE_ANIM_ITER (gdk_pixbuf_simple_anim_iter_get_type())
+#endif
+
+%%
+include
+  gdkcairo.override
+  gdkcolor.override
+  gdkdraw.override
+  gdkevent.override
+  gdkgc.override
+  gdkpixbuf.override
+  gdkrectangle.override
+  gdkwindow.override
+%%
+modulename gtk.gdk
+%%
+import gobject.GObject as PyGObject_Type
+import pango.Context as PyPangoContext_Type
+import pango.Font as PyPangoFont_Type
+import pango.Layout as PyPangoLayout_Type
+import pango.Renderer as PyPangoRenderer_Type
+import gio.AppLaunchContext as PyGAppLaunchContext_Type for GAppLaunchContext
+import gio.Icon as PyGIcon_Type for GIcon
+import gio.InputStream as PyGInputStream_Type
+import gio.Cancellable as PyGCancellable_Type
+%%
+ignore
+  gdk_window_set_debug_updates
+  gdk_region_destroy
+  gdk_atom_intern_static_string
+  gdk_pixbuf_from_pixdata
+%%
+ignore-glob
+  *_get_type
+  _*
+  *_ref
+  *_unref
+  gdk_spawn_*
+  *_libgtk_only
+  gdk_pixdata_*
+%%
+ignore-type
+  GdkPixmapObject
+  GdkWindowObject
+%%
+override gdk_threads_init noargs
+static PyObject *
+_wrap_gdk_threads_init(PyObject *self)
+{
+    if (pyg_enable_threads())
+        return NULL;
+    gdk_threads_init();
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_threads_enter noargs
+static PyObject *
+_wrap_gdk_threads_enter(PyObject *self)
+{
+    /* must allow threads while acquiring lock, or no other python
+     * code will execute while we wait! */
+    pyg_begin_allow_threads;
+    gdk_threads_enter();
+    pyg_end_allow_threads;
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_fontset_load kwargs
+static PyObject *
+_wrap_gdk_fontset_load(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "fontset_name", NULL };
+    char *fontset_name;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s:fontset_load", kwlist,
+                                     &fontset_name))
+        return NULL;
+
+    /* pyg_boxed_new handles NULL checking */
+    return pyg_boxed_new(GDK_TYPE_FONT, gdk_fontset_load(fontset_name),
+                         FALSE, TRUE);
+}
+%%
+override gdk_text_extents kwargs
+static PyObject *
+_wrap_gdk_text_extents(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "text", NULL };
+    gchar *text;
+    Py_ssize_t length;
+    gint lbearing, rbearing, width, ascent, descent;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#:GdkFont.extents",
+                                     kwlist, &text, &length))
+        return NULL;
+    gdk_text_extents(pyg_boxed_get(self, GdkFont), text, length,
+                     &lbearing, &rbearing, &width, &ascent, &descent);
+    return Py_BuildValue("(iiiii)", lbearing, rbearing, width,
+                         ascent, descent);
+}
+%%
+override gdk_pixmap_create_from_xpm kwargs
+static PyObject *
+_wrap_gdk_pixmap_create_from_xpm(PyObject *self, PyObject *args,
+                                 PyObject *kwargs)
+{
+    static char *kwlist[] = { "window", "transparent_color", "filename", NULL};
+    PyGObject *window;
+    PyObject *py_trans_color, *ret;
+    GdkColor *trans_color = NULL;
+    gchar *filename;
+    GdkPixmap *pixmap;
+    GdkBitmap *mask;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!Os:pixmap_create_from_xpm", kwlist,
+                                     &PyGdkDrawable_Type, &window,
+                                     &py_trans_color, &filename))
+        return NULL;
+    if (pyg_boxed_check(py_trans_color, GDK_TYPE_COLOR))
+        trans_color = pyg_boxed_get(py_trans_color, GdkColor);
+    else if (py_trans_color != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "transparent_color must be a colour or None");
+        return NULL;
+    }
+    pixmap = gdk_pixmap_create_from_xpm(GDK_DRAWABLE(window->obj), &mask,
+                                        trans_color, filename);
+    if (pixmap == NULL) {
+        PyErr_SetString(PyExc_IOError, "can't load pixmap");
+        return NULL;
+    }
+    ret = Py_BuildValue("(NN)",
+                        pygobject_new((GObject *)pixmap),
+                        pygobject_new((GObject *)mask));
+    g_object_unref(pixmap);
+    g_object_unref(mask);
+    return ret;
+}
+%%
+override gdk_pixmap_colormap_create_from_xpm kwargs
+static PyObject *
+_wrap_gdk_pixmap_colormap_create_from_xpm(PyObject *self, PyObject *args,
+                                          PyObject *kwargs)
+{
+    static char *kwlist[] = { "window", "colormap", "transparent_color",
+                              "filename", NULL };
+    PyObject *py_window, *py_colormap, *py_trans_color, *ret;
+    GdkDrawable *window = NULL;
+    GdkColormap *colormap = NULL;
+    GdkColor *trans_color = NULL;
+    gchar *filename;
+    GdkPixmap *pixmap;
+    GdkBitmap *mask;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "OOOs:pixmap_colormap_create_from_xpm",
+                                     kwlist, &py_window, &py_colormap,
+                                     &py_trans_color, &filename))
+        return NULL;
+    if (pygobject_check(py_window, &PyGdkDrawable_Type))
+        window = GDK_DRAWABLE(pygobject_get(py_window));
+    else if (py_window != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "window must be a GdkDrawable or None");
+        return NULL;
+    }
+    if (pygobject_check(py_colormap, &PyGdkColormap_Type))
+        colormap = GDK_COLORMAP(pygobject_get(py_colormap));
+    else if (py_colormap != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "colormap must be a GdkColormap or None");
+        return NULL;
+    }
+    if (pyg_boxed_check(py_trans_color, GDK_TYPE_COLOR))
+        trans_color = pyg_boxed_get(py_trans_color, GdkColor);
+    else if (py_trans_color != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "transparent_color must be a colour or None");
+        return NULL;
+    }
+    pixmap = gdk_pixmap_colormap_create_from_xpm(window, colormap, &mask,
+                                                 trans_color, filename);
+    if (pixmap == NULL) {
+        PyErr_SetString(PyExc_IOError, "can't load pixmap");
+        return NULL;
+    }
+    ret = Py_BuildValue("(NN)",
+                        pygobject_new((GObject *)pixmap),
+                        pygobject_new((GObject *)mask));
+    g_object_unref(pixmap);
+    g_object_unref(mask);
+    return ret;
+}
+%%
+override gdk_pixmap_create_from_xpm_d kwargs
+static PyObject *
+_wrap_gdk_pixmap_create_from_xpm_d(PyObject *self, PyObject *args,
+                                   PyObject *kwargs)
+{
+    static char *kwlist[] = { "window", "transparent_color", "data", NULL };
+    PyGObject *window;
+    PyObject *py_trans_color, *py_data, *ret;
+    GdkColor *trans_color = NULL;
+    gchar **data;
+    int len, i;
+    GdkPixmap *pixmap;
+    GdkBitmap *mask;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O!OO!:pixmap_create_from_xpm_d", kwlist,
+                                     &PyGdkDrawable_Type, &window,
+                                     &py_trans_color, &PyList_Type, &py_data))
+        return NULL;
+    if (pyg_boxed_check(py_trans_color, GDK_TYPE_COLOR))
+        trans_color = pyg_boxed_get(py_trans_color, GdkColor);
+    else if (py_trans_color != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "transparent_color must be a colour or None");
+        return NULL;
+    }
+    len = PyList_Size(py_data);
+    data = g_new(gchar *, len);
+    for (i = 0; i < len; i ++) {
+        PyObject *item = PyList_GetItem(py_data, i);
+        if (!PyString_Check(item)) {
+            PyErr_SetString(PyExc_TypeError, "data items must be strings");
+            g_free(data);
+            return NULL;
+        }
+        data[i] = PyString_AsString(item);
+    }
+    pixmap = gdk_pixmap_create_from_xpm_d(GDK_DRAWABLE(window->obj), &mask,
+                                          trans_color, data);
+    g_free(data);
+    if (pixmap == NULL) {
+        PyErr_SetString(PyExc_IOError, "can't load pixmap");
+        return NULL;
+    }
+    ret = Py_BuildValue("(NN)",
+                        pygobject_new((GObject *)pixmap),
+                        pygobject_new((GObject *)mask));
+    g_object_unref(pixmap);
+    g_object_unref(mask);
+    return ret;
+}
+%%
+override gdk_pixmap_colormap_create_from_xpm_d kwargs
+static PyObject *
+_wrap_gdk_pixmap_colormap_create_from_xpm_d(PyObject *self, PyObject *args,
+                                            PyObject *kwargs)
+{
+    static char *kwlist[] = { "window", "colormap", "transparent_color",
+                              "data", NULL };
+    PyObject *py_window, *py_colormap, *py_trans_color, *py_data, *ret;
+    GdkDrawable *window = NULL;
+    GdkColormap *colormap = NULL;
+    GdkColor *trans_color = NULL;
+    gchar **data;
+    int len, i;
+    GdkPixmap *pixmap;
+    GdkBitmap *mask;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "OOOO!:pixmap_colormap_create_from_xpm_d",
+                                     kwlist, &py_window, &py_colormap,
+                                     &py_trans_color,
+                                     &PyList_Type, &py_data))
+        return NULL;
+    if (pygobject_check(py_window, &PyGdkDrawable_Type))
+        window = GDK_DRAWABLE(pygobject_get(py_window));
+    else if (py_window != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "window must be a GdkDrawable or None");
+        return NULL;
+    }
+    if (pygobject_check(py_colormap, &PyGdkColormap_Type))
+        colormap = GDK_COLORMAP(pygobject_get(py_colormap));
+    else if (py_colormap != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "colormap must be a GdkColormap or None");
+        return NULL;
+    }
+    if (pyg_boxed_check(py_trans_color, GDK_TYPE_COLOR))
+        trans_color = pyg_boxed_get(py_trans_color, GdkColor);
+    else if (py_trans_color != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "transparent_color must be a colour or None");
+        return NULL;
+    }
+    len = PyList_Size(py_data);
+    data = g_new(gchar *, len);
+    for (i = 0; i < len; i ++) {
+        PyObject *item = PyList_GetItem(py_data, i);
+        if (!PyString_Check(item)) {
+            PyErr_SetString(PyExc_TypeError, "data items must be strings");
+            g_free(data);
+            return NULL;
+        }
+        data[i] = PyString_AsString(item);
+    }
+    pixmap = gdk_pixmap_colormap_create_from_xpm_d(window, colormap, &mask,
+                                                   trans_color, data);
+    g_free(data);
+    if (pixmap == NULL) {
+        PyErr_SetString(PyExc_IOError, "can't load pixmap");
+        return NULL;
+    }
+    ret = Py_BuildValue("(NN)",
+                        pygobject_new((GObject *)pixmap),
+                        pygobject_new((GObject *)mask));
+    g_object_unref(pixmap);
+    g_object_unref(mask);
+    return ret;
+}
+%%
+ignore gdk_cursor_new_from_pixmap
+%%
+override gdk_cursor_new kwargs
+static int
+_wrap_gdk_cursor_new(PyGBoxed *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist1[] = { "cursor_type", NULL };
+    static char *kwlist2[] = { "display", "cursor_type", NULL };
+    static char *kwlist3[] = { "display", "pixbuf", "x", "y", NULL };
+    static char *kwlist4[] = { "source", "mask", "fg", "bg", "x", "y", NULL };
+    PyObject *py_cursor_type;
+    PyGObject *py_display;
+    PyGObject *source, *mask, *pixbuf;
+    PyObject *fg, *bg;
+    gint x, y;
+
+    self->gtype = GDK_TYPE_CURSOR;
+    self->free_on_dealloc = FALSE;
+    self->boxed = NULL;
+
+    if (PyArg_ParseTupleAndKeywords(args, kwargs, "O:GdkCursor.__init__",
+				     kwlist1, &py_cursor_type)) {
+	GdkCursorType cursor_type;
+
+        if (pyg_enum_get_value(GDK_TYPE_CURSOR_TYPE, py_cursor_type,
+                               (gint *)&cursor_type))
+            return -1;
+        self->boxed = gdk_cursor_new(cursor_type);
+	goto done;
+    }
+
+    PyErr_Clear();
+
+    if (PyArg_ParseTupleAndKeywords(args, kwargs, "OO:GdkCursor.__init__",
+				     kwlist2, &py_display, &py_cursor_type)) {
+	
+	GdkCursorType cursor_type;
+
+	if (!pygobject_check(py_display, &PyGdkDisplay_Type)) {
+	    PyErr_SetString(PyExc_TypeError,
+			    "display should be a GdkDisplay");
+	    return -1;
+	}
+        if (pyg_enum_get_value(GDK_TYPE_CURSOR_TYPE, py_cursor_type,
+                               (gint *)&cursor_type))
+            return -1;
+        self->boxed = gdk_cursor_new_for_display(GDK_DISPLAY(py_display->obj),
+						 cursor_type);
+	goto done;
+    }
+
+    PyErr_Clear();
+
+    if (PyArg_ParseTupleAndKeywords(args, kwargs,
+				    "OOii:GdkCursor.__init__", kwlist3,
+				    &py_display, &pixbuf, &x, &y)) {
+
+	if (!pygobject_check(py_display, &PyGdkDisplay_Type)) {
+	    PyErr_SetString(PyExc_TypeError,
+			    "display should be a GdkDisplay");
+	    return -1;
+	}
+	if (!pygobject_check(pixbuf, &PyGdkPixbuf_Type)) {
+	    PyErr_SetString(PyExc_TypeError,
+			    "pixbuf should be a GdkPixbuf");
+	    return -1;
+	}
+	self->boxed = gdk_cursor_new_from_pixbuf(GDK_DISPLAY(py_display->obj),
+						 GDK_PIXBUF(pixbuf->obj),
+						 x, y);
+	goto done;
+     }
+
+    PyErr_Clear();
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				    "OOOOii:GdkCursor.__init__", kwlist4,
+				     &source, &mask, &fg, &bg, &x, &y)) {
+	PyErr_Clear();
+	PyErr_SetString(PyExc_TypeError, "Usage:\n"
+			"  gtk.gdk.Cursor(cursor_type)\n"
+			"  gtk.gdk.Cursor(display, cursor_type)\n"
+			"  gtk.gdk.Cursor(display, pixbuf, x, y)\n"
+			"  gtk.gdk.Cursor(source, mask, fg, bg, x, y)");
+	return -1;
+    }
+
+    if (!pygobject_check(source, &PyGdkPixmap_Type)) {
+	PyErr_SetString(PyExc_TypeError, "source should be a GdkPixmap");
+	return -1;
+    }
+    if (!pygobject_check(mask, &PyGdkPixmap_Type)) {
+	PyErr_SetString(PyExc_TypeError, "mask should be a GdkPixmap");
+	return -1;
+    }
+    if (!pyg_boxed_check(fg, GDK_TYPE_COLOR)) {
+	PyErr_SetString(PyExc_TypeError, "fg should be a GdkColor");
+	return -1;
+    }
+    if (!pyg_boxed_check(bg, GDK_TYPE_COLOR)) {
+	PyErr_SetString(PyExc_TypeError, "bg should be a GdkColor");
+	return -1;
+    }
+    self->boxed = gdk_cursor_new_from_pixmap(GDK_PIXMAP(source->obj),
+					     GDK_PIXMAP(mask->obj),
+					     pyg_boxed_get(fg, GdkColor),
+					     pyg_boxed_get(bg, GdkColor),
+					     x, y);
+ done:
+    if (!self->boxed) {
+	PyErr_SetString(PyExc_RuntimeError,
+			"could not create GdkCursor object");
+	return -1;
+    }
+    self->free_on_dealloc = TRUE;
+    return 0;
+}
+%%
+override-slot GdkCursor.tp_repr
+static PyObject *
+_wrap_gdk_cursor_tp_repr(PyGObject *self)
+{
+    GdkCursor *cursor = pyg_boxed_get(self, GdkCursor);
+    GEnumValue *type = g_enum_get_value(g_type_class_peek(GDK_TYPE_CURSOR_TYPE), cursor->type);
+
+    /* We use <...> syntax because gtk.gdk.Cursor objects are generally impossible to
+     * reconstruct with eval(repr(...))  round-trip. */
+    return PyString_FromFormat("<%s at %p: %s>",
+                               self->ob_type->tp_name, self,
+                               type ? type->value_name : "UNKNOWN TYPE");
+}
+%%
+override gdk_region_get_clipbox noargs
+static PyObject *
+_wrap_gdk_region_get_clipbox(PyGObject *self)
+{
+    GdkRectangle rect = {0, 0, 0, 0};
+
+    gdk_region_get_clipbox(pyg_boxed_get(self, GdkRegion), &rect);
+
+    return pyg_boxed_new(GDK_TYPE_RECTANGLE, &rect, TRUE, TRUE);
+}
+%%
+override gdk_region_get_rectangles noargs
+static PyObject *
+_wrap_gdk_region_get_rectangles(PyGObject *self)
+{
+    GdkRectangle    *rect;
+    gint            n_rect, i;
+    PyObject        *py_rects;
+
+    gdk_region_get_rectangles(pyg_boxed_get(self, GdkRegion), &rect, &n_rect);
+
+    py_rects = PyList_New(n_rect);    
+    
+    for (i = 0; i < n_rect; i++)
+	PyList_SetItem(py_rects, i, pyg_boxed_new(GDK_TYPE_RECTANGLE,
+						   &rect[i], TRUE, TRUE));
+
+    g_free(rect);
+    return py_rects;
+}
+%%
+override-slot GdkRegion.tp_richcompare
+static PyObject *
+_wrap_pygdk_region_tp_richcompare(PyObject *self, PyObject *other, int op)
+{
+    PyObject *result;
+
+    if (PyObject_TypeCheck(self, &PyGdkRegion_Type)
+        && PyObject_TypeCheck(other, &PyGdkRegion_Type)) {
+        GdkRegion *region1 = pyg_boxed_get(self, GdkRegion);
+        GdkRegion *region2 = pyg_boxed_get(other, GdkRegion);
+
+        switch (op) {
+        case Py_EQ:
+            result = (gdk_region_equal(region1, region2)
+                      ? Py_True : Py_False);
+            break;
+        case Py_NE:
+            result = (!gdk_region_equal(region1, region2)
+                      ? Py_True : Py_False);
+            break;
+        default:
+            result = Py_NotImplemented;
+        }
+    }
+    else
+        result = Py_NotImplemented;
+
+    Py_INCREF(result);
+    return result;
+}
+%%
+override-attr GdkDevice.axes
+static PyObject *
+_wrap_gdk_device__get_axes(PyGObject *self, void *closure)
+{
+    GdkDevice *device = GDK_DEVICE(self->obj);
+    PyObject *ret;
+    gint i;
+
+    ret = PyTuple_New(device->num_axes);
+    for (i = 0; i < device->num_axes; i++)
+        PyTuple_SetItem(ret, i, Py_BuildValue("(idd)",
+                                              device->axes[i].use,
+                                              device->axes[i].min,
+                                              device->axes[i].max));
+    return ret;
+}
+%%
+override-attr GdkDevice.keys
+static PyObject *
+_wrap_gdk_device__get_keys(PyGObject *self, void *closure)
+{
+    GdkDevice *device = GDK_DEVICE(self->obj);
+    PyObject *ret;
+    gint i;
+
+    ret = PyTuple_New(device->num_keys);
+    for (i = 0; i < device->num_keys; i++)
+        PyTuple_SetItem(ret, i,
+                        Py_BuildValue("(iN)", device->keys[i].keyval,
+                                      pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE,
+                                                           device->keys[i].modifiers)));
+    return ret;
+}
+%%
+override gdk_device_get_state kwargs
+static PyObject *
+_wrap_gdk_device_get_state(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "window", NULL };
+    GdkDevice *device = GDK_DEVICE(self->obj);
+    PyGObject *window;
+    gdouble *axes;
+    GdkModifierType mask;
+    PyObject *py_axes;
+    guint i;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:GdkDevice.get_state",
+                                     kwlist, &window))
+        return NULL;
+    if (!pygobject_check(window, &PyGdkWindow_Type)) {
+        PyErr_SetString(PyExc_TypeError, "window should be a GdkWindow");
+        return NULL;
+    }
+    axes = g_new0(gdouble, device->num_axes);
+    gdk_device_get_state(device, GDK_WINDOW(window->obj), axes, &mask);
+    py_axes = PyTuple_New(device->num_axes);
+    for (i = 0; i < device->num_axes; i++)
+        PyTuple_SetItem(py_axes, i, PyFloat_FromDouble(axes[i]));
+    g_free(axes);
+    return Py_BuildValue("(NN)", py_axes,
+                         pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE, mask));
+}
+%%
+ignore gdk_device_free_history
+%%
+override gdk_device_get_history kwargs
+static PyObject *
+_wrap_gdk_device_get_history(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "window", "start", "stop", NULL };
+    GdkDevice *device = GDK_DEVICE(self->obj);
+    PyGObject *window;
+    guint start, stop;
+    GdkTimeCoord **events;
+    gint n_events;
+    PyObject *pyevents;
+    guint i;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "Oii:GdkDevice.get_history", kwlist,
+                                     &window, &start, &stop))
+        return NULL;
+    if (!pygobject_check(window, &PyGdkWindow_Type)) {
+        PyErr_SetString(PyExc_TypeError, "window should be a GdkWindow");
+        return NULL;
+    }
+    gdk_device_get_history(device, GDK_WINDOW(window->obj), start, stop,
+                           &events, &n_events);
+    pyevents = PyTuple_New(n_events);
+    for (i = 0; i < n_events; i++) {
+        PyObject *axes;
+        gint j;
+
+        axes = PyTuple_New(device->num_axes);
+        for (j = 0; j < device->num_axes; j++)
+            PyTuple_SetItem(axes, j, PyFloat_FromDouble(events[i]->axes[j]));
+        PyTuple_SetItem(pyevents, i, Py_BuildValue("(iN)", events[i]->time,
+                                                   axes));
+    }
+    gdk_device_free_history(events, n_events);
+    return pyevents;
+}
+%%
+override gdk_device_get_axis kwargs
+static PyObject *
+_wrap_gdk_device_get_axis(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "axes", "use", NULL };
+    GdkDevice *device = GDK_DEVICE(self->obj);
+    PyObject *py_axes;
+    gdouble *axes, value;
+    GdkAxisUse use;
+    gboolean ret;
+    gint i;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Oi:GdkDevice.get_axis",
+                                     kwlist, &py_axes, &use))
+        return NULL;
+    if (!PySequence_Check(py_axes)) {
+        PyErr_SetString(PyExc_TypeError, "axes must be a sequence");
+        return NULL;
+    }
+    if (PySequence_Length(py_axes) != device->num_axes) {
+        PyErr_SetString(PyExc_TypeError, "axes has the wrong length");
+        return NULL;
+    }
+    axes = g_new(gdouble, device->num_axes);
+    for (i = 0; i < device->num_axes; i++) {
+        PyObject *item = PySequence_GetItem(py_axes, i);
+
+        axes[i] = PyFloat_AsDouble(item);
+        Py_DECREF(item);
+        if (PyErr_Occurred()) {
+            g_free(axes);
+            return NULL;
+       }
+    }
+    ret = gdk_device_get_axis(device, axes, use, &value);
+    g_free(axes);
+    if (ret)
+        return PyFloat_FromDouble(value);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_drag_find_window kwargs
+static PyObject *
+_wrap_gdk_drag_find_window(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "drag_window", "x_root", "y_root", NULL };
+    PyGObject *drag_window;
+    gint x_root, y_root;
+    GdkWindow *dest_window;
+    GdkDragProtocol protocol;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "Oii:GdkDragContext.drag_find_window",
+                                     kwlist, &drag_window, &x_root, &y_root))
+        return NULL;
+    if (!pygobject_check(drag_window, &PyGdkWindow_Type)) {
+        PyErr_SetString(PyExc_TypeError, "drag_window must be a GdkWindow");
+        return NULL;
+    }
+    gdk_drag_find_window(GDK_DRAG_CONTEXT(self->obj),
+                         GDK_WINDOW(drag_window->obj), x_root, y_root,
+                         &dest_window, &protocol);
+    return Py_BuildValue("(Ni)", pygobject_new((GObject *)dest_window),
+                         protocol);
+}
+%%
+override gdk_drag_find_window_for_screen kwargs
+static PyObject *
+_wrap_gdk_drag_find_window_for_screen(PyGObject *self, PyObject *args,
+				      PyObject *kwargs)
+{
+    static char *kwlist[] = { "drag_window", "screen", "x_root", "y_root", NULL };
+    PyGObject *drag_window, *screen;
+    gint x_root, y_root;
+    GdkWindow *dest_window;
+    GdkDragProtocol protocol;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+			"O!O!ii:GdkDragContext.drag_find_window_for_screen",
+			kwlist, &PyGdkWindow_Type, &drag_window,
+			&PyGdkScreen_Type, &screen,
+			&x_root, &y_root))
+        return NULL;
+    gdk_drag_find_window_for_screen(GDK_DRAG_CONTEXT(self->obj),
+				    GDK_WINDOW(drag_window->obj),
+				    GDK_SCREEN(screen->obj),
+				    x_root, y_root,
+				    &dest_window, &protocol);
+    return Py_BuildValue("(Ni)", pygobject_new((GObject *)dest_window),
+                         protocol);
+}
+%%
+override-attr GdkDragContext.targets
+static PyObject *
+_wrap_gdk_drag_context__get_targets(PyGObject *self, void *closure)
+{
+    PyObject *atom, *ret = PyList_New(0);
+    GList *tmp;
+    if (ret == NULL)
+        return NULL;
+    for (tmp = GDK_DRAG_CONTEXT(self->obj)->targets; tmp; tmp = tmp->next) {
+        gchar *name;
+
+        name = gdk_atom_name(GDK_POINTER_TO_ATOM(tmp->data));
+        if ((atom = PyString_FromString(name)) == NULL) {
+            g_free(name);
+            Py_DECREF(ret);
+            return NULL;
+        }
+        PyList_Append(ret, atom);
+        g_free(name);
+        Py_DECREF(atom);
+    }
+    return ret;
+}
+%%
+override gdk_drawable_get_size noargs
+static PyObject *
+_wrap_gdk_drawable_get_size(PyGObject *self)
+{
+    gint width;
+    gint height;
+
+    gdk_drawable_get_size(GDK_DRAWABLE(self->obj), &width, &height);
+    return Py_BuildValue("(ii)", width, height);
+}
+%%
+override gdk_drag_begin kwargs
+static PyObject *
+_wrap_gdk_drag_begin(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "targets", NULL };
+    PyObject *py_targets;
+    GList *targets = NULL;
+    guint i, len;
+    GdkDragContext *context;
+    PyObject *py_context;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O:GdkWindow.drag_begin",
+                                     kwlist, &py_targets))
+        return NULL;
+    if (!PySequence_Check(py_targets)) {
+        PyErr_SetString(PyExc_TypeError, "targets must be a list of ints");
+        return NULL;
+    }
+    len = PySequence_Length(py_targets);
+    for (i = 0; i < len; i++) {
+        PyObject *item = PySequence_GetItem(py_targets, i);
+
+        if (PyInt_Check(item)) {
+            targets = g_list_append(targets,
+                                    GUINT_TO_POINTER(PyInt_AsLong(item)));
+            Py_DECREF(item);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "targets must be a list of ints");
+            Py_DECREF(item);
+            g_list_free(targets);
+            return NULL;
+        }
+    }
+    context = gdk_drag_begin(GDK_WINDOW(self->obj), targets);
+    g_list_free(targets);
+    py_context = pygobject_new((GObject *)context);
+    gdk_drag_context_unref(context);
+    return py_context;
+}
+%%
+override gdk_devices_list noargs
+static PyObject *
+_wrap_gdk_devices_list(PyObject *self)
+{
+    GList * devlist,  *tmp;
+    PyObject *list;
+
+    devlist = gdk_devices_list();
+    list = PyList_New(0);
+    for (tmp = devlist; tmp != NULL; tmp = tmp->next) {
+        PyObject *item = pygobject_new((GObject *)tmp->data);
+        PyList_Append(list, item);
+        Py_DECREF(item);
+    }
+
+    return list;
+}
+%%
+override-attr GdkDrawable.handle
+static PyObject *
+_wrap_gdk_drawable__get_handle(PyGObject *self, void *closure)
+{
+#if defined(GDK_WINDOWING_WIN32)
+    GdkDrawable *drawable = GDK_DRAWABLE(self->obj);
+    return PyLong_FromVoidPtr(GDK_WINDOW_HWND(drawable));
+#else
+    PyErr_SetString(PyExc_AttributeError, "handle attribute not supported");
+    return NULL;
+#endif
+}
+%%
+override-attr GdkDrawable.nsview
+static PyObject *
+_wrap_gdk_drawable__get_nsview(PyGObject *self, void *closure)
+{
+#if defined(GDK_WINDOWING_QUARTZ)
+    GdkDrawable *drawable = GDK_DRAWABLE(self->obj);
+    return PyLong_FromVoidPtr(gdk_quartz_window_get_nsview(drawable));
+#else
+    PyErr_SetString(PyExc_AttributeError, "nsview attribute not supported");
+    return NULL;
+#endif
+}
+%%
+override-attr GdkDrawable.nswindow
+static PyObject *
+_wrap_gdk_drawable__get_nswindow(PyGObject *self, void *closure)
+{
+#if defined(GDK_WINDOWING_QUARTZ)
+    GdkDrawable *drawable = GDK_DRAWABLE(self->obj);
+    return PyLong_FromVoidPtr(gdk_quartz_window_get_nswindow(drawable));
+#else
+    PyErr_SetString(PyExc_AttributeError, "nsview attribute not supported");
+    return NULL;
+#endif
+}
+%%
+override-attr GdkDrawable.xid
+static PyObject *
+_wrap_gdk_drawable__get_xid(PyGObject *self, void *closure)
+{
+#if defined(GDK_WINDOWING_X11)
+    GdkDrawable *drawable = GDK_DRAWABLE(self->obj);
+    return PyLong_FromUnsignedLong(GDK_DRAWABLE_XID(drawable));
+#else
+    PyErr_SetString(PyExc_AttributeError, "xid attribute not supported");
+    return NULL;
+#endif
+}
+%%
+override gdk_list_visuals noargs
+static PyObject *
+_wrap_gdk_list_visuals(PyGObject *self)
+{
+    GList *visl;
+    guint nvisl;
+    int i;
+    PyObject *list;
+
+    visl = gdk_list_visuals();
+    nvisl = g_list_length(visl);
+
+    if ((list = PyList_New(nvisl)) == NULL)
+	return NULL;
+
+    for (i = 0; i < nvisl; i++) {
+	PyObject *item;
+
+	item = pygobject_new((GObject *)g_list_nth_data(visl, i));
+	PyList_SetItem(list, i, item);
+    }
+
+    g_list_free(visl);
+
+    return list;
+}
+%%
+override gdk_display_list_devices noargs
+static PyObject *
+_wrap_gdk_display_list_devices(PyGObject *self)
+{
+    GList * devlist,  *tmp;
+    PyObject *list;
+
+    devlist = gdk_display_list_devices(GDK_DISPLAY_OBJECT(self->obj));
+    list = PyList_New(0);
+    for (tmp = devlist; tmp != NULL; tmp = tmp->next) {
+        PyObject *item = pygobject_new((GObject *)tmp->data);
+        PyList_Append(list, item);
+        Py_DECREF(item);
+    }
+
+    return list;
+}
+%%
+override gdk_display_get_pointer noargs
+static PyObject *
+_wrap_gdk_display_get_pointer(PyGObject *self)
+{
+    GdkScreen *screen = NULL;
+    gint x, y;
+    GdkModifierType mask;
+
+    gdk_display_get_pointer(GDK_DISPLAY_OBJECT(self->obj), &screen, &x, &y, &mask);
+    return Py_BuildValue("(NiiN)", pygobject_new((GObject *)screen),
+			 x, y,
+                         pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE, mask));
+}
+%%
+override gdk_display_get_window_at_pointer noargs
+static PyObject *
+_wrap_gdk_display_get_window_at_pointer(PyGObject *self)
+{
+    GdkWindow *window;
+    gint win_x, win_y;
+
+    window = gdk_display_get_window_at_pointer(GDK_DISPLAY_OBJECT(self->obj),
+					       &win_x, &win_y);
+    if (window)
+	return Py_BuildValue("(Nii)", pygobject_new((GObject *)window),
+			     win_x, win_y);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_display_manager_list_displays noargs
+static PyObject *
+_wrap_gdk_display_manager_list_displays(PyGObject *self)
+{
+    GSList *list, *tmp;
+    PyObject *py_list;
+
+    list = gdk_display_manager_list_displays(GDK_DISPLAY_MANAGER(self->obj));
+    py_list = PyList_New(0);
+    for (tmp = list; tmp != NULL; tmp = tmp->next) {
+        PyObject *item = pygobject_new((GObject *)tmp->data);
+        PyList_Append(py_list, item);
+        Py_DECREF(item);
+    }
+    g_slist_free(list);
+
+    return py_list;
+}
+%%
+override gdk_screen_new noargs
+static int
+_wrap_gdk_screen_new (PyGObject *self)
+{
+    self->obj = (GObject *)gdk_screen_get_default();
+    if (!self->obj) {
+	PyErr_SetString(PyExc_RuntimeError,
+			"could not get default display");
+	return -1;
+    }
+
+    g_object_ref(self->obj);
+
+    pygobject_register_wrapper((PyObject *)self);
+    return 0;
+}
+%%
+override gdk_screen_list_visuals noargs
+static PyObject *
+_wrap_gdk_screen_list_visuals(PyGObject *self)
+{
+    GList *visl;
+    guint nvisl;
+    int i;
+    PyObject *list;
+
+    visl = gdk_screen_list_visuals(GDK_SCREEN(self->obj));
+    nvisl = g_list_length(visl);
+
+    if ((list = PyList_New(nvisl)) == NULL)
+	return NULL;
+
+    for (i = 0; i < nvisl; i++) {
+	PyObject *item;
+
+	item = pygobject_new((GObject *)g_list_nth_data(visl, i));
+	PyList_SetItem(list, i, item);
+    }
+
+    g_list_free(visl);
+
+    return list;
+}
+%%
+override gdk_screen_get_toplevel_windows noargs
+static PyObject *
+_wrap_gdk_screen_get_toplevel_windows(PyGObject *self)
+{
+    GList *topl;
+    guint ntopl;
+    int i;
+    PyObject *list;
+
+    topl = gdk_screen_get_toplevel_windows(GDK_SCREEN(self->obj));
+    ntopl = g_list_length(topl);
+
+    if ((list = PyList_New(ntopl)) == NULL)
+	return NULL;
+
+    for (i = 0; i < ntopl; i++) {
+	PyObject *item;
+
+	item = pygobject_new((GObject *)g_list_nth_data(topl, i));
+	PyList_SetItem(list, i, item);
+    }
+
+    g_list_free(topl);
+
+    return list;
+}
+%%
+override gdk_screen_get_monitor_geometry kwargs
+static PyObject *
+_wrap_gdk_screen_get_monitor_geometry(PyGObject *self, PyObject *args,
+				      PyObject *kwargs)
+{
+    static char *kwlist[] = { "monitor_num", NULL };
+    int monitor_num;
+    GdkRectangle dest = { 0, 0, 0, 0 };
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "i:GdkScreen.get_monitor_geometry",
+				     kwlist, &monitor_num))
+        return NULL;
+
+    gdk_screen_get_monitor_geometry(GDK_SCREEN(self->obj), monitor_num, &dest);
+
+    return pyg_boxed_new(GDK_TYPE_RECTANGLE, &dest, TRUE, TRUE);
+}
+%%
+override gdk_screen_get_setting kwargs
+static PyObject *
+_wrap_gdk_screen_get_setting(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "name", NULL };
+    char *name;
+    GValue value = { 0, };
+    PyObject *ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s:GdkScreen.get_setting",
+				     kwlist, &name))
+	return NULL;
+
+    /* this is a bit of a hack.  We don't know what type of setting it is */
+    g_value_init(&value, GDK_TYPE_COLOR);
+    if (gdk_screen_get_setting(GDK_SCREEN(self->obj), name, &value))
+	goto got_setting;
+    g_value_unset(&value);
+    g_value_init(&value, G_TYPE_INT);
+    if (gdk_screen_get_setting(GDK_SCREEN(self->obj), name, &value))
+	goto got_setting;
+    g_value_unset(&value);
+    g_value_init(&value, G_TYPE_STRING);
+    if (gdk_screen_get_setting(GDK_SCREEN(self->obj), name, &value))
+	goto got_setting;
+    g_value_unset(&value);
+    /* setting not found */
+    PyErr_SetString(PyExc_ValueError, "could not find setting");
+    return NULL;
+
+ got_setting:
+    ret = pyg_value_as_pyobject(&value, TRUE);
+    g_value_unset(&value);
+    return ret;
+}
+%%
+override gdk_atom_intern kwargs
+static PyObject *
+_wrap_gdk_atom_intern(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "atom_name", "only_if_exists", NULL };
+    char *atom_name;
+    int only_if_exists = FALSE;
+    GdkAtom ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i:atom_intern",
+				     kwlist, &atom_name, &only_if_exists))
+        return NULL;
+    ret = gdk_atom_intern(atom_name, only_if_exists);
+    if (ret == GDK_NONE) {
+	Py_INCREF(Py_None);
+	return Py_None;
+    }
+    return PyGdkAtom_New(ret);
+}
+%%
+override gdk_display_get_maximal_cursor_size noargs
+static PyObject *
+_wrap_gdk_display_get_maximal_cursor_size(PyGObject *self)
+{
+    guint width, height;
+
+    gdk_display_get_maximal_cursor_size(GDK_DISPLAY(self->obj),
+					&width, &height);
+
+    return Py_BuildValue("(ii)", width, height);
+}
+%%
+override gdk_keyval_convert_case kwargs
+static PyObject *
+_wrap_gdk_keyval_convert_case(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "symbol", NULL };
+    guint symbol, upper, lower;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i:keyval_convert_case",
+				     kwlist, &symbol))
+	return NULL;
+
+    gdk_keyval_convert_case(symbol, &lower, &upper);
+
+    return Py_BuildValue("(ii)", lower, upper);
+}
+%%
+override gdk_keymap_get_entries_for_keyval kwargs
+static PyObject *
+_wrap_gdk_keymap_get_entries_for_keyval(PyGObject *self, PyObject *args,
+					PyObject *kwargs)
+{
+    static char *kwlist[] = { "keyval", NULL };
+    guint keyval;
+    GdkKeymapKey *keys;
+    gint n_keys;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "i:gtk.gdk.Keymap.get_entries_for_keyval",
+				     kwlist, &keyval))
+	return NULL;
+
+    if (gdk_keymap_get_entries_for_keyval(GDK_KEYMAP(self->obj), keyval,
+					  &keys, &n_keys)) {
+	int i;
+	PyObject * list = PyTuple_New(n_keys);
+
+	for (i = 0; i < n_keys; i++) {
+	    PyTuple_SetItem(list, i,
+			    Py_BuildValue("(iii)", keys[i].keycode,
+					  keys[i].group, keys[i].level));
+	}
+	g_free(keys);
+
+	return list;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_keymap_get_entries_for_keycode kwargs
+static PyObject *
+_wrap_gdk_keymap_get_entries_for_keycode(PyGObject *self, PyObject *args,
+					 PyObject *kwargs)
+{
+    static char *kwlist[] = { "hardware_keycode", NULL };
+    guint keycode;
+    GdkKeymapKey *keys;
+    guint *keyvals;
+    gint n_keys;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "i:gtk.gdk.Keymap.get_entries_for_keycode",
+				     kwlist, &keycode))
+	return NULL;
+
+    if (gdk_keymap_get_entries_for_keycode(GDK_KEYMAP(self->obj), keycode,
+					  &keys, &keyvals, &n_keys)) {
+	int i;
+	PyObject * list = PyTuple_New(n_keys);
+
+	for (i = 0; i < n_keys; i++) {
+	    PyTuple_SetItem(list, i,
+			    Py_BuildValue("(iiii)", keyvals[i],
+					  keys[i].keycode,
+					  keys[i].group, keys[i].level));
+	}
+	g_free(keys);
+
+	return list;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_keymap_lookup_key kwargs
+static PyObject *
+_wrap_gdk_keymap_lookup_key(PyGObject *self, PyObject *args,
+			    PyObject *kwargs)
+{
+    static char *kwlist[] = { "keycode", "group", "level", NULL };
+    GdkKeymapKey key;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "iii:gtk.gdk.Keymap.lookup_key",
+				     kwlist, &key.keycode, &key.group,
+				     &key.level))
+	return NULL;
+
+    return PyInt_FromLong(gdk_keymap_lookup_key(GDK_KEYMAP(self->obj), &key));
+}
+%%
+override gdk_keymap_translate_keyboard_state kwargs
+static PyObject *
+_wrap_gdk_keymap_translate_keyboard_state(PyGObject *self, PyObject *args,
+					  PyObject *kwargs)
+{
+    static char *kwlist[] = { "keycode", "state", "group", NULL };
+    guint keycode, keyval;
+    gint group, effective_group, level;
+    GdkModifierType state, modifiers;
+    PyObject *py_state;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "iOi:gtk.gdk.Keymap.translate_keyboard_state",
+				     kwlist, &keycode, &py_state,
+				     &group))
+	return NULL;
+
+    if (pyg_flags_get_value(GDK_TYPE_MODIFIER_TYPE, py_state,
+			    (gint *)&state))
+        return NULL;
+
+    if (gdk_keymap_translate_keyboard_state(GDK_KEYMAP(self->obj), keycode,
+					    state, group, &keyval,
+					    &effective_group, &level,
+					    &modifiers))
+	return Py_BuildValue("(iiiN)", keyval, effective_group, level,
+			     pyg_flags_from_gtype(GDK_TYPE_MODIFIER_TYPE,
+                                                  modifiers));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_query_depths noargs
+static PyObject *
+_wrap_gdk_query_depths(PyObject *self)
+{
+    gint count, i;
+    gint *depths;
+    PyObject *py_depths;
+
+    gdk_query_depths(&depths, &count);
+
+    py_depths = PyTuple_New(count);
+
+    for (i = 0; i < count; i++)
+	PyTuple_SetItem(py_depths, i, PyInt_FromLong(depths[i]));
+
+    return py_depths;
+}
+%%
+override gdk_query_visual_types noargs
+static PyObject *
+_wrap_gdk_query_visual_types(PyObject *self)
+{
+    gint count, i;
+    GdkVisualType *types;
+    PyObject *py_types;
+
+    gdk_query_visual_types(&types, &count);
+
+    py_types = PyTuple_New(count);
+
+    for (i = 0; i < count; i++)
+	PyTuple_SetItem(py_types, i, PyInt_FromLong(types[i]));
+
+    return py_types;
+}
+%%
+override gdk_window_at_pointer noargs
+static PyObject *
+_wrap_gdk_window_at_pointer(PyObject *self)
+{
+    GdkWindow *window;
+    gint x, y;
+
+    window = gdk_window_at_pointer(&x, &y);
+
+    if (window)
+	return Py_BuildValue("(Nii)", pygobject_new((GObject *)window), x, y);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_display_store_clipboard kwargs
+static PyObject *
+_wrap_gdk_display_store_clipboard(PyGObject *self, PyObject *args,
+                                  PyObject *kwargs)
+{
+    static char *kwlist[] = { "clipboard_window", "time_", "targets", NULL };
+    PyGObject *pyclipboard_window;
+    guint32 time_;
+    PyObject *pytargets;
+    GdkAtom *targets;
+    int tlen, i;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "O!iO:GdkDIsplay.store_clipboard", kwlist,
+				     &PyGdkWindow_Type, &pyclipboard_window,
+                                     &time_, &pytargets))
+	return NULL;
+
+    if (!pytargets || pytargets == Py_None) {
+        tlen = 0;
+        targets = NULL;
+    } else {
+        if (!PySequence_Check(pytargets)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "targets must be a sequence of target strings"
+                            "or GdkAtoms or None");
+            return NULL;
+        }
+        tlen = PySequence_Size(pytargets);
+        targets = g_new0(GdkAtom, tlen);
+        for (i = 0; i < tlen; i++) {
+            PyObject *item = PySequence_GetItem(pytargets, i);
+            targets[i] = pygdk_atom_from_pyobject(item);
+            if (PyErr_Occurred()) {
+                Py_DECREF(item);
+                g_free(targets);
+                return NULL;
+            }
+            Py_DECREF(item);
+        }
+        g_free(targets);
+    }
+    gdk_display_store_clipboard(GDK_DISPLAY(self->obj),
+                                GDK_WINDOW(pyclipboard_window->obj),
+                                time_, targets, tlen);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gdk_event_handler_set args
+static void
+pygdk_event_handler_marshal(GdkEvent *event, gpointer data)
+{
+    PyGILState_STATE state;
+    PyGtkCustomNotify *cunote = data;
+    PyObject *retobj;
+    PyObject *pyevent;
+
+    g_assert (cunote->func);
+
+    state = pyg_gil_state_ensure();
+
+    pyevent = pyg_boxed_new(GDK_TYPE_EVENT, event, TRUE, TRUE);
+    if (cunote->data)
+        retobj = PyEval_CallFunction(cunote->func, "(NO)",
+				     pyevent, cunote->data);
+    else
+        retobj = PyEval_CallFunction(cunote->func, "(N)", pyevent);
+
+    if (retobj == NULL) {
+        PyErr_Print();
+    } else
+        Py_DECREF(retobj);
+
+    pyg_gil_state_release(state);
+}
+
+static PyObject *
+_wrap_gdk_event_handler_set(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    PyObject *pyfunc, *pyarg = NULL;
+    PyGtkCustomNotify *cunote;
+
+    if (!PyArg_ParseTuple(args, "O|O:event_handler_set",
+                          &pyfunc, &pyarg))
+        return NULL;
+
+    if (pyfunc == Py_None) {
+	gdk_event_handler_set(NULL, NULL, NULL);
+    } else {
+	cunote = g_new0(PyGtkCustomNotify, 1);
+	cunote->func = pyfunc;
+	cunote->data = pyarg;
+	Py_INCREF(cunote->func);
+	Py_XINCREF(cunote->data);
+
+	gdk_event_handler_set(pygdk_event_handler_marshal,
+			      cunote,
+			      pygtk_custom_destroy_notify);
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+%%
+override gdk_bitmap_create_from_data kwargs
+static PyObject *
+_wrap_gdk_bitmap_create_from_data(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "drawable", "data", "width", "height", NULL };
+    PyGObject *py_drawable;
+    GdkDrawable *drawable = NULL;
+    gchar *data;
+    GdkBitmap *ret;
+    Py_ssize_t data_len;
+    int width, height, rowstride;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,"Os#ii:bitmap_create_from_data", kwlist, &py_drawable, &data, &data_len, &width, &height))
+        return NULL;
+    if (py_drawable && pygobject_check(py_drawable, &PyGdkDrawable_Type))
+        drawable = GDK_DRAWABLE(py_drawable->obj);
+    else if ((PyObject *)py_drawable != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "drawable should be a GdkDrawable or None");
+        return NULL;
+    }
+
+    rowstride = (width&(~7))/8 + 1;
+    if (data_len*8 < rowstride*height) {
+        PyErr_SetString(PyExc_ValueError, "data size is insufficient for the given width, height, and depth");
+        return NULL;
+    }
+    
+    ret = gdk_bitmap_create_from_data((GdkDrawable *) drawable, data, width, height);
+    
+    /* pygobject_new handles NULL checking */
+    return pygobject_new((GObject *)ret);
+}
+
+%%
+override gdk_pixmap_create_from_data kwargs
+static PyObject *
+_wrap_gdk_pixmap_create_from_data(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "drawable", "data", "width", "height", "depth", "fg", "bg", NULL };
+    Py_ssize_t data_len;
+    int width, height, depth;
+    GdkPixmap *ret;
+    PyObject *py_fg, *py_bg;
+    GdkColor *fg = NULL, *bg = NULL;
+    GdkDrawable *drawable = NULL;
+    gchar *data;
+    PyGObject *py_drawable;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,"Os#iiiOO:pixmap_create_from_data", kwlist, &py_drawable, &data, &data_len, &width, &height, &depth, &py_fg, &py_bg))
+        return NULL;
+    if (py_drawable && pygobject_check(py_drawable, &PyGdkDrawable_Type))
+        drawable = GDK_DRAWABLE(py_drawable->obj);
+    else if ((PyObject *)py_drawable != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "drawable should be a GdkDrawable or None");
+        return NULL;
+    }
+    if (pyg_boxed_check(py_fg, GDK_TYPE_COLOR))
+        fg = pyg_boxed_get(py_fg, GdkColor);
+    else {
+        PyErr_SetString(PyExc_TypeError, "fg should be a GdkColor");
+        return NULL;
+    }
+    if (pyg_boxed_check(py_bg, GDK_TYPE_COLOR))
+        bg = pyg_boxed_get(py_bg, GdkColor);
+    else {
+        PyErr_SetString(PyExc_TypeError, "bg should be a GdkColor");
+        return NULL;
+    }
+
+    if (data_len < width*height*(depth>>3)) {
+        PyErr_SetString(PyExc_ValueError, "data size is insufficient for the given width, height, and depth");
+        return NULL;
+    }
+    
+    ret = gdk_pixmap_create_from_data((GdkDrawable *) drawable, data, width, height, depth, fg, bg);
+    
+    /* pygobject_new handles NULL checking */
+    return pygobject_new((GObject *)ret);
+}
+%%
+override gdk_screen_get_font_options noargs
+static PyObject *
+_wrap_gdk_screen_get_font_options(PyGObject *self)
+{
+    const cairo_font_options_t *options;
+
+    options = gdk_screen_get_font_options(GDK_SCREEN(self->obj));
+    if (!options) {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+    return PycairoFontOptions_FromFontOptions(cairo_font_options_copy(options));
+}
+%%
+override gdk_screen_set_font_options kwargs
+static PyObject *
+_wrap_gdk_screen_set_font_options(PyGObject *self, PyObject *args,
+                                  PyObject *kwargs)
+{
+    static char *kwlist[] = { "options", NULL };
+    PyGObject *py_options;
+    const cairo_font_options_t *options;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "O:GdkScreen.set_font_options",
+                                     kwlist, &py_options))
+        return NULL;
+    if ((PyObject*)py_options == Py_None)
+        options = NULL;
+    else if (pygobject_check(py_options, &PycairoFontOptions_Type))
+        options = ((PycairoFontOptions *)py_options)->font_options;
+    else {
+        PyErr_SetString(PyExc_TypeError,
+                        "options must be a cairo.FontOptions or None");
+        return NULL;
+    }
+
+    gdk_screen_set_font_options(GDK_SCREEN(self->obj), options);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+%%
+override gdk_display_close noargs
+static PyObject *
+_wrap_gdk_display_close(PyGObject *self)
+{
+    GdkDisplay *display = GDK_DISPLAY(self->obj);
+    if (self->obj && !display->closed) {
+        g_object_ref(self->obj);
+        gdk_display_close(display);
+    }
+    Py_INCREF(Py_None);
+    return Py_None;
+}

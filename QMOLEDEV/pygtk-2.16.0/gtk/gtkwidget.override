@@ -1,0 +1,596 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 1998-2003  James Henstridge
+ *
+ *   gtkwidget.override: overrides for the gtk.Widget object.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+%%
+ignore
+  gtk_widget_destroyed
+  gtk_widget_get
+  gtk_widget_getv
+  gtk_widget_newv
+  gtk_widget_new
+  gtk_widget_set
+  gtk_widget_setv
+  gtk_widget_style_get_valist
+  gtk_widget_class_install_style_property_parser
+%%
+override gtk_widget_translate_coordinates kwargs
+static PyObject *
+_wrap_gtk_widget_translate_coordinates(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "dest_widget", "src_x", "src_y", NULL };
+    PyObject *py_dest_widget;
+    int src_x, src_y;
+    GtkWidget *dest_widget = NULL;
+    int dest_x, dest_y;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Oii:GtkWidget.translate_coordinates",
+                                     kwlist, &py_dest_widget, &src_x, &src_y)) {
+        return NULL;
+    }
+
+    if (pygobject_check(py_dest_widget, &PyGtkWidget_Type)) {
+        dest_widget = GTK_WIDGET(pygobject_get(py_dest_widget));
+    } else if (py_dest_widget != Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "dest_widget must be a GtkWidget or None");
+        return NULL;
+    }
+
+    if (!gtk_widget_translate_coordinates(GTK_WIDGET(self->obj),
+                                          dest_widget,
+                                          src_x,
+                                          src_y,
+                                          &dest_x,
+                                          &dest_y)) {
+       return Py_BuildValue ("()");
+   }
+
+   return Py_BuildValue ("(ii)", dest_x, dest_y);
+}
+%%
+override gtk_widget_size_request noargs
+static PyObject *
+_wrap_gtk_widget_size_request(PyGObject *self)
+{
+    GtkRequisition requisition;
+
+    gtk_widget_size_request(GTK_WIDGET(self->obj), &requisition);
+    return Py_BuildValue("(ii)", requisition.width, requisition.height);
+}
+%%
+override gtk_widget_get_child_requisition noargs
+static PyObject *
+_wrap_gtk_widget_get_child_requisition(PyGObject *self)
+{
+    GtkRequisition requisition;
+
+    gtk_widget_get_child_requisition(GTK_WIDGET(self->obj), &requisition);
+    return Py_BuildValue("(ii)", requisition.width, requisition.height);
+}
+%%
+override gtk_widget_get_allocation noargs
+static PyObject *
+_wrap_gtk_widget_get_allocation(PyGObject *self)
+{
+    GtkAllocation allocation;
+
+    allocation = GTK_WIDGET(self->obj)->allocation;
+    return pyg_boxed_new(GDK_TYPE_RECTANGLE, &allocation, TRUE, TRUE);
+}
+%%
+override gtk_widget_intersect kwargs
+static PyObject *
+_wrap_gtk_widget_intersect(PyGObject *self, PyObject *args, PyObject*kwargs)
+{
+    static char *kwlist[] = { "area", NULL };
+    PyObject *py_area;
+    GdkRectangle area, intersect;
+
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O:GtkWidget.intersect",
+                                    kwlist, &py_area))
+        return NULL;
+    if (!pygdk_rectangle_from_pyobject(py_area, &area))
+        return NULL;
+    if (gtk_widget_intersect(GTK_WIDGET(self->obj), &area, &intersect))
+        return pyg_boxed_new(GDK_TYPE_RECTANGLE, &intersect, TRUE, TRUE);
+    else {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}
+%%
+override gtk_widget_get_pointer noargs
+static PyObject *
+_wrap_gtk_widget_get_pointer(PyGObject *self)
+{
+    int x, y;
+
+    gtk_widget_get_pointer(GTK_WIDGET(self->obj), &x, &y);
+    return Py_BuildValue("(ii)", x, y);
+}
+%%
+override gtk_widget_path noargs
+static PyObject *
+_wrap_gtk_widget_path(PyGObject *self)
+{
+    guint length;
+    gchar *path;
+    gchar *path_reversed;
+    PyObject *result;
+
+    gtk_widget_path(GTK_WIDGET(self->obj), &length, &path, &path_reversed);
+    result = PyString_FromString(path);
+    g_free(path);
+    g_free(path_reversed);
+
+    return result;
+}
+%%
+override gtk_widget_class_path noargs
+static PyObject *
+_wrap_gtk_widget_class_path(PyGObject *self)
+{
+    guint length;
+    gchar *path;
+    gchar *path_reversed;
+    PyObject *result;
+
+    gtk_widget_class_path(GTK_WIDGET(self->obj), &length, &path,
+                          &path_reversed);
+    result = PyString_FromString(path);
+    g_free(path);
+    g_free(path_reversed);
+
+    return result;
+}
+%%
+override gtk_widget_class_list_style_properties kwargs
+static PyObject *
+_wrap_gtk_widget_class_list_style_properties (PyObject *self, PyObject *args,
+					      PyObject*kwargs)
+{
+    static char *kwlist[] = { "widget", NULL };
+    GParamSpec **specs;
+    PyObject *py_itype, *list;
+    GType itype;
+    GtkWidgetClass *class;
+    guint nprops;
+    guint i;
+
+    if (!PyArg_ParseTupleAndKeywords(
+	    args, kwargs, "O:gtk.widget_class_list_style_properties", kwlist,
+			  &py_itype))
+	return NULL;
+    if ((itype = pyg_type_from_object(py_itype)) == 0)
+	return NULL;
+
+    if (!g_type_is_a(itype, GTK_TYPE_WIDGET)) {
+	PyErr_SetString(PyExc_TypeError, "type must be derived from GtkWidget");
+	return NULL;
+    }
+
+    class = g_type_class_ref(itype);
+    if (!class) {
+	PyErr_SetString(PyExc_RuntimeError,
+			"could not get a reference to type class");
+	return NULL;
+    }
+
+    specs = gtk_widget_class_list_style_properties(class, &nprops);
+    list = PyTuple_New(nprops);
+    if (list == NULL) {
+	g_free(specs);
+	g_type_class_unref(class);
+	return NULL;
+    }
+    for (i = 0; i < nprops; i++) {
+	PyTuple_SetItem(list, i, pyg_param_spec_new(specs[i]));
+    }
+    g_free(specs);
+    g_type_class_unref(class);
+
+    return list;
+}
+%%
+override gtk_widget_class_install_style_property kwargs
+static PyObject *
+_wrap_gtk_widget_class_install_style_property (PyObject *self,
+					       PyObject *args,
+					       PyObject* kwargs)
+{
+    static char *kwlist[] = { "widget", "pspec", NULL };
+    PyObject *py_itype, *property;
+    GType itype;
+    GtkWidgetClass *class;
+    GParamSpec *pspec;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "OO:widget_class_install_style_property",
+				     kwlist,
+				     &py_itype, &property))
+	return NULL;
+
+
+    if ((itype = pyg_type_from_object(py_itype)) == 0)
+	return NULL;
+
+    if (!g_type_is_a(itype, GTK_TYPE_WIDGET)) {
+	PyErr_SetString(PyExc_TypeError, "type must be derived from GtkWidget");
+	return NULL;
+    }
+
+    class = g_type_class_ref(itype);
+    if (!class) {
+	PyErr_SetString(PyExc_RuntimeError,
+			"could not get a reference to type class");
+	return NULL;
+    }
+
+    pspec = pyg_param_spec_from_object(property);
+    if(!pspec) {
+	g_type_class_unref(class);
+	return NULL;
+    }
+
+    if (gtk_widget_class_find_style_property(class, pspec->name)) {
+	PyErr_Format(PyExc_TypeError,
+		     "there is already a '%s' property installed", pspec->name);
+	g_type_class_unref(class);
+	return NULL;
+    }
+
+    gtk_widget_class_install_style_property(class, pspec);
+
+    g_type_class_unref(class);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+%%
+override gtk_widget_style_get_property kwargs
+static PyObject *
+_wrap_gtk_widget_style_get_property(PyGObject *self, PyObject *args,
+				    PyObject*kwargs)
+{
+    static char *kwlist[] = { "property_name", NULL };
+    gchar *param_name;
+    GParamSpec *pspec;
+    GValue value = { 0, };
+    PyObject *ret;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s:GtkWidget.style_get_property", kwlist,
+				     &param_name))
+	return NULL;
+    pspec = gtk_widget_class_find_style_property(GTK_WIDGET_GET_CLASS(self->obj),
+						 param_name);
+    if (!pspec) {
+	PyErr_SetString(PyExc_TypeError,
+			"the widget does not support the given style parameter");
+	return NULL;
+    }
+    if (!(pspec->flags & G_PARAM_READABLE)) {
+	PyErr_Format(PyExc_TypeError, "style property %s is not readable",
+		     param_name);
+	return NULL;
+    }
+    g_value_init(&value, G_PARAM_SPEC_VALUE_TYPE(pspec));
+    gtk_widget_style_get_property(GTK_WIDGET(self->obj), (const gchar*)param_name, &value);
+    ret = pyg_value_as_pyobject(&value, TRUE);
+    g_value_unset(&value);
+    return ret;
+}
+%%
+override gtk_widget_list_mnemonic_labels noargs
+static PyObject *
+_wrap_gtk_widget_list_mnemonic_labels(PyGObject *self)
+{
+    GList *labels;
+    PyObject *py_labels;
+    gint i, len;
+
+    labels = gtk_widget_list_mnemonic_labels(GTK_WIDGET(self->obj));
+    len = g_list_length(labels);
+
+    py_labels = PyList_New(len);
+
+    for (i = 0; i < len; i++) {
+	PyObject *obj;
+
+	obj = pygobject_new((GObject *)g_list_nth_data(labels, i));
+	PyList_SetItem(py_labels, i, obj);
+    }
+
+    g_list_free(labels);
+
+    return py_labels;
+}
+%%
+override-attr GtkWidget.window
+static int
+_wrap_gtk_widget__set_window(PyGObject *self, PyGObject *value, void *closure)
+{
+    if (!pygobject_check(value, &PyGdkWindow_Type)) {
+	PyErr_SetString(PyExc_TypeError, "must be a GdkWindow object");
+	return -1;
+    }
+
+    GTK_WIDGET(self->obj)->window = g_object_ref(GDK_WINDOW(value->obj));
+
+    return 0;
+}
+%%
+override-attr GtkWidget.allocation
+static int
+_wrap_gtk_widget__set_allocation(PyGObject *self, PyObject *value, void *closure)
+{
+    if (!pygobject_check(value, &PyGdkRectangle_Type)) {
+	PyErr_SetString(PyExc_TypeError, "must be a GdkRectangle object");
+	return -1;
+    }
+
+    pygdk_rectangle_from_pyobject(value, &GTK_WIDGET(self->obj)->allocation);
+
+    return 0;
+}
+%%
+override gtk_widget_hide_on_delete
+static PyObject *
+_wrap_gtk_widget_hide_on_delete(PyGObject *self, PyObject *args)
+{
+    /* args is just ignored, so obj.connect(signal, func) always works */
+
+    return PyBool_FromLong(gtk_widget_hide_on_delete(GTK_WIDGET(self->obj)));
+}
+%%
+override gtk_menu_get_for_attach_widget noargs
+static PyObject *
+_wrap_gtk_menu_get_for_attach_widget(PyGObject *self)
+{
+    GList *menus;
+    gint len, i;
+    PyObject *pymenus;
+
+    menus = gtk_menu_get_for_attach_widget(GTK_WIDGET(self->obj));
+    len = g_list_length(menus);
+    if ((pymenus = PyTuple_New(len)) == NULL)
+        return NULL;
+
+    for (i = 0; i < len; i++) {
+        GtkMenu *menu = GTK_MENU(g_list_nth_data(menus, i));
+        PyObject *pymenu = pygobject_new((GObject *)menu);
+        PyTuple_SET_ITEM(pymenus, i, pymenu);
+    }
+    return pymenus;
+}
+%%
+define GtkWidget.set_activate_signal kwargs classmethod
+static PyObject *
+_wrap_gtk_widget_set_activate_signal(PyObject *cls,
+				     PyObject *args,
+                                     PyObject *kwargs)
+{
+    static char *kwlist[] = { "signal_name", NULL };
+    gchar *signal_name;
+    guint signal_id;
+    GType gtype;
+    GtkWidgetClass *klass;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s:gtk.Widget.set_activate_signal",
+				     kwlist,
+				     &signal_name))
+	return NULL;
+
+     if ((gtype = pyg_type_from_object(cls)) == 0)
+         return NULL;
+     signal_id = g_signal_lookup(signal_name, gtype);
+     if (signal_id == 0) {
+         PyErr_Format(PyExc_ValueError, "class has no signal named '%s'",
+		      signal_name);
+         return NULL;
+     }
+     klass = (GtkWidgetClass *) g_type_class_ref(gtype);
+     klass->activate_signal = signal_id;
+     g_type_class_unref(klass);
+     Py_INCREF(Py_None);
+     return Py_None;
+}
+%%
+define GtkWidget.set_set_scroll_adjustments_signal kwargs classmethod
+static PyObject *
+_wrap_gtk_widget_set_set_scroll_adjustments_signal(PyObject *cls,
+						   PyObject *args,
+                                                   PyObject *kwargs)
+{
+    static char *kwlist[] = { "signal_name", NULL };
+    gchar *signal_name;
+    guint signal_id;
+    GType gtype;
+    GtkWidgetClass *klass;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s:gtk.Widget.set_set_scroll_adjustments_signal", kwlist,
+				     &signal_name))
+	return NULL;
+
+     if ((gtype = pyg_type_from_object(cls)) == 0)
+         return NULL;
+     signal_id = g_signal_lookup(signal_name, gtype);
+     if (signal_id == 0) {
+         PyErr_Format(PyExc_ValueError,
+		      "class has no signal named '%s'", signal_name);
+         return NULL;
+     }
+     klass = (GtkWidgetClass *) g_type_class_ref(gtype);
+     klass->set_scroll_adjustments_signal = signal_id;
+     g_type_class_unref(klass);
+     Py_INCREF(Py_None);
+     return Py_None;
+}
+%%
+override gtk_drag_source_set_icon_name1 kwargs
+static PyObject *
+_wrap_gtk_drag_source_set_icon_name1(PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = { "widget", "icon_name", NULL };
+    PyGObject *widget;
+    PyObject *icon_name, *ret, *nargs;
+
+    if (PyErr_Warn(PyExc_DeprecationWarning, "use gtk.Widget.drag_source_set_icon_name") < 0)
+        return NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "O!s:gtk.drag_source_set_icon_name",
+                                     kwlist, &PyGtkWidget_Type, &widget,
+                                     &icon_name))
+	return NULL;
+    nargs = Py_BuildValue("(s)", icon_name);
+    ret = _wrap_gtk_drag_source_set_icon_name(widget, nargs, NULL);
+    Py_DECREF(nargs);
+    return ret;
+}
+%%
+override gtk_widget_class_find_style_property kwargs
+static PyObject *
+_wrap_gtk_widget_class_find_style_property (PyObject *self, PyObject *args,
+                                            PyObject*kwargs)
+{
+    static char *kwlist[] = { "widget", "property_name", NULL };
+    GParamSpec *spec;
+    PyObject *py_itype, *pyspec;
+    GType itype;
+    GtkWidgetClass *class;
+    const gchar *property_name;
+
+    if (!PyArg_ParseTupleAndKeywords(
+	    args, kwargs, "Os:gtk.widget_class_find_style_property", kwlist,
+            &py_itype, &property_name))
+	return NULL;
+    if ((itype = pyg_type_from_object(py_itype)) == 0)
+	return NULL;
+
+    if (!g_type_is_a(itype, GTK_TYPE_WIDGET)) {
+	PyErr_SetString(PyExc_TypeError,
+                        "type must be derived from GtkWidget");
+	return NULL;
+    }
+
+    class = g_type_class_ref(itype);
+    if (!class) {
+	PyErr_SetString(PyExc_RuntimeError,
+			"could not get a reference to type class");
+	return NULL;
+    }
+
+    spec = gtk_widget_class_find_style_property(class, property_name);
+    if (spec) {
+        pyspec = pyg_param_spec_new(spec);
+    } else {
+        pyspec = Py_None;
+        Py_INCREF(pyspec);
+    }
+    g_type_class_unref(class);
+
+    return pyspec;
+}
+%%
+define GtkWidget.set_activate_signal kwargs classmethod
+static PyObject *
+_wrap_gtk_widget_set_activate_signal(PyObject *cls,
+                                     PyObject *args,
+                                     PyObject *kwargs)
+{
+    static char *kwlist[] = { "signal_name", NULL };
+    gchar *signal_name;
+    guint signal_id;
+    GType gtype;
+    GtkWidgetClass *klass;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "s:gtk.Widget.set_activate_signal", kwlist,
+				     &signal_name))
+	return NULL;
+
+     if ((gtype = pyg_type_from_object(cls)) == 0)
+         return NULL;
+     signal_id = g_signal_lookup(signal_name, gtype);
+     if (signal_id == 0) {
+         PyErr_Format(PyExc_ValueError,
+		      "class has no signal named '%s'", signal_name);
+         return NULL;
+     }
+     klass = (GtkWidgetClass *) g_type_class_ref(gtype);
+     klass->activate_signal = signal_id;
+     g_type_class_unref(klass);
+     Py_INCREF(Py_None);
+     return Py_None;
+}
+
+%%
+define GtkWidget.get_activate_signal noargs classmethod
+static PyObject *
+_wrap_gtk_widget_get_activate_signal(PyObject *cls,
+                                     PyObject *args,
+                                     PyObject *kwargs)
+{
+    PyObject *signame;
+    GType gtype;
+    GtkWidgetClass *klass;
+    GSignalQuery query;
+
+     if ((gtype = pyg_type_from_object(cls)) == 0)
+         return NULL;
+     klass = (GtkWidgetClass *) g_type_class_ref(gtype);
+
+     g_signal_query(klass->activate_signal, &query);
+     if (query.signal_id == 0) {
+         PyErr_SetString(PyExc_ValueError,
+                         "class has invalid signal ID");
+         signame = NULL;
+         goto out;
+     }
+     signame = PyString_FromString(query.signal_name);
+out:
+     g_type_class_unref(klass);
+     return signame;
+}
+
+%%
+override gtk_widget_list_accel_closures noargs
+static PyObject *
+_wrap_gtk_widget_list_accel_closures(PyGObject *self)
+{
+    int i;
+    GList *ret, *tmp;
+    PyObject *pyret;
+
+    ret = gtk_widget_list_accel_closures(GTK_WIDGET(self->obj));
+
+    pyret = PyList_New(g_list_length(ret));
+    for (tmp = ret, i = 0; tmp; tmp = tmp->next, i++) {
+        PyObject *item = pyg_boxed_new(G_TYPE_CLOSURE, tmp->data, TRUE, TRUE);
+        PyList_SET_ITEM(pyret, i, item);
+    }
+
+    g_list_free(ret);
+    return pyret;
+}

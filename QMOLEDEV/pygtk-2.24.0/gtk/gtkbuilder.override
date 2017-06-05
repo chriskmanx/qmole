@@ -1,0 +1,281 @@
+/* -*- Mode: C; c-basic-offset: 4 -*-
+ * pygtk- Python bindings for the GTK toolkit.
+ * Copyright (C) 2007  Gian Mario Tagliaretti
+ *
+ *   gtkbuilder.override: overrides for various builder functions.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+ * USA
+ */
+
+%%
+headers
+
+static gboolean
+pylist_to_strv (PyObject *list,
+                char   ***strvp)
+{
+    int i, len;
+    char **ret;
+
+    *strvp = NULL;
+
+    if (list == Py_None)
+        return TRUE;
+
+    if (!PySequence_Check (list))
+    {
+        PyErr_Format (PyExc_TypeError,
+		      "argument must be a list or tuple of strings");
+        return FALSE;
+    }
+
+    if ((len = PySequence_Size (list)) < 0)
+        return FALSE;
+
+    ret = g_new (char*, len + 1);
+    for (i = 0; i <= len; ++i)
+        ret[i] = NULL;
+
+    for (i = 0; i < len; ++i)
+    {
+        PyObject *item = PySequence_GetItem (list, i);
+
+        if (!item)
+        {
+            g_strfreev (ret);
+            return FALSE;
+        }
+
+        if (!PyString_Check (item))
+        {
+            Py_DECREF (item);
+            g_strfreev (ret);
+            PyErr_Format (PyExc_TypeError,
+			  "argument must be a list of strings");
+            return FALSE;
+        }
+
+        ret[i] = g_strdup (PyString_AsString (item));
+        Py_DECREF (item);
+    }
+
+    *strvp = ret;
+    return TRUE;
+}
+
+typedef struct{
+    PyObject    *obj;
+    PyObject    *data;
+    PyObject    *missing_handlers;
+    gboolean     exception_pending;
+} PyGCustomSignalNotify;
+
+%%
+override gtk_builder_connect_signals kwargs
+static void
+connect_many(GtkBuilder *builder, GObject *obj,
+	     const gchar *signal_name, const gchar *handler_name,
+	     GObject *connect_object, GConnectFlags flags, gpointer user_data)
+{
+    PyGCustomSignalNotify   *notify = user_data;
+    PyObject                *handler_dict = notify->obj;
+    PyObject                *tuple, *self;
+    GClosure                *closure = NULL;
+
+    if (notify->exception_pending)
+        return;
+
+    tuple = PyMapping_GetItemString(handler_dict, (gchar *)handler_name);
+    if (!tuple) {
+	PyErr_Clear();	
+        tuple = PyObject_GetAttrString(handler_dict, (gchar *)handler_name);
+        if (!tuple) {
+            gchar *error_message;
+            PyObject *name_obj;
+
+            PyErr_Clear();
+
+            name_obj = PyString_FromString(handler_name);
+            PyList_Append(notify->missing_handlers, name_obj);
+            Py_DECREF(name_obj);
+
+            error_message = g_strdup_printf("missing handler '%s'", handler_name);
+            if (PyErr_Warn(NULL, error_message)) {
+                /* PyErr_Warn requests us to raise the warning as exception.  That can
+                 * happen when user explicitly used warnings.filterwarnings('error'...).
+                 * So, we will not call any Python code anymore and raise the exception
+                 * from connect_signals(). */
+                notify->exception_pending = TRUE;
+            }
+
+            g_free(error_message);
+            return;
+        }
+    }
+    
+    if (PyTuple_Check(tuple)) {
+	PyObject *callback = PyTuple_GetItem(tuple, 0);
+	PyObject *extra = PySequence_GetSlice(tuple, 1, PyTuple_Size(tuple));
+	PyObject *other = NULL;
+
+	if (connect_object)
+	    other = pygobject_new((GObject *)connect_object);
+
+	closure = pyg_closure_new(callback, extra, other);
+	Py_DECREF(extra);
+    } else if (PyCallable_Check(tuple)) {
+	PyObject *other = NULL;
+
+	if (connect_object)
+	    other = pygobject_new((GObject *)connect_object);
+
+	closure = pyg_closure_new(tuple, notify->data, other);
+    } else {
+	g_warning("handler for `%s' not callable or a tuple", handler_name);
+	Py_DECREF(tuple);
+	return;
+    }
+    Py_DECREF(tuple);
+    self = pygobject_new(obj);
+    g_signal_connect_closure(obj, signal_name, closure, flags);
+    pygobject_watch_closure(self, closure);
+    Py_DECREF(self);
+}
+
+static PyObject *
+_wrap_gtk_builder_connect_signals(PyGObject *self, PyObject *args,
+                                  PyObject *kwargs)
+{
+    static char *kwlist[] = { "object", "user_data", NULL };
+    PyGCustomSignalNotify   notify;
+    PyObject                *object, *user_data = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "O|O:GtkBuilder.connect_signals", kwlist,
+				     &object, &user_data))
+	return NULL;
+
+    notify.obj = object;
+    notify.data = user_data;
+    notify.missing_handlers = PyList_New(0);
+    notify.exception_pending = FALSE;
+
+    if (!notify.missing_handlers)
+        return NULL;
+
+    gtk_builder_connect_signals_full(GTK_BUILDER(self->obj),
+                                     connect_many,
+                                     &notify);
+
+    if (notify.exception_pending) {
+        Py_DECREF(notify.missing_handlers);
+        return NULL;
+    }
+    else if (PyObject_IsTrue(notify.missing_handlers))
+        return notify.missing_handlers;
+    else {
+        Py_DECREF(notify.missing_handlers);
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+}
+
+%%
+override gtk_builder_get_objects noargs
+static PyObject *
+_wrap_gtk_builder_get_objects(PyGObject *self)
+{
+    GSList *l, *objects;
+    PyObject *pyobjects;
+
+    pyobjects = PyList_New(0);
+    objects = gtk_builder_get_objects(GTK_BUILDER(self->obj));
+    for (l = objects; l; l = l->next)
+    {
+        PyObject *item = pygobject_new((GObject *)l->data);
+        PyList_Append(pyobjects, item);
+        Py_DECREF(item);
+    }
+    g_slist_free(objects);
+
+    return pyobjects;
+}
+
+%%
+override gtk_builder_add_objects_from_file kwargs
+static PyObject *
+_wrap_gtk_builder_add_objects_from_file(PyGObject *self,
+					PyObject *args,
+					PyObject *kwargs)
+{
+    static char *kwlist[] = { "filename", "object_ids", NULL };
+    const gchar *filename;
+    PyObject *py_obj_ids;
+    char **object_ids;
+    guint ret;
+    GError *error = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "sO:GtkBuilder.add_objects_from_file",
+				     kwlist, &filename, &py_obj_ids))
+        return NULL;
+
+    if (!pylist_to_strv (py_obj_ids, &object_ids))
+        return NULL;
+
+    ret = gtk_builder_add_objects_from_file (GTK_BUILDER (self->obj),
+					     filename, object_ids, &error);
+    g_strfreev (object_ids);
+    
+    if (pyg_error_check(&error))
+        return NULL;
+    
+    return PyInt_FromLong(ret);
+}
+
+%%
+override gtk_builder_add_objects_from_string kwargs
+static PyObject *
+_wrap_gtk_builder_add_objects_from_string(PyGObject *self,
+					  PyObject *args,
+					  PyObject *kwargs)
+{
+    static char *kwlist[] = { "buffer", "object_ids", NULL };
+    const gchar *buffer;
+    gsize lenght = -1;
+    PyObject *py_obj_ids;
+    char **object_ids;
+    guint ret;
+    GError *error = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+				     "sO:GtkBuilder.add_objects_from_string",
+				     kwlist, &buffer, &py_obj_ids))
+        return NULL;
+
+    if (!pylist_to_strv (py_obj_ids, &object_ids))
+        return NULL;
+
+    ret = gtk_builder_add_objects_from_string (GTK_BUILDER (self->obj),
+					       buffer, lenght,
+					       object_ids, &error);
+    g_strfreev (object_ids);
+    
+    if (pyg_error_check(&error))
+        return NULL;
+    
+    return PyInt_FromLong(ret);
+}

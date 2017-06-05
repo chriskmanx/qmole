@@ -1,0 +1,68 @@
+#!/bin/sh
+
+PROG=ROX-Filer
+
+APP_DIR=`dirname "$0"`
+APP_DIR=`cd "$APP_DIR";pwd`; export APP_DIR
+
+DEBUGGER=""
+
+echo $APP_DIR
+
+if [ "x$MAKE" = x ]; then
+  MAKE=make export MAKE
+fi
+
+case $1 in
+	--debug) shift ;
+		if [ "$#" = 0 ] ; then
+		  DEBUGGER="gdb --args" ; DEBUG_OPTIONS="-n --g-fatal-warnings"
+		else
+		  DEBUGGER="gdb"
+		fi ;;
+	--valgrind) shift ; DEBUGGER="valgrind --num-callers=8";;
+	--massif) shift ; DEBUGGER="valgrind --tool=massif --alloc-fn=g_malloc --alloc-fn=g_realloc --alloc-fn=g_malloc0 --alloc-fn=g_try_malloc --alloc-fn=g_mem_chunk_alloc";;
+	--calltree) shift ; DEBUGGER="calltree";;
+	--leaks) shift ; DEBUGGER="valgrind --num-callers=8 --leak-check=yes";;
+	--compile)
+		shift
+		if [ ! -d "$APP_DIR/src" ] ; then
+			echo "ERROR from $0:" >&2
+			echo "Cannot compile - source code is missing!" >&2
+			exit 1
+		fi
+		echo "Compiling $APP_DIR... please wait..." >&2
+		if [ ! -x "$APP_DIR/src/configure" ]; then
+		  echo "No 'configure' script! Trying to run autoconf..."
+		  (cd "$APP_DIR/src"; autoconf)
+		fi
+		BUILDDIR="$APP_DIR/build"
+		[ ! -d "$BUILDDIR" ] && mkdir "$BUILDDIR"
+		rm -f "$BUILDDIR/config.cache"
+		rm -f "$APP_DIR/src/config.h"	# (for upgrading)
+		cd "$BUILDDIR" && "$APP_DIR/src/configure" "$@" \
+			&& $MAKE clean && $MAKE && echo Done >&2 && exit 0
+		echo Compile failed >&2
+		echo Press Return... >&2
+		read WAIT
+		exit 1
+esac
+
+BIN="$APP_DIR/$PROG"
+
+if [ -x "$BIN" ]; then
+  exec $DEBUGGER "$BIN" $DEBUG_OPTIONS "$@"
+else
+  echo "ERROR from $0:" >&2
+  echo "I cannot find an executable binary." >&2
+  echo "Trying to compile..." >&2
+  if [ -n "$DISPLAY" ]; then
+    xterm -e "$0" --compile
+  else
+    "$0" --compile
+  fi
+  if [ -x "$BIN" ]; then
+    exec "$BIN" "$@"
+  fi
+  exit 1
+fi

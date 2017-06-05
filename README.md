@@ -1,7 +1,7 @@
 # qmole
 GNU Linux Desktop System for IPhone &amp; IPad
 
-![QMole Banner](qmole.png)w
+![QMole Banner](qmole.png)
 
 [Cydia Reposity Packages Github Repository](https://github.com/chriskmanx/qmole-packages)
 

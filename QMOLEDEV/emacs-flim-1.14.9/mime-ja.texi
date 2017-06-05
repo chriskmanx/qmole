@@ -1,0 +1,1622 @@
+\input texinfo.tex
+@c Generated automatically from mime-ja.sgml by sinfo 3.7.
+@setfilename mime-ja.info
+@settitle{FLIM 1.14 MIME 機能説明書}
+@titlepage
+@title FLIM 1.14 MIME 機能説明書
+@author 守岡 知彦 <morioka@@jaist.ac.jp>
+@subtitle 1999-01-27
+@end titlepage
+@node Top, Introduction, (dir), (dir)
+@top FLIM 1.14 MIME 機能説明書
+
+@ifinfo
+
+This file documents MIME features of FLIM, a fundamental library to
+process Internet Messages for GNU Emacsen.@refill
+
+GNU Emacsen 用の Internet Message 処理のための基礎 library である FLIM 
+の MIME 機能に関して説明します。
+@end ifinfo
+
+@menu
+* Introduction::                FLIM って何？
+* How to use::                  FLIM の MIME 機能の使い方
+* Entity::                      Message と Entity
+* Content-Type::                Content-Type 欄の情報
+* Content-Disposition::         Content-Disposition 欄の情報
+* Content-Transfer-Encoding::   符号化法
+* encoded-word::                Header の network 表現
+* custom::                      一般設定
+* Appendix::                    付録
+* Concept Index::               概念索引
+* Function Index::              関数索引
+* Variable Index::              変数索引
+@end menu
+
+@node Introduction, How to use, Top, Top
+@chapter FLIM って何？
+
+FLIM は Internet Message の表現や符号化に関する基礎的な機能を提供する
+ための library です。
+
+
+@node How to use, Entity, Introduction, Top
+@chapter FLIM の MIME 機能の使い方
+
+FLIM の提供する MIME 機能を使うためには
+
+@lisp
+(require 'mime)
+@end lisp
+
+@noindent
+を評価してください。
+
+
+@node Entity, Content-Type, How to use, Top
+@chapter Message と Entity
+@cindex mime-entity
+@cindex entity
+
+RFC 2045 (@ref{RFC 2045}) によれば、「Entity という語は、message, もしく
+は、multipart entity の body 中の１つの部分の、MIME で定義された header
+field と内容を指す」となっています。ここでは、MIME で定義された header
+field 以外の全ての header と body を指す語として @strong{entity}を用いる
+ことにします。@refill
+
+RFC 2045 の定義は、MIME message が entity を節とする木構造であることを示
+しています。つまり、MIME は message を木構造に拡張した訳です。@refill
+
+FLIM は entity の情報を表現するために@strong{mime-entity} 構
+造体を用います。以下では単に mime-entity と呼ぶことにします。
+
+
+@menu
+* Entity creation::             Entity の生成
+* Entity hierarchy::            Entity 階層
+* Entity Search::               Entity の検索
+* Entity Attributes::           Entity の属性
+* Entity-header::               Entity header の情報
+* entity formatting::           Entity の文字表現
+* Entity-content::              Entity の内容
+* Entity-network-representation::  Entity のネットワーク表現
+* Entity buffer::               Entity の buffer による表現
+* mm-backend::                  Entity の表現と実現
+@end menu
+
+@node Entity creation, Entity hierarchy, Entity, Entity
+@section Entity の生成
+
+@defun mime-open-entity type location
+
+Entity を開いて、それを返します。@refill
+
+@var{type} は representation-type です。(cf. @ref{mm-backend}) @refill
+
+@var{location} は entity の位置です。指定方法は
+representation-type に依って変わります。
+@end defun
+
+
+@defun mime-parse-buffer &optional  buffer type
+
+@var{buffer} を message として構文解析し、その結果の mime-entity を 
+@var{buffer} の@code{mime-message-structure} に格納する。@refill
+
+@var{buffer} が省略された場合、現在の buffer を構文解析する。@refill
+
+@var{type} が指定された場合、その値を生成される mime-entity の表象型とし
+て用いる。省略された場合は @var{buffer} となる。(cf. @ref{mm-backend})
+@end defun
+
+
+
+@node Entity hierarchy, Entity Search, Entity creation, Entity
+@section Entity 階層
+@cindex node-id
+@cindex entity-number
+@cindex message
+@cindex root-entity
+
+MIME message は entity を単位とする木構造になっています。@refill
+
+この木において根となる節は message 全体を表す entity です。ここでは、こ
+れを @strong{root-entity} もしくは@strong{message} と呼びます。@refill
+
+root-entity 以外の entity は親を持ちます。また、entity は子供を持つかも
+知れません。この親子関係を考えることで entity の相対関係を扱うことができ
+ます。@refill
+
+一方、entity の message における位置を考えることもできます。@refill
+
+entity はこの木における節となりますが、この木には深さと同じ深さの中の
+順番に従って番号が付けることができます。即ち、
+@example
+
+                              ┌───┐
+                              │  nil │
+                              └─┬─┘
+              ┌─────────┼─────────┐
+            ┌┴┐              ┌┴┐              ┌┴┐
+            │０│              │１│              │２│
+            └┬┘              └┬┘              └┬┘
+              │        ┌────┼────┐        │
+          ┌─┴─┐┌─┴─┐┌─┴─┐┌─┴─┐┌─┴─┐
+          │ ０.０││ １.０││ １.１││ １.２││ ２.０│
+          └───┘└───┘└───┘└───┘└───┘
+@end example
+
+@noindent
+のように深さ n の節には長さ n の整数列の節番号が振れます。これ
+を @strong{entity-number} と呼びます。entity-number は S 式と
+しては @code{(1 2 3)} のような整数のリストとして表現されます。
+
+mime-entity では、これと同様の @strong{node-id} を用います。node-id はちょ
+うど entity-number を逆にしたリストで、entity-number 1.2.3 に対応する 
+node-id は @code{(3 2 1)} です。@refill
+
+前述のように、MIME message は entity を単位とした木構造になっているので、
+この根である message 全体も mime-entity で表現することができ、buffer
+local 変数 @code{mime-message-structure} に格納することにします。@refill
+
+@code{mime-message-structure} を起点に entity-number や node-id 
+で示される entity を取り出すことができます。
+
+@defvar mime-message-structure
+
+現在の buffer における message 全体の mime-entity 構造体を格納するbuffer
+local 変数。
+@end defvar
+
+
+@defun mime-entity-children entity
+
+@var{entity} に含まれる entity の list を返す。
+@end defun
+
+
+@defun mime-entity-parent entity  &optional  message
+
+@var{entity} の親の entity を返す。@refill
+
+@var{message} が指定された場合、これを根と見倣す。
+@end defun
+
+
+@defun mime-root-entity-p entity
+
+@var{entity} が根（即ち、message 全体）である場合に、非-@code{nil} を返
+す。
+@end defun
+
+
+@defun mime-entity-node-id entity
+
+@var{entity} の node-id を返す。
+@end defun
+
+
+@defun mime-entity-number entity
+
+@var{entity} の entity-number を返す。
+@end defun
+
+
+
+@node Entity Search, Entity Attributes, Entity hierarchy, Entity
+@section Entity の検索
+
+@defun mime-find-entity-from-number entity-number  &optional  message
+
+@var{message} から、@var{enity-number} の entity を返します。@refill
+
+@var{message} が指定されていない場合は、
+@code{mime-message-structrue} が使われます。
+@end defun
+
+
+@defun mime-find-entity-from-node-id entity-node-id  &optional  message
+
+@var{message} から、@var{entity-node-id} の entity を返します。@refill
+
+@var{message} が指定されていない場合は、
+@code{mime-message-structure} が使われます。
+@end defun
+
+
+@defun mime-find-entity-from-content-id cid  &optional  message
+
+@var{message} から、@var{cid} の entity を返します。@refill
+
+@var{message} が指定されていない場合は、
+@code{mime-message-structure} が使われます。
+@end defun
+
+
+
+@node Entity Attributes, Entity-header, Entity Search, Entity
+@section Entity の属性
+
+@defun mime-entity-content-type entity
+
+@var{entity} の content-type を返す。(cf. @ref{mime-content-type})
+@end defun
+
+
+@defun mime-entity-content-disposition entity
+
+@var{entity} の content-disposition を返す。
+(cf. @ref{mime-content-disposition})
+@end defun
+
+
+@defun mime-entity-filename entity
+
+@var{entity} の file 名を返す。
+@end defun
+
+
+@defun mime-entity-encoding entity  &optional  default-encoding
+
+@var{entity} の content-transfer-encoding を返す。
+(cf. @ref{Content-Transfer-Encoding}) @refill
+
+もし、@var{entity} に Content-Transfer-Encoding 欄が存在しない場合は、
+@var{default-encoding} を返す。これが指定されない場合は、@code{"7bit"} 
+を用いる。
+@end defun
+
+
+@defun mime-entity-cooked-p entity
+
+@var{entity} の内容が既にコード変換されている場合は nil で無い値
+を返す。
+@end defun
+
+
+
+@node Entity-header, entity formatting, Entity Attributes, Entity
+@section Entity header の情報
+
+@defun mime-fetch-field field-name  &optional  entity
+
+@var{entity} の header 中の @var{field-name} 欄の body を返す。@refill
+
+結果の文字列は network 表現のままである。@refill
+
+@var{entity} が省略された場合は、@code{mime-message-structure} の値を用
+いる。@refill
+
+@var{field-name} 欄が存在しない場合は @code{nil} を返す。
+@end defun
+
+
+@defun mime-read-field field-name  &optional  entity
+
+@var{entity} の header 中の @var{field-name} 欄を構文解析した結果を返す。
+@refill
+
+結果の形式は欄毎に異なる。非構造化欄の場合は文字列を返し、構造化欄の場合
+はその形式に従った list を返す。@refill
+
+結果中の文字列は Emacs の内部表現に変換される。@refill
+
+@var{entity} が省略された場合は、@code{mime-message-structure} の値を用
+いる。@refill
+
+@var{field-name} 欄が存在しない場合は nil を返す。
+@end defun
+
+
+
+@node entity formatting, Entity-content, Entity-header, Entity
+@section Entity の文字表現
+
+@defun mime-insert-header entity  &optional  invisible-fields visible-fields
+
+現在位置に @var{entity} の復号した header を挿入する。@refill
+
+@var{invisible-fields} と @var{visible-fields} は正規表現のlist で、それ
+ぞれ、表示したくない field 名と表示したい欄名を表現したものである。
+@refill
+
+@var{invisible-fields} の要素のどれかに match し、かつ、
+@var{visible-fields} の要素のどれにも match しない欄は表示されない。
+@refill
+
+encoded-word (@ref{encoded-word}) は復号される。『生の非 us-ascii 文字』
+は @code{default-mime-charset} として解釈される。
+@end defun
+
+
+@defun mime-insert-text-content entity
+
+point の前に @var{entity} を text entity として挿入します。@refill
+
+@var{entity} の内容は @ref{MIME charset} として復号化され
+ます。@var{entity} の Content-Type field に charset paramter が無
+いと、@code{default-mime-charset} が初期値として使われます。
+@end defun
+
+
+@defvar default-mime-charset
+
+適切な MIME charset (@ref{MIME charset}) が見つからなかった場合に用いら
+れるMIME charset.@refill
+
+本来は APEL の変数である。
+@end defvar
+
+
+
+@node Entity-content, Entity-network-representation, entity formatting, Entity
+@section Entity の内容
+
+@defun mime-entity-content entity
+
+@var{entity} の内容の byte 列を返す。
+@end defun
+
+
+@defun mime-insert-entity-content entity
+
+point の位置に @var{entity} の内容を挿入します。
+@end defun
+
+
+@defun mime-write-entity-content entity filename
+
+@var{entity} の内容を @var{filename} に書き込みます。
+@end defun
+
+
+
+@node Entity-network-representation, Entity buffer, Entity-content, Entity
+@section Entity のネットワーク表現
+
+@defun mime-insert-entity entity
+
+@var{entity} の header と body を point のところに挿入します。
+@end defun
+
+
+@defun mime-write-entity entity filename
+
+@var{entity} の表現を @var{filename} に書き込みます。
+@end defun
+
+
+@defun mime-write-entity-body entity filename
+
+@var{entity} の body を @var{filename} に書き込みます。
+@end defun
+
+
+
+@node Entity buffer, mm-backend, Entity-network-representation, Entity
+@section Entity の buffer による表現
+
+@defun mime-entity-buffer entity
+
+@var{entity} が存在する buffer を返す。
+@end defun
+
+
+@defun mime-entity-point-min entity
+
+@var{entity} が存在する buffer における、@var{entity} が占める領域の先頭
+位置を返す。
+@end defun
+
+
+@defun mime-entity-point-max entity
+
+@var{entity} が存在する buffer における、@var{entity} が占める領域の末尾
+位置を返す。
+@end defun
+
+
+@defun mime-entity-header-start entity
+
+@var{entity} が存在する buffer における、header が占める領域の先頭位置を
+返す。
+@end defun
+
+
+@defun mime-entity-header-end entity
+
+@var{entity} が存在する buffer における、header が占める領域の末尾位置を
+返す。
+@end defun
+
+
+@defun mime-entity-body-start entity
+
+@var{entity} が存在する buffer における、body が占める領域の先頭位置を返
+す。
+@end defun
+
+
+@defun mime-entity-body-end entity
+
+@var{entity} が存在する buffer における、body が占める領域の末尾位置を返
+す。
+@end defun
+
+
+
+@node mm-backend,  , Entity buffer, Entity
+@section Entity の表現と実現
+@cindex mm-backend
+@cindex entity 処理 method
+@cindex representation-type
+
+Entity は抽象化されたデータ表現で、実際のデータ表現としては用途に応じて
+さまざまなものが利用できるように設計されています。@refill
+
+ここで、entity がどういう種類の表現を行っているかを示すのが
+@strong{representation-type} で、entity を生成する時にはこれを指定します。
+(cf. @ref{Entity Creation}) @refill
+
+前節までに述べて来た entity に対する処理は、entity に対してその処理を依
+頼することによって実現されています。Entity は自分の representation-type 
+を知っており、その representation-type に応じて実際の処理を行う関数を呼
+び出します。このような関数を @strong{entity 処理method} と呼びます。また、
+representation-type 毎にこのような関数をまとめたものを 
+@strong{mm-backend} と呼びます。@refill
+
+mm-backend は representation-type の名前の先頭に @code{mm} という
+接頭辞を付けた関数名からなる module で、その module 名は同様に
+representation-type の名前の先頭に @code{mm} を付けたものになって
+います。この module は representation-type の entity が最初に生成される
+時に自動的に require されます。
+
+
+@menu
+* Request for entity::          Entity への便り
+* mm-backend module::           mm-backend の作り方
+@end menu
+
+@node Request for entity, mm-backend module, mm-backend, mm-backend
+@subsection Entity への便り
+
+@defun mime-entity-send entity message  &rest  args
+
+@var{entity} に @var{message} を送る。@refill
+
+@var{args} は @var{message} の引数である。
+@end defun
+
+
+
+@node mm-backend module,  , Request for entity, mm-backend
+@subsection mm-backend の作り方
+
+@defmac mm-define-backend type &optional  parents
+
+@var{type} を mm-backend として定義します。@refill
+
+@var{PARENTS} が指定されている場合は、@var{type} は prents
+を継承します。それぞれの parent は representation-type である必要があ
+ります。
+
+例:@refill
+
+@lisp
+(mm-define-backend chao (generic))
+@end lisp
+@end defmac
+
+
+@defmac mm-define-method name args  &rest  body
+
+@var{name} を (nth 1 (car @var{args})) backend の method 関
+数として定義します。@refill
+
+@var{args} は lambda の引数リストのようなものですが、(car
+@var{args}) は指定された parameter である必要があります。(car
+(car @var{args})) は変数の名前で、(nth 1 (car @var{args}))
+は backend の名前 (representation-type) です。@refill
+
+例:@refill
+
+@lisp
+(mm-define-method entity-cooked-p ((entity chao)) nil)
+@end lisp
+@end defmac
+
+
+
+@node Content-Type, Content-Disposition, Entity, Top
+@chapter Content-Type 欄の情報
+@cindex mime-content-type
+@cindex Content-Type 欄
+
+@strong{Content-Type 欄} は media-type (@ref{media-type}) や MIME
+charset といった entity (@ref{entity}) の内容の種類や表現形式などを記述
+するためのもので、RFC 2045 (@ref{RFC 2045}) で定義されています。
+
+@noindent
+@strong{[Memo]}
+@quotation
+
+歴史的には RFC 1049 で Content-Type 欄が提案されている。但し、MIME の
+media-type のような type と subtype の区別はなく、MIME charset のような
+文字符号の種類を表現することもできない。
+@end quotation
+
+
+FLIM は Content-Type 欄を構文解析する関数と Content-Type 欄の解析結果を
+格納する構造体 @strong{mime-content-type} を提供します。
+
+
+@menu
+* Content-Type field::          Content-Type 欄の形式
+* mime-content-type::           mime-content-type 構造体
+* Content-Type parser::         Content-Type 欄の解析器
+* Content-Type utility::        Content-Type に関する有用な関数
+@end menu
+
+@node Content-Type field, mime-content-type, Content-Type, Content-Type
+@section Content-Type 欄の形式
+@cindex parameter
+@cindex subtype
+@cindex type
+
+Content-Type 欄の形式は以下のように定義されています：
+
+@quotation
+``Content-Type'' ``:'' @strong{type} ``/''
+@strong{subtype} *( ``;'' @strong{parameter} )
+@end quotation
+
+例えば、
+
+@quotation
+@example
+Content-Type: image/jpeg
+@end example
+@end quotation
+
+@noindent
+や
+
+@quotation
+@example
+Content-Type: text/plain; charset=iso-2022-jp
+@end example
+@end quotation
+
+@noindent
+などのように用いられます。
+
+ここで、`type' と `subtype' は entity の形式を示すもので、両者を総称し
+て、`media-type' と呼ぶことにします。上記の例における `image/jpeg' や
+`text/plain' は media-type の１つです。
+
+@noindent
+@strong{[Memo]}
+@quotation
+
+Content-Type 欄のない entity は
+
+@quotation
+@example
+Content-Type: text/plain; charset=us-ascii
+@end example
+@end quotation
+
+@noindent
+として解釈される。(cf. @ref{us-ascii})
+@end quotation
+
+
+
+@node mime-content-type, Content-Type parser, Content-Type field, Content-Type
+@section mime-content-type 構造体
+
+@deffn{Structure} mime-content-type
+
+Content-Type 欄の情報を格納するための構造体。@refill
+
+この構造体を参照するには @code{mime-content-type-要素名} という名前の参
+照関数を用いる。@refill
+
+この構造体の要素は以下の通りである：
+
+@table @var
+@item primary-type
+media-type の主型 (symbol).
+
+@item subtype
+media-type の副型 (symbol).
+
+@item parameters
+Content-Type 欄の parameter (連想 list).
+
+@end table
+@end deffn
+
+
+@defun make-mime-content-type type subtype
+	   &optional  parameters
+
+content-type の生成子。
+@end defun
+
+
+@defun mime-content-type-parameter content-type parameter
+
+@var{content-type} の @var{parameter} の値を返す。
+@end defun
+
+
+
+@node Content-Type parser, Content-Type utility, mime-content-type, Content-Type
+@section Content-Type 欄の解析器
+
+@defun mime-parse-Content-Type string
+
+@var{string} を content-type として解析した結果を返す。
+@end defun
+
+
+@defun mime-read-Content-Type
+
+現在の buffer の Content-Type 欄を読み取り、解析した結果を返す。@refill
+
+Content-Type 欄が存在しない場合は nil を返す。
+@end defun
+
+
+
+@node Content-Type utility,  , Content-Type parser, Content-Type
+@section Content-Type に関する有用な関数
+
+@defun mime-type/subtype-string type  &optional  subtype
+
+@var{type} と @var{subtype} から type/subtype 形式の文字列を返す。
+@end defun
+
+
+
+@node Content-Disposition, Content-Transfer-Encoding, Content-Type, Top
+@chapter Content-Disposition 欄の情報
+@cindex mime-content-disposition
+@cindex RFC 2183
+@cindex Standards Track
+@cindex Content-Disposition 欄
+
+@strong{Content-Disposition 欄} は entity の表示や file 名など
+の属性になどに関する情報を記述するためのものです。
+
+
+@noindent
+[RFC 2183]
+@quotation
+S. Dorner, K. Moore and R. Troost, ``Communicating Presentation
+Information in Internet Messages: The Content-Disposition Header'',
+August 1997, Standards Track.
+@end quotation
+
+FLIM は Content-Disposition 欄を構文解析する関数と Content-Disposition 
+欄の解析結果を格納する構造体 
+@strong{mime-content-disposition} を提供します。
+
+
+@menu
+* mime-content-disposition::    mime-content-disposition 構造体
+* Content-Disposition parser::  Content-Disposition 欄の解析器
+@end menu
+
+@node mime-content-disposition, Content-Disposition parser, Content-Disposition, Content-Disposition
+@section mime-content-disposition 構造体
+
+@deffn{Structure} mime-content-disposition
+
+Content-Disposition 欄の解析結果を収めるための構造体。@refill
+
+この構造体を参照するには @code{mime-content-disposition-要素名} という名
+前の参照関数を用いる。@refill
+
+この構造体の要素は以下の通りである：
+
+@table @var
+@item disposition-type
+disposition-type (symbol).
+
+@item parameters
+Content-Disposition 欄の parameter (連想 list).
+
+@end table
+@end deffn
+
+
+@defun mime-content-disposition-parameter content-disposition parameter
+
+@var{content-disposition} の @var{parameter} の値を返す。
+@end defun
+
+
+@defun mime-content-disposition-filename content-disposition
+
+@var{content-disposition} の filename の値を返す。
+@end defun
+
+
+
+@node Content-Disposition parser,  , mime-content-disposition, Content-Disposition
+@section Content-Disposition 欄の解析器
+
+@defun mime-parse-Content-Disposition string
+
+@var{string} を content-disposition として解析した結果を返す。
+@end defun
+
+
+@defun mime-read-Content-Disposition
+
+現在の buffer の Content-Disposition 欄を読み取り、解析した結果を返す。
+@refill
+
+Content-Disposition 欄が存在しない場合は nil を返す。
+@end defun
+
+
+
+@node Content-Transfer-Encoding, encoded-word, Content-Disposition, Top
+@chapter 符号化法
+@cindex Content-Transfer-Encoding 欄
+
+@strong{Content-Transfer-Encoding 欄} は entity の符号化法を記述するため
+のものです。@refill
+
+FLIM では Content-Transfer-Encoding 欄を構文解析する関数を提供します。こ
+れらの関数は Content-Transfer-Encoding 欄の情報は文字列で表現します。
+@refill
+
+また、Content-Transfer-Encoding に基づいて符号化・復号化を行う関数も提
+供されます。
+
+
+@menu
+* Content-Transfer-Encoding parser::  Content-Transfer-Encoding 欄の解析器
+* encoder/decoder::             符号化・復号化
+* Encoding information::        Other utilities
+* mel-backend::                 How to write encoder/decoder module
+* generic function for mel-backend::  How to add encoding/decoding service
+@end menu
+
+@node Content-Transfer-Encoding parser, encoder/decoder, Content-Transfer-Encoding, Content-Transfer-Encoding
+@section Content-Transfer-Encoding 欄の解析器
+
+@defun mime-parse-Content-Transfer-Encoding string
+
+@var{string} を content-transfer-encoding として解析した結果を返す。
+@end defun
+
+
+@defun mime-read-Content-Transfer-Encoding &optional default-encoding
+
+現在の buffer の Content-Transfer-Encoding 欄を読み取り、解析した結果を
+返す。@refill
+
+Content-Transfer-Encoding 欄が存在しない場合は@var{default-encoding} を
+返す。
+@end defun
+
+
+
+@node encoder/decoder, Encoding information, Content-Transfer-Encoding parser, Content-Transfer-Encoding
+@section 符号化・復号化
+
+@defun mime-encode-region start end encoding
+
+現在の buffer の @var{start} から @var{end} までの region を
+@var{encoding} を使って符号化します。
+@end defun
+
+
+@defun mime-decode-region start end encoding
+
+現在の buffer の @var{start} から @var{end} までの region を
+@var{encoding} を使って復号化します。
+@end defun
+
+
+
+@defun mime-decode-string string encoding
+
+@var{string} を @var{encoding} として復号した結果を返す。
+@end defun
+
+
+
+@defun mime-insert-encoded-file filename encoding
+
+@var{ENCODING} format で符号化された file @var{FILENAME} を
+挿入する。
+@end defun
+
+
+@defun mime-write-decoded-region start end filename encoding
+
+@var{encoding} で符号化された現在の region を復号化して
+@var{filename}に書き込みます。
+
+<var>start<var> と @var{end} は buffer の位置です。
+@end defun
+
+
+
+@node Encoding information, mel-backend, encoder/decoder, Content-Transfer-Encoding
+@section Other utilities
+
+@defun mime-encoding-list &optional  SERVICE
+
+Content-Transfer-Encoding の list を返します。@refill
+
+@var{service} が指定されていると、それに対する
+Content-Transfer-Encoding を返します。
+@end defun
+
+
+@defun mime-encoding-alist &optional  SERVICE
+
+補完のための Content-Transfer-Encoding の表を返します。@refill
+
+@var{service} が指定されている場合はそれに対する
+Content-Transfer-Encoding の list を返します。
+@end defun
+
+
+
+@node mel-backend, generic function for mel-backend, Encoding information, Content-Transfer-Encoding
+@section How to write encoder/decoder module
+
+@defmac mel-define-method name args  &rest  body
+
+@var{name} を (nth 1 (car (last @var{args}))) backend の
+method 関数として定義します。
+
+@var{args} は lambda の引数 list と似ていますが、(car (last
+@var{args})) は指定された parameter である必要があります。(car
+(car (last @var{args}))) は変数の名前で、(nth 1 (car (last
+@var{args}))) は backend の名前 (encoding) です。@refill
+
+例:@refill
+
+@lisp
+(mel-define-method mime-write-decoded-region (start end filename
+						    (nil "base64"))
+  "Decode and write current region encoded by base64 into FILENAME.
+START and END are buffer positions."
+  (interactive
+   (list (region-beginning) (region-end)
+	 (read-file-name "Write decoded region to file: ")))
+  (let ((str (buffer-substring start end)))
+    (with-temp-buffer
+      (insert (decode-base64-string str))
+      (write-region-as-binary (point-min) (point-max) filename)
+      )))
+@end lisp
+@end defmac
+
+
+@defmac mel-define-method-function spec function
+
+@var{spec} の関数定義を @var{function} に設定します。@refill
+
+@var{spec} の最初の要素は service です。@refill
+
+@var{args} の残りは lambda の引数 list 似ていますが、(car (last
+@var{args})) は指定された parameter である必要があります。(car
+(car (last @var{args}))) は変数の名前で、(nth 1 (car (last
+@var{args}))) は backend の名前 (encoding) です。@refill
+
+例:@refill
+
+@lisp
+(mel-define-method-function (mime-encode-string string (nil "base64"))
+			    'encode-base64-string)
+@end lisp
+@end defmac
+
+
+
+@node generic function for mel-backend,  , mel-backend, Content-Transfer-Encoding
+@section 符号化/復号化 service を追加する方法
+
+@defmac mel-define-service name &optional  args doc-string
+
+@var{name} を Content-Transfer-Encoding の service として定義しま
+す。@refill
+
+@var{args} が指定されていると、@var{name} は service の
+generic function として定義されます。@refill
+
+例:@refill
+
+@lisp
+(mel-define-service encoded-text-encode-string (string encoding)
+  "Encode STRING as encoded-text using ENCODING.
+ENCODING must be string.")
+@end lisp
+@end defmac
+
+
+
+@node encoded-word, custom, Content-Transfer-Encoding, Top
+@chapter Header の network 表現
+@cindex RFC 2047
+@cindex Standards Track
+@cindex RFC 2047
+
+encoded-word は header で非 ASCII (@ref{ASCII}) 文字を表現するための形式
+で、@strong{RFC 2047} で定義されています。@refill
+
+
+@noindent
+[RFC 2047]
+@quotation
+K. Moore, ``MIME (Multipurpose Internet Mail Extensions) Part Three:
+Message Header Extensions for Non-ASCII Text'', November 1996, Standards
+Track (obsolete RFC 1521,1522,1590).
+@end quotation
+
+また、行儀の悪いことだと言えますが、encoded-word を用いずに非 ASCII
+(@ref{ASCII}) 文字を header に入れた記事も存在します。@refill
+
+FLIM はこれらを符号化・復号化する機能を提供します。
+
+
+@menu
+* Header encoder/decoder::      Header の符号化・復号化
+@end menu
+
+@node Header encoder/decoder,  , encoded-word, encoded-word
+@section Header の符号化・復号化
+
+@defun eword-decode-header &optional  code-conversion separator
+
+Header 中の encoded-word を復号する。@refill
+
+もし @var{code-conversion} が @code{nil} なら、encoded-word だけが復号さ
+れる。もし、@var{code-conversion} が MIME charset (@ref{MIME charset}) 
+なら、非 ASCII bit patterns はその MIME charset として復号される。これ以
+外の場合、非 ASCII bit patterns は@code{default-mime-charset}. として復
+号される。(cf. @ref{entity formatting}) @refill
+
+もし @var{separator} が @code{nil} でなければ、その値がheader separator 
+として用いられる。
+@end defun
+
+
+@defun eword-encode-header &optional  code-conversion
+
+Header を network 表現に符号化する。@refill
+
+各 field は @code{mime-field-encoding-method-alist} で指定された方式で
+符号化される。
+@end defun
+
+
+@defvar mime-field-encoding-method-alist
+
+Field を符号化する方法を指定する連想 list。各 element は (FIELD
+. METHOD) の様になっている。@refill
+
+METHOD が @code{mime} であれば、FIELD は MIME format に符号化さ
+れる (encoded-word)。
+
+METHOD が @code{nil} であれば、FIELD は符号化されない。
+
+METHOD が MIME charset であれば、FIELD はネットワークコードに変換しな
+ければならないときに charset に符号化される。@refill
+
+そうでなければ、FIELD はネットワークコードに変換しなければならないとき
+に 変数 @code{default-mime-charset} で符号化される
+@end defvar
+
+
+
+@node custom, Appendix, encoded-word, Top
+@chapter 一般設定
+
+@deffn{group} mime
+
+MIME 関連機能に関する group.@refill
+
+@code{mail} と @code{news} に属する。
+@end deffn
+
+
+@node Appendix, Concept Index, custom, Top
+@chapter 付録
+
+
+@menu
+* Glossary::                    用語
+* Bug report::                  bug 報告の仕方
+* CVS::                         CVS による開発
+* History::                     歴史
+@end menu
+
+@node Glossary, Bug report, Appendix, Appendix
+@section 用語
+
+
+@menu
+* 7bit::                        
+* 8bit::                        
+* ASCII::                       
+* Base64::                      
+* binary::                      
+* Coded character set::         Coded character set（符号化文字集合）, Character code（文字符号）
+* media-type::                  
+* message::                     
+* MIME::                        
+* MIME charset::                
+* MTA::                         
+* MUA::                         
+* Quoted-Printable::            
+* RFC 822::                     
+* RFC 1036::                    
+* RFC 2045::                    
+* RFC 2046::                    
+* RFC 2048::                    
+* RFC 2049::                    
+* plain text::                  
+* us-ascii::                    
+@end menu
+
+@node 7bit, 8bit, Glossary, Glossary
+@subsection 7bit
+
+ここでは 0 から 127 の整数を指す。@refill
+
+0 から 127 の整数の列で表現できるような data を ``7bit の data'' と呼ぶ。
+@refill
+
+また、0 から 31 および 127 で表現される制御文字と 32 で表現される空白と 
+33 から 126 で表現される図形文字からなる文字列のことを ``7bit の文字列'' 
+と呼ぶ（これは ISO 2022 (@ref{ISO 2022}) の「7 単位系」と同様）。
+
+伝統的な Internet の MTA (@ref{MTA}) は 7bit の data を転送できるので、
+7bit の data は Quoted-Printable (@ref{Quoted-Printable}) や Base64
+(@ref{Base64}) といった変換を行わなくてもそのまま転送できる。@refill
+
+しかし、7bit であればどんな data でも良いとはいえない。なぜなら、１行の
+長さがあまりに長いと、MTA はその message を転送することができないからで
+ある。ちなみに、RFC 821 (@ref{RFC 821}) は１行は改行文字を除いて 998
+byte 以内であることを求めている。よって、これ以上の行が含まれる可能性の
+ある data, 例えば、Postscript の data などは Quoted-Printable 等で 
+encodeする必用がある。
+
+
+@node 8bit, ASCII, 7bit, Glossary
+@subsection 8bit
+@cindex binary
+
+ここでは 0 から 255 の整数を指す。@refill
+
+0 から 255 の整数の列で表現できるような data を ``8bit の data'' と呼ぶ。
+@refill
+
+また、0 から 31, 127 および 128 から 159 で表現される制御文字と 32 で表
+現される空白と 33 から 126 と 160 から 255 で表現される図形文字からなる
+文字列のことを ``8bit の文字列'' と呼ぶ（これは ISO 2022 (@ref{ISO 2022}) の「8 単位系」と同様）。@refill
+
+iso-8859-1 (@ref{iso-8859-1}) や euc-kr (@ref{euc-kr}) といった符号化文
+字集合は 8bit の文字列である。@refill
+
+伝統的な Internet の MTA (@ref{MTA}) は 7bit (@ref{7bit}) の data しか転
+送できないので、そうした MTA を経由する場合、Quoted-Printable
+(@ref{Quoted-Printable}) や Base64 (@ref{Base64}) といった変換を行わなく
+てはならない。@refill
+
+しかし、最近では 8bit の文字列をそのまま通すことができる MTA も登場して
+きたので、そのまま送ることができる場合も増えてきた。@refill
+
+しかし、8bit であればどんな data でも良いとはいえない。なぜなら、１行の
+長さがあまりに長いと、MTA はその message を転送することができないからで
+ある。ちなみに、RFC 821 (@ref{RFC 821}) は１行は改行文字を除いて 998
+byte 以内であることを求めている。よって、これ以上の行が含まれる可能性の
+ある data, 例えば、Postscript の data などは Quoted-Printable 等で 
+encodeする必用がある。@refill
+
+また、こうした理由から、１行が 999 byte 以上の行が存在する可能性のある
+data は @strong{binary} (@ref{binary}) と呼ぶことにする。@refill
+
+ちなみに、7bit で表現できる data は 8bit でも表現できる。よって、
+``8bit'' と言った場合、１行が 998 byte 以下の任意の data を指すことが
+ある。
+
+
+@node ASCII, Base64, 8bit, Glossary
+@subsection ASCII
+@cindex ANSI X3.4:1986
+@cindex ASCII
+
+アメリカ連邦で使われる文字を符号化した符号化文字集合 (@ref{符号化文字集 合})。A-Z, a-z の Latin 文字と数字、幾つかの記号からなる。ISO 646 の一つ
+で、現在は国際基準版 (IRV) になっている。
+
+
+@noindent
+[ASCII]
+@quotation
+``Coded Character Set -- 7-Bit American Standard Code for Information
+Interchange'', ANSI X3.4:1986.
+@end quotation
+
+
+
+@node Base64, binary, ASCII, Glossary
+@subsection Base64
+@cindex pad
+
+RFC 2045 (@ref{RFC 2045}) で定義されている MIME (@ref{MIME}) における 
+binary data (@ref{binary}) の network での変換法の１つ。@refill
+
+『64 進数』という意味で、3 byte の data を 0 から 63 の数を表す ASCII
+(@ref{ASCII}) 4 文字に変換する方法。（もし、4 文字にならなければ 
+@strong{pad} と呼ばれる詰め物をして長さを調整する）@refill
+
+この 65 種類の文字は ASCII と EBCDIC の共通部分から選ばれており、
+Internet 以外の network を経由する場合でも安全に転送できるように設計さ
+れている。
+
+
+@node binary, Coded character set, Base64, Glossary
+@subsection binary
+@cindex binary data
+@cindex binary
+
+任意の byte 列を @strong{binary} と呼ぶ。@refill
+
+8bit (@ref{8bit}) と異なるのは data に行の構造を仮定しないことである。
+
+また、行の構造があっても、999 byte 以上からなる行がある場合も binary と
+呼ぶことにする。@refill
+
+ちなみに、7bit (@ref{7bit}) や 8bit で表現できる data は binary でも表現
+できる。よって、@strong{binary data} と言った場合、任意の data を指すこ
+とがある。
+
+
+@node Coded character set, media-type, binary, Glossary
+@subsection Coded character set（符号化文字集合）, Character code（文字符号）
+
+文字と byte 列と１対１に対応付ける曖昧でない規則の集合。
+
+
+@node media-type, message, Coded character set, Glossary
+@subsection media-type
+@cindex x-token
+@cindex primary-type/subtype
+@cindex message
+@cindex multipart
+@cindex application
+@cindex video
+@cindex audio
+@cindex image
+@cindex text
+@cindex subtype
+@cindex primary-type
+
+MIME (@ref{MIME}) における entity (@ref{entity}) の種類。
+@strong{primary-type} と @strong{subtype} からなる。RFC 2046 (@ref{RFC 2046}) で定義されている。@refill
+
+primary-type は標準では
+
+@itemize @bullet
+@item
+@strong{text}
+@item
+@strong{image}
+@item
+@strong{audio}
+@item
+@strong{video}
+@item
+@strong{application}
+@item
+@strong{multipart} (@ref{multipart})
+@item
+@strong{message}
+@end itemize
+
+@noindent
+が定義され、それぞれには application/octet-stream, audio/basic,
+image/jpeg, multipart/mixed (@ref{multipart/mixed}), text/plain
+(@ref{text/plain}), video/mpeg などのさまざまな subtype が定義されている。
+
+@noindent
+@strong{[注意]}
+@quotation
+
+ここでは、text/plain などの type/subtype の組をしばしば 
+@strong{primary-type/subtype} と書く。
+@end quotation
+
+
+media-type は、RFC 2046 で定義されているものに加えて、登録することもでき
+る。現在、登録されているものは MEDIA TYPES
+(ftp://ftp.isi.edu/in-notes/iana/assignments/media-types) で参照できる。
+
+また、type もしくは subtype に、前に `x-' を付けた @strong{x-token} を用
+いることにより、登録されていないものを私的に用いることもできる。しかし、
+当然のことながら、こうした私的な media-type は諒解を得た者の間でしか解釈
+できないので利用には注意すること。@refill
+
+(cf. @ref{Content-Type})
+
+
+
+@node message, MIME, media-type, Glossary
+@subsection message
+
+ここでは mail と news 記事の総称として用いる。
+
+
+@node MIME, MIME charset, message, Glossary
+@subsection MIME
+@cindex Multipurpose Internet Mail Extensions
+
+@strong{Multipurpose Internet Mail Extensions} の略で、Internet の mail 
+や news で us-ascii plain text (@ref{us-ascii}) 以外の文字を使うための 
+RFC 822 (@ref{RFC 822}) に対する拡張。@refill
+
+RFC 2045 は冒頭で次のように述べている：@refill
+
+STD 11, RFC 822 は、US-ASCII message header に関して非常に詳細に規定し
+た message 表現 protocol を定義している。しかし、それは単に flat な 
+US-ASCII text のみに留まり、message の内容や message body に関する規定
+はなされていない。Multipurpose Internet Mail Extensions, あるいは MIME 
+と総称される、この一連の文書は、以下の事を可能とするために message の
+形式を再定義した：
+
+@enumerate
+@item
+文書 message body における US-ASCII 以外の文字集合
+@item
+非文書 message body
+@item
+複数の部分からなる message body
+@item
+US-ASCII 以外の文字集合からなる文書 header 情報
+@end enumerate
+
+
+RFC 2045 (@ref{RFC 2045}), RFC 2046 (@ref{RFC 2046}), RFC 2047
+(@ref{encoded-word}), RFC 2048 (@ref{RFC 2048}), RFC 2049 (@ref{RFC 2049}) で定義されている。
+
+
+@node MIME charset, MTA, MIME, Glossary
+@subsection MIME charset
+
+Content-Type (@ref{Content-Type}) 欄や encoded-word (@ref{encoded-word}) 
+の charset parameter で用いられる登録された符号化文字集合(@ref{Coded character set})。@refill
+
+RFC 2045 (@ref{RFC 2045}) で定義されている。@refill
+
+iso-2022-jp や euc-kr はその１つ。
+
+
+@node MTA, MUA, MIME charset, Glossary
+@subsection MTA
+@cindex Message Transfer Agent
+
+@strong{Message Transfer Agent} の略で、qmail や sendmail などの mail 配
+送 program と inn などの news server の総称。@refill
+
+(cf. @ref{MUA})
+
+
+
+@node MUA, Quoted-Printable, MTA, Glossary
+@subsection MUA
+@cindex Message User Agent
+
+@strong{Message User Agent} の略で、mail reader と news reader の総称。
+@refill
+
+(cf. @ref{MTA})
+
+
+
+@node Quoted-Printable, RFC 822, MUA, Glossary
+@subsection Quoted-Printable
+
+RFC 2045 (@ref{RFC 2045}) で定義されている MIME (@ref{MIME}) における 
+binary data (@ref{binary data}) の network での変換法の１つ。@refill
+
+`=' や制御文字や 128 以上の文字などは `=AF' のように `=' の後に続く 16 
+進数で表現する。このため、ASCII (@ref{ASCII}) 文字中心の data では 
+Base64 (@ref{Base64}) に比べると可読性が高くなる可能性がある。@refill
+
+しかしながら、EBCDIC には存在しない文字を利用する場合、EBCDIC を利用し
+ている network では安全に転送することができず、Base64 に比べて安全性は
+低い。
+
+
+@node RFC 822, RFC 1036, Quoted-Printable, Glossary
+@subsection RFC 822
+@cindex RFC 822
+@cindex STD 11
+@cindex Internet message
+@cindex Internet mail
+@cindex message header
+
+Internet mail の主に @strong{message header} に関する形式に
+関する標準を定めている RFC.
+
+@noindent
+@strong{[Memo]}
+@quotation
+
+news message もこれに準じているので、@strong{Internet mail} と書くよりも、
+@strong{Internet message} と書いた方が良いかもしれない。
+@end quotation
+
+
+
+@noindent
+[RFC 822]
+@quotation
+D. Crocker, ``Standard for the Format of ARPA Internet Text Messages'',
+August 1982, STD 11.
+@end quotation
+
+
+
+@node RFC 1036, RFC 2045, RFC 822, Glossary
+@subsection RFC 1036
+@cindex RFC 1036
+@cindex USENET
+
+USENET での message の形式を定めた RFC.  RFC 822 (@ref{RFC 822}) の 
+subset になっている。Internet の標準ではないが、USENET 以外の netnews で
+もこれに準じているものが多い。
+
+
+@noindent
+[USENET: RFC 1036]
+@quotation
+M. Horton and R. Adams, ``Standard for Interchange of USENET Messages'',
+December 1987, (obsolete RFC 850).
+@end quotation
+
+
+
+@node RFC 2045, RFC 2046, RFC 1036, Glossary
+@subsection RFC 2045
+@cindex RFC 2045
+@cindex Standards Track
+
+
+@noindent
+[RFC 2045]
+@quotation
+N. Freed and N. Borenstein, ``Multipurpose Internet Mail Extensions
+(MIME) Part One: Format of Internet Message Bodies'', November 1996,
+Standards Track (obsolete RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node RFC 2046, RFC 2048, RFC 2045, Glossary
+@subsection RFC 2046
+@cindex RFC 2046
+@cindex Standards Track
+
+
+@noindent
+[RFC 2046]
+@quotation
+N. Freed and N. Borenstein, ``Multipurpose Internet Mail Extensions
+(MIME) Part Two: Media Types'', November 1996, Standards Track (obsolete
+RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node RFC 2048, RFC 2049, RFC 2046, Glossary
+@subsection RFC 2048
+@cindex RFC 2048
+@cindex Standards Track
+
+
+@noindent
+[RFC 2048]
+@quotation
+N. Freed, J. Klensin and J. Postel, ``Multipurpose Internet Mail
+Extensions (MIME) Part Four: Registration Procedures'', November 1996,
+Standards Track (obsolete RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node RFC 2049, plain text, RFC 2048, Glossary
+@subsection RFC 2049
+@cindex RFC 2049
+@cindex Standards Track
+
+
+@noindent
+[RFC 2049]
+@quotation
+N. Freed and N. Borenstein, ``Multipurpose Internet Mail Extensions
+(MIME) Part Five: Conformance Criteria and Examples'', November 1996,
+Standards Track (obsolete RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node plain text, us-ascii, RFC 2049, Glossary
+@subsection plain text
+
+書体や組版に関する情報を持たない文字符号(@ref{Coded character set})のみ
+で表現される text 情報。(cf. @ref{text/plain})
+
+
+
+@node us-ascii,  , plain text, Glossary
+@subsection us-ascii
+@cindex ASCII
+@cindex us-ascii
+
+アメリカ連邦などで使われる英語などを表現するための MIME charset
+(@ref{MIME charset}) の１つ。@refill
+
+ASCII (@ref{ASCII}) のみからなり ISO 2022 による符号拡張は許されない。
+
+Internet message における標準の符号化文字集合(@ref{Coded character set}) 
+であり、明示的に MIME charset が示されない場合は原則として 
+@strong{us-ascii} が使われる。@refill
+
+また、RFC 822 (@ref{RFC 822}) における @strong{ASCII} は us-ascii である。
+
+
+@node Bug report, CVS, Glossary, Appendix
+@section bug 報告の仕方
+
+FLIM のバグを見つけたら、以下の address に mail を送ってください：
+
+@itemize @bullet
+@item
+ 英語 <emacs-mime-en@@m17n.org>
+@item
+ 日本語 <emacs-mime-ja@@m17n.org>
+@end itemize
+
+
+但し、あまりにも古い版に関する報告は歓迎されません。古い版の bug は、新
+しい版では治っているかもしれません。まず、最新版で確認してみましょう。
+@refill
+
+それから、適切な報告をしましょう。単に「うまく動かない」と言われてもどう
+いう状況なのかはさっぱり判りません。最低限、OS, emacs, APEL, FLIM, SEMI, 
+使っている MUA の種類および版、設定を書く必要があります。また、error が
+起っている場合は backtrace を送ることも重要です。(cf. @ref{(emacs)Bugs})
+
+また、bug は大抵複数の人が遭遇するものです（そうでなければ、bug ではな
+い可能性があります）。だから、作者に直接 mail を送ると作者は同じ mail
+を何通も書く羽目になります。だから、必ず bug 報告は上記の address に送っ
+てください。
+
+EMACS-MIME ML では FLIM のバグ情報の交換や最新版の配布、FLIM の改良に
+関する議論を行なっています。EMACS-MIME ML に参加したい方は
+
+@itemize @bullet
+@item
+ 英語 <emacs-mime-en-ctl@@m17n.org>
+@item
+ 日本語 <emacs-mime-ja-ctl@@m17n.org>
+@end itemize
+
+@noindent
+に空の mail を送って下さい。
+
+
+@node CVS, History, Bug report, Appendix
+@section CVS による開発
+
+FLIM の file は CVS を使って管理されています。このため、以下の方法で最
+新の FLIM を入手することができます：
+
+@example
+(0) cvs login
+
+    % cvs -d :pserver:anonymous@@cvs.m17n.org:/cvs/root login
+
+    CVS password: [CR] # NULL string
+
+(1) checkout
+
+    % cvs -d :pserver:anonymous@@cvs.m17n.org:/cvs/root checkout
+	checkout [-r TAG] flim
+@end example
+
+
+CVS を用いた開発に参加したい方は
+
+@itemize @bullet
+@item
+ <cvs@@cvs.m17n.org>
+@end itemize
+
+@noindent
+まで、アカウント名と ssh の公開鍵を送ってください。ssh 経由では、
+cvsroot は :ext:cvs@@cvs.m17n.org:/cvs/root となります。
+
+
+@node History,  , CVS, Appendix
+@section 歴史
+
+FLIM の code の最古の部分は 榎並 嗣智 氏が書いた @file{mime.el} に起源し
+ます。この小さな program は Nemacs で動作する iso-2022-jp の B-encoding 
+専用の encoded-word の復号化プログラムでした。@refill
+
+その後、守岡 知彦 は @file{mime.el} を元に@file{tiny-mime.el} というプロ
+グラムを書きます。これは、Nemacs と Mule で動作する encoded-word の符号
+化・復号化プログラムでした。@file{tiny-mime.el} は B-encoding だけでなく 
+Q-encoding もsupport し、また、MULE で扱うことができるさまざまな MIME
+charset (@ref{MIME charset}) を同時に使うことができました。この時、
+Nemacs と Mule の双方を support するために用いられたテクニックは後に emu
+package にまとめられます。@refill
+
+この頃、守岡 知彦 は @file{tiny-mime.el} をさまざまな MUA で使うための設
+定集も配布していましたが、それらは後に@file{tiny-mime.el} とともに１つの 
+package にまとめられ、tm という名前で配布されます。@refill
+
+守岡 知彦 はやがて、MIME message を閲覧するためのプログラムである
+@file{tm-body.el} を書きます。これは、すぐに@file{tm-view.el} という名前
+に変わりましたが、やがて、これが@file{tiny-mime.el} に代わって、tm の中
+核となります。@refill
+
+@file{tm-view.el} は当然、Content-Transfer-Encoding を扱う必要があります。
+この目的のために、MEL が整備されはじめました。Base64 に関しては 
+@file{tiny-mime.el} の code が移され、また、新たにQuoted-Printable の 
+code が追加されました。これらが@file{mel-b.el} と @file{mel-q.el} になり
+ました。@refill
+
+また、後に、守岡 知彦 によって uuencode 用の @file{mel-u.el} が追加され、
+その後に、小林 修平 氏によって x-gzip64 用の@file{mel-g.el} が追加されま
+した。@refill
+
+tm では後に、守岡 知彦 によって @file{tiny-mime.el} の再実装が行われ、こ
+の過程で、STD 11 の parser が書かれました。これは、現在の 
+@file{std11.el} に当たります。また、この過程で @file{tiny-mime.el} は復
+号化を行う @file{tm-ew-d.el} と符号化を行う @file{tm-ew-e.el} に分けられ
+ました。この両者が現在の @file{eword-decode.el} と 
+@file{eword-encode.el} の先祖に当たります。@refill
+
+後に、守岡 知彦 らによって tm の全面書き換え作業が行われ、この過程で、tm 
+は APEL, MEL, SEMI, EMH, RMAIL-MIME, Gnus-MIME などに分けられました。こ
+のうちの MEL が FLIM の直接の先祖に当たります。@refill
+
+後に、APEL から @file{std11.el} が移され、また、@file{mailcap.el},
+@file{eword-decode.el} および @file{eword-encode.el} が SEMI から移され、
+package の名前が FLIM となります。@refill
+
+この直前から田中 哲 氏がより RFC に忠実な実装を書き始め、これは、現在、
+FLIM の枝である ``FLIM-FLAM'' となっています。
+
+
+@node Concept Index, Function Index, Appendix, Top
+@chapter 概念索引
+
+@printindex cp
+
+@node Function Index, Variable Index, Concept Index, Top
+@chapter 関数索引
+
+@printindex fn
+
+@node Variable Index,  , Function Index, Top
+@chapter 変数索引
+
+@printindex vr
+@bye

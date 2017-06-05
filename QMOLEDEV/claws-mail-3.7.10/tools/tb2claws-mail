@@ -1,0 +1,278 @@
+#!/usr/bin/perl
+
+# Script name : tb2claws-mail
+# Script version: 1.0.2
+# Script based on : script kmail2claws-mail.pl
+# Script purpose : convert The Bat! addressbook into Claws Mail addressbook
+# Author : Aleksandar Urosevic aka Urke MMI <urke@gmx.net>
+# Licence : GPL
+#
+# Thanks goes to : Paul Mangan <paul@claws-mail.org>
+#
+# Usage: Export The Bat! Address Book to CSV file format
+#        with all fields selected to YES and then start:
+#        tb2claws-mail --tbfile=/full/path/to/thebat/addressbook.csv
+#
+# Change Log:
+#
+# 18-12-2003 v 1.0.2
+#	- bugfix: added missing attribute-list start
+#
+# 01-01-2003 v 1.0.1
+#	- bugfix: no more empty Business Homepage entry
+#	- bugfix: no more \0D\0A´s in Notes entry
+#	- bugfix: no more double space in Full Name entry
+#	- code utilization
+#	- add info about number of converted addresses
+#
+# 15-08-2002 v 1.0.0
+#	- first public release
+#
+# TODO:
+#
+# * Add switch for Full Name entry on atrybute part
+#
+
+use Getopt::Long;
+
+GetOptions("tbfile=s" => \$tbfile);
+
+#$tbfile = '/home/urke/bin/claws-mail/tb2ldif/thebat-addressbook.csv';
+$total_addresses = 0;
+
+chdir;
+
+# check is Claws-Mail instrtalled
+opendir(CLAWS, ".claws-mail") || die("Can't open Claws Mail directory! Conversion abroted\n");
+    push(@cached, (readdir(CLAWS)));
+closedir(CLAWS);
+
+# get last existing addressbook filename
+# to set filename for newest addressbook
+
+# get all existing addressbook filenames
+foreach $cached (@cached) {
+    if ($cached =~ m/^addrbook/ && $cached =~ m/[0-9].xml$/) {
+	push(addr, "$cached");
+    }
+}
+# sort filenames, get last and set newest filename
+@sorted = sort {$a cmp $b} @addr;
+$last_one = pop(@sorted);
+$last_one =~ s/^addrbook-//;
+$last_one =~ s/.xml$//;
+$last_one++;
+$new_addrbk = "addrbook-"."$last_one".".xml";
+
+# open thebat file to stack
+open (TBFILE, "<$tbfile") || die("Specified Address Book file does not exist.\n\033[5m\033[31mYou must specify full path to input file!\033[0m\nConversion aborted.\n");
+    @tblines = <TBFILE>;
+close TBFILE;
+
+# shift firs line from file because this is field names
+$dross = shift(@tblines);
+
+# set time mark and header of addressbook
+$time = time;
+$claws_addr = "<?xml version=\"1.0\" encoding=\"ISO-8859-2\" ?>\n";
+$claws_addr .= "<address-book name=\"The Bat! Address Book\" >\n";
+
+# create addressbook entry from The Bat! addressbook
+foreach $tbline (@tblines) {
+    $total_addresses += 1;
+    (@tbdata) = split(/,/,$tbline); 
+    foreach $tbdata (@tbdata) {
+	# fix nonacceptable characters
+	$tbdata =~ s/^"//;
+	$tbdata =~ s/"$//;
+	$tbdata =~ s/"/&quot;/g;
+	$tbdata =~ s/&/&amp;/g;
+	$tbdata =~ s/'/&apos;/g;
+	$tbdata =~ s/</&lt;/g;
+	$tbdata =~ s/>/&gt;/g;
+	$tbdata =~ s/\\2C\ /, /g;
+	$tbdata =~ s/(\\0D\\0A){1,}/, /g;
+	$tbdata =~ s/\ {2,}/ /g;
+    }
+    # set addressbook field values
+    $claws_addr .= "  <person uid=\"$time\" first-name=\"$tbdata[1]\""
+		." last-name=\"$tbdata[2]\" nick-name=\"$tbdata[5]\""
+		." cn=\"$tbdata[0]\" >\n"
+		."    <address-list>\n";
+    $time++;
+    $claws_addr .= "      <address uid=\"$time\" alias=\"$tbdata[5]\" email=\"$tbdata[4]\""
+		." remarks=\"\" />\n"
+		."    </address-list>\n";
+
+    # find is need to make entry attributes
+    $check = 0;
+    for($i=6; $i<=31; $i++) {
+	$tbdata[$i] =~ s/^\s+//;
+	$tbdata[$i] =~ s/\s+$//;
+	if ($tbdata[$i] ne "") { $check += 1; }
+    }
+
+    if ($check > 0) {
+    $claws_addr .= "    <attribute-list>\n";
+	if ($tbdata[1] ne "" || $tbdata[2] ne "") {
+	    $time++;
+	    if($tbdata[29] ne "" && $tbdata[1] ne "") { $full_name = "$tbdata[29] $tbdata[1]"; } else { $full_name = "$tbdata[1]"; }
+	    if($tbdata[3] ne "") { $full_name .= " $tbdata[3]"; }
+	    if($tbdata[2] ne "") { $full_name .= " $tbdata[2]"; }
+	    if($tbdata[28] ne "") { $full_name .= " $tbdata[28]"; }
+		
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Full Name\" >"
+			."$full_name</attribute>\n";
+	}
+	if ($tbdata[15] ne "") {
+    	    $time++;
+	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Home Street Address\" >"
+			."$tbdata[15]</attribute>\n";
+	}
+	if ($tbdata[16] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Home City Address\" >"
+			."$tbdata[16]</attribute>\n";
+	}
+	if ($tbdata[17] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Home State Address\" >"
+			."$tbdata[17]</attribute>\n";
+	}
+	if ($tbdata[18] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Home Zip Address\" >"
+			."$tbdata[18]</attribute>\n";
+	}
+	if ($tbdata[19] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Home Country Address\" >"
+			."$tbdata[19]</attribute>\n";
+	}
+	if ($tbdata[9] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Home Phone\" >"
+			."$tbdata[9]</attribute>\n";
+	}
+	if ($tbdata[10] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Home Fax\" >"
+			."$tbdata[10]</attribute>\n";
+	}
+	if ($tbdata[11] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Mobile Phone\" >"
+			."$tbdata[11]</attribute>\n";
+	}
+	if ($tbdata[30] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Personal Homepage\" >"
+			."$tbdata[30]</attribute>\n";
+	}
+	if ($tbdata[14] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Pager\" >"
+			."$tbdata[14]</attribute>\n";
+	}
+	if ($tbdata[7] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Bussines Company\" >"
+			."$tbdata[7]</attribute>\n";
+	}
+	if ($tbdata[8] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Bussines Job Title\" >"
+			."$tbdata[8]</attribute>\n";
+	}
+	if ($tbdata[20] ne "") {
+   	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Department\" >"
+			."$tbdata[20]</attribute>\n";
+	}
+	if ($tbdata[21] ne "") {
+   	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Office\" >"
+			."$tbdata[21]</attribute>\n";
+	}
+	if ($tbdata[22] ne "") {
+   	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Street Address\" >"
+			."$tbdata[22]</attribute>\n";
+	}
+	if ($tbdata[23] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business City Address\" >"
+			."$tbdata[23]</attribute>\n";
+	}
+	if ($tbdata[24] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business State Address\" >"
+			."$tbdata[24]</attribute>\n";
+	}
+	if ($tbdata[25] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Zip Address\" >"
+			."$tbdata[25]</attribute>\n";
+	}
+	if ($tbdata[26] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Country Address\" >"
+			."$tbdata[26]</attribute>\n";
+	}
+	if ($tbdata[12] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Phone\" >"
+			."$tbdata[12]</attribute>\n";
+	}
+	if ($tbdata[13] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Fax\" >"
+			."$tbdata[13]</attribute>\n";
+	}
+	if ($tbdata[31] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Business Homepage\" >"
+			."$tbdata[31]</attribute>\n";
+	}
+	if ($tbdata[27] ne "") {
+    	    $time++;
+    	    $claws_addr .= "      <attribute uid=\"$time\" name=\"Notes\" >"
+			."$tbdata[27]</attribute>\n";
+	}
+	$claws_addr .= "    </attribute-list>\n";
+    }
+#    if ( $check > 0 ) {
+#        $claws_addr .= "</attribute-list>\n";
+#    }
+
+    $claws_addr .=  "  </person>\n";
+    $time++;
+}
+$claws_addr .= "</address-book>\n";
+
+# print new addressbook to file
+open (NEWADDR, ">.claws-mail/$new_addrbk");
+    print NEWADDR $claws_addr;
+close NEWADDR;
+
+# add new addressbook to index
+open (ADDRIN, "<.claws-mail/addrbook--index.xml") || die("Can't open addrbook--index.xml");
+    @addrindex_file = <ADDRIN>;
+close ADDRIN;
+
+foreach $addrindex_line (@addrindex_file) {
+    if ($addrindex_line =~ m/<\/book_list>/) {
+	$rewrite_addrin .= "    <book name=\"The Bat! Address Book\" file=\"$new_addrbk\" />\n"
+			."  </book_list>\n";
+    } else {
+	$rewrite_addrin .= "$addrindex_line";
+    }
+}
+
+open (NEWADDRIN, ">.claws-mail/addrbook--index.xml");
+    print NEWADDRIN "$rewrite_addrin";
+close NEWADDRIN;
+print "You have sucessfully converted your The Bat! addressbook\n";
+print "New addressbook file name: $new_addrbk\n";
+print "Total addresses converted: $total_addresses\n";
+exit;

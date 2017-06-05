@@ -1,0 +1,1626 @@
+\input texinfo.tex
+@c Generated automatically from mime-en.sgml by sinfo 3.7.
+@setfilename mime-en.info
+@settitle{FLIM 1.14 Reference Manual about MIME Features}
+@titlepage
+@title FLIM 1.14 Reference Manual about MIME Features
+@author MORIOKA Tomohiko <morioka@@jaist.ac.jp>
+@subtitle 1999-01-27
+@end titlepage
+@node Top, Introduction, (dir), (dir)
+@top FLIM 1.14 Reference Manual about MIME Features
+
+@ifinfo
+
+This file documents MIME features of FLIM, a fundamental library to
+process Internet Messages for GNU Emacsen.
+@end ifinfo
+
+@menu
+* Introduction::                What is FLIM?
+* How to use::                  How to use MIME features
+* Entity::                      Message and Entity
+* Content-Type::                Information of Content-Type field
+* Content-Disposition::         Information of Content-Disposition field
+* Content-Transfer-Encoding::   Encoding Method
+* encoded-word::                Network representation of header
+* custom::                      Various Customization
+* Appendix::
+* Concept Index::
+* Function Index::
+* Variable Index::
+@end menu
+
+@node Introduction, How to use, Top, Top
+@chapter What is FLIM?
+
+FLIM is a library to provide basic features about message
+representation or encoding.
+
+
+@node How to use, Entity, Introduction, Top
+@chapter How to use MIME features
+
+Please eval following to use MIME features provided by FLIM:
+
+@lisp
+(require 'mime)
+@end lisp
+
+
+
+@node Entity, Content-Type, How to use, Top
+@chapter Message and Entity
+@cindex mime-entity
+@cindex entity
+
+According to RFC 2045 (@ref{RFC 2045}), `The term ``entity'', refers
+specifically to the MIME-defined header fields and contents of either a
+message or one of the parts in the body of a multipart entity.'  In this
+document, the term @strong{entity} indicates all of header fields and
+body.@refill
+
+The definition of RFC 2045 indicates that a MIME message is a tree, and
+each node of the tree is an entity.  Namely MIME extends message to tree
+structure.@refill
+
+FLIM uses @strong{mime-entity} structure to represent
+information of entity.  In this document, it is called simply
+`mime-entity'.
+
+
+@menu
+* Entity creation::             Functions to create mime-entity
+* Entity hierarchy::            Features about message tree
+* Entity Search::               Find Entity
+* Entity Attributes::           Functions about attributes of mime-entity
+* Entity-header::               Information of entity header
+* entity formatting::           Text presentation of entity
+* Entity-content::              Contents of Entity
+* Entity-network-representation::  Network representation of Entity
+* Entity buffer::               Entity as buffer representation
+* mm-backend::                  Entity representations and implementations
+@end menu
+
+@node Entity creation, Entity hierarchy, Entity, Entity
+@section Functions to create mime-entity
+
+@defun mime-open-entity &optional  type location
+
+Open an entity and return it.@refill
+
+@var{type} is representation-type. (cf. @ref{mm-backend}) @refill
+
+@var{location} is location of entity.  Specification of it is depended
+on representation-type.
+@end defun
+
+
+@defun mime-parse-buffer &optional  buffer type
+
+Parse @var{buffer} as message, and set the result to buffer local
+variable @code{mime-message-structure} of @var{buffer} as
+mime-entity.@refill
+
+If @var{buffer} is omitted, current buffer is used.@refill
+
+@var{type} is representation-type of created
+mime-entity. (cf. @ref{mm-backend}) Default value is @var{buffer}.
+@end defun
+
+
+
+@node Entity hierarchy, Entity Search, Entity creation, Entity
+@section Features about message tree
+@cindex node-id
+@cindex entity-number
+@cindex message
+@cindex root-entity
+
+Structure of a MIME message is tree.@refill
+
+In the tree, root node is the entity indicates all of the message.  In
+this document, it is called @strong{root-entity} or @strong{message}.
+In FLIM, it is indicated by buffer local variable
+@code{mime-message-structure}.@refill
+
+Each entity except root-entity has a parent.  An entity may have
+children.  We can indicate an entity by relative position from a base
+entity, based on the parent-child relationship.@refill
+
+In addition, we can indicate an entity by absolute position of the
+message.@refill
+
+Each entity, which is a node of the tree, can be numbered by
+depth and left-to-right order of the depth.
+@example
+
+                              +-------+
+                              |  nil  |
+                              +---+---+
+              +-------------------+-------------------+
+            +-+-+               +-+-+               +-+-+
+            | 0 |               | 1 |               | 2 |
+            +-+-+               +-+-+               +-+-+
+              |         +---------+---------+         |
+           +--+--+   +--+--+   +--+--+   +--+--+   +--+--+
+           | 0.0 |   | 1.0 |   | 1.1 |   | 1.2 |   | 2.0 |
+           +-----+   +-----+   +-----+   +-----+   +-----+
+@end example
+
+Namely, if depth of a node is n, the node has a node-number, which is
+consists of n integers.  In this document, it is called
+@strong{entity-number}.  An entity-number is represented by list of
+integer, like @code{(1 2 3)}.@refill
+
+mime-entity has also @strong{node-id}.  A node-id is represented by
+reversed list of entity-number.  For example, node-id corresponding with
+1.2.3 is @code{(3 2 1)}.@refill
+
+Each entity can be indicated by entity-number or node-id in
+@code{mime-message-structure}.
+
+@defvar mime-message-structure
+
+Buffer local variable to store mime-entity structure of message.
+@end defvar
+
+
+@defun mime-entity-children entity
+
+Return list of entities included in the @var{entity}.
+@end defun
+
+
+@defun mime-entity-parent entity  &optional  message
+
+Return parent entity of the @var{entity}.@refill
+
+If @var{message} is specified, it is regarded as root instead of
+@code{mime-message-structure}.
+@end defun
+
+
+@defun mime-root-entity-p entity
+
+Return non-@code{nil} if @var{entity} is root entity (message).
+@end defun
+
+
+@defun mime-entity-node-id entity
+
+Return node-id of @var{entity}.
+@end defun
+
+
+@defun mime-entity-number entity
+
+Return entity-number of @var{entity}.
+@end defun
+
+
+
+@node Entity Search, Entity Attributes, Entity hierarchy, Entity
+@section Find Entity
+
+@defun mime-find-entity-from-number entity-number  &optional  message
+
+Return entity from @var{entity-number} in @var{message}.@refill
+
+If @var{message} is not specified, @code{mime-message-structure} is
+used.
+@end defun
+
+
+@defun mime-find-entity-from-node-id entity-node-id  &optional  message
+
+Return entity from @var{entity-node-id} in @var{message}.@refill
+
+If @var{message} is not specified, @code{mime-message-structure} is
+used.
+@end defun
+
+
+@defun mime-find-entity-from-content-id cid  &optional  message
+
+Return entity from @var{cid} in @var{message}.@refill
+
+If @var{message} is not specified, @code{mime-message-structure} is
+used.
+@end defun
+
+
+
+@node Entity Attributes, Entity-header, Entity Search, Entity
+@section Functions about attributes of mime-entity
+
+@defun mime-entity-content-type entity
+
+Return content-type of @var{entity}.  (cf. @ref{mime-content-type})
+@end defun
+
+
+@defun mime-entity-content-disposition entity
+
+Return content-disposition of
+@var{entity}. (cf. @ref{mime-content-disposition})
+@end defun
+
+
+@defun mime-entity-filename entity
+
+Return file name of @var{entity}.
+@end defun
+
+
+@defun mime-entity-encoding entity  &optional  default-encoding
+
+Return content-transfer-encoding of @var{entity}.
+(cf. @ref{Content-Transfer-Encoding}) @refill
+
+If the @var{entity} does not have Content-Transfer-Encoding field, this
+function returns @var{default-encoding}.  If it is nil, @code{"7bit"} is
+used as default value.
+@end defun
+
+
+@defun mime-entity-cooked-p entity
+
+Return non-nil if contents of @var{entity} has been already
+code-converted.
+@end defun
+
+
+
+@node Entity-header, entity formatting, Entity Attributes, Entity
+@section Information of entity header
+
+@defun mime-fetch-field field-name  &optional  entity
+
+Return field-body of @var{field-name} field in header of
+@var{entity}.@refill
+
+The results is network representation.@refill
+
+If @var{entity} is omitted, @code{mime-message-structure} is used as
+default value.@refill
+
+If @var{field-name} field is not found, this function returns
+@code{nil}.
+@end defun
+
+
+@defun mime-read-field field-name  &optional  entity
+
+Parse @var{field-name} field in header of @var{entity}, and return the
+result.@refill
+
+Format of result is depended on kind of field.  For non-structured
+field, this function returns string.  For structured field, it returns
+list corresponding with structure of the field.@refill
+
+Strings in the result will be converted to internal representation of
+Emacs.@refill
+
+If @var{entity} is omitted, @code{mime-message-structure} is used as
+default value.@refill
+
+If @var{field-name} field is not found, this function returns
+@code{nil}.
+@end defun
+
+
+
+@node entity formatting, Entity-content, Entity-header, Entity
+@section Text presentation of entity
+
+@defun mime-insert-header entity  &optional  invisible-fields visible-fields
+
+Insert before point a decoded contents of header of @var{entity}.@refill
+
+@var{invisible-fields} is list of regexps to match field-name to hide.
+@var{visible-fields} is list of regexps to match field-name to
+hide.@refill
+
+If a field-name is matched with some elements of @var{invisible-fields}
+and matched with none of @var{visible-fields}, this function don't
+insert the field.@refill
+
+Each encoded-word (@ref{encoded-word}) in the header is decoded.  ``Raw
+non us-ascii characters'' are also decoded as
+@code{default-mime-charset}.
+@end defun
+
+
+@defun mime-insert-text-content entity
+
+Insert before point a contents of @var{entity} as text entity.@refill
+
+Contents of the @var{entity} are decoded as MIME charset (@ref{MIME charset}).  If the @var{entity} does not have charset parameter of
+Content-Type field, @code{default-mime-charset} is used as default
+value.
+@end defun
+
+
+@defvar default-mime-charset
+
+Symbol to indicate default value of MIME charset (@ref{MIME charset}).@refill
+
+It is used when MIME charset is not specified.@refill
+
+It is originally variable of APEL.
+@end defvar
+
+
+
+@node Entity-content, Entity-network-representation, entity formatting, Entity
+@section Contents of Entity
+
+@defun mime-entity-content entity
+
+Return content of @var{entity} as byte sequence.
+@end defun
+
+
+@defun mime-insert-entity-content entity
+
+Insert content of @var{entity} at point.
+@end defun
+
+
+@defun mime-write-entity-content entity filename
+
+Write content of @var{entity} into @var{filename}.
+@end defun
+
+
+
+@node Entity-network-representation, Entity buffer, Entity-content, Entity
+@section Network representation of Entity
+
+@defun mime-insert-entity entity
+
+Insert header and body of @var{entity} at point.
+@end defun
+
+
+@defun mime-write-entity entity filename
+
+Write representation of @var{entity} into @var{filename}.
+@end defun
+
+
+@defun mime-write-entity-body entity filename
+
+Write body of @var{entity} into @var{filename}.
+@end defun
+
+
+
+@node Entity buffer, mm-backend, Entity-network-representation, Entity
+@section Entity as buffer representation
+
+@defun mime-entity-buffer entity
+
+Return buffer, which contains @var{entity}.
+@end defun
+
+
+@defun mime-entity-point-min entity
+
+Return the start point of @var{entity} in the buffer which contains
+@var{entity}.
+@end defun
+
+
+@defun mime-entity-point-max entity
+
+Return the end point of @var{entity} in the buffer which contains
+@var{entity}.
+@end defun
+
+
+@defun mime-entity-header-start entity
+
+Return the start point of header of @var{entity} in the buffer which
+contains @var{entity}.
+@end defun
+
+
+@defun mime-entity-header-end entity
+
+Return the end point of header of @var{entity} in the buffer which
+contains @var{entity}.
+@end defun
+
+
+@defun mime-entity-body-start entity
+
+Return the start point of body of @var{entity} in the buffer which
+contains @var{entity}.
+@end defun
+
+
+@defun mime-entity-body-end entity
+
+Return the end point of body of @var{entity} in the buffer which
+contains @var{entity}.
+@end defun
+
+
+
+@node mm-backend,  , Entity buffer, Entity
+@section Entity representations and implementations
+@cindex mm-backend
+@cindex entity processing method
+@cindex representation-type
+
+Entity is an abstraction.  It is designed to use various data
+representations for their purposes.@refill
+
+Each entity has @strong{representation-type}.  It must be specified when
+an entity is created. (cf. @ref{Entity Creation}) @refill
+
+Functions about entity are implemented by request processing to the
+entity.  Each entity knows its representation-type.  Each entity calls
+processing function corresponding with the representation-type.  Such
+kind of function is called @strong{entity processing method}.  A module,
+consists of them corresponding with a representation-type, is called
+@strong{mm-backend}.@refill
+
+Module name of each mm-backend consists of the prefix @code{mm}
+and its representation-type.  The module is required automatically
+when its entity is created at first.
+
+
+@menu
+* Request for entity::          Message-passing for entity
+* mm-backend module::           Definition of mm-backend
+@end menu
+
+@node Request for entity, mm-backend module, mm-backend, mm-backend
+@subsection Message-passing for entity
+
+@defun mime-entity-send entity message  &rest  args
+
+Send @var{message} to @var{entity} with @var{args}, and return the
+result.@refill
+
+@var{args} is arguments of the @var{message}.
+@end defun
+
+
+
+@node mm-backend module,  , Request for entity, mm-backend
+@subsection Definition of mm-backend
+
+@defmac mm-define-backend type &optional  parents
+
+Define @var{type} as a mm-backend.@refill
+
+If @var{PARENTS} is specified, @var{type} inherits parents.  Each parent
+must be representation-type.@refill
+
+Example:@refill
+
+@lisp
+(mm-define-backend chao (generic))
+@end lisp
+@end defmac
+
+
+@defmac mm-define-method name args  &rest  body
+
+Define @var{name} as a method function of (nth 1 (car @var{args}))
+backend.@refill
+
+@var{args} is like an argument list of lambda, but (car @var{args}) must
+be specialized parameter.  (car (car @var{args})) is name of variable
+and (nth 1 (car @var{args})) is name of backend
+(representation-type).@refill
+
+Example:@refill
+
+@lisp
+(mm-define-method entity-cooked-p ((entity chao)) nil)
+@end lisp
+@end defmac
+
+
+
+@node Content-Type, Content-Disposition, Entity, Top
+@chapter Information of Content-Type field
+@cindex mime-content-type
+@cindex Content-Type field
+
+@strong{Content-Type field} is a field to indicate kind of contents or
+data format, such as media-type (@ref{media-type}) and MIME charset.  It
+is defined in RFC 2045 (@ref{RFC 2045}).
+
+@noindent
+@strong{[Memo]}
+@quotation
+
+Historically, Content-Type field was proposed in RFC 1049.  In it,
+Content-Type did not distinguish type and subtype, and there are no
+mechanism to represent kind of character code like MIME charset.
+@end quotation
+
+
+FLIM provides parser for Content-Type field and structure
+@strong{mime-content-type} to store information of
+Content-Type field.
+
+
+@menu
+* Content-Type field::          Format of Content-Type field
+* mime-content-type::           mime-content-type structure
+* Content-Type parser::         Parser
+* Content-Type utility::        Utility functions
+@end menu
+
+@node Content-Type field, mime-content-type, Content-Type, Content-Type
+@section Format of Content-Type field
+@cindex parameter
+@cindex subtype
+@cindex type
+
+Format of Content-Type field is defined as follows:
+
+@quotation
+``Content-Type'' ``:'' @strong{type} ``/''
+@strong{subtype} *( ``;'' @strong{parameter} )
+@end quotation
+
+For example:
+
+@quotation
+@example
+Content-Type: image/jpeg
+@end example
+@end quotation
+
+
+@quotation
+@example
+Content-Type: text/plain; charset=iso-2022-jp
+@end example
+@end quotation
+
+`type' and `subtype' indicate format of an entity.  In this document,
+pair of them is called `media-type'.  `image/jpeg' or `text/plain' is
+a media-type.
+
+@noindent
+@strong{[Memo]}
+@quotation
+
+If an entity does not have Content-Type field, it is regarded as
+following:
+
+@quotation
+@example
+Content-Type: text/plain; charset=us-ascii
+@end example
+@end quotation
+
+@noindent
+(cf. @ref{us-ascii})
+@end quotation
+
+
+
+@node mime-content-type, Content-Type parser, Content-Type field, Content-Type
+@section mime-content-type structure
+
+@deffn{Structure} mime-content-type
+
+Structure to store information of a Content-Type field.@refill
+
+Applications should use reference functions
+@code{mime-content-type-SLOT} to refer information of the
+structure.@refill
+
+Slots of the structure are following:
+
+@table @var
+@item primary-type
+primary type of media-type (symbol).
+
+@item subtype
+subtype of media-type (symbol).
+
+@item parameters
+parameters of Content-Type field (association-list).
+
+@end table
+@end deffn
+
+
+@defun make-mime-content-type type subtype
+	   &optional  parameters
+
+Constructor of content-type.
+@end defun
+
+
+@defun mime-content-type-parameter content-type parameter
+
+Return value of @var{parameter} of @var{content-type}.
+@end defun
+
+
+
+@node Content-Type parser, Content-Type utility, mime-content-type, Content-Type
+@section Parser
+
+@defun mime-parse-Content-Type string
+
+Parse @var{string} as a field-body of Content-Type field, and return the
+result as mime-content-type (@ref{mime-content-type}) structure.
+@end defun
+
+
+@defun mime-read-Content-Type
+
+Parse Content-Type field of the current buffer, and return the result as
+mime-content-type (@ref{mime-content-type}) structure.@refill
+
+Return @code{nil} if Content-Type field is not found.
+@end defun
+
+
+
+@node Content-Type utility,  , Content-Type parser, Content-Type
+@section Utility functions
+
+@defun mime-type/subtype-string type  &optional  subtype
+
+Return type/subtype string from @var{type} and @var{subtype}.
+@end defun
+
+
+
+@node Content-Disposition, Content-Transfer-Encoding, Content-Type, Top
+@chapter Information of Content-Disposition field
+@cindex mime-content-disposition
+@cindex RFC 2183
+@cindex Standards Track
+@cindex Content-Disposition field
+
+@strong{Content-Disposition field} is an optional field to
+specify presentation of an entity or attributes of an entity, such as
+file name.
+
+
+@noindent
+[RFC 2183]
+@quotation
+S. Dorner, K. Moore and R. Troost, ``Communicating Presentation
+Information in Internet Messages: The Content-Disposition Header'',
+August 1997, Standards Track.
+@end quotation
+
+FLIM provides parser for Content-Disposition field and structure
+@strong{mime-content-disposition} to store information of
+Content-Disposition field.
+
+
+@menu
+* mime-content-disposition::    mime-content-disposition structure
+* Content-Disposition parser::  Parser for Content-Disposition field
+@end menu
+
+@node mime-content-disposition, Content-Disposition parser, Content-Disposition, Content-Disposition
+@section mime-content-disposition structure
+
+@deffn{Structure} mime-content-disposition
+
+Structure to store information of a Content-Disposition field.@refill
+
+Applications should use reference functions
+@code{mime-content-disposition-SLOT} to refer information of the
+structure.@refill
+
+Slots of the structure are following:
+
+@table @var
+@item disposition-type
+disposition-type (symbol).
+
+@item parameters
+parameters of Content-Disposition field
+(association-list).
+
+@end table
+@end deffn
+
+
+@defun mime-content-disposition-parameter content-disposition parameter
+
+Return value of @var{parameter} of @var{content-disposition}.
+@end defun
+
+
+@defun mime-content-disposition-filename content-disposition
+
+Return filename of @var{content-disposition}.
+@end defun
+
+
+
+@node Content-Disposition parser,  , mime-content-disposition, Content-Disposition
+@section Parser for Content-Disposition field
+
+@defun mime-parse-Content-Disposition string
+
+Parse @var{string} as field-body of Content-Disposition field, and
+return the result as mime-content-disposition
+(@ref{mime-content-disposition}) structure.
+@end defun
+
+
+@defun mime-read-Content-Disposition
+
+Parse Content-Disposition field of the current buffer, and return the
+result as mime-content-disposition (@ref{mime-content-disposition})
+structure.@refill
+
+Return @code{nil} if Content-Disposition field is not found.
+@end defun
+
+
+
+@node Content-Transfer-Encoding, encoded-word, Content-Disposition, Top
+@chapter Encoding Method
+@cindex Content-Transfer-Encoding field
+
+@strong{Content-Transfer-Encoding field} is a header field to indicate
+body encoding of a entity.@refill
+
+FLIM provides parser functions for Content-Transfer-Encoding field.
+They represent information of Content-Transfer-Encoding field as
+string.@refill
+
+In addition, FLIM provides encoder/decoder functions by
+Content-Transfer-Encoding.
+
+
+@menu
+* Content-Transfer-Encoding parser::  Parser
+* encoder/decoder::             Encoder/decoder
+* Encoding information::        Other utilities
+* mel-backend::                 How to write encoder/decoder module
+* generic function for mel-backend::  How to add encoding/decoding service
+@end menu
+
+@node Content-Transfer-Encoding parser, encoder/decoder, Content-Transfer-Encoding, Content-Transfer-Encoding
+@section Parser
+
+@defun mime-parse-Content-Transfer-Encoding string
+
+Parse @var{string} as a field-body of Content-Transfer-Encoding field,
+and return the result.
+@end defun
+
+
+@defun mime-read-Content-Transfer-Encoding &optional default-encoding
+
+Parse Content-Transfer-Encoding field of the current buffer, and return
+the result.@refill
+
+Return @var{default-encoding} if Content-Transfer-Encoding field is not
+found.  If it is not specified, @code{nil} is used as the default value.
+@end defun
+
+
+
+@node encoder/decoder, Encoding information, Content-Transfer-Encoding parser, Content-Transfer-Encoding
+@section Encoder/decoder
+
+@defun mime-encode-region start end encoding
+
+Encode region @var{start} to @var{end} of current buffer using
+@var{encoding}.
+@end defun
+
+
+@defun mime-decode-region start end encoding
+
+Decode region @var{start} to @var{end} of current buffer using
+@var{encoding}.
+@end defun
+
+
+
+@defun mime-decode-string string encoding
+
+Decode @var{string} which is encoded in @var{encoding}, and return the
+result.
+@end defun
+
+
+
+@defun mime-insert-encoded-file filename encoding
+
+Insert file @var{FILENAME} encoded by @var{ENCODING} format.
+@end defun
+
+
+@defun mime-write-decoded-region start end filename encoding
+
+Decode and write current region encoded by @var{encoding} into
+@var{filename}.@refill
+
+@var{start} and @var{end} are buffer positions.
+@end defun
+
+
+
+@node Encoding information, mel-backend, encoder/decoder, Content-Transfer-Encoding
+@section Other utilities
+
+@defun mime-encoding-list &optional  SERVICE
+
+Return list of Content-Transfer-Encoding.@refill
+
+If @var{service} is specified, it returns available list of
+Content-Transfer-Encoding for it.
+@end defun
+
+
+@defun mime-encoding-alist &optional  SERVICE
+
+Return table of Content-Transfer-Encoding for completion.@refill
+
+If @var{service} is specified, it returns available list of
+Content-Transfer-Encoding for it.
+@end defun
+
+
+
+@node mel-backend, generic function for mel-backend, Encoding information, Content-Transfer-Encoding
+@section How to write encoder/decoder module
+
+@defmac mel-define-method name args  &rest  body
+
+Define @var{name} as a method function of (nth 1 (car (last
+@var{args}))) backend.@refill
+
+@var{args} is like an argument list of lambda, but (car (last
+@var{args})) must be specialized parameter.  (car (car (last
+@var{args}))) is name of variable and (nth 1 (car (last @var{args}))) is
+name of backend (encoding).@refill
+
+Example:@refill
+
+@lisp
+(mel-define-method mime-write-decoded-region (start end filename
+						    (nil "base64"))
+  "Decode and write current region encoded by base64 into FILENAME.
+START and END are buffer positions."
+  (interactive
+   (list (region-beginning) (region-end)
+	 (read-file-name "Write decoded region to file: ")))
+  (let ((str (buffer-substring start end)))
+    (with-temp-buffer
+      (insert (decode-base64-string str))
+      (write-region-as-binary (point-min) (point-max) filename)
+      )))
+@end lisp
+@end defmac
+
+
+@defmac mel-define-method-function spec function
+
+Set @var{spec}'s function definition to @var{function}.@refill
+
+First element of @var{spec} is service.@refill
+
+Rest of @var{args} is like an argument list of lambda, but (car (last
+@var{args})) must be specialized parameter.  (car (car (last
+@var{args}))) is name of variable and (nth 1 (car (last @var{args}))) is
+name of backend (encoding).@refill
+
+Example:@refill
+
+@lisp
+(mel-define-method-function (mime-encode-string string (nil "base64"))
+			    'encode-base64-string)
+@end lisp
+@end defmac
+
+
+
+@node generic function for mel-backend,  , mel-backend, Content-Transfer-Encoding
+@section How to add encoding/decoding service
+
+@defmac mel-define-service name &optional  args doc-string
+
+Define @var{name} as a service for Content-Transfer-Encodings.@refill
+
+If @var{args} is specified, @var{name} is defined as a generic function
+for the service.@refill
+
+Example:@refill
+
+@lisp
+(mel-define-service encoded-text-encode-string (string encoding)
+  "Encode STRING as encoded-text using ENCODING.
+ENCODING must be string.")
+@end lisp
+@end defmac
+
+
+
+@node encoded-word, custom, Content-Transfer-Encoding, Top
+@chapter Network representation of header
+@cindex RFC 2047
+@cindex Standards Track
+@cindex encoded-word
+@cindex RFC 2047
+
+@strong{RFC 2047} defines the @strong{encoded-word} which is a format to
+represent non-ASCII (@ref{ASCII}) characters in a header.@refill
+
+
+@noindent
+[RFC 2047]
+@quotation
+K. Moore, ``MIME (Multipurpose Internet Mail Extensions) Part Three:
+Message Header Extensions for Non-ASCII Text'', November 1996, Standards
+Track (obsolete RFC 1521,1522,1590).
+@end quotation
+
+The encoded-word is the only valid format to represent non-ASCII
+(@ref{ASCII}) characters in a header, but there are also invalid styles.
+Such kinds of evil messages represent non-ASCII (@ref{ASCII}) characters
+in headers without encoded-words (it is called "raw" non-ASCII
+(@ref{ASCII}) characters).@refill
+
+FLIM provides encoding/decoding features of both encoded-word and
+invalid "raw" non-ASCII (@ref{ASCII}) characters.
+
+
+@menu
+* Header encoder/decoder::      Header encoding/decoding
+@end menu
+
+@node Header encoder/decoder,  , encoded-word, encoded-word
+@section Header encoding/decoding
+
+@defun eword-decode-header &optional  code-conversion separator
+
+Decode MIME encoded-words in header fields.@refill
+
+If @var{code-conversion} is @code{nil}, only encoded-words are decoded.
+If @var{code-conversion} is a MIME charset (@ref{MIME charset}),
+non-ASCII bit patterns are decoded as the MIME charset.  Otherwise
+non-ASCII bit patterns are decoded as the
+@code{default-mime-charset}. (cf. @ref{entity formatting}) @refill
+
+If @var{separator} is not @code{nil}, it is used as header separator.
+@end defun
+
+
+@defun eword-encode-header &optional  code-conversion
+
+Encode header fields to network representation, such as MIME
+encoded-word.@refill
+
+Each field is encoded as corresponding method specified by variable
+@code{mime-field-encoding-method-alist}.
+@end defun
+
+
+@defvar mime-field-encoding-method-alist
+
+Association list to specify field encoding method.  Each element looks
+like (FIELD . METHOD).@refill
+
+If METHOD is @code{mime}, the FIELD will be encoded into MIME format
+(encoded-word).@refill
+
+If METHOD is @code{nil}, the FIELD will not be encoded.@refill
+
+If METHOD is a MIME charset, the FIELD will be encoded as the charset
+when it must be convert into network-code.@refill
+
+Otherwise the FIELD will be encoded as variable
+@code{default-mime-charset} when it must be convert into network-code.
+@end defvar
+
+
+
+@node custom, Appendix, encoded-word, Top
+@chapter Various Customization
+
+@deffn{group} mime
+
+The group associated with functions related to MIME.@refill
+
+It belongs to @code{mail} and @code{news}.
+@end deffn
+
+
+@node Appendix, Concept Index, custom, Top
+@chapter Appendix
+
+
+@menu
+* Glossary::                    
+* Bug report::                  How to report bugs
+* CVS::                         CVS based development
+* History::                     History of FLIM
+@end menu
+
+@node Glossary, Bug report, Appendix, Appendix
+@section Glossary
+
+
+@menu
+* 7bit::                        
+* 8bit::                        
+* ASCII::                       
+* Base64::                      
+* binary::                      
+* coded character set::         Coded character set, Character code
+* media-type::                  
+* message::                     
+* MIME::                        
+* MIME charset::                
+* MTA::                         
+* MUA::                         
+* Quoted-Printable::            
+* RFC 822::                     
+* RFC 1036::                    
+* RFC 2045::                    
+* RFC 2046::                    
+* RFC 2048::                    
+* RFC 2049::                    
+* plain text::                  
+* us-ascii::                    
+@end menu
+
+@node 7bit, 8bit, Glossary, Glossary
+@subsection 7bit
+@cindex 7bit (textual) string
+@cindex 7bit data
+@cindex 7bit
+
+@strong{7bit} means any integer between 0 .. 127.@refill
+
+Any data represented by 7bit integers is called @strong{7bit data}.@refill
+
+Textual string consisted of Control characters between 0 .. 31 and 127,
+and space represented by 32, and graphic characters between 33 .. 236
+are called @strong{7bit (textual) string}.@refill
+
+Conventional Internet MTA (@ref{MTA}) can translate 7bit data, so it is
+no need to translate by Quoted-Printable (@ref{Quoted-Printable}) or
+Base64 (@ref{Base64}) for 7bit data.@refill
+
+However if there are too long lines, it can not translate by 7bit MTA
+even if it is 7bit data.  RFC 821 (@ref{RFC 821}) and RFC 2045 (@ref{RFC 2045}) require lines in 7bit data must be less than 998 bytes.  So if a
+``7bit data'' has a line more than 999 bytes, it is regarded as binary
+(@ref{binary}).  For example, Postscript file should be encoded by
+Quoted-Printable.
+
+
+@node 8bit, ASCII, 7bit, Glossary
+@subsection 8bit
+@cindex 8bit (textual) string
+@cindex 8bit data
+@cindex 8bit
+
+@strong{8bit} means any integer between 0 .. 255.@refill
+
+Any data represented by 8bit integers is called @strong{8bit data}.@refill
+
+Textual string consisted of Control characters between 0 .. 31, 127, and
+128 .. 159, and space represented by 32, and graphic characters between
+33 .. 236 and 160 .. 255 are called @strong{8bit (textual) string}.@refill
+
+For example, iso-8859-1 (@ref{iso-8859-1}) or euc-kr (@ref{euc-kr}) are
+coded-character-set represented by 8bit textual string.@refill
+
+Traditional Internet MTA (@ref{MTA}) can translate only 7bit
+(@ref{7bit}) data, so if a 8bit data will be translated such MTA, it
+must be encoded by Quoted-Printable (@ref{Quoted-Printable}) or Base64
+(@ref{Base64}).@refill
+
+However 8bit MTA are increasing today.@refill
+
+However if there are too long lines, it can not translate by 8bit MTA
+even if it is 8bit data.  RFC 2045 (@ref{RFC 2045}) require lines in
+8bit data must be less than 998 bytes.  So if a ``8bit data'' has a line
+more than 999 bytes, it is regarded as binary (@ref{binary}), so it must
+be encoded by Base64 or Quoted-Printable.
+
+
+@node ASCII, Base64, 8bit, Glossary
+@subsection ASCII
+@cindex ANSI X3.4:1986
+@cindex ASCII
+@cindex ASCII
+
+@strong{ASCII} is a 94-character set contains primary latin characters
+(A-Z, a-z), numbers and some characters.  It is a standard of the United
+States of America.  It is a variant of ISO 646 (@ref{ISO 646}).
+
+
+@noindent
+[ASCII]
+@quotation
+``Coded Character Set -- 7-Bit American Standard Code for Information
+Interchange'', ANSI X3.4:1986.
+@end quotation
+
+
+
+@node Base64, binary, ASCII, Glossary
+@subsection Base64
+@cindex pad
+@cindex Base64
+
+@strong{Base64} is a transfer encoding method of MIME (@ref{MIME})
+defined in RFC 2045 (@ref{RFC 2045}).@refill
+
+The encoding process represents 24-bit groups of input bits as output
+strings of 4 encoded characters.  Encoded characters represent integer 0
+.. 63 or @strong{pad}.  Base64 data must be 4 * n bytes, so pad is used
+to adjust size.@refill
+
+These 65 characters are subset of all versions of ISO 646, including
+US-ASCII, and all versions of EBCDIC.  So it is safe even if it is
+translated by non-Internet gateways.
+
+
+@node binary, coded character set, Base64, Glossary
+@subsection binary
+@cindex binary
+
+Any byte stream is called @strong{binary}.@refill
+
+It does not require structureof lines.  It differs from from 8bit
+(@ref{8bit}).@refill
+
+In addition, if line structured data contain too long line (more than
+998 bytes), it is regarded as binary.
+
+
+@node coded character set, media-type, binary, Glossary
+@subsection Coded character set, Character code
+
+A set of unambiguous rules that establishes a character set and the
+one-to-one relationship between the characters of the set and their
+bit combinations.
+
+
+@node media-type, message, coded character set, Glossary
+@subsection media-type
+@cindex x-token
+@cindex message
+@cindex multipart
+@cindex application
+@cindex video
+@cindex audio
+@cindex image
+@cindex text
+@cindex subtype
+@cindex type
+@cindex media-type
+
+@strong{media-type} specifies the nature of the data in the body of MIME
+(@ref{MIME}) entity (@ref{entity}).  It consists of @strong{type} and
+@strong{subtype}.  It is defined in RFC 2046 (@ref{RFC 2046}).@refill
+
+Currently there are following standard primary-types:
+
+@itemize @bullet
+@item
+@strong{text}
+@item
+@strong{image}
+@item
+@strong{audio}
+@item
+@strong{video}
+@item
+@strong{application}
+@item
+@strong{multipart} (@ref{multipart})
+@item
+@strong{message}
+@end itemize
+
+
+And there are various subtypes, for example, application/octet-stream,
+audio/basic, image/jpeg, multipart/mixed (@ref{multipart/mixed}),
+text/plain (@ref{text/plain}), video/mpeg...  @refill
+
+You can refer registered media types at MEDIA TYPES
+(ftp://ftp.isi.edu/in-notes/iana/assignments/media-types).@refill
+
+In addition, you can use private type or subtype using @strong{x-token},
+which as the prefix `x-'.  However you can not use them in
+public.@refill
+
+(cf. @ref{Content-Type field})
+
+
+
+@node message, MIME, media-type, Glossary
+@subsection message
+
+In this document, it means mail defined in RFC 822 (@ref{RFC 822}) and
+news message defined in RFC 1036 (@ref{RFC 1036}).
+
+
+@node MIME, MIME charset, message, Glossary
+@subsection MIME
+@cindex Multipurpose Internet Mail Extensions
+
+MIME stands for @strong{Multipurpose Internet Mail Extensions}, it is an
+extension for RFC 822 (@ref{RFC 822}).@refill
+
+According to RFC 2045:@refill
+
+STD 11, RFC 822, defines a message representation protocol specifying
+considerable detail about US-ASCII message headers, and leaves the
+message content, or message body, as flat US-ASCII text.  This set of
+documents, collectively called the Multipurpose Internet Mail
+Extensions, or MIME, redefines the format of messages to allow for
+
+@enumerate
+@item
+textual message bodies in character sets other than US-ASCII,
+@item
+an extensible set of different formats for non-textual message
+bodies,
+@item
+multi-part message bodies, and
+@item
+textual header information in character sets other than US-ASCII.
+@end enumerate
+
+
+It is defined in RFC 2045 (@ref{RFC 2045}), RFC 2046 (@ref{RFC 2046}),
+RFC 2047 (@ref{encoded-word}), RFC 2048 (@ref{RFC 2048}) and RFC 2049
+(@ref{RFC 2049}).
+
+
+@node MIME charset, MTA, MIME, Glossary
+@subsection MIME charset
+
+Coded character set (@ref{coded character set}) used in Content-Type
+field (@ref{Content-Type field}) or charset parameter of encoded-word
+(@ref{encoded-word}).@refill
+
+It is defined in RFC 2045 (@ref{RFC 2045}).@refill
+
+iso-2022-jp (@ref{iso-2022-jp}) or euc-kr (@ref{euc-kr}) are kinds of
+it.  (In this document, MIME charsets are written by small letters to
+distinguish graphic character set (@ref{graphic character set}).  For
+example, ISO 8859-1 is a graphic character set, and iso-8859-1 is a MIME
+charset)
+
+
+@node MTA, MUA, MIME charset, Glossary
+@subsection MTA
+@cindex Message Transfer Agent
+
+@strong{Message Transfer Agent}.  It means mail transfer programs
+(ex. sendmail) and news servers.@refill
+
+(cf. @ref{MUA})
+
+
+
+@node MUA, Quoted-Printable, MTA, Glossary
+@subsection MUA
+@cindex Message User Agent
+
+@strong{Message User Agent}.  It means mail readers and news
+readers.@refill
+
+(cf. @ref{MTA})
+
+
+
+@node Quoted-Printable, RFC 822, MUA, Glossary
+@subsection Quoted-Printable
+@cindex Quoted-Printable
+
+@strong{Quoted-Printable} is a transfer encoding method of MIME
+(@ref{MIME}) defined in RFC 2045 (@ref{RFC 2045}).@refill
+
+If the data being encoded are mostly US-ASCII text, the encoded form of
+the data remains largely recognizable by humans.@refill
+
+(cf. @ref{Base64})
+
+
+
+@node RFC 822, RFC 1036, Quoted-Printable, Glossary
+@subsection RFC 822
+@cindex RFC 822
+@cindex STD 11
+@cindex Internet mail
+@cindex Internet message
+@cindex message header
+
+A RFC defines format of Internet mail message, mainly @strong{message header}.
+
+@noindent
+@strong{[Memo]}
+@quotation
+
+news message is based on RFC 822, so @strong{Internet message} may be
+more suitable than @strong{Internet mail} .
+@end quotation
+
+
+
+@noindent
+[RFC 822]
+@quotation
+D. Crocker, ``Standard for the Format of ARPA Internet Text Messages'',
+August 1982, STD 11.
+@end quotation
+
+
+
+@node RFC 1036, RFC 2045, RFC 822, Glossary
+@subsection RFC 1036
+@cindex RFC 1036
+@cindex USENET
+
+A RFC defines format of USENET message.  It is a subset of RFC 822
+(@ref{RFC 822}).  It is not Internet standard, but a lot of netnews
+excepting Usenet uses it.
+
+
+@noindent
+[USENET: RFC 1036]
+@quotation
+M. Horton and R. Adams, ``Standard for Interchange of USENET Messages'',
+December 1987, (obsolete RFC 850).
+@end quotation
+
+
+
+@node RFC 2045, RFC 2046, RFC 1036, Glossary
+@subsection RFC 2045
+@cindex RFC 2045
+@cindex Standards Track
+
+
+@noindent
+[RFC 2045]
+@quotation
+N. Freed and N. Borenstein, ``Multipurpose Internet Mail Extensions
+(MIME) Part One: Format of Internet Message Bodies'', November 1996,
+Standards Track (obsolete RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node RFC 2046, RFC 2048, RFC 2045, Glossary
+@subsection RFC 2046
+@cindex RFC 2046
+@cindex Standards Track
+
+
+@noindent
+[RFC 2046]
+@quotation
+N. Freed and N. Borenstein, ``Multipurpose Internet Mail Extensions
+(MIME) Part Two: Media Types'', November 1996, Standards Track (obsolete
+RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node RFC 2048, RFC 2049, RFC 2046, Glossary
+@subsection RFC 2048
+@cindex RFC 2048
+@cindex Standards Track
+
+
+@noindent
+[RFC 2048]
+@quotation
+N. Freed, J. Klensin and J. Postel, ``Multipurpose Internet Mail
+Extensions (MIME) Part Four: Registration Procedures'', November 1996,
+Standards Track (obsolete RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node RFC 2049, plain text, RFC 2048, Glossary
+@subsection RFC 2049
+@cindex RFC 2049
+@cindex Standards Track
+
+
+@noindent
+[RFC 2049]
+@quotation
+N. Freed and N. Borenstein, ``Multipurpose Internet Mail Extensions
+(MIME) Part Five: Conformance Criteria and Examples'', November 1996,
+Standards Track (obsolete RFC 1521, 1522, 1590).
+@end quotation
+
+
+
+@node plain text, us-ascii, RFC 2049, Glossary
+@subsection plain text
+
+A textual data represented by only coded character set (@ref{coded character set}).  It does not have information about font or
+typesetting.  (cf. @ref{text/plain})
+
+
+
+@node us-ascii,  , plain text, Glossary
+@subsection us-ascii
+@cindex ASCII
+@cindex us-ascii
+
+A MIME charset (@ref{MIME charset}) for primary Latin script mainly
+written by English or other languages.@refill
+
+It is a 7bit coded character set (@ref{coded character set}) based on
+ISO 2022 (@ref{ISO 2022}), it contains only ASCII (@ref{ASCII}) and code
+extension (@ref{code extension}) is not allowed.@refill
+
+It is standard coded character set of Internet mail.  If MIME charset is
+not specified, @strong{us-ascii} is used as default.@refill
+
+In addition, @strong{ASCII} of RFC 822 (@ref{RFC 822}) should be
+interpreted as us-ascii.
+
+
+@node Bug report, CVS, Glossary, Appendix
+@section How to report bugs
+@cindex good bug report
+
+If you write bug-reports and/or suggestions for improvement, please
+send them to the EMACS-MIME Mailing List:
+
+@itemize @bullet
+@item
+ English <emacs-mime-en@@m17n.org>
+@item
+ Japanese <emacs-mime-ja@@m17n.org>
+@end itemize
+
+
+Notice that, we do not welcome bug reports about too old version.  Bugs
+in old version might be fixed.  So please try latest version at
+first.@refill
+
+You should write @strong{good bug report}.  If you write only ``FLIM
+does not work'', we can not find such situations.  At least, you should
+write name, type, variants and version of OS, emacs, APEL, FLIM, SEMI
+and MUA, and setting.  In addition, if error occurs, to send backtrace
+is very important. (cf. @ref{(emacs)Bugs}) @refill
+
+Bug may not appear only your environment, but also in a lot of
+environment (otherwise it might not bug).  Therefor if you send mail
+to author directly, we must write a lot of mails.  So please send mail
+to address for EMACS-MIME Mailing List instead of author.
+
+Via the EMACS-MIME ML, you can report FLIM bugs, obtain the latest
+release of FLIM, and discuss future enhancements to FLIM.  To join the
+EMACS-MIME ML, send an empty e-mail to:
+
+@itemize @bullet
+@item
+ English  <emacs-mime-en-ctl@@m17n.org>
+@item
+ Japanese <emacs-mime-ja-ctl@@m17n.org>
+@end itemize
+
+
+
+@node CVS, History, Bug report, Appendix
+@section CVS based development
+
+Files in FLIM are managed under CVS. Therefore you can obtain the
+newest FLIM by the following method.
+
+@example
+(0) cvs login
+
+    % cvs -d :pserver:anonymous@@cvs.m17n.org:/cvs/root login
+
+    CVS password: [CR] # NULL string
+
+(1) checkout
+
+    % cvs -d :pserver:anonymous@@cvs.m17n.org:/cvs/root checkout
+	checkout [-r TAG] flim
+@end example
+
+
+If you would like to join CVS based development, please send mail to
+
+@itemize @bullet
+@item
+ <cvs@@cvs.m17n.org>
+@end itemize
+
+@noindent
+with your account name and your public key for ssh.
+cvsroot is :ext:cvs@@cvs.m17n.org:/cvs/root.
+
+
+@node History,  , CVS, Appendix
+@section History of FLIM
+
+FLIM の code の最古の部分は 榎並 嗣智 氏が書いた @file{mime.el} に起源し
+ます。この小さな program は Nemacs で動作する iso-2022-jp の B-encoding 
+専用の encoded-word の復号化プログラムでした。@refill
+
+その後、守岡 知彦 は @file{mime.el} を元に@file{tiny-mime.el} というプロ
+グラムを書きます。これは、Nemacs と Mule で動作する encoded-word の符号
+化・復号化プログラムでした。@file{tiny-mime.el} は B-encoding だけでなく 
+Q-encoding もsupport し、また、MULE で扱うことができるさまざまな MIME
+charset (@ref{MIME charset}) を同時に使うことができました。この時、
+Nemacs と Mule の双方を support するために用いられたテクニックは後に emu
+package にまとめられます。@refill
+
+この頃、守岡 知彦 は @file{tiny-mime.el} をさまざまな MUA で使うための設
+定集も配布していましたが、それらは後に@file{tiny-mime.el} とともに１つの 
+package にまとめられ、tm という名前で配布されます。@refill
+
+守岡 知彦 はやがて、MIME message を閲覧するためのプログラムである
+@file{tm-body.el} を書きます。これは、すぐに@file{tm-view.el} という名前
+に変わりましたが、やがて、これが@file{tiny-mime.el} に代わって、tm の中
+核となります。@refill
+
+@file{tm-view.el} は当然、Content-Transfer-Encoding を扱う必要があります。
+この目的のために、MEL が整備されはじめました。Base64 に関しては 
+@file{tiny-mime.el} の code が移され、また、新たにQuoted-Printable の 
+code が追加されました。これらが@file{mel-b.el} と @file{mel-q.el} になり
+ました。@refill
+
+また、後に、守岡 知彦 によって uuencode 用の @file{mel-u.el} が追加され、
+その後に、小林 修平 氏によって x-gzip64 用の@file{mel-g.el} が追加されま
+した。@refill
+
+tm では後に、守岡 知彦 によって @file{tiny-mime.el} の再実装が行われ、こ
+の過程で、STD 11 の parser が書かれました。これは、現在の 
+@file{std11.el} に当たります。また、この過程で @file{tiny-mime.el} は復
+号化を行う @file{tm-ew-d.el} と符号化を行う @file{tm-ew-e.el} に分けられ
+ました。この両者が現在の @file{eword-decode.el} と 
+@file{eword-encode.el} の先祖に当たります。@refill
+
+後に、守岡 知彦 らによって tm の全面書き換え作業が行われ、この過程で、tm 
+は APEL, MEL, SEMI, EMH, RMAIL-MIME, Gnus-MIME などに分けられました。こ
+のうちの MEL が FLIM の直接の先祖に当たります。@refill
+
+後に、APEL から @file{std11.el} が移され、また、@file{mailcap.el},
+@file{eword-decode.el} および @file{eword-encode.el} が SEMI から移され、
+package の名前が FLIM となります。@refill
+
+この直前から田中 哲 氏がより RFC に忠実な実装を書き始め、これは、現在、
+FLIM の枝である ``FLIM-FLAM'' となっています。
+
+
+@node Concept Index, Function Index, Appendix, Top
+@chapter Concept Index
+
+@printindex cp
+
+@node Function Index, Variable Index, Concept Index, Top
+@chapter Function Index
+
+@printindex fn
+
+@node Variable Index,  , Function Index, Top
+@chapter Variable Index
+
+@printindex vr
+@bye

@@ -1,0 +1,335 @@
+#! /usr/bin/perl
+# The copyright notice and license are in the POD at the bottom.
+
+use strict;
+use warnings;
+use Locale::PO qw();
+use Getopt::Long qw(GetOptions :config bundling gnu_compat);
+use autouse 'Pod::Usage' => qw(pod2usage);
+use autouse 'File::Spec::Functions' => qw(catfile);
+
+my $VERSION = "1.2";
+
+sub show_version
+{
+    print "msgaccel-prepare $VERSION\n";
+    pod2usage({-verbose => 99, -sections => "COPYRIGHT AND LICENSE",
+	       -exitval => 0});
+}
+
+{
+    package Contextline;
+    use fields qw(lineno contexts);
+    sub new {
+        my($self, $lineno, $contexts) = @_;
+        $self = fields::new($self) unless ref $self;
+	$self->{lineno} = $lineno;
+	$self->{contexts} = $contexts;
+	return $self;
+    }
+}
+
+my @Srcpath;
+my $Accelerator_tag;
+
+# Each key is a file name.
+# Each value is a reference to an array of references to Contextline
+# pseudo-hashes.  The array is in ascending order by {lineno}.
+my %Srcfiles;
+
+sub open_file_on_path ($@)
+{
+    my($fname, @path) = @_;
+    if (@path) {
+	my @warnings;
+	foreach my $dir (@path) {
+	    my $full_fname = catfile($dir, $fname);
+	    if (open my $fh, "<", $full_fname) {
+		return($fh, $full_fname);
+	    } else {
+		push @warnings, "$full_fname: $!\n";
+	    }
+	}
+	# Didn't find $name anywhere on @path.
+	warn $_ foreach @warnings;
+	return;
+    } else {			# no path
+	if (open my $fh, "<", $fname) {
+	    return($fh, $fname);
+	} else {
+	    warn "$fname: $!\n";
+	    return;
+	}
+    }
+    # not reached
+}
+
+# Scan the file $src_fname for gettext_accelerator_context directives,
+# cache the result in %Srcfiles, and return it in that format.
+# Cache and return [] if the file cannot be read on @Srcpath.
+sub contextlines ($)
+{
+    my($src_fname) = @_;
+    return $Srcfiles{$src_fname} if exists($Srcfiles{$src_fname});
+    my @contextlines = ();
+
+    if (my($src_fh, $src_full_fname) = open_file_on_path($src_fname, @Srcpath)) {
+	my @prevctxs;
+	local $_;
+	while (<$src_fh>) {
+	    chomp;
+	    if (/^\}/ && @prevctxs) {
+		push @contextlines, Contextline->new($., [@prevctxs = ()]);
+	    }
+	    if (my($contexts) = /\[gettext_accelerator_context\(([^()]*)\)\]/) {
+		my @contexts = grep { $_ ne "" } split(/\s*,\s*/, $contexts);
+		s/^\./${src_fname}:/ foreach @contexts;
+		warn "$src_full_fname:$.: Previous context not closed\n"
+		    if @prevctxs && @contexts;
+		warn "$src_full_fname:$.: Context already closed\n"
+		    if !@prevctxs && !@contexts;
+		push @contextlines, Contextline->new($., [@prevctxs = @contexts]);
+	    } elsif (/gettext_accelerator_context/) {
+		warn "$src_full_fname:$.: Suspicious non-directive: $_\n";
+	    }
+	}
+	warn "$src_full_fname:$.: Last context not closed\n" if @prevctxs;
+    } # if opened ok
+
+    return $Srcfiles{$src_fname} = \@contextlines;
+}
+
+sub contexts ($$)
+{
+    my($srcfile, $lineno) = @_;
+    # Could use a binary search here.
+    my $contextlines = contextlines($srcfile);
+    my @contexts = ();
+    foreach my Contextline $contextline (@{$contextlines}) {
+	return @contexts if $contextline->{lineno} > $lineno;
+	@contexts = @{$contextline->{contexts}};
+    }
+    return ();
+}
+
+sub gather_accelerator_contexts ($$)
+{
+    my($pos, $po_fname) = @_;
+    foreach my $po (@$pos) {
+	my $automatic = $po->automatic();
+	$automatic =~ s/^\[gettext_accelerator_context\(.*(?:\n|\z)//mg
+	    if defined($automatic);
+
+	if ($po->msgid() =~ /\Q$Accelerator_tag/s) {
+	    my @po_contexts = ();
+	    foreach my $ref (split(' ', $po->reference())) {
+		my @parts = split(/\:/, $ref);
+		warn "weird reference: $ref\n", next unless @parts == 2;
+		my @ref_contexts = contexts($parts[0], $parts[1]);
+		if (@ref_contexts) {
+		    push @po_contexts, grep { $_ ne "IGNORE" } @ref_contexts;
+		} else {
+		    warn "$ref: No accelerator context for msgid " . $po->msgid() . "\n";
+		}
+	    }
+	    if (@po_contexts) {
+		# sort and uniquify
+		@po_contexts = sort keys %{{map { $_ => 1 } @po_contexts}};
+		$automatic .= "\n" if defined($automatic) and $automatic ne "";
+		$automatic .= "accelerator_context(" . join(", ", @po_contexts) . ")";
+	    }
+	}
+	$po->automatic($automatic);
+    }
+}
+
+GetOptions("srcdir|source-directory|S=s" => \@Srcpath,
+	   "accelerator-tag=s" => sub {
+	       my($option, $value) = @_;
+	       die "Cannot use multiple --accelerator-tag options\n"
+		   if defined($Accelerator_tag);
+	       die "--accelerator-tag requires a single-character argument\n"
+		   if length($value) != 1;
+	       $Accelerator_tag = $value;
+	   },
+	   "help" => sub { pod2usage({-verbose => 1, -exitval => 0}) },
+	   "version" => \&show_version)
+    or exit 2;
+$Accelerator_tag = "~" unless defined $Accelerator_tag;
+print(STDERR "$0: missing file operand\n"), exit 2 unless @ARGV;
+print(STDERR "$0: too many operands\n"), exit 2 if @ARGV > 1;
+
+my($po_fname) = @ARGV;
+my $pos = Locale::PO->load_file_asarray($po_fname) or die "$po_fname: $!";
+gather_accelerator_contexts($pos, $po_fname);
+Locale::PO->save_file_fromarray($po_fname, $pos) or die "$po_fname: $!";
+
+__END__
+
+=head1 NAME
+
+msgaccel-prepare - Augment a PO file with information for detecting
+accelerator conflicts.
+
+=head1 SYNOPSIS
+
+B<msgaccel-prepare> [I<option> ...] F<I<program>.pot>
+
+=head1 DESCRIPTION
+
+B<msgaccel-prepare> is part of a framework that detects conflicting
+accelerator keys in Gettext PO files.  A conflict is when two items in
+the same menu or two buttons in the same dialog box use the same
+accelerator key.
+
+The PO file format does not normally include any information
+on which strings will be used in the same menu or dialog box.
+B<msgaccel-prepare> adds this information in the form of
+"accelerator_context" comments, which B<msgaccel-check>
+then parses in order to detect the conflicts.
+
+The PO file format also does not directly support definitions of
+accelerator keys.  Typically, the keys are encoded in C<msgstr>
+strings, by placing a tilde in front of the character that should be
+used as the accelerator key.  That is also the syntax supported by
+this framework and by B<msgfmt --check-accelerators> of GNU Gettext.
+
+B<msgaccel-prepare> first reads the F<I<program>.pot> file named on
+the command line.  This file must include "#:" comments that point
+to the source files from which B<xgettext> extracted each C<msgid>.
+B<msgaccel-prepare> then scans those source files for context
+information and rewrites F<I<program>.pot> to include the
+"accelerator_context" comments.  Finally, the standard tool
+B<msgmerge> can be used to copy the added comments to all the
+F<I<language>.po> files.
+
+It is best to run B<msgaccel-prepare> immediately after B<xgettext>
+so that the source references will be up to date.
+
+=head2 Contexts
+
+Whenever a source file refers to an C<msgid> that includes an
+accelerator key, it must assign one or more named B<contexts> to it.
+The C<msgstr>s in the PO files inherit these contexts.  If multiple
+C<msgstr>s use the same accelerator (case insensitive) in the same
+context, that's a conflict and can be detected automatically.
+
+If the same C<msgid> is used in multiple places in the source code,
+and those places assign different contexts to it, then all of those
+contexts will apply.
+
+The names of contexts consist of C identifiers delimited with periods.
+The identifier is typically the name of a function that sets up a
+dialog, or the name of an array where the items of a menu are listed.
+There is a special feature for file-local identifiers (C<static> in C):
+if the name begins with a period, then the period will be replaced
+with the name of the source file and a colon.  The name "IGNORE" is
+reserved.
+
+If a menu is programmatically generated from multiple parts, of which
+some are never used together, so that it is safe to use the same
+accelerators in them, then it is necessary to define multiple contexts
+for the same menu.
+
+=head2 How to define contexts in source files
+
+The contexts are defined with "gettext_accelerator_context" comments
+in source files.  These comments delimit regions where all C<msgid>s
+that seem to contain accelerators are given the same contexts.  There
+must be one special comment at the top of the region; it lists the
+contexts assigned to that region.  The region automatically ends at
+the end of the function (found with regexp C</^\}/>), but it can also
+be closed explicitly with another special comment.  The comments are
+formatted like this:
+
+  /* [gettext_accelerator_context(foo, bar, baz)]
+       begins a region that uses the contexts "foo", "bar", and "baz".
+       The comma is the delimiter; whitespace is optional.
+
+     [gettext_accelerator_context()]
+       ends the region.  */
+
+B<msgaccel-prepare> removes from F<I<program>.pot> any
+"gettext_accelerator_context" comments that B<xgettext --add-comments>
+may have copied there.
+
+B<msgaccel-prepare> warns if it does not find any contexts for some
+use of an C<msgid> that contains the character specified with the
+B<--accelerator-tag> option.  If the character does not actually
+indicate an accelerator in that C<msgid> (e.g. "~" in "~/.bashrc"),
+the warning can be silenced by specifying the special context
+"IGNORE", which B<msgaccel-prepare> otherwise ignores.
+
+=head1 OPTIONS
+
+=over
+
+=item B<-S>F<I<srcdir>>, B<--srcdir=>F<I<srcdir>>,
+B<--source-directory=>F<I<srcdir>>
+
+The directory to which the source references in "#:" lines are
+relative.  Each use of this option adds one directory to the search
+path.  If you do not specify this option, B<msgaccel-prepare>
+implicitly searches the current directory.
+
+=item B<--accelerator-tag=>I<character>
+
+Specify the character that marks accelerators in C<msgid> strings.
+B<msgaccel-prepare> looks up accelerator contexts for any C<msgid>
+that contains this character.
+
+Omitting the B<--accelerator-tag> option implies
+B<--accelerator-tag="~">.  The option must be given to each program
+separately because there is no standard way to save this information
+in the PO file.
+
+=back
+
+=head1 ARGUMENTS
+
+=over
+
+=item F<I<program>.pot>
+
+The file to augment with context information.  B<msgaccel-prepare>
+first reads this file and then overwrites it.
+
+Although this documentation keeps referring to F<I<program>.pot>,
+you can also use B<msgaccel-prepare> on an already translated
+F<I<language>.po>.  However, that will only work correctly if the
+source references in the "#:" lines are still up to date.
+
+=back
+
+=head1 BUGS
+
+B<msgaccel-prepare> assumes that source files are in the C programming
+language: specifically, that a closing brace at the beginning of a
+line marks the end of a function.
+
+B<msgaccel-prepare> doesn't check whether the
+"gettext_accelerator_context" comments actually are comments.
+
+=head1 AUTHOR
+
+Kalle Olavi Niemitalo <kon@iki.fi>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2005-2006 Kalle Olavi Niemitalo.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+=head1 SEE ALSO
+
+L<msgaccel-check>, C<xgettext(1)>, C<msgmerge(1)>

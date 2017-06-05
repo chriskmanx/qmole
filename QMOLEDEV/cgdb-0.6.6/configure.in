@@ -1,0 +1,204 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_PREREQ(2.5)
+AC_INIT(cgdb, 0.6.6)
+AC_CONFIG_AUX_DIR(config)
+AM_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE
+
+dnl Checks for programs.
+AC_PROG_CC
+AC_PROG_INSTALL
+
+AC_PROG_RANLIB
+AM_PROG_LEX
+AC_PROG_YACC
+
+dnl determine if we are running in linux, cygwin, solaris, or freebsd
+AC_CANONICAL_HOST
+
+case $host in
+ *-*-linux*)
+   AC_DEFINE(HAVE_LINUX, 1,  Linux environment)
+   ;;
+ *-*-cygwin*)
+   AC_DEFINE(HAVE_CYGWIN, 1,  Cygwin environment)
+   ;;
+ *)
+   ;;
+esac
+
+AC_CONFIG_SUBDIRS([lib/gdbmi])
+
+dnl Checks for header files.
+AC_HEADER_STDC
+AC_HEADER_SYS_WAIT
+
+dnl determine if terminal headers are available for opening pty
+dnl these need only be optionally available
+AC_CHECK_HEADERS(pty.h sys/stropts.h util.h libutil.h)
+
+AC_CHECK_HEADERS([termios.h],,[AC_MSG_ERROR([CGDB requires termios.h to build.])])
+AC_CHECK_HEADERS([sys/select.h],,[AC_MSG_ERROR([CGDB requires sys/select.h to build.])])
+AC_CHECK_HEADERS([errno.h],,[AC_MSG_ERROR([CGDB requires errno.h to build.])])
+AC_CHECK_HEADERS([fcntl.h],,[AC_MSG_ERROR([CGDB requires fcntl.h to build.])])
+AC_CHECK_HEADERS([grp.h],,[AC_MSG_ERROR([CGDB requires grp.h to build.])])
+AC_CHECK_HEADERS([pwd.h],,[AC_MSG_ERROR([CGDB requires pwd.h to build.])])
+AC_CHECK_HEADERS([signal.h],,[AC_MSG_ERROR([CGDB requires signal.h to build.])])
+AC_CHECK_HEADERS([stdarg.h],,[AC_MSG_ERROR([CGDB requires stdarg.h to build.])])
+AC_CHECK_HEADERS([stdio.h],,[AC_MSG_ERROR([CGDB requires stdio.h to build.])])
+AC_CHECK_HEADERS([stdlib.h],,[AC_MSG_ERROR([CGDB requires stdlib.h to build.])])
+AC_CHECK_HEADERS([string.h],,[AC_MSG_ERROR([CGDB requires string.h to build.])])
+AC_CHECK_HEADERS([sys/ioctl.h],,[AC_MSG_ERROR([CGDB requires sys/ioctl.h to build.])])
+AC_CHECK_HEADERS([sys/stat.h],,[AC_MSG_ERROR([CGDB requires sys/stat.h to build.])])
+AC_CHECK_HEADERS([sys/time.h],,[AC_MSG_ERROR([CGDB requires sys/time.h to build.])])
+AC_CHECK_HEADERS([time.h],,[AC_MSG_ERROR([CGDB requires time.h to build.])])
+AC_CHECK_HEADERS([sys/types.h],,[AC_MSG_ERROR([CGDB requires sys/types.h to build.])])
+AC_CHECK_HEADERS([unistd.h],,[AC_MSG_ERROR([CGDB requires unistd.h to build.])])
+AC_CHECK_HEADERS([ctype.h],,[AC_MSG_ERROR([CGDB requires ctype.h to build.])])
+AC_CHECK_HEADERS([limits.h],,[AC_MSG_ERROR([CGDB requires limits.h to build.])])
+AC_CHECK_HEADERS([math.h],,[AC_MSG_ERROR([CGDB requires math.h to build.])])
+AC_CHECK_HEADERS([regex.h],,[AC_MSG_ERROR([CGDB requires regex.h to build.])])
+AC_CHECK_HEADERS([curses.h],,[
+   AC_CHECK_HEADERS([ncurses/curses.h],,[
+      AC_MSG_ERROR([CGDB requires curses.h or ncurses/curses.h to build.])])])
+
+dnl Check for getopt.h, If this is here then getopt_long can be used.
+AC_CHECK_HEADERS([getopt.h],
+		 [AC_DEFINE(HAVE_GETOPT_H, 1, have getopt_long)])
+
+dnl determine if /dev/ptmx is available for pseudo terminals
+AC_CHECK_FILE([/dev/ptmx],
+	      [AC_DEFINE(HAVE_DEV_PTMX, 1, have /dev/ptmx)])
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_UID_T
+AC_TYPE_MODE_T
+AC_TYPE_PID_T
+AC_TYPE_SIZE_T
+
+dnl Checks for library functions.
+AC_PROG_GCC_TRADITIONAL
+AC_FUNC_SETPGRP
+AC_TYPE_SIGNAL
+AC_FUNC_VPRINTF
+
+AC_CHECK_FUNC([putenv],,AC_MSG_ERROR([CGDB requires putenv to build.]))
+AC_CHECK_FUNC([select],,AC_MSG_ERROR([CGDB requires select to build.]))
+AC_CHECK_FUNC([strdup],,AC_MSG_ERROR([CGDB requires strdup to build.]))
+AC_CHECK_FUNC([strerror],,AC_MSG_ERROR([CGDB requires strerror to build.]))
+AC_CHECK_FUNC([openpty],[AC_DEFINE(HAVE_OPENPTY, 1, [Define to 1 if you have the openpty function])],)
+
+dnl Default variables
+dnl If ncurses is yes after arguments, than use ncurses. Otherwise, use curses
+opt_with_readline_prefix=no
+use_ncurses_library=yes
+opt_with_ncurses_prefix=no
+opt_with_curses_prefix=no
+
+dnl argument to configure
+AC_ARG_WITH(readline, AC_HELP_STRING([--with-readline=PREFIX], [Use system installed readline library]), opt_with_readline_prefix=$withval)
+AC_ARG_WITH(ncurses, AC_HELP_STRING([--with-ncurses=PREFIX], [Use system installed ncurses library]), opt_with_ncurses_prefix=$withval)
+AC_ARG_WITH(curses, AC_HELP_STRING([--with-curses=PREFIX], [Use system installed curses library]), opt_with_curses_prefix=$withval use_ncurses_library=no)
+
+if test "$opt_with_readline_prefix" != "no"; then
+  # If set to "yes", it is on the compilers include path.
+  if test "$opt_with_readline_prefix" != "yes"; then
+    LDFLAGS="-L$opt_with_readline_prefix/lib $LDFLAGS" CFLAGS="-I$opt_with_readline_prefix/include -I$opt_with_readline_prefix/include/readline $CFLAGS" CPPFLAGS="-I$opt_with_readline_prefix/include -I$opt_with_readline_prefix/include/readline $CPPFLAGS"
+  fi
+fi
+
+dnl ncurses-prefix argument
+if test "$opt_with_ncurses_prefix" != "no"; then
+  # If set to "yes", it is on the compilers include path.
+  if test "$opt_with_curses_prefix" != "yes"; then
+    LDFLAGS="-L$opt_with_ncurses_prefix/lib $LDFLAGS" CFLAGS="-I$opt_with_ncurses_prefix/include -I$opt_with_ncurses_prefix/include/ncurses $CFLAGS" CPPFLAGS="-I$opt_with_ncurses_prefix/include -I$opt_with_ncurses_prefix/include/ncurses $CPPFLAGS"
+  fi
+fi
+
+if test "$opt_with_curses_prefix" != "no"; then
+  # If set to "yes", it is on the compilers include path.
+  if test "$opt_with_curses_prefix" != "yes"; then
+    LDFLAGS="-L$opt_with_curses_prefix/lib $LDFLAGS" CFLAGS="-I$opt_with_curses_prefix/include $CFLAGS" CPPFLAGS="-I$opt_with_curses_prefix/include $CPPFLAGS"
+  fi
+fi
+
+dnl Checking for log10 function in math - I would like to remove this
+AC_CHECK_LIB(m, log10)
+
+dnl readline and ncurses/curses configure magic is difficult.
+dnl A prerequisite is that CGDB needs either ncurses or curses to link.
+dnl A prerequisite is that readline needs tgetent to link.
+dnl However, I'm not sure if ncurses or curses provides tgetent all the time.
+dnl So, here's the algorithm:
+dnl   Part 1: Detecting ncurses/curses
+dnl     Check for ncurses (for CGDB)
+dnl     Check for curses (for CGDB)
+dnl     If found ncurses or curses, continue. Otherwise quit.
+dnl
+dnl   Part 2: Detecting tgetent
+dnl     Check for tgetent in ncurses or curses (the one found above)
+dnl     Check for tgetent in tinfo
+dnl     Check for tgetent in libc
+dnl     If found tgetent, continue. Otherwise quit.
+
+dnl Part 1: Detecting ncurses/curses
+dnl If the user want ncurses, Try to find it and add it to the linking library.
+if test "$use_ncurses_library" = "yes"; then
+        AC_CHECK_LIB(ncurses, initscr,
+            [AC_DEFINE(HAVE_NCURSES, 1, ncurses library)],
+            AC_MSG_ERROR([cgdb needs ncurses/curses to build. ncurses is strongly recommended.
+    If your system does not have ncurses get it!
+    If that is not an option try 'configure --with-curses.'
+    You can try --with-ncurses=/foo/ncurses to tell configure where ncurses is.]))
+	curses_lib_name="ncurses"
+fi
+
+dnl If the user want curses, Warn them that cgdb does not run perfect against it.
+if test "$use_ncurses_library" = "no"; then
+        AC_MSG_WARN([ *****************************************************
+                     cgdb may not run properly when linked against curses!
+                     *****************************************************])
+        AC_CHECK_LIB(curses, initscr,
+            [AC_DEFINE(HAVE_CURSES, 1, curses library)],
+            AC_MSG_ERROR([cgdb needs ncurses/curses to build. ncurses is strongly recommended.
+    If your system does not have ncurses get it!
+    You can try --with-curses=/foo/curses to tell configure where curses is.]))
+	curses_lib_name="curses"
+fi
+
+dnl Make sure there is a version of readline that CGDB supports.
+dnl Simply putting 5.1* -> 5.9* just to take into accout future versions.
+RL_LIB_READLINE_VERSION
+case "$ac_cv_rl_version" in
+5.1*|5.2*|5.3*|5.4*|5.5*|5.6*|5.7*|5.8*|5.9*|6*|7*|8*|9*) ;;
+*)      AC_MSG_ERROR([CGDB requires GNU readline 5.1 or greater to link.
+  If you used --with-readline instead of using the system readline library, 
+  make sure to set the correct readline library on the linker search path 
+  via LD_LIBRARY_PATH or some other facility.])
+	;;
+esac
+
+dnl This will DEFINE the readline headers.
+RL_LIB_READLINE_INCLUDES
+
+dnl Made it this far, add the readline and termcap LIBS
+LIBS="-lreadline $TERMCAP_LIB $LIBS"
+dnl Add the ncurses/curses lib, if it's not the same as the termcap lib
+if test "$TERMCAP_LIB" != "-l$curses_lib_name"; then
+  LIBS="-l$curses_lib_name $LIBS"
+fi
+
+AC_OUTPUT(Makefile lib/Makefile \
+various/Makefile \
+various/util/Makefile various/util/src/Makefile \
+various/adt/Makefile various/adt/src/Makefile \
+various/rline/Makefile various/rline/src/Makefile \
+tgdb/Makefile \
+tgdb/annotate-two/Makefile tgdb/annotate-two/src/Makefile \
+tgdb/gdbmi/Makefile tgdb/gdbmi/src/Makefile \
+tgdb/tgdb-base/Makefile tgdb/tgdb-base/src/Makefile \
+doc/Makefile cgdb/Makefile cgdb/src/Makefile \
+cgdb/lib/Makefile cgdb/lib/kui/Makefile cgdb/lib/kui/src/Makefile \
+cgdb/tokenizer/Makefile cgdb/tokenizer/src/Makefile \
+test/Makefile)

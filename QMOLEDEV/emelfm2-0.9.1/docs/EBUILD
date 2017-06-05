@@ -1,0 +1,71 @@
+# Copyright 1999-2012 Gentoo Foundation
+# Distributed under the terms of the GNU General Public License v2
+# $Header: $
+
+EAPI=4
+inherit eutils multilib toolchain-funcs
+
+DESCRIPTION="A file manager that implements the popular two-pane design"
+HOMEPAGE="http://emelfm2.net/"
+SRC_URI="http://emelfm2.net/rel/${P}.tar.bz2"
+
+LICENSE="GPL-3 LGPL-3"
+SLOT="0"
+KEYWORDS="~amd64 ~ppc ~ppc64 ~sparc ~x86"
+# kernelfam only works on linux ATM - see Makefile.config
+IUSE="acl compose custmouse kernelfam nls outstyles policykit spell thumbs udisk"
+
+# glib >= 2.26 supports dbus interaction, otherwise, >= 2.6 is sufficient
+COMMON_DEPEND=">=dev-libs/glib-2.26:2
+  >=x11-libs/gtk+-2.6:2
+  acl? ( sys-apps/acl )
+  policykit? ( sys-auth/polkit )
+  spell? ( >=app-text/gtkspell-2.0.14:2 )"
+# libmagic from sys-apps/file
+RDEPEND="${COMMON_DEPEND}
+  sys-apps/file
+  udisk? ( sys-fs/udisks:0 )"
+# TODO magic.h needed
+DEPEND="${COMMON_DEPEND}
+  virtual/pkgconfig
+  nls? ( sys-devel/gettext )"
+
+RESTRICT="test"
+
+pkg_setup() {
+	emel_use() {
+		use ${1} && echo "${2}=1" || echo "${2}=0"
+	}
+
+	myemelconf=(
+	 WITH_GTK2=1
+	 USE_LATEST=1
+	 NEW_COMMAND=1
+	 DOCS_VERSION=1
+	 $(emel_use nls I18N)
+	 $(emel_use compose WITH_TRANSPARENCY)
+	 $(emel_use kernelfam WITH_KERNELFAM)
+	 $(emel_use spell EDITOR_SPELLCHECK)
+	 $(emel_use custmouse WITH_CUSTOMMOUSE)
+	 $(emel_use udisk WITH_UDISKS)
+	 $(emel_use thumbs WITH_THUMBS)
+	 $(emel_use acl WITH_ACL)
+	 $(emel_use outstyles WITH_OUTPUTSTYLES)
+	 $(emel_use policykit WITH_POLKIT)
+	 STRIP=0
+	)
+}
+
+src_prepare() {
+}
+
+src_compile() {
+	tc-export CC
+	emake PREFIX="/usr" LIB_DIR="/usr/$(get_libdir)" ${myemelconf[@]}
+}
+
+src_install() {
+	emake PREFIX="${D}/usr" LIB_DIR="${D}/usr/$(get_libdir)" \
+	 ${myemelconf[@]} install $( use nls && echo install_i18n )
+	newicon icons/${PN}_48.png ${PN}.png
+}

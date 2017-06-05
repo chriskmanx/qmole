@@ -1,0 +1,789 @@
+\input texinfo.tex
+@setfilename mime-ui-ja.info
+@settitle{SEMI 1.14 説明書}
+@titlepage
+@title SEMI 1.14 説明書
+@author 守岡 知彦 <morioka@@jaist.ac.jp>
+@subtitle 1998/07/03
+@end titlepage
+@node Top, Introduction, (dir), (dir)
+@top SEMI 1.14 説明書
+
+@ifinfo
+
+This file documents SEMI, a MIME user interface for GNU Emacs.@refill
+
+GNU Emacs 用の MIME user interface である SEMI について説明します。
+@end ifinfo
+
+@menu
+* Introduction::                SEMI って何？
+* MIME-View::                   MIME message の閲覧
+* MIME-Edit::                   MIME message の編集
+* Various::                     その他
+* Concept Index::               概念索引
+* Function Index::              関数索引
+* Variable Index::              変数索引
+@end menu
+
+@node Introduction, MIME-View, Top, Top
+@chapter SEMI って何？
+
+SEMI は GNU Emacs 用の MIME user interface を提供する package です。
+@refill
+
+SEMI が提供する MIME user interface は MIME-View と MIME-Edit からなりま
+す。@refill
+
+ 
+MIME-View は MIME や STD 11 および『地域化された RFC 822』message を表示
+したり、操作したりするための user interface の中核です。@refill
+
+MIME-Edit は MIME message を生成するための user interface です。@refill
+
+各 MUA でこれらの機能を利用することにより、高度な MIME 機能を利用するこ
+とができます。
+
+
+@node MIME-View, MIME-Edit, Introduction, Top
+@chapter MIME message の閲覧
+
+MIME-View は GNU Emacs で動作する汎用的な MIME viewer です。@refill
+
+MIME-View は MIME message を閲覧するための利用者界面 (user interface) 
+の核であり、この上で presentation-method と呼ばれる表示を作るプログラム
+を動かしたり、acting-method と呼ばれる entity の処理プログラムを動かす
+ことが可能で、さまざまな種類の entity を扱う事ができるようになっています。
+
+
+@menu
+* Overview of MIME-View::       MIME-View 概説
+* MIME-Preview::                mime-preview-buffer の画面構成
+* mime-view-mode::              mime-preview-buffer での操作
+@end menu
+
+@node Overview of MIME-View, MIME-Preview, MIME-View, MIME-View
+@section MIME-View 概説
+
+Internet の電子書簡・ネットニュースなどの書面 (message) の表現形式は STD
+11 に基づいています。STD 11 の書面本体 (message body) は行を唯一の構造と
+する簡易文面 (plain text) であり、文字符号も us-ascii と定められています。
+実際には、文字符号を us-ascii の代わりにその言語圏で用いられる文字符号と
+した『地域化された STD 11』書面も用いられてきましたが、この場合も書面の
+文字符号は１つです。このため、利用者界面 (Message User Agent) は、しばし
+ば、byte 列 = us-ascii 文字列、ないしは、byte 列 = その言語圏で用いる文
+字符号の文字列のように見倣してきました。@refill
+
+しかしながら、MIME では書面は entity を単位とする木構造になり、また、１
+つの書面で複数の文字符号を用いることができます。また、entity の内容は文
+面や絵のような単純に表示可能なものだけでなく、音声や動画などの一定時間再
+生されるようなものや特定のアプリケーションのデータやプログラムのソース、
+あるいは、ftp や mail service の利用法や URL といった形で表された外部参
+照などのさまざまなものが考えらます。このため、表示だけを考えていた STD
+11 における利用者界面の単純な延長では MIME の全ての機能を扱うことはでき
+ません。つまり、MIME の形式に合わせて復号するだけでは不十分であり、利用
+者との対話的な再生処理を考慮する必要があります。MIME 書面の形式は自動処
+理がしやすく設計されていますが、MIME 書面に含まれる内容の中にはセキュリ
+ティー上の問題から自動処理をするべきでないものがあり、こういったものの再
+生に関しては利用者の判断を仰ぐように設計されるべきでしょう。結局、MIME 
+書面を扱うためには STD 11 および MIME の構文で記述されたメッセージの情報
+交換用表現とその解釈結果である表示画面や再生等の処理を区別して考える必要
+があります。また、利用者との対話的な再生処理が必要です。@refill
+
+このため、MIME-View は１つの書面に対して、情報交換用表現を格納する 
+mime-raw-buffer と表示用表現を格納する mime-preview-buffer の２つの 
+buffer を用います。@refill
+
+MIME-View は mime-preview-buffer に対して mime-view-mode という MIME
+message を閲覧するための mode を提供します。利用者はここで各 entity に
+対して操作を行うことができます。
+
+
+@node MIME-Preview, mime-view-mode, Overview of MIME-View, MIME-View
+@section mime-preview-buffer の画面構成
+
+mime-view-mode では各 entity に対して@refill
+
+@example
+	[entity-button]
+	(header)
+	
+	(body)
+	(separator)
+@end example
+
+@noindent
+という情報を表示します。これらは条件に従って design を変更したり、表示
+を抑制することもできます。
+
+以下に、表示例を示します。
+
+
+@example
+From: morioka@@jaist.ac.jp (守岡 知彦 / MORIOKA Tomohiko)
+Subject: Re: 質問？
+Newsgroups: zxr.message.mime
+Date: 22 Oct 93 11:02:44
+Mime-Version: 1.0
+Organization: Japan Advanced Institute of Science and Technology,
+        Ishikawa, Japan
+
+[1  (text/plain)]
+  MIME-Edit mode における、MIME message の作り方。
+
+  C-c C-x ? を押すと help が出てくる。
+
+C-c C-x C-t	insert a text message.
+C-c C-x TAB	insert a (binary) file.
+C-c C-x C-e	insert a reference to external body.
+C-c C-x C-v	insert a voice message.
+C-c C-x C-y	insert a mail or news message.
+C-c C-x RET	insert a mail message.
+C-c C-x C-s	insert a signature file at end.
+C-c C-x t	insert a new MIME tag.
+C-c C-x a	enclose as multipart/alternative.
+C-c C-x p	enclose as multipart/parallel.
+C-c C-x m	enclose as multipart/mixed.
+C-c C-x d	enclose as multipart/digest.
+C-c C-x s	enclose as PGP signed.
+C-c C-x e	enclose as PGP encrypted.
+C-c C-x C-k	insert PGP public key.
+C-c C-x C-p	preview editing MIME message.
+...
+
+って訳で、C-c C-x C-i を押して、挿入したい binary file を指定します。
+
+  binary file の MIME encoding には、普通、Base64 を指定します。
+
+[2  (image/gif)]
+
+[3  (text/plain)]
+
+  こんな風に、絵入り message のでき上がり。
+
+〓〓〓〓〓〓〓〓〓〓〓 ロシアン・ティーを一杯。 〓〓〓〓〓〓〓〓〓〓〓
+〓〓〓〓〓  ☆ ジャムではなくマーマレードでもなく蜂蜜で ☆  〓〓〓〓〓
+〓〓〓〓〓         МОРいОКА  ТОМОХИКО         〓〓〓〓〓
+〓〓〓〓〓〓〓  Internet E-mail: <morioka@@jaist.ac.jp>  〓〓〓〓〓〓〓
+@end example
+
+
+
+@menu
+* entity-button::               
+* entity-header::               
+* entity-body::                 
+@end menu
+
+@node entity-button, entity-header, MIME-Preview, MIME-Preview
+@subsection entity-button
+@cindex entity-number
+@cindex entity-button
+
+@strong{entity-button} は entity の先頭にあって、その entity に関する大
+まかな情報を表示する部分です。@refill
+
+標準では
+
+@example
+        [1.3 test (text/plain)]
+@end example
+
+@noindent
+のような感じに表示されます。
+
+最初の数字は message 中のこの entity の位置を節番号のように表したもので、
+@strong{entity-number} と呼びます。@refill
+
+２番目の文字列は表題を表します。この情報は、
+
+@enumerate
+@item
+Content-Description field もしくは Subject field に書かれた表題
+@item
+Content-Disposition field の filename parameter に書かれた file 名
+@item
+Content-Type field の name parameter に書かれた file 名
+@item
+ uuencode の場合の file 名
+@end enumerate
+
+@noindent
+から作ります。どれも存在しない場合は空白が表示されます。
+
+３番目の括弧の中の情報はその entity の media-type/subtype を表します。非 
+MIME entity の場合、@code{nil} が表示されます。@refill
+
+この entity-button は entity の内容を象徴する icon のような役割を果た
+します。例えば、
+
+@example
+        [2  (image/gif)]
+@end example
+
+@noindent
+の上で @kbd{v} を押せばここに入っている絵が表示されます。
+
+また、mouse 操作が可能な場合、entity-button を第２ボタン（3 button
+mouse の場合、中央のボタン）で押せば、同様にその絵が表示されます。
+
+
+@node entity-header, entity-body, entity-button, MIME-Preview
+@subsection entity-header
+@cindex entity-header
+
+@strong{entity-header} はある entity の header を表示する部
+分です（「そのままやんけ」って怒らないで。そういうもんなんです）。
+
+
+@node entity-body,  , entity-header, MIME-Preview
+@subsection entity-body
+@cindex entity-body
+
+@strong{entity-body} は part の内容を表示する部分です。@refill
+
+これもひねりが足りないですが、まあ、そういうもんです。@refill
+
+とはいえ、実際には少しひねってます。@refill
+
+text entity の場合は charset に応じて code 変換したりしますし、XEmacs で
+は image entity を変換しないといけないし。@refill
+
+詳しくはまた後で。
+
+
+@node mime-view-mode,  , MIME-Preview, MIME-View
+@section mime-preview-buffer での操作
+
+mime-preview-buffer には以下の機能があります。@refill
+
+@table @kbd
+@item @key{u}
+上の part に戻る（message の一番上の part でこれを行なうと Summary
+mode に戻る (*1)）
+
+@item @key{p}
+前の part に移動する
+
+@item @key{M-TAB}
+前の part に移動する
+
+@item @key{n}
+次の part に移動する
+
+@item @key{TAB}
+次の part に移動する
+
+@item @key{SPC}
+scroll up する
+
+@item @key{M-SPC}
+scroll down する
+
+@item @key{DEL}
+scroll down する
+
+@item @key{RET}
+次の行に移動する
+
+@item @key{M-RET}
+前の行に移動する
+
+@item @key{v}
+part を再生する (*2)
+
+@item @key{e}
+part から file を取り出す (*2)
+
+@item @key{C-c C-p}
+part を印刷する (*2)
+
+@item @key{mouse-button-2}
+preview-buffer 中の mouse button を起動する
+
+content-button を押せば、その part が再生される(*2)@refill
+
+URL-button を押せば、その WWW browser が起動される@refill
+
+@end table
+
+@noindent
+@strong{[注意]}
+@quotation
+
+(*1) MUA で mime-view の設定をしていない場合、Summary mode には戻りませ
+ん。@refill
+
+(*2) 実際の動作は対応する method に依ります。
+@end quotation
+
+
+
+@node MIME-Edit, Various, MIME-View, Top
+@chapter MIME message の編集
+@cindex MIME-Edit
+
+@strong{MIME-Edit} は GNU Emacs で動作する汎用的な MIME
+composer です。
+
+
+@menu
+* mime-edit-mode::              MIME message を編集するための minor-mode
+* single-part tags::            single-part に対する操作
+* enclosure tags::              enclosure に対する操作
+* other MIME-Edit operations::  mime-edit-mode におけるその他の操作
+* file-type specification::     挿入される file に対する tag の決定
+* transfer level::              
+* message/partial sending::     Splitting
+@end menu
+
+@node mime-edit-mode, single-part tags, MIME-Edit, MIME-Edit
+@section MIME message を編集するための minor-mode
+@cindex enclosure
+@cindex multi-part 終了 tag
+@cindex multi-part 開始 tag
+@cindex tag
+@cindex mime-edit-mode
+
+@strong{mime-edit-mode} は MIME message を作成するための minor-mode です。
+この mode では @strong{tag} を使ってさまざまな種類の data を表現し、さま
+ざまな種類の data からなる複数の部分からなる message を編集することを可
+能にしています。@refill
+
+tag には
+
+@itemize @bullet
+@item
+ single-part tag
+@item
+ multi-part tag
+@end itemize
+
+@noindent
+の２つがあります。
+
+single-part tag は single part を表現するための tag で、@refill
+
+@example
+        --[[TYPE/SUBTYPE;PARAMETERS][ENCODING]
+        OPTIONAL-FIELDS]
+@end example
+
+@noindent
+というような形をしています。
+
+TYPE/SUBTYPE および PARAMETERS は Content-Type
+(@ref{(mime-ja)Content-Type}) 欄の type/subtype および parameters を表し
+ます。TYPE/SUBTYPE は必須であり、PARAMETERS は省略可です。@refill
+
+ENCODING は Content-Transfer-Encoding
+(@ref{(mime-ja)Content-Transfer-Encoding}) 欄を表します。これも省略可で
+す。@refill
+
+OPTIONAL-FIELDS は Content-Type, Content-Transfer-Encoding 以外の field 
+を書くための部分で、省略可です。@refill
+
+multi-part tag は multi part (@ref{(mime-ja)multipart}) を表現するための 
+tag で、@refill
+
+@example
+        --<<TYPE>>-@@@{
+@end example
+
+@noindent
+という形の @strong{multi-part 開始 tag} と呼ばれる multi
+part の開始を示す tag と
+
+@example
+        --@@@}-<<TYPE>>
+@end example
+
+@noindent
+という形の @strong{multi-part 終了 tag} と呼ばれる multi
+part の終了を示す tag があります。
+
+また、multi-part 開始 tag と multi-part 終了 tag で囲まれた部分を 
+@strong{enclosure} と呼びます。
+
+
+@node single-part tags, enclosure tags, mime-edit-mode, MIME-Edit
+@section single-part に対する操作
+
+single-part を作るための操作には以下のようなものがあります。
+
+@table @kbd
+@item @key{C-c C-x C-t}
+text part を表す single-part tag を挿入します。
+
+@item @key{C-c C-x C-i}
+file を MIME part として添付します。前に @kbd{C-u} を付けた場合、常に 
+media-type, subtype 等を聞いて来ます。(cf. @ref{tag specification for inserted file})
+
+@item @key{C-c C-x C-e}
+external part を挿入します。
+
+@item @key{C-c C-x C-v}
+@kbd{C-g} が押されるまで録音を行い、音声 part を挿入します。（使
+用できない場合があります）
+
+@item @key{C-c C-x C-y}
+現在表示中の (mail or news) message を挿入します。（実際の動作は使用し
+ている MUA に依存します）
+
+@item @key{C-c C-x C-m}
+mail message を挿入します。
+
+@item @key{C-c C-x C-w}, @key{C-c C-x C-s}
+signature を挿入します。
+
+@item @key{C-c C-x C-k}
+PGP (@ref{PGP}) の公開鍵を挿入します。
+
+@item @key{C-c C-x t}
+任意の single-part tag を挿入します。
+
+@end table
+
+
+
+@node enclosure tags, other MIME-Edit operations, single-part tags, MIME-Edit
+@section enclosure に対する操作
+
+enclosure を作るための操作としては以下のようなものがあります。
+
+@table @kbd
+@item @key{C-c C-m C-a}
+指定した region を multipart/alternative として囲みます。
+
+@item @key{C-c C-x C-p}
+指定した region を multipart/parallel として囲みます。
+
+@item @key{C-c C-x C-m}
+指定した region を multipart/mixed として囲みます。
+
+@item @key{C-c C-x C-d}
+指定した region を multipart/digest として囲みます。
+
+@item @key{C-c C-x C-s}
+指定した region に電子署名を行います。(cf. @ref{PGP})
+
+@item @key{C-c C-x C-e}
+指定した region を暗号化します。(cf. @ref{PGP})
+
+@item @key{C-c C-x C-q}
+指定した region 内の tag を無効にし、その tag を文字列として利用できる
+ようにします。（現在の版ではうまく働かないことがあります。また、電子署
+名との併用に関しても不完全です）
+
+@end table
+
+
+
+@node other MIME-Edit operations, file-type specification, enclosure tags, MIME-Edit
+@section mime-edit-mode におけるその他の操作
+
+mime-edit-mode におけるその他の操作を説明します。
+
+@table @kbd
+@item @key{C-c C-c}
+編集中の message を送信します。
+
+@item @key{C-c C-x p}
+編集中の message を preview します。(cf. @ref{MIME-View})
+
+@item @key{C-c C-x C-z}
+編集中の message を送信することなく、mime-edit-mode を終了します。
+
+@item @key{C-c C-x /}
+大きな message を送信する場合に message/partial 形式に自動分割可能とす
+るかどうかを決めます。
+
+@item @key{C-c C-x 7}
+transfer level (@ref{transfer level}) を 7bit (@ref{(mime-ja)7bit}) にし
+ます。
+
+@item @key{C-c C-x 8}
+transfer level (@ref{transfer level}) を 8bit (@ref{(mime-ja)8bit}) にし
+ます。
+
+@item @key{C-c C-x v}
+message 全体を電子署名するかどうかを決めます。(cf. @ref{PGP})
+
+@item @key{C-c C-x h}
+message 全体を暗号化するかどうかを決めます。(cf. @ref{PGP})
+
+@item @key{C-c C-x ?}
+help message を表示します。
+
+@end table
+
+
+
+@node file-type specification, transfer level, other MIME-Edit operations, MIME-Edit
+@section 挿入される file に対する tag の決定
+
+@kbd{C-c C-x C-i} (@code{mime-edit-insert-file}) を実行した時、挿入され
+る file に対する media-type や encoding などの tag の情報は変数 
+@code{mime-file-types} によって file 名から推測されます。@refill
+
+前に @kbd{C-u} を付けた時、および、適当な値が見付からなかった場合、user 
+に対して値の入力を促します。（前に @kbd{C-u} を付けた時、推測された値が
+既定値として用いられます）@refill
+
+file 名に対する既定値を変えたい場合は変数 @code{mime-file-types}
+を設定して下さい。
+
+@defvar mime-file-types
+
+挿入される file の file 名に対する tag の既定値を与える。@refill
+
+この変数は
+
+@lisp
+	(FILE_PAT TYPE SUBTYPE PARAMS ENCODING
+	 DISPOSITION_TYPE DISPOSITION_PARAMS)
+@end lisp
+
+
+という list の list で、各要素は以下の通りである：
+
+@table @samp
+@item FILE_PAT
+file 名を表す正規表現
+
+@item TYPE
+media type
+
+@item SUBTYPE
+media subtype
+
+@item PARAMS
+Content-Type field の parameter
+
+@item ENCODING
+Content-Transfer-Encoding
+
+@item DISPOSITION_TYPE
+disposition-type
+
+@item DISPOSITION_PARAMS
+Content-Disposition field の parameter
+
+@end table
+
+@noindent
+設定例： @file{*.rtf} に対する media type を application/rtf に
+する場合
+
+@lisp
+(eval-after-load
+    "mime-edit"
+  '(set-alist 'mime-file-types
+	      "\\.rtf$"
+	      '("application" "rtf" nil nil
+		"attachment" (("filename" . file)))
+	      ))
+@end lisp
+@end defvar
+
+
+
+@node transfer level, message/partial sending, file-type specification, MIME-Edit
+@section transfer level
+@cindex transfer level
+
+message に挿入する data は 7bit (@ref{(mime-ja)7bit}) ないし 8bit
+(@ref{(mime-ja)8bit}) もしくは binary (@ref{(mime-ja)binary}) で表現する
+ことができます。@refill
+
+よって、7bit しか通さない MTA (@ref{(mime-ja)MTA}) を経由する場合、7bit 
+の data はそのままで送れますが、8bit や binary の data は 7bit に変換し
+なければなりません。@refill
+
+同様に、8bit しか通さない MTA を経由する場合、7bit や 8bit の data はそ
+のままで送れますが、binary の data は 7bit か 8bit に変換しなければなり
+ません。@refill
+
+@noindent
+@strong{[Memo]}
+@quotation
+EBCDIC しか通さない MTA を経由する場合、7bit の data も base64 等で変
+換しないと送れませんが、私は EBCDIC のことまでは知りません。(^_^;
+
+同様に、制御文字を通さない MTA のことや code 変換を行なう MTA も消えてな
+くなって欲しいです。(^_^;@refill
+
+binary も通す MTA も存在するんでしょうが、今のところあまり一般的とはいえ
+ないでしょう。
+@end quotation
+
+@strong{transfer level} というのはどの範囲の data まで送れるか
+ということを表すものです。mime-edit は 
+@code{mime-transfer-level} という変数を持っており、これで 
+transfer level を表現します。
+
+
+@defvar mime-transfer-level
+
+transfer level を表す。@refill
+
+ある data の transfer level がこの値を越える場合、7bit data への変換が行
+われる。@refill
+
+現在のところ、7 か 8 が有効である。既定値は 7 である。@refill
+
+EBCDIC を 5, ASCII printable のみを 6, binary を 9 とすることを計画して
+いるが、実装の予定はない。
+@end defvar
+
+
+
+@noindent
+@strong{[Memo]}
+@quotation
+transfer level は message header (@ref{header}) には関係しない。MIME は 
+body において、8bit の data を使えるように STD 11 (@ref{(mime-ja)STD 11}) を拡張しているが、message header では us-ascii
+(@ref{(mime-ja)us-ascii}) のみを用いることを求めている。
+@end quotation
+
+
+
+@node message/partial sending,  , transfer level, MIME-Edit
+@section Splitting
+
+@defvar mime-edit-split-message
+
+Non-nil ならば大きなメッセージを分割して送信します。
+@end defvar
+
+
+@defvar mime-edit-message-default-max-lines
+
+メッセージの最大行数のデフォルト値です。
+@end defvar
+
+
+@defvar mime-edit-message-max-lines-alist
+
+メジャーモード対メッセージの最大行数から成る連想リストです。@refill
+
+メジャーモードがここで指定されてない場合には
+@code{mime-edit-message-default-max-lines} を用います。
+@end defvar
+
+
+@defvar mime-edit-split-blind-field-regexp
+
+分割送信の際に無視されるフィールド名にマッチする正規表現です。
+@end defvar
+
+
+
+@node Various, Concept Index, MIME-Edit, Top
+@chapter その他
+
+
+@menu
+* PGP::                         暗号化、署名
+* Buttons::                     押釦
+* Acting-condition configuration::  実行条件の設定
+@end menu
+
+@node PGP, Buttons, Various, Various
+@section PGP
+@cindex PGP-kazu
+@cindex PGP/MIME
+
+mime-edit では @strong{PGP/MIME} (RFC 2015) および@strong{PGP-kazu}
+(draft-kazu-pgp-mime-00.txt) による暗号化・電子署名・公開鍵の挿入機能を
+利用することができます。@refill
+
+但し、この機能を利用するには各種 pgp command が必要です。
+
+@defvar pgg-default-scheme
+
+暗号化もしくは署名に用いる PGP もしくは GnuPG コマンドのバージョンです。
+値は symbol を指定します。使えるバージョンは @code{gpg}、
+@code{pgp} もしくは @code{pgp5} です。@refill
+@end defvar
+
+
+@defvar pgg-scheme
+
+復号もしくは検証に用いる PGP もしくは GnuPG コマンドのバージョンです。
+値は symbol を指定します。使えるバージョンは @code{gpg}、
+@code{pgp} もしくは @code{pgp5} です。@refill
+@end defvar
+
+
+@defvar pgg-insert-url-function
+
+鍵サーバから公開鍵を取り寄せる際に使う関数です。デフォルトでは
+Emacs/W3 を使う設定になっています。emacs-w3m を使う場合には
+次のように設定します。
+@lisp
+(setq pgg-insert-url-function #'w3m-retrieve)
+@end lisp
+@end defvar
+
+
+
+@node Buttons, Acting-condition configuration, PGP, Various
+@section 押釦
+
+@defvar mime-button-face
+
+MIME-Preview バッファで  content-button もしくは URL-button  に用いる
+face です。
+@end defvar
+
+
+@defvar mime-button-mouse-face
+
+MIME-preview バッファでマウスをハイライトする際に用いる face です。
+@end defvar
+
+
+@defvar mime-browse-url-function
+
+URL をブラウズする関数です。
+@end defvar
+
+
+
+@node Acting-condition configuration,  , Buttons, Various
+@section 実行条件の設定
+
+@defun mime-add-condition target-type condition  &optional  mode file
+
+Add @var{condition} to database specified by @var{target-type}.@refill
+
+@var{target-type} must be @code{preview} or @code{action}.@refill
+
+If optional argument @var{mode} is @code{strict} or @code{nil}
+(omitted), @var{condition} is added strictly.@refill
+
+If optional argument @var{mode} is @code{with-default}, @var{condition}
+is added with default rule.@refill
+
+If optional argument @var{file} is specified, it is loaded when
+@var{condition} is activate.
+@end defun
+
+
+
+@node Concept Index, Function Index, Various, Top
+@chapter 概念索引
+
+@printindex cp
+
+@node Function Index, Variable Index, Concept Index, Top
+@chapter 関数索引
+
+@printindex fn
+
+@node Variable Index,  , Function Index, Top
+@chapter 変数索引
+
+@printindex vr
+@bye

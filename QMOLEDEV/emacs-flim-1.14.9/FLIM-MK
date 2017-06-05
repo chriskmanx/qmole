@@ -1,0 +1,99 @@
+;;; -*-Emacs-Lisp-*-
+
+;; FLIM-MK: installer for FLIM.
+
+;;; Code:
+
+(defun config-flim ()
+  (let (prefix lisp-dir version-specific-lisp-dir)
+    (and (setq prefix (car command-line-args-left))
+	 (or (string-equal "NONE" prefix)
+	     (defvar PREFIX prefix)))
+    (setq command-line-args-left (cdr command-line-args-left))
+    (and (setq lisp-dir (car command-line-args-left))
+	 (or (string-equal "NONE" lisp-dir)
+	     (defvar LISPDIR lisp-dir)))
+    (setq command-line-args-left (cdr command-line-args-left))
+    (and (setq version-specific-lisp-dir (car command-line-args-left))
+	 (or (string-equal "NONE" version-specific-lisp-dir)
+	     (progn
+	       (defvar VERSION_SPECIFIC_LISPDIR version-specific-lisp-dir)
+	       (princ (format "VERSION_SPECIFIC_LISPDIR=%s\n"
+			      VERSION_SPECIFIC_LISPDIR)))))
+    (setq command-line-args-left (cdr command-line-args-left))
+    (load-file "FLIM-CFG")
+    (load-file "FLIM-ELS")
+    (princ (format "PREFIX=%s
+LISPDIR=%s\n" PREFIX LISPDIR))))
+
+(defun compile-flim ()
+  (config-flim)
+  (compile-elisp-modules flim-version-specific-modules ".")
+  (compile-elisp-modules flim-modules "."))
+
+(defun install-flim ()
+  (config-flim)
+  (if flim-version-specific-modules
+      (install-elisp-modules flim-version-specific-modules "./"
+			     FLIM_VERSION_SPECIFIC_DIR))
+  (install-elisp-modules flim-modules "./" FLIM_DIR))
+
+(defun check-flim ()
+  (config-flim)
+  (require 'lunit)
+  (let ((files (directory-files "tests" t "^test-.*\\.el$"))
+	(suite (lunit-make-test-suite)))
+    (while files
+      (if (file-regular-p (car files))
+	  (progn
+	    (load-file (car files))
+	    (lunit-test-suite-add-test
+	     suite (lunit-make-test-suite-from-class
+		    (intern (file-name-sans-extension
+			     (file-name-nondirectory (car files))))))))
+      (setq files (cdr files)))
+    (lunit suite)))
+
+(defun config-flim-package ()
+  (let (package-dir)
+    (and (setq package-dir (car command-line-args-left))
+	 (or (string= "NONE" package-dir)
+	     (defvar PACKAGEDIR package-dir)))
+    (setq command-line-args-left (cdr command-line-args-left))
+    (load-file "FLIM-CFG")
+    (load-file "FLIM-ELS")
+    (setq flim-modules (append flim-modules
+			       '(auto-autoloads custom-load)))
+    (princ (format "PACKAGEDIR=%s\n" PACKAGEDIR))))
+
+(defun compile-flim-package ()
+  (config-flim-package)
+
+  (if (fboundp 'batch-update-directory-autoloads)
+      ;; XEmacs 21.5.19 and newer.
+      (progn
+	(add-to-list 'command-line-args-left ".")
+	(add-to-list 'command-line-args-left "flim")
+	(batch-update-directory-autoloads))
+    (setq autoload-package-name "flim")
+    (add-to-list 'command-line-args-left ".")
+    (batch-update-directory))
+
+  (add-to-list 'command-line-args-left ".")
+  (Custom-make-dependencies)
+
+  (compile-elisp-modules flim-version-specific-modules ".")
+  (compile-elisp-modules flim-modules "."))
+
+(defun install-flim-package ()
+  (config-flim-package)
+  (install-elisp-modules (append flim-version-specific-modules
+				 flim-modules)
+			 "./"
+			 (expand-file-name FLIM_PREFIX
+					   (expand-file-name "lisp"
+							     PACKAGEDIR)))
+  (delete-file "./auto-autoloads.el")
+  (delete-file "./custom-load.el"))
+
+;;; FLIM-MK ends here

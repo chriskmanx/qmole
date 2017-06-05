@@ -1,0 +1,311 @@
+<chapter id="query-langage">
+<title>OAF Query Langage</title>
+
+<sect1>
+<title>The OAF query langage</title>
+<para>
+OAF has a query language used to request components with
+specific properties from the OAF daemon.
+The API call <function>oaf_activate</function> takes a
+<emphasis>requirements</emphasis> parameter which is
+a string containing a specific request in the OAF query 
+langage.
+A simple example is:
+<programlisting>
+CORBA_Object o = oaf_activate ("repo_ids.has ('IDL:GNOME/Graph/Layout:1.0')",
+                               NULL, 0, NULL, &amp;ev);
+</programlisting>
+This will ask for a component which supports the GNOME/Graph/Lyout:1.0 interface.
+You can also do much more complicated things.
+<programlisting>
+"(repo_ids.has_all (['IDL:Bonobo/Control:1.0',
+		     'IDL:Nautilus/ContentView:1.0']) OR
+  repo_ids.has_one (['IDL:Bonobo/Control:1.0',
+                     'IDL:Bonobo/Embeddable:1.0'])) AND
+  repo_ids.has('IDL:Bonobo/PersistFile:1.0') AND
+  foo:bar.defined()"
+</programlisting>
+This would get any component with both 'Control' and 'ContentView' or
+with either 'Control' or 'Embeddable' as long as they supported the
+'PersistFile' interface, and defined the attribute 'foo:bar'.
+</para>
+</sect1>
+
+<sect1 id="query-syntax">
+<title>Syntax</title>
+
+<sect2 id="oaf-query-ref-types">
+<title>Constants</title>
+<itemizedlist>
+<listitem><para>'string': As in SQL, delimited by single quotes. Example: 'mystring'
+</para></listitem>
+<listitem><para>'stringv' (string arrays): A comma-separated list of strings, surrounded 
+by square brackets. Example: ['red','blue']
+</para></listitem>
+<listitem><para>'number': Floating point decimals. (aka "whatever atof() accepts" :)
+</para></listitem>
+<listitem><para>'boolean': TRUE or FALSE (other common boolean value identifiers also 
+accepted, but not encouraged).
+</para></listitem>
+</itemizedlist>
+
+</sect2>
+
+<sect2>
+<title>Field identifiers</title>
+<para>
+Names of fields are attributes of a ServerInfo record. These include
+'type', 'location_info', and 'iid', even though these are explicitly
+stored instead of just other attributes.
+</para>
+<para>
+Some pseudo-fields are also available - they are all prefaced with an underscore:
+<itemizedlist>
+<listitem><para>
+_active : Whether the server is currently running (boolean)
+</para></listitem>
+</itemizedlist>
+</para>
+</sect2>
+
+<sect2>
+<title>Variables</title>
+<para>
+Variables are various miscellaneous data items that are part of the
+environment. The syntax for referring to a variable is a '$' sign
+followed by the variable name. The following variables are available:
+<itemizedlist>
+<listitem><para>$hostname : the hostname that the requesting client is running on.
+</para></listitem>
+<listitem><para>$domain : the "domain" that the client is requesting activation in.
+</para></listitem>
+</itemizedlist>
+</para>
+</sect2>
+
+<sect2>
+<title>Functions</title>
+<para>Functions perform transformations on data and return a result. There are 
+two possible syntaxes for a function call:
+<programlisting>
+	funcname(field, other-arguments)
+	field.funcname(other-arguments...)
+</programlisting>
+Internally, 'field.funcname(other-arguments...)' is translated to be
+exactly the same as 'funcname(field, other-arguments)', so
+'priority.max()' is exactly the same as 'max(priority)'. Function names are 
+case insensitive. The following functions are available:
+</para>
+<para>
+<itemizedlist>
+
+<listitem><para>
+defined(expression) : 
+   Returns a boolean value that indicates whether the given expression is defined for the current
+   record. For example, using a field name would indicate whether that field is defined for the
+   record.
+</para></listitem>
+
+
+<listitem><para>
+has_one(stringv1, stringv2) : 
+   Returns a boolean value that indicates whether any of the strings
+   in the 'stringv2' array are contained in the 'stringv1' array.
+</para></listitem>
+
+<listitem><para>
+has_all(stringv1, stringv2) : 
+   Returns a boolean value that indicates whether all of the strings
+   in the 'stringv2' array are contained in the 'stringv1' array.
+</para></listitem>
+
+<listitem><para>
+has(stringv, string)
+   Returns a boolean value that indicates whether 'string' is contained in the 'stringv' array.
+</para></listitem>
+
+<listitem><para>
+prefer_by_list_order(string, stringv) 
+   This function is intended to use as a sort condition when you have a prioritized list of 
+   preferred values. It returns -1 if the 'string' is not in the 'stringv' array, otherwise 
+   it's position measured from the end of 'stringv'. The result is that the first item is 
+   most preferred, items after that are next most preferred, and items not in the list are 
+   lowest priority.
+</para></listitem>
+
+<listitem><para>
+max(expr)
+   Evaluates 'expr' over all the available server information records in the database, and returns
+   the maximum value as dictated by the normal sort order for the data type of 'expr'.
+   This function is not valid for string vectors.
+</para></listitem>
+<listitem><para>
+min(expr)
+   As with the 'max' function, but finds the minimum value.
+</para></listitem>
+<listitem><para>
+</para></listitem>
+<listitem><para>
+</para></listitem>
+<listitem><para>
+</para></listitem>
+</itemizedlist>
+</para>
+</sect2>
+
+
+<sect2>
+<title>Operators</title>
+<para>
+	<table frame="all">
+	<title>Binary relational operators.</title>
+	<tgroup cols="2">
+	<colspec colwidth="*" colnum="1" align="left">
+	<colspec colwidth="2*" colnum="2" align="left">
+	<thead>
+		<row>
+		<entry>Operator</entry>
+		<entry>Signification</entry>
+		</row>
+	</thead>
+		<tbody>
+		  <row>
+		    <entry>==</entry>
+		    <entry>equal</entry>
+		  </row>
+		  <row>
+		    <entry>!=</entry>
+		    <entry>not equal</entry>
+		  </row>
+		  <row>
+		    <entry>&lt;</entry>
+		    <entry>less than</entry>
+		  </row>
+		  <row>
+		    <entry>></entry>
+		    <entry>greater than</entry>
+		  </row>
+		  <row>
+		    <entry>&lt;=</entry>
+		    <entry>less than or equal</entry>
+		  </row>
+		  <row>
+		    <entry>>=</entry>
+		    <entry>greater than or equal</entry>
+		  </row>
+		</tbody>
+	  </tgroup>
+	</table>
+
+	<table frame="all">
+	<title>Binary boolean operators.</title>
+	<tgroup cols="2">
+	<colspec colwidth="*" colnum="1" align="left">
+	<colspec colwidth="2*" colnum="2" align="left">
+	<thead>
+		<row>
+		<entry>Operator</entry>
+		<entry>Signification</entry>
+		</row>
+	</thead>
+		<tbody>
+		  <row>
+		    <entry>&& or AND</entry>
+		    <entry>and</entry>
+		  </row>
+		  <row>
+		    <entry>|| or OR</entry>
+		    <entry>or</entry>
+		  </row>
+		  <row>
+		    <entry>^^ or XOR</entry>
+		    <entry>exclusive or</entry>
+		  </row>
+		</tbody>
+	  </tgroup>
+	</table>
+
+	<table frame="all">
+	<title>Unary boolean operators.</title>
+	<tgroup cols="2">
+	<colspec colwidth="*" colnum="1" align="left">
+	<colspec colwidth="2*" colnum="2" align="left">
+	<thead>
+		<row>
+		<entry>Operator</entry>
+		<entry>Signification</entry>
+		</row>
+	</thead>
+		<tbody>
+		  <row>
+		    <entry>~ or NOT</entry>
+		    <entry>not</entry>
+		  </row>
+		</tbody>
+	  </tgroup>
+	</table>
+
+	<table frame="all">
+	<title>Binary arithmetic operators.</title>
+	<tgroup cols="2">
+	<colspec colwidth="*" colnum="1" align="left">
+	<colspec colwidth="2*" colnum="2" align="left">
+	<thead>
+		<row>
+		<entry>Operator</entry>
+		<entry>Signification</entry>
+		</row>
+	</thead>
+		<tbody>
+		  <row>
+		    <entry>/</entry>
+		    <entry>divided by</entry>
+		  </row>
+		  <row>
+		    <entry>+</entry>
+		    <entry>plus</entry>
+		  </row>
+		  <row>
+		    <entry>-</entry>
+		    <entry>minus</entry>
+		  </row>
+		  <row>
+		    <entry>*</entry>
+		    <entry>times</entry>
+		  </row>
+		</tbody>
+	  </tgroup>
+	</table>
+
+	<table frame="all">
+	<title>Unary arithmetic operators.</title>
+	<tgroup cols="2">
+	<colspec colwidth="*" colnum="1" align="left">
+	<colspec colwidth="2*" colnum="2" align="left">
+	<thead>
+		<row>
+		<entry>Operator</entry>
+		<entry>Signification</entry>
+		</row>
+	</thead>
+		<tbody>
+		  <row>
+		    <entry>-</entry>
+		    <entry>negate</entry>
+		  </row>
+		</tbody>
+	  </tgroup>
+	</table>
+
+</para>
+</sect2>
+
+
+</sect1>
+</chapter>
+
+
+
+
+
+

@@ -1,0 +1,58 @@
+# Process this file with autom4te to create testsuite.  -*- Autotest -*-
+# Copyright (C) 2007, 2010 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+# 02110-1301 USA.
+
+# Cpio 2.8 ignored umask when creating intermediate directories
+# References: <20070622012000.8997.83933.reportbug@jidanni1>
+# http://lists.gnu.org/archive/html/bug-cpio/2007-06/msg00015.html
+# http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=430053
+
+AT_SETUP([interdir])
+AT_KEYWORDS([interdir copyin copypass])
+
+AT_DATA([filelist],[dir
+dir/file
+])
+
+AT_CHECK([
+umask 022
+mkdir dir
+chmod 700 dir
+genfile --file dir/file
+echo Copying the hierarchy
+cpio -pdvm en/to/tre < filelist 2>&1
+echo Results
+genfile --stat=name,mode.777 en 
+genfile --stat=name,mode.777 en/to 
+genfile --stat=name,mode.777 en/to/tre 
+genfile --stat=name,mode.777 en/to/tre/dir 
+genfile --stat=name,mode.777 en/to/tre/dir/file 
+],
+[0],
+[Copying the hierarchy
+en/to/tre/dir
+en/to/tre/dir/file
+0 blocks
+Results
+en 755
+en/to 755
+en/to/tre 755
+en/to/tre/dir 700
+en/to/tre/dir/file 644
+])
+
+AT_CLEANUP

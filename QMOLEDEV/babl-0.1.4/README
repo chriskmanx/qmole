@@ -1,0 +1,1373 @@
+Babl-0.1.4
+
+Contents
+
+  • Babl
+  •   Features
+  • Download
+  • Documentation
+  •   Usage
+  •   Vocabulary
+  •   Shortcut Coverage
+  •   Environment  Extending
+  •   Directory Overview
+  • Todo
+  • Copyright
+  •   Authors
+
+
+babl is a dynamic, any to any, pixel format translation library.
+
+It allows converting between different methods of storing pixels known
+as pixel formats that have with different bitdepths and other data
+representations, color models and component permutations.
+
+A vocabulary to formulate new pixel formats from existing primitives is
+provided as well as the framework to add new color models and data
+types.
+
+Features
+
+  • Fast.
+  • Accurate.
+  • Stable, small API.
+  • Self profiling and optimizing.
+  • ANSI C, works on win32, linux and mac, 32bit and 64bit systems.
+  • Extendable with new formats, color models, components and
+    datatypes.
+  • Reference 64bit floating point conversions for datatypes and color
+    models.
+
+GEGL through GeglBuffer provides tiled buffers with on disk storage as
+well as linear buffers with accessor functions for efficient data
+access transparently using babl fishes for translation to the desired
+pixel formats.
+
+Download
+
+The latest versioned development version of babl can be found in ftp://
+ftp.gtk.org/pub/babl/.
+
+Babl uses git. The main repository is hosted by GNOME. It can be
+browsed online and cloned with:
+
+git clone git://git.gnome.org/babl
+
+The following is a list of the major changes that have gone into each
+babl release. If there are significant improvements to babl when a GEGL
+release is done a babl release is most often put out just prior to the
+GEGL release.
+
+2011-01-20 babl-0.1.4
+    Improved cross platform build ability, added code to handle
+    n-component formats, remove extraenous runtime profiling that
+    impacted performance.
+2010-01-15 babl-0.1.2
+    Made babl mostly threadsafe (sufficient for GIMP/GEGLs needs).
+    Streamlined core functionality, reducing number of function calls
+    and removing overeager instrumentation.
+2009-05-20 babl-0.1.0
+    Support for RGBA representation in the frequency domain,
+    un-pre-multiply close-to-zero alpha values to complete black
+    instead of slightly brighter than black, add a BABL_ALPHA_THRESHOLD
+    constant to the API, do a complete overhaul of the babl API and do
+    some changes to increase portability of the library.
+2008-06-12 babl-0.0.22
+    Speed improvements due to: coalesced hashing, early bail out upon
+    creation of duplicate formats, caching of non existing paths. Large
+    amounts of the core has also been reviewed and refactored. Improved
+    conversion coverage in the matrix.
+2008-02-27 babl-0.0.20
+    Builds on OSX Check <0.0 and >1.0 values conversions for accuracy
+    as well.
+
+For more news see git log.
+
+Documentation
+
+When using BablFishes to do your conversions, you request a fish to
+convert between two formats, and an optimal fish to babls capability is
+provided that you can use to do your conversions. Babl also provides
+the capability to describe new formats based on a vocabulary of user
+registered color models and data types.
+
+Babl provides a base vocabulary in BablBase and some extensions that
+are thought to be generally useful.
+
+When performing further extensions to the vocabulary of babl, the
+internal consistency is governed by reference conversions that operate
+on double (64 bit floating point values). The only color model created
+during BablCore bootstrap is RGBA (linear light RGB, 0.0 - 1.0, with a
+linear 0.0 - 1.0 opacity channel) backed by the double datatype.
+Defined similarily to scRGB using 64bit floating point.
+
+If babls conversion isn't fast enough, you can provide your own
+conversion shortcut between two formats. The registered shortcut might
+also be used by babl as an intermediate conversion when constructing
+BablFishes for other conversions.
+
+Babl extensions are shared objects. If you have already developed some
+fast conversion functions, wrapping them as babl extensions should not
+take much time and will speed up babl for other users as well.
+
+Usage
+
+babl_process (babl_fish (source_format, destination_format),
+              source_buffer, destination_buffer,
+              pixel_count);
+
+The processing operation that babl performs is copying including
+conversions if needed between linear buffers containing the same count
+of pixels, with different pixel formats.
+
+int width = 123, height = 581, pixel_count = width * height;
+
+const Babl *srgb            = babl_format ("R'G'B' u8");
+const Babl *lab             = babl_format ("CIE Lab float");
+const Babl *rgb_to_lab_fish = babl_fish (srgb, lab);
+
+float         *lab_buffer;
+unsigned char *srgb_buffer;
+
+srgb_buffer = malloc (pixel_count * srgb->format.bytes_per_pixel);
+lab_buffer  = malloc (pixel_count * 3 * 4);
+
+...... load data into srgb_buffer .......
+
+babl_process (bablfish, srgb_buffer, lab_buffer, pixel_count);
+
+...... do operation in lab space ........
+
+babl_process (babl_fish(lab, srgb),
+              lab_buffer, srgb_buffer, pixel_count);
+
+/* the data has now been transformed back to srgb data */
+
+If the existing pixel formats are not sufficient for your conversion
+needs, new ones can be created on the fly. The constructor will provide
+the prior created one if duplicates are registered.
+
+const Babl *format = babl_format_new (babl_model ("R'G'B'"),
+                                      babl_type ("u16"),
+                                      babl_component ("B'"),
+                                      babl_component ("G'"),
+                                      babl_component ("R'"),
+                                      NULL);
+
+Vocabulary
+
+
++-
+Data types
+double
+
+bits
+    64
+bytes
+    8
+
+float
+
+bits
+    32
+bytes
+    4
+
+u8
+
+bits
+    8
+bytes
+    1
+
+u8-luma
+
+bits
+    8
+bytes
+    1
+
+u8-chroma
+
+bits
+    8
+bytes
+    1
+
+u16
+
+bits
+    16
+bytes
+    2
+
+u32
+
+bits
+    32
+bytes
+    4
+
+CIE u8 L
+
+bits
+    8
+bytes
+    1
+
+CIE u8 ab
+
+bits
+    8
+bytes
+    1
+
+CIE u16 L
+
+bits
+    16
+bytes
+    2
+
+CIE u16 ab
+
+bits
+    16
+bytes
+    2
+
+Color models
+RGBA
+
+components
+
+    R
+    G
+    B
+    A
+
+RGB
+
+components
+
+    R
+    G
+    B
+
+RaGaBaA
+
+components
+
+    Ra
+    Ga
+    Ba
+    A
+
+R'G'B'
+
+components
+
+    R'
+    G'
+    B'
+
+R'G'B'A
+
+components
+
+    R'
+    G'
+    B'
+    A
+
+R'aG'aB'aA
+
+components
+
+    R'a
+    G'a
+    B'a
+    A
+
+Y
+
+components
+
+    Y
+
+YA
+
+components
+
+    Y
+    A
+
+YaA
+
+components
+
+    Ya
+    A
+
+Y'
+
+components
+
+    Y'
+
+Y'A
+
+components
+
+    Y'
+    A
+
+Y'aA
+
+components
+
+    Y'a
+    A
+
+Y'CbCr
+
+components
+
+    Y'
+    Cb
+    Cr
+
+Y'CbCrA
+
+components
+
+    Y'
+    Cb
+    Cr
+    A
+
+CMYK
+
+components
+
+    cyan
+    magenta
+    yellow
+    key
+
+CIE Lab
+
+components
+
+    CIE L
+    CIE a
+    CIE b
+
+CIE Lab alpha
+
+components
+
+    CIE L
+    CIE a
+    CIE b
+    A
+
+CIE LCH(ab)
+
+components
+
+    CIE L
+    CIE C(ab)
+    CIE H(ab)
+
+CIE LCH(ab) alpha
+
+components
+
+    CIE L
+    CIE C(ab)
+    CIE H(ab)
+    A
+
+Pixel formats
+RGBA double
+
+bytes/pixel
+    32
+model
+    RGBA
+components
+
+    double  R
+    double  G
+    double  B
+    double  A
+
+RGB double
+
+bytes/pixel
+    24
+model
+    RGB
+components
+
+    double  R
+    double  G
+    double  B
+
+RaGaBaA double
+
+bytes/pixel
+    32
+model
+    RaGaBaA
+components
+
+    double  Ra
+    double  Ga
+    double  Ba
+    double  A
+
+R'G'B' double
+
+bytes/pixel
+    24
+model
+    R'G'B'
+components
+
+    double  R'
+    double  G'
+    double  B'
+
+R'G'B'A double
+
+bytes/pixel
+    32
+model
+    R'G'B'A
+components
+
+    double  R'
+    double  G'
+    double  B'
+    double  A
+
+R'aG'aB'aA double
+
+bytes/pixel
+    32
+model
+    R'aG'aB'aA
+components
+
+    double  R'a
+    double  G'a
+    double  B'a
+    double  A
+
+R'G'B' u8
+
+bytes/pixel
+    3
+model
+    R'G'B'
+components
+
+    u8 R'
+    u8 G'
+    u8 B'
+
+R'G'B'A u8
+
+bytes/pixel
+    4
+model
+    R'G'B'A
+components
+
+    u8 R'
+    u8 G'
+    u8 B'
+    u8 A
+
+RGBA float
+
+bytes/pixel
+    16
+model
+    RGBA
+components
+
+    float  R
+    float  G
+    float  B
+    float  A
+
+RGB float
+
+bytes/pixel
+    12
+model
+    RGB
+components
+
+    float  R
+    float  G
+    float  B
+
+Y double
+
+bytes/pixel
+    8
+model
+    Y
+components
+
+    double  Y
+
+YA double
+
+bytes/pixel
+    16
+model
+    YA
+components
+
+    double  Y
+    double  A
+
+YaA double
+
+bytes/pixel
+    16
+model
+    YaA
+components
+
+    double  Ya
+    double  A
+
+Y' double
+
+bytes/pixel
+    8
+model
+    Y'
+components
+
+    double  Y'
+
+Y'A double
+
+bytes/pixel
+    16
+model
+    Y'A
+components
+
+    double  Y'
+    double  A
+
+Y'aA double
+
+bytes/pixel
+    16
+model
+    Y'aA
+components
+
+    double  Y'a
+    double  A
+
+Y'CbCr double
+
+bytes/pixel
+    24
+model
+    Y'CbCr
+components
+
+    double  Y'
+    double  Cb
+    double  Cr
+
+Y'CbCrA double
+
+bytes/pixel
+    32
+model
+    Y'CbCrA
+components
+
+    double  Y'
+    double  Cb
+    double  Cr
+    double  A
+
+Y'CbCr u8
+
+bytes/pixel
+    3
+model
+    Y'CbCr
+components
+
+    u8-luma    Y'
+    u8-chroma  Cb
+    u8-chroma  Cr
+
+R'G'B'A float
+
+bytes/pixel
+    16
+model
+    R'G'B'A
+components
+
+    float  R'
+    float  G'
+    float  B'
+    float  A
+
+R'G'B'A u16
+
+bytes/pixel
+    8
+model
+    R'G'B'A
+components
+
+    u16  R'
+    u16  G'
+    u16  B'
+    u16  A
+
+R'aG'aB'aA float
+
+bytes/pixel
+    16
+model
+    R'aG'aB'aA
+components
+
+    float  R'a
+    float  G'a
+    float  B'a
+    float  A
+
+R'aG'aB'aA u16
+
+bytes/pixel
+    8
+model
+    R'aG'aB'aA
+components
+
+    u16 R'a
+    u16 G'a
+    u16 B'a
+    u16 A
+
+R'aG'aB'aA u8
+
+bytes/pixel
+    4
+model
+    R'aG'aB'aA
+components
+
+    u8 R'a
+    u8 G'a
+    u8 B'a
+    u8 A
+
+R'G'B' float
+
+bytes/pixel
+    12
+model
+    R'G'B'
+components
+
+    float  R'
+    float  G'
+    float  B'
+
+R'G'B' u16
+
+bytes/pixel
+    6
+model
+    R'G'B'
+components
+
+    u16  R'
+    u16  G'
+    u16  B'
+
+Y'A float
+
+bytes/pixel
+    8
+model
+    Y'A
+components
+
+    float  Y'
+    float  A
+
+Y'aA float
+
+bytes/pixel
+    8
+model
+    Y'aA
+components
+
+    float  Y'a
+    float  A
+
+Y' float
+
+bytes/pixel
+    4
+model
+    Y'
+components
+
+    float  Y'
+
+Y'A u16
+
+bytes/pixel
+    4
+model
+    Y'A
+components
+
+    u16  Y'
+    u16  A
+
+Y'aA u16
+
+bytes/pixel
+    4
+model
+    Y'aA
+components
+
+    u16 Y'a
+    u16 A
+
+Y' u16
+
+bytes/pixel
+    2
+model
+    Y'
+components
+
+    u16  Y'
+
+Y'A u8
+
+bytes/pixel
+    2
+model
+    Y'A
+components
+
+    u8 Y'
+    u8 A
+
+Y'aA u8
+
+bytes/pixel
+    2
+model
+    Y'aA
+components
+
+    u8 Y'a
+    u8 A
+
+Y' u8
+
+bytes/pixel
+    1
+model
+    Y'
+components
+
+    u8 Y'
+
+Y'CbCr float
+
+bytes/pixel
+    12
+model
+    Y'CbCr
+components
+
+    float  Y'
+    float  Cb
+    float  Cr
+
+Y'CbCrA float
+
+bytes/pixel
+    16
+model
+    Y'CbCrA
+components
+
+    float  Y'
+    float  Cb
+    float  Cr
+    float  A
+
+RGBA u16
+
+bytes/pixel
+    8
+model
+    RGBA
+components
+
+    u16  R
+    u16  G
+    u16  B
+    u16  A
+
+RGBA u8
+
+bytes/pixel
+    4
+model
+    RGBA
+components
+
+    u8  R
+    u8  G
+    u8  B
+    u8  A
+
+RaGaBaA float
+
+bytes/pixel
+    16
+model
+    RaGaBaA
+components
+
+    float  Ra
+    float  Ga
+    float  Ba
+    float  A
+
+RaGaBaA u16
+
+bytes/pixel
+    8
+model
+    RaGaBaA
+components
+
+    u16  Ra
+    u16  Ga
+    u16  Ba
+    u16  A
+
+RaGaBaA u8
+
+bytes/pixel
+    4
+model
+    RaGaBaA
+components
+
+    u8 Ra
+    u8 Ga
+    u8 Ba
+    u8 A
+
+RGB u16
+
+bytes/pixel
+    6
+model
+    RGB
+components
+
+    u16  R
+    u16  G
+    u16  B
+
+RGB u8
+
+bytes/pixel
+    3
+model
+    RGB
+components
+
+    u8  R
+    u8  G
+    u8  B
+
+YA float
+
+bytes/pixel
+    8
+model
+    YA
+components
+
+    float  Y
+    float  A
+
+YaA float
+
+bytes/pixel
+    8
+model
+    YaA
+components
+
+    float  Ya
+    float  A
+
+Y float
+
+bytes/pixel
+    4
+model
+    Y
+components
+
+    float  Y
+
+YA u16
+
+bytes/pixel
+    4
+model
+    YA
+components
+
+    u16  Y
+    u16  A
+
+YaA u16
+
+bytes/pixel
+    4
+model
+    YaA
+components
+
+    u16  Ya
+    u16  A
+
+Y u16
+
+bytes/pixel
+    2
+model
+    Y
+components
+
+    u16  Y
+
+YA u8
+
+bytes/pixel
+    2
+model
+    YA
+components
+
+    u8  Y
+    u8  A
+
+YaA u8
+
+bytes/pixel
+    2
+model
+    YaA
+components
+
+    u8 Ya
+    u8 A
+
+Y u8
+
+bytes/pixel
+    1
+model
+    Y
+components
+
+    u8  Y
+
+CMYK double
+
+bytes/pixel
+    32
+model
+    CMYK
+components
+
+    double cyan
+    double magenta
+    double yellow
+    double key
+
+CMYK float
+
+bytes/pixel
+    16
+model
+    CMYK
+components
+
+    float cyan
+    float yellow
+    float magenta
+    float key
+
+B'aG'aR'aA u8
+
+bytes/pixel
+    4
+model
+    R'aG'aB'aA
+components
+
+    u8 B'a
+    u8 G'a
+    u8 R'a
+    u8 A
+
+B'aG'aR'aPAD u8
+
+bytes/pixel
+    4
+model
+    R'G'B'
+components
+
+    u8 B'
+    u8 G'
+    u8 R'
+    u8 PAD
+
+CIE Lab double
+
+bytes/pixel
+    24
+model
+    CIE Lab
+components
+
+    double  CIE L
+    double  CIE a
+    double  CIE b
+
+CIE Lab alpha double
+
+bytes/pixel
+    32
+model
+    CIE Lab alpha
+components
+
+    double  CIE L
+    double  CIE a
+    double  CIE b
+    double  A
+
+CIE LCH(ab) double
+
+bytes/pixel
+    24
+model
+    CIE LCH(ab)
+components
+
+    double CIE L
+    double CIE C(ab)
+    double CIE H(ab)
+
+CIE LCH(ab) alpha double
+
+bytes/pixel
+    32
+model
+    CIE LCH(ab) alpha
+components
+
+    double CIE L
+    double CIE C(ab)
+    double CIE H(ab)
+    double A
+
+CIE Lab float
+
+bytes/pixel
+    12
+model
+    CIE Lab
+components
+
+    float CIE L
+    float CIE a
+    float CIE b
+
+CIE Lab alpha float
+
+bytes/pixel
+    16
+model
+    CIE Lab alpha
+components
+
+    float CIE L
+    float CIE a
+    float CIE b
+    float A
+
+CIE Lab u8
+
+bytes/pixel
+    3
+model
+    CIE Lab
+components
+
+    CIE u8 L   CIE L
+    CIE u8 ab  CIE a
+    CIE u8 ab  CIE b
+
+CIE Lab u16
+
+bytes/pixel
+    6
+model
+    CIE Lab
+components
+
+    CIE u16 L   CIE L
+    CIE u16 ab  CIE a
+    CIE u16 ab  CIE b
+
+CIE LCH(ab) float
+
+bytes/pixel
+    12
+model
+    CIE LCH(ab)
+components
+
+    float CIE L
+    float CIE C(ab)
+    float CIE H(ab)
+
+CIE LCH(ab) alpha float
+
+bytes/pixel
+    16
+model
+    CIE LCH(ab) alpha
+components
+
+    float CIE L
+    float CIE C(ab)
+    float CIE H(ab)
+    float A
+
+Shortcut Coverage
+
+The diagram shown below visualizes the coverage of current shortcut
+conversions. Dots indicate a direct conversion is provided for, the
+height of the bar indicates the number of conversions steps needed in a
+chain of conversions. A DHTML version is also available.
+
+
+    ··  ·▁··   ··· ▁    ▂             ▁▁   ▁         ·   ····      ── 0 RGBA double
+                                                                   ── 1 RGB double
+                                                                   ── 2 RaGaBaA double
+                                                                   ── 3 R'G'B' double
+·    ▁  ▁▂▁▁       ·    ▁             ▂▂   ▂         ▁   ▁▁ ▁      ── 4 R'G'B'A double
+·       ▁▂▁▁   ▁▁  ▂    ▃             ▂▂   ▂         ▁   ▁▁▁▁      ── 5 R'aG'aB'aA double
+▁   ▂  ···▂▂   ▂▂▂ ▁ ▁ ··             ▁▁ ▂ ▁         ▂   ▂▂▂▂      ── 6 R'G'B' u8
+▁   ▁▂  ·▁▂▂   ▂▃▂ · ▁  ▁             ▁▁   ▁         ▂   ▂▂▂▂      ── 7 R'G'B'A u8
+·   ▁    ·▁▁   ▁▁▁ ▂    ▃             ··   ·         ▁   ▁▁▁▁      ── 8 RGBA float
+▁   ▃▃    ▂▂   ▃▂▂ ▃                  ▂· ▂ ▁         ▂   ▂▂▂▂      ── 9 RGB float
+·   ▁▁  ▁  ▁   ▁ ▁ ▂ ▃  ▃             ▂▂ ▃ ▂         ▁   ▁▁ ▁      ──10 Y double
+·   ▁▁  ▁▂     ▁▁▁ ▂    ▃             ▂▂   ▂         ▁   ▁ ▁▁      ──11 YA double
+                                                                   ──12 YaA double
+                                                                   ──13 Y' double
+                                                                   ──14 Y'A double
+·   ▁   ▁▂▁     ▁▁      ▃             ▂▂   ▂         ▁   ▁▁▁▁      ──15 Y'aA double
+        ▁▂▁▁     ▁ ▂ ▃                ▂▃ ▃ ▂         ▁    ▁▁▁      ──16 Y'CbCr double
+·   ▁▁  ▁▂▁▁   ▁   ▂    ▃             ▂▂   ▃         ▁   ▁▁▁▁      ──17 Y'CbCrA double
+                                                                   ──18 Y'CbCr u8
+▁   ·   ▂▃▂    ▂ ▂      ·             ▃▃   ▃              ▂▂       ──19 R'G'B'A float
+▂   ▁▃  ▃ ▃    ▃▃▃   ▁  ▁                            ▃   ▃▃ ▃      ──20 R'G'B'A u16
+                                                         ▃▃▃       ──21 R'aG'aB'aA float
+▃   ▂              ▁    ▂                                          ──22 R'aG'aB'aA u16
+▃   ▂              ▁ ·  ▂                                          ──23 R'aG'aB'aA u8
+▂   ▁▃  ▃ ▃▃   ▃▃▃ · ·                               ▃   ▃▃        ──24 R'G'B' float
+▃   ▂              ▁ ▁                                             ──25 R'G'B' u16
+    ▁              · ▁  ▁  ·· ▂  ▁                                 ──26 Y'A float
+    ▂              ▁ ·  ▂   ▁ ▁  ·                                 ──27 Y'aA float
+    ▂              ▁ ▁  ▂ ·                                        ──28 Y' float
+    ▂              ▁ ▂  ▂ ·▁  ▃  ▂                                 ──29 Y'A u16
+    ▃              ▂ ▁  ▃ ▁·▂    ▁                                 ──30 Y'aA u16
+    ▃              ▂ ▃  ▁ ▁▂·                                      ──31 Y' u16
+▁   ▂▂  ·▂▂▂   ▂▂▂ ▁ ▂  ▂ ·▁▁ ▃  ▂    ▁▂   ▁·▁▁      ▂   ▂▂▂▂      ──32 Y'A u8
+    ▃              ▂ ▁  ▃ ▁·▂ ·                                    ──33 Y'aA u8
+▁   ▃▂  ▂▁▂▂   ▂▂▂ ▂ ▂  ▁ ▁▂·         ▃▂ ▂ ▁▁▂·      ▂   ▂▂▂▂      ──34 Y' u8
+▃   ▂              ▁ ▁  ·                                          ──35 Y'CbCr float
+    ▁▃  ▃ ▃▃   ▃▃  ·    ▁                            ▃   ▃▃▃▃      ──36 Y'CbCrA float
+▁   ▂▂  ·▁▂▂   ▂▂▂ ▃                  ▁▁   ▁         ▂   ▂▂▂▂      ──37 RGBA u16
+▁   ▂▂  ·▁▂▂   ▂▂▂ ▃                   ·   ·         ▂   ▂▂▂▂      ──38 RGBA u8
+▁   ▂▂  ·▁▂▂   ▂▂▂ ▃                       ▁         ▂   ▂▂▂▂      ──39 RaGaBaA float
+▂   ▃▃  ▁▂▃▃   ▃▃▃                    ▂    ▂         ▃   ▃▃▃▃      ──40 RaGaBaA u16
+▂   ▃▃  ▁▂▃▃   ▃▃▃                     ·             ▃   ▃▃▃▃      ──41 RaGaBaA u8
+▂   ▃▃  ▁·▃▃   ▃▃▃                    ▃▁   ▂         ▃   ▃▃▃▃      ──42 RGB u16
+▁   ▂▂  ▁·▂▃   ▃▂▂ ▃                  ·· ·           ▂   ▃▂▂▂      ──43 RGB u8
+▁   ▂   ·▁▂    ▂▂▂ ▃                  ▁▁     ··      ▂   ▂▂▂       ──44 YA float
+▂   ▃▃  ▁▂▃▃   ▃▃▃                    ▂·   ▂         ▃   ▃▃▃▃      ──45 YaA float
+▂   ▃▃  ▁· ▃   ▃▃▃                    ▂▂ ▃ ▂·        ▃   ▃▃▃▃      ──46 Y float
+▂   ▃▃  ▁▂▃▃   ▃▃▃                    ▂▂   ▂·▁       ▃    ▃▃▃      ──47 YA u16
+▃       ▂▃                            ▃▁   ▃ ·                     ──48 YaA u16
+▃       ▂▁                            ▃▃   ▃▁▁·                    ──49 Y u16
+▁   ▂▂  ▁▁▂▃   ▂▂▂ ▃                  ▁▂   ▁·▁▁      ▂   ▂▂▂▂      ──50 YA u8
+▃       ▂▃                             ▁    ▁·▂                    ──51 YaA u8
+▁   ▂▂  ·▁▂▂   ▂▂▂ ▃                  ▁▃ ▃ ▃▁▁·      ▂   ▂▂▂▂      ──52 Y u8
+·   ▁▁  ▁▂▁▁   ▁▁▁ ▂ ▃  ▃             ▃▂ ▃ ▂             ▁▁ ▁      ──53 CMYK double
+                                                                   ──54 CMYK float
+                                                                   ──55 B'aG'aR'aA u8
+                                                                   ──56 B'aG'aR'aPAD u8
+·    ▁  ▁▂▁▁    ▁▁ ▂ ▃                ▂▃ ▃ ▂         ▁    ▁▁▁      ──57 CIE Lab double
+·   ▁▁  ▁▂▁▁   ▁▁▁ ▂    ▃             ▂▂   ▂         ▁             ──58 CIE Lab alpha double
+·   ▁▁  ▁▂▁▁   ▁▁▁ ▂ ▃  ▃             ▂▃ ▃ ▃         ▁   ▁  ▁      ──59 CIE LCH(ab) double
+·    ▁  ▁▂▁▁    ▁▁ ▂    ▃             ▂▂   ▂         ▁   ▁▁        ──60 CIE LCH(ab) alpha double
+                                                                   ──61 CIE Lab float
+                                                                   ──62 CIE Lab alpha float
+                                                                   ──63 CIE Lab u8
+                                                                   ──64 CIE Lab u16
+                                                                   ──65 CIE LCH(ab) float
+                                                                   ──66 CIE LCH(ab) alpha float
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+||||||||||111111111122222222223333333333444444444455555555556666666
+0123456789012345678901234567890123456789012345678901234567890123456
+total length: 2034
+total cost  : 543904
+
+Environment
+
+If the environment variable BABL_STATS is set containting a html pixel
+format conversion usage matrix will be written to /tmp/babl-stats.html.
+This allows figuring out which conversions is taking up time during
+processing, and what shortcuts extensions might be created or improved
+to make babl do it's job faster.
+
+Through the environment variable BABL_TOLERANCE you can control a speed
+/performance trade off that by default is set very low (0.000001)
+values in the range 0.01-0.1 can provide reasonable preview performance
+by allowing lower numerical accuracy
+
+.
+
+Extending
+
+For samples of how the current internal API specification of data
+types, color models, and conversions look in the extensions/ directory.
+The tables in this HTML file is directly generated based on the data
+registered by BablCore (double and RGBA), BablBase (core datatypes, and
+RGB models), extensions (CIE Lab, naive CMYK, various shortcut
+conversions).
+
+Directory Overview
+
+babl-dist-root
+ │
+ ├──babl       the babl core
+ │   └──base   reference implementations for RGB and Grayscale Color Models,
+ │             8bit 16bit, and 32bit and 64bit floating point.
+ ├──extensions CIE-Lab color model as well as a naive-CMYK color model.
+ │             also contains a random cribbage of old conversion optimized
+ │             code from gggl. Finding more exsisting conversions in third
+ │             part libraries (hermes, lcms?, liboil?) could improve the
+ │             speed of babl.
+ ├──tests      tests used to keep babl sane during development.
+ └──docs       Documentation/webpage for babl (the document you are reading
+               originated there.
+
+TODO
+
+  • Support for conversions between formats that have higher
+    dimensionality than RGBA. (arbitrary meaningless components)
+  • Support for datatypes that are not a multiple of 8bit.
+  • dithering
+  • dynamic data attached to format, or internal handling of icc
+    through a registered set of profiles
+  • Stocastic runtime profiling with running average of the peformance
+    for conversions, to avoid problems incurred if other cpu intense is
+    happening when babl tests a conversions.
+
+Copyright
+
+Babl is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the
+Free Software Foundation; either version 3 of the License, or (at your
+option) any later version.
+
+Authors
+
+Øyvind Kolås pippin at gimp.org
+    Original author.
+Sven Neumann sven at gimp.org
+    Build sanity and optimizations.
+Michael Natterer mitch at gimp.org
+    Build sanity.
+Kevin Cozens
+    Build sanity.
+Tim Mooney
+    Portability fixes.
+Michael Schumacher schumaml at cvs.gnome.org
+    win32 support for dynamic extensions.
+    Portability fixes.
+Jan Heller jheller at svn.gnome.org
+    Optimizations, refactoring and documentation.
+Mukund Sivaraman muks at mukund.org
+    Sparse fixes and sanity.
+dmacks at netspace.org
+    Build sanity
+Sam Hocevar
+    Build sanity.
+Zhang Junbo
+    Frequency domain color model.
+Martin Nordholts
+    Optimizations and API overhaul.
+Gary V. Vaughan
+    Multiplatform build support.
+Stanislav Brabec
+    Portability patch.
+Hubert Figuiere
+    C++ friendliness patch.
+Danny Robson
+    Code cleanups.
+Fryderyk Dziarmagowski freetz at gmx.net
+    Code cleanups.
+Daniel Paredes García danipga at gmail.com
+    Initial work to make babl threadsafe
+Rupert Weber gimp at leguanease.org
+    Documentation and other improvements
+
+/babl-0.1.4

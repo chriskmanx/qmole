@@ -1,0 +1,593 @@
+#!/usr/bin/python2.5
+
+import bmpanel2
+import gtk, gobject
+from gtk import gdk
+
+g_remote = bmpanel2.Bmpanel2Remote()
+g_config = bmpanel2.Bmpanel2Config()
+g_launch = bmpanel2.Bmpanel2Launchbar(g_config)
+
+#----------------------------------------------------------------------
+from threading import Thread
+
+class ThemeDeferredLoader(Thread):
+	def __init__(self, view, model, callback):
+		Thread.__init__(self)
+		self.gui_view = view
+		self.gui_model = model
+		self.gui_callback = callback
+
+	def run(self):
+		view = self.gui_view
+		model = self.gui_model
+
+		themes = bmpanel2.Bmpanel2Themes()
+		gdk.threads_enter()
+		for t in themes.themes:
+			name = t.dirname
+			if t.name:
+				name = t.name
+			model.append((name, t, t.path))
+		current_theme = g_config.get_theme()
+		current_theme_num = 0
+
+		for i in xrange(len(model)):
+			if model[i][1].dirname == current_theme:
+				current_theme_num = i
+				break
+
+		view.set_cursor((current_theme_num,))
+		view.scroll_to_cell((current_theme_num,))
+		view.get_selection().connect('changed', self.gui_callback)
+		view.set_sensitive(True)
+		view.set_tooltip_column(2)
+		gdk.threads_leave()
+#----------------------------------------------------------------------
+
+def reconfigure():
+	g_config.save()
+	g_remote.reconfigure()
+
+#----------------------------------------------------------------------
+# ThemesListbox
+#----------------------------------------------------------------------
+class ThemesListbox:
+	def __init__(self):
+		scroll = gtk.ScrolledWindow()
+		scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+		scroll.set_shadow_type(gtk.SHADOW_IN)
+
+		model = gtk.ListStore(gobject.TYPE_STRING,
+					gobject.TYPE_PYOBJECT,
+					gobject.TYPE_STRING)
+		renderer = gtk.CellRendererText()
+		column = gtk.TreeViewColumn("Theme", renderer, text=0)
+		view = gtk.TreeView(model)
+		view.append_column(column)
+		view.set_sensitive(False)
+
+		theme_loader = ThemeDeferredLoader(view, model, self.view_cursor_changed)
+		theme_loader.start()
+
+		scroll.add(view)
+		scroll.set_size_request(200, -1)
+		self.widget = scroll
+
+	def view_cursor_changed(self, selection):
+		(model, it) = selection.get_selected()
+		if not it:
+			return
+		theme = model.get_value(it, 1)
+		g_config.set_theme(theme.dirname)
+		reconfigure()
+
+#----------------------------------------------------------------------
+# Parameters Table
+#----------------------------------------------------------------------
+def make_boolean(setter, getter):
+	w = gtk.CheckButton()
+	w.set_active(getter())
+	def changed(checkbox):
+		active = checkbox.get_active()
+		setter(active)
+		reconfigure()
+	w.connect('toggled', changed)
+	return w
+
+def make_string(setter, getter):
+	w = gtk.Entry()
+	try:
+		w.set_text(getter())
+	except:
+		pass
+
+	def changed(entry):
+		text = entry.get_text()
+		setter(text)
+		reconfigure()
+	w.connect('changed', changed)
+	return w
+
+def make_number(setter, getter, mmin, mmax):
+	w = gtk.SpinButton()
+	w.set_increments(1,5)
+	w.set_range(mmin, mmax)
+	w.set_value(getter())
+	def changed(num):
+		n = num.get_value_as_int()
+		setter(n)
+		reconfigure()
+	w.connect('value-changed', changed)
+	return w
+
+class ParametersTable:
+	def __init__(self):
+		table = gtk.Table(1,2)
+		table.set_row_spacings(5)
+
+		align = gtk.Alignment(0,0,1,1)
+		align.set_padding(0, 5, 0, 0)
+		align.add(table)
+
+		frame = gtk.Frame("Parameters")
+		frame.set_border_width(5)
+		frame.add(align)
+
+		self.widget = frame
+		self.table = table
+
+		e = make_string(g_config.set_clock_prog,
+				g_config.get_clock_prog)
+		self.add_row("Clock program:", e)
+
+		e = make_boolean(g_config.set_task_urgency_hint,
+				g_config.get_task_urgency_hint)
+		self.add_row("Task urgency hint:", e)
+
+		e = make_number(g_config.set_drag_threshold,
+				g_config.get_drag_threshold, 0, 9999)
+		self.add_row("Drag threshold:", e)
+
+		e = make_number(g_config.set_task_death_threshold,
+				g_config.get_task_death_threshold, 0, 9999)
+		self.add_row("Task death threshold:", e)
+
+
+	def add_row(self, label_text, widget):
+		label = gtk.Label(label_text)
+		label.set_alignment(0, 0)
+		row = self.table.props.n_rows
+		self.table.attach(label, 0, 1, row, row+1, gtk.EXPAND | gtk.FILL, 0, 5, 0)
+		self.table.attach(widget, 1, 2, row, row+1, gtk.FILL, 0, 5, 0)
+
+#----------------------------------------------------------------------
+# IconList
+#----------------------------------------------------------------------
+class Icon:
+	def __init__(self, prog=None, icon=None, pixbuf=None):
+		self.prog = prog
+		self.icon = icon
+		self.pixbuf = pixbuf
+
+	def set(self, prog=None, icon=None, pixbuf=None):
+		self.prog = prog
+		self.icon = icon
+		self.pixbuf = pixbuf
+
+
+class IconList(gtk.Widget):
+	def __init__(self, changed_cb, icon_size = 32):
+		gtk.Widget.__init__(self)
+		self.icon_size = icon_size
+		self.icons = []
+		self.active = -1
+		self.active_changed = []
+		self.changed_cb = changed_cb
+
+	def do_realize(self):
+		self.set_flags(self.flags() | gtk.REALIZED)
+
+		self.window = gtk.gdk.Window(
+			self.get_parent_window(),
+			width = self.allocation.width,
+			height = self.allocation.height,
+			window_type = gdk.WINDOW_CHILD,
+			wclass = gdk.INPUT_OUTPUT,
+			event_mask = self.get_events() | gdk.EXPOSURE_MASK | gtk.gdk.BUTTON_PRESS_MASK
+		)
+
+		self.window.set_user_data(self)
+		self.style.attach(self.window)
+		self.style.set_background(self.window, gtk.STATE_NORMAL)
+		self.window.move_resize(*self.allocation)
+
+		self.connect('expose-event', self._expose_event)
+		self.connect('button-press-event', self._button_press_event)
+
+	def do_unrealize(self):
+		self.window.set_user_data(None)
+
+	def do_size_request(self, requisition):
+		requisition.height = self.icon_size
+		requisition.width = len(self.icons) * self.icon_size
+
+	def do_size_allocate(self, allocation):
+		self.allocation = allocation
+
+		if self.flags() & gtk.REALIZED:
+			self.window.move_resize(*allocation)
+
+	def _expose_event(self, widget, event):
+		gc = self.style.fg_gc[gtk.STATE_NORMAL]
+		for i in xrange(len(self.icons)):
+			icon = self.icons[i]
+			self._draw_icon_centered(icon.pixbuf, self.icon_size * i, i == self.active)
+
+	def _button_press_event(self, widget, event):
+		i = event.x / self.icon_size
+		if len(self.icons) > i and i >= 0:
+			self.active = int(i)
+			self._update_gui()
+
+	# draw utils
+	def _draw_icon_centered(self, icon, xoff, active=False):
+		gc = self.style.bg_gc[gtk.STATE_SELECTED]
+
+		if active:
+			self.window.draw_rectangle(gc, True, xoff, 0, self.icon_size, self.icon_size)
+		if not icon:
+			hs = self.icon_size / 2
+			s = (self.icon_size - hs) / 2
+			self.window.draw_rectangle(gc, True, xoff+s, s, hs, hs)
+		else:
+			w = icon.get_width()
+			h = icon.get_height()
+			x = (self.icon_size - w) / 2
+			y = (self.icon_size - h) / 2
+			self.window.draw_pixbuf(gc, icon, 0, 0, xoff+x, y, -1, -1)
+
+	def _update_gui(self):
+		self.set_size_request(self.icon_size * len(self.icons), self.icon_size)
+		if self.flags() & gtk.REALIZED:
+			rect = gtk.gdk.Rectangle(0,0,self.allocation[2],self.allocation[3])
+			self.window.invalidate_rect(rect, True)
+
+		for cb in self.active_changed:
+			cb(self.active)
+
+	# ----------------------------------------------------------------
+	def _load_pixbuf_for_icon(self, icon):
+		pixbuf = None
+		if icon:
+			pixbuf = gtk.gdk.pixbuf_new_from_file(icon)
+			if pixbuf.get_width() > self.icon_size or pixbuf.get_height() > self.icon_size:
+				pixbuf = pixbuf.scale_simple(self.icon_size, self.icon_size, gtk.gdk.INTERP_HYPER)
+		return pixbuf
+
+	def _validate_active(self):
+		if not len(self.icons):
+			self.active = -1
+			return
+		if self.active < 0:
+			self.active = 0
+		if self.active >= len(self.icons):
+			self.active = len(self.icons)-1
+
+	def insert(self, where_index, prog=None, icon=None):
+		assert(where_index >= 0 and where_index < len(self.icons))
+		try:
+			ic = Icon(prog, icon, self._load_pixbuf_for_icon(icon))
+		except:
+			return
+		self.icons.insert(where_index, ic)
+		self._update_gui()
+
+	def remove(self, where_index):
+		assert(where_index >= 0 and where_index < len(self.icons))
+		commit_change = False
+		if self.icons[where_index].icon != None and self.icons[where_index].prog != None:
+			commit_change = True
+		del self.icons[where_index]
+		self._validate_active()
+		self._update_gui()
+		if commit_change:
+			self.changed_cb()
+
+	def change(self, where_index, prog, icon):
+		assert(where_index >= 0 and where_index < len(self.icons))
+		self.icons[where_index].set(prog, icon, self._load_pixbuf_for_icon(icon))
+		if prog != None and icon != None:
+			self.changed_cb()
+		self._update_gui()
+
+	def move(self, where_index, offset):
+		assert(where_index >= 0 and where_index < len(self.icons))
+		dest = where_index + offset
+		# clamp dest
+		if dest < 0:
+			dest = 0
+		if dest >= len(self.icons):
+			dest = len(self.icons)-1
+
+		if dest == where_index:
+			return
+		if offset > 0:
+			dest += 1
+
+		ic = self.icons[where_index]
+		self.icons.insert(dest, ic)
+		if offset > 0:
+			del self.icons[where_index]
+		elif offset < 0:
+			del self.icons[where_index+1]
+		self.active += offset
+		# clamp active
+		self._validate_active()
+		self.changed_cb()
+		self._update_gui()
+
+	# utility
+	def append(self, prog=None, icon=None):
+		try:
+			ic = Icon(prog, icon, self._load_pixbuf_for_icon(icon))
+		except:
+			return
+		self.icons.append(ic)
+		self._update_gui()
+
+gobject.type_register(IconList)
+
+#----------------------------------------------------------------------
+
+class LaunchbarItem:
+	def __init__(self, prog, icon):
+		self.prog = prog
+		self.icon = icon
+
+class LaunchbarEditor:
+	def __init__(self):
+		self.items = []
+		self.parse_items()
+		self.build_gui()
+
+	def build_toolbar(self, iconlist):
+		hbox = gtk.HBox()
+		vbox = gtk.VBox()
+		hbox.pack_start(vbox, False)
+
+		# <- Move left
+		but = gtk.Button()
+		but.set_focus_on_click(False)
+		but.set_relief(gtk.RELIEF_NONE)
+		but.set_image(gtk.image_new_from_stock(gtk.STOCK_GO_BACK, gtk.ICON_SIZE_SMALL_TOOLBAR))
+		def click(widget):
+			if iconlist.active == -1:
+				return
+			iconlist.move(iconlist.active, -1)
+		but.connect('clicked', click)
+		vbox.pack_start(but, False)
+
+		# + Add
+		but = gtk.Button()
+		but.set_focus_on_click(False)
+		but.set_relief(gtk.RELIEF_NONE)
+		but.set_image(gtk.image_new_from_stock(gtk.STOCK_ADD, gtk.ICON_SIZE_SMALL_TOOLBAR))
+		def click(widget):
+			if iconlist.active != -1:
+				iconlist.insert(iconlist.active)
+			else:
+				iconlist.append()
+		but.connect('clicked', click)
+		vbox.pack_start(but, False)
+
+		vbox = gtk.VBox()
+		hbox.pack_start(vbox, False)
+
+		# -> Move right
+		but = gtk.Button()
+		but.set_focus_on_click(False)
+		but.set_relief(gtk.RELIEF_NONE)
+		but.set_image(gtk.image_new_from_stock(gtk.STOCK_GO_FORWARD, gtk.ICON_SIZE_SMALL_TOOLBAR))
+		def click(widget):
+			if iconlist.active == -1:
+				return
+			iconlist.move(iconlist.active, 1)
+		but.connect('clicked', click)
+		vbox.pack_start(but, False)
+
+		# - Remove
+		but = gtk.Button()
+		but.set_focus_on_click(False)
+		but.set_relief(gtk.RELIEF_NONE)
+		but.set_image(gtk.image_new_from_stock(gtk.STOCK_REMOVE, gtk.ICON_SIZE_SMALL_TOOLBAR))
+		def click(widget):
+			if iconlist.active == -1:
+				return
+			iconlist.remove(iconlist.active)
+		but.connect('clicked', click)
+		vbox.pack_start(but, False)
+
+		align = gtk.Alignment(0.5,0.5)
+		align.add(hbox)
+
+		return align
+
+	def build_edit(self, iconlist):
+		table = gtk.Table(1,2)
+		table.set_row_spacings(5)
+		def add_row(label_text, widget):
+			label = gtk.Label(label_text)
+			label.set_alignment(0, 0)
+			row = table.props.n_rows
+			table.attach(label, 0, 1, row, row+1, gtk.FILL, 0, 5, 0)
+			table.attach(widget, 1, 2, row, row+1, gtk.EXPAND | gtk.FILL, 0, 5, 0)
+
+		e1 = gtk.Entry()
+		filedialog = gtk.FileChooserDialog("Select an icon")
+		filedialog.add_buttons(gtk.STOCK_OK, gtk.RESPONSE_OK,
+				gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
+		filefilter = gtk.FileFilter()
+		filefilter.add_mime_type("image/png")
+		filedialog.set_filter(filefilter)
+		e2 = gtk.FileChooserButton(filedialog)
+
+		# preview
+		preview = gtk.Image()
+		e2.set_preview_widget(preview)
+		def update_preview_cb(file_chooser, preview):
+			filename = file_chooser.get_preview_filename()
+			try:
+				pixbuf = gtk.gdk.pixbuf_new_from_file(filename)
+				preview.set_from_pixbuf(pixbuf)
+				have_preview = True
+			except:
+				have_preview = False
+			file_chooser.set_preview_widget_active(have_preview)
+		e2.connect('update-preview', update_preview_cb, preview)
+		e1.set_sensitive(False)
+		e2.set_sensitive(False)
+
+		# callback for changed event
+		def e1_edited(widget):
+			text = widget.get_text()
+			active = iconlist.active
+			if active != -1:
+				a = iconlist.icons[active]
+				iconlist.change(active, text, a.icon)
+		e1.connect('changed', e1_edited)
+
+		# callback for file dialog response event
+		def file_dialog_response(dialog, response):
+			filename = dialog.get_filename()
+			active = iconlist.active
+			if response != gtk.RESPONSE_OK:
+				if active != -1:
+					icon = iconlist.icons[active].icon
+					if icon:
+						e2.set_filename(iconlist.icons[active].icon)
+					else:
+						e2.unselect_all()
+				return
+			if active != -1:
+				a = iconlist.icons[active]
+				iconlist.change(active, a.prog, filename)
+		filedialog.connect('response', file_dialog_response)
+
+		# callback for iconlist
+		def active_changed_cb(active):
+			e1.handler_block_by_func(e1_edited)
+			if active != -1:
+				e1.set_sensitive(True)
+				e2.set_sensitive(True)
+				prog = iconlist.icons[active].prog
+				if prog:
+					e1.set_text(prog)
+				else:
+					e1.set_text("")
+				icon = iconlist.icons[active].icon
+				if icon:
+					e2.set_filename(icon)
+				else:
+					e2.unselect_all()
+			else:
+				e1.set_text("")
+				e2.unselect_all()
+				e1.set_sensitive(False)
+				e2.set_sensitive(False)
+			e1.handler_unblock_by_func(e1_edited)
+		iconlist.active_changed.append(active_changed_cb)
+
+		# add widgets to table
+		add_row("Program:", e1)
+		add_row("Icon:", e2)
+
+		align = gtk.Alignment(0,0,1,1)
+		align.set_padding(0, 5, 0, 0)
+		align.add(table)
+
+		return align
+
+	def build_gui(self):
+		w = IconList(self.save_items)
+		for i in self.items:
+			w.append(i.prog, i.icon)
+
+		scroll = gtk.ScrolledWindow()
+		scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_NEVER)
+		scroll.add_with_viewport(w)
+		scroll.get_child().set_shadow_type(gtk.SHADOW_NONE)
+		def scrollchresize(cont, event):
+			adj = cont.get_hadjustment()
+			if adj.page_size == adj.upper:
+				(width,h) = w.size_request()
+				cont.set_size_request(-1, h)
+			else:
+				cont.set_size_request(-1, -1)
+		scroll.connect('size-allocate', scrollchresize)
+
+		hbox = gtk.HBox()
+		hbox.pack_start(self.build_edit(w), True)
+		hbox.pack_start(gtk.VSeparator(), False)
+		hbox.pack_start(self.build_toolbar(w), False)
+
+		vbox = gtk.VBox()
+		vbox.pack_start(scroll, False)
+		vbox.pack_start(gtk.HSeparator(), False)
+		vbox.pack_start(hbox, False)
+
+		frame = gtk.Frame("Launch bar")
+		frame.set_border_width(5)
+		frame.add(vbox)
+
+		self.iconlist = w
+		self.widget = frame
+
+	def parse_items(self):
+		for i in g_launch:
+			self.items.append(LaunchbarItem(i.prog, i.icon))
+
+	def save_items(self):
+		lb = g_config.tree['launchbar']
+		children = lb.children[:]
+		for i in children:
+			g_config.tree.remove_node(i)
+		for i in self.iconlist.icons:
+			node = bmpanel2.ConfigNode(name="exec", value=i.prog)
+			g_config.tree.append_node_as_child(node, lb)
+			node2 = bmpanel2.ConfigNode(name="icon", value=i.icon)
+			g_config.tree.append_node_as_child(node2, node)
+		reconfigure()
+
+gdk.threads_init()
+
+def die(widget, data=None):
+	gtk.main_quit()
+
+win = gtk.Window(gtk.WINDOW_TOPLEVEL)
+win.set_title("Bmpanel2 Config")
+win.connect('destroy', die)
+
+themeslb = ThemesListbox()
+paramtbl = ParametersTable()
+lbedit = LaunchbarEditor()
+
+hbox = gtk.HBox()
+hbox.pack_start(paramtbl.widget, False, True)
+hbox.pack_start(themeslb.widget, True, True)
+
+vbox = gtk.VBox()
+vbox.pack_start(hbox)
+vbox.pack_start(lbedit.widget, False, True)
+
+win.add(vbox)
+win.show_all()
+
+if g_remote.started_with_theme:
+	d = gtk.MessageDialog(type=gtk.MESSAGE_WARNING, buttons=gtk.BUTTONS_OK)
+	d.set_markup("Bmpanel2 was started with <b>--theme</b> parameter. "
+		"It means it will not react on theme changes in the config file (via this tool or not).")
+	d.run()
+	d.destroy()
+
+gtk.main()

@@ -1,0 +1,1318 @@
+\input texinfo   @c -*-texinfo-*-
+@comment $Id$
+@comment %**start of header
+@setfilename cgdb.info
+@include version.texi
+@settitle CGDB Manual @value{VERSION}
+@syncodeindex pg cp
+@comment %**end of header
+@copying
+
+This manual is for @acronym{GNU} CGDB
+(version @value{VERSION}, @value{UPDATED}),
+the @acronym{GNU} ncurses based front end to GDB.
+
+Copyright @copyright{} 2011 CGDB Team
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.1 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with the Front-Cover Texts being ``A GNU Manual,''
+and with the Back-Cover Texts as in (a) below.  A copy of the
+license is included in the section entitled ``GNU Free Documentation
+License.''
+
+(a) The FSF's Back-Cover Text is: ``You have freedom to copy and modify
+this GNU Manual, like GNU software.  Copies published by the Free
+Software Foundation raise funds for GNU development.''
+@end quotation
+@end copying
+
+@dircategory Software development
+@direntry
+* CGDB: (CGDB).                   GNU Ncurses front end to GDB.
+@end direntry
+
+@titlepage
+@title CGDB
+@subtitle for version @value{VERSION}, @value{UPDATED}
+@author Bob Rossi (@email{bob@@brasko.net})
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top CGDB
+@insertcopying
+@end ifnottex
+
+@menu
+* Summary::                     Summary of CGDB
+
+* Invocation::                  Getting in and out of CGDB
+* Understanding CGDB::          Understanding the core concepts of CGDB
+* Controlling CGDB::            CGDB commands
+* Configuring CGDB::            CGDB configuration commands
+* Highlighting Groups::         CGDB highlighting groups
+* Key User Interface::          CGDB key user interface
+* Sending I/O to Inferior::     Sending I/O to the program being debugged
+* Terminal Control Flow::       Allowing terminal control flow in CGDB
+
+* Building CGDB::               Building CGDB from source
+
+* Copying This Manual::
+
+* Index::
+@end menu
+
+
+@node Summary
+@unnumbered Summary of CGDB
+
+CGDB is a curses-based interface to the GNU Debugger (GDB).  The goal of CGDB 
+is to be lightweight and responsive; not encumbered with unnecessary features.
+
+The interface is designed to deliver the familiar GDB text interface, with a 
+split screen showing the source as it executes.  The UI is modeled on the 
+classic Unix text editor, vi.  Those familiar with vi should feel right at 
+home using CGDB.
+
+The library responsible for communicating with GDB is called Trivial GDB 
+(tgdb, or more accurately, libtgdb).  This abstraction allows the UI code to 
+be independent of the debugger, as well as greatly simplifying its 
+implementation.
+
+Those wanting to develop other interfaces to GDB are welcome to use libtgdb 
+as the basis for their program.  Many of the headaches of parsing GDB's output 
+and annotations can be avoided by using it.
+
+Some features offered by CGDB are:
+
+@itemize @bullet
+@item
+Syntax-highlighted source window
+
+@item
+Visual breakpoint setting
+
+@item
+Keyboard shortcuts for common functions
+
+@item
+Searching source window (using regexp)
+@end itemize
+
+@node Invocation
+@chapter Getting In and Out of CGDB
+@cindex invocation CGDB
+
+This chapter discusses how to start CGDB, and how to get out of it.
+The essentials are:
+@itemize @bullet
+@item
+type @samp{cgdb} to start CGDB.
+
+@item
+type @kbd{quit} or @kbd{C-d} in the GDB window to exit.
+
+@item
+type @kbd{:quit} in the source window to exit.  This even works if GDB is 
+currently hanging, or operating a long command.
+@end itemize
+
+@node Understanding CGDB
+@chapter Understanding the core concepts of CGDB
+@cindex understanding CGDB
+
+@cindex status bar
+@cindex CGDB mode
+@cindex GDB mode
+@cindex TTY mode
+The CGDB user interface currently consists of two windows and a status bar.  
+The source window is currently on the top and the GDB window is on the 
+bottom.  The @dfn{status bar} currently separates the two windows.
+
+The interface has several modes depending on which window is focused.  
+@dfn{CGDB mode} is when the source window is focused, @dfn{GDB mode} is when 
+the GDB window is focused and @dfn{TTY mode} is when the TTY window is focused.
+
+Beginning with CGDB version 1.0, the windows are movable,
+and the user will be able to create as many or as few that is desired. 
+Currently however, all of my time is spent developing the interface between
+CGDB and GDB. Once this is complete, the UI of CGDB will become much more 
+polished.  If you are a ncurses developer, and have spare time to work on this
+task, please contact me.
+
+@menu
+* Source Window::               Understanding the source window.
+* GDB Window::                  Understanding the GDB window.
+* File Dialog Window::          Understanding the file dialog window.
+* TTY Window::                  Understanding the TTY window.
+* Status Bar::                  Understanding the status bar.
+* Switching Windows::           Switching between windows.
+@end menu
+
+@node Source Window
+@section Understanding the source window.
+@cindex source window
+
+The @dfn{source window} is the window that provides you a view of the source 
+code that the debugged program is made up of.  It will display to the user a 
+single source file at a time.  While the user is debugging, via @code{next} 
+and @code{step}, CGDB will update the source file and line number to keep you 
+informed as to where GDB is debugging.
+
+CGDB has several features that make debugging easier than using plain old GDB.  
+One feature you will notice right away while debugging a C, C++ or ADA program, 
+is that the source files are syntax highlighted.  This allows the user to 
+easily navigate through the source file to look for certain places in the 
+source code.  If you would like to see another source language highlighted, 
+contact us.  To understanding how to navigate through the source window look
+at the commands in @ref{CGDB Mode}.
+
+In addition to showing the source code, CGDB also displays to the user the 
+currently executing line. The line number will be highlighted green, to
+represent that the particular line, is the current line being debugged by GDB.
+Also, CGDB will display an arrow extending from the line number, to the 
+source line.  You can configure what type of arrow CGDB uses with the
+@code{:set arrowstyle} configuration option. By default, the @code{short}
+arrow is used.  However, my personal favorite is the @code{long} arrow.
+
+As you navigate through the source window, the current line the cursor is
+on will be highlighted white.  This simply helps you keep track of where you
+are in the file.
+
+Also, you can set or delete breakpoints in CGDB from the source window.  Simply
+navigate to the line that you are interested in setting a breakpoint, and hit
+the space bar.  This will set a breakpoint on the line if one did not already 
+exist.  The line number should turn red to indicate that a breakpoint has 
+been set.  Hitting the space bar again will delete the breakpoint.  If you 
+disable the breakpoint, the line number will turn yellow, to represent the
+disabled breakpoint.
+
+@cindex regular expression search
+CGDB also supports regular expression searching within the source window.  If
+you type @kbd{/} or @kbd{?} you can search in the source window for a string
+of interest.  The C library regular expression functions are used to perform 
+this search, which honors things like @samp{*} or @samp{+}.
+
+The full list of commands that are available in the source window is in
+@ref{CGDB Mode}.
+
+@node GDB Window
+@section Understanding the GDB window.
+@cindex GDB window
+
+@cindex GDB window
+The @dfn{GDB window} is how CGDB allows the user to interface with the GNU 
+debugger.  If you wish to pass a command to GDB, simply type it into this 
+window and GDB will receive the command.  This interface is intended to be 
+100% identical to using GDB on a terminal.
+
+There is a limited set of keys that can be typed into this window that CGDB
+interprets and handles, instead of sending to GDB.  They are all available in
+@ref{GDB Mode}.
+
+CGDB attempts to buffer commands the same way they would be if you typed them
+at the terminal.  So, if you type several commands before a single one 
+finishes, they will each be run in order.  There will be no way to stop these
+commands from being run besides from typing @kbd{Ctrl-C}, like you would at any
+normal terminal when working with GDB.
+
+@node File Dialog Window
+@section Understanding the file dialog window.
+@cindex file dialog window
+
+@cindex file dialog window
+The @dfn{file dialog window} is available to help the user view and select 
+which file they would like to view.  It provides the user with a list of all 
+the files that make up the program being debugged.  If there are no files 
+available, because there is no program being debugged or because there is
+no debug symbols, then the file dialog will not open and a message will be 
+displayed at the status bar.
+
+You can get to the file dialog by hitting @code{o} when you are at the source
+window.  Once you enter the file dialog, it is possible to leave it by hitting 
+@code{q}.  You can navigate the file dialog using the standard direction keys
+and you can even use regular expression to find your file.  This can save a 
+lot of time as the number of files grow.
+
+The full list of commands that are available in the source window is in
+@ref{File Dialog Mode}.
+
+@node TTY Window
+@section Understanding the TTY window.
+@cindex tty window
+
+@cindex TTY window
+The @dfn{TTY window} is available to allow the user to pass input to the program 
+being debugged. This window will act similar to the GDB window, except that
+the data you type will get sent to the program being debugged.  
+@xref{Sending I/O to Inferior}.
+
+You will notice that the TTY window has a terminal device between it and the 
+program being debugged.  So, if the program being debugged uses say readline, 
+which allows command line editing, the same interface will be provided via the
+TTY window as at the terminal.  You can see the name of the terminal device 
+in the TTY status bar.
+
+The full list of commands that are available in the source window is in
+@ref{TTY Mode}.
+
+Sending I/O to the program being debugged can be confusing.  It is described
+better in @ref{Sending I/O to Inferior}.  Unless the I/O with the program
+being debugged is simple, I usually prefer starting the application on a
+separate terminal and attaching to it with CGDB.
+
+@node Status Bar
+@section Understanding the status bar.
+@cindex status bar
+
+@cindex status bar
+The @dfn{status bar} is the general purpose way for CGDB to show the user 
+which commands they are currently typing or report errors to the user when 
+they occur.  CGDB does not use popup's or other forms of I/O to alert the 
+user of information or problems.
+
+While CGDB is running, you can configure it with any of the commands that 
+are valid in CGDB's configuration file.  Simply type @kbd{:} in the source 
+window, and you will see the colon, and the rest of the command you type 
+appear in the status bar.  When you are finished typing the command that 
+you are interested in, type @code{enter}.  This will alert CGDB to execute 
+the command.  If at any point you would like to cancel the current
+command typed so far, type the cgdb mode key.  This will put you back
+into CGDB mode.  For a description of the cgdb mode key, see 
+@ref{Switching Windows}.
+
+The full list of commands that are available in the source window is in
+@ref{Configuring CGDB}.
+
+@node Switching Windows
+@section Switch between windows
+@cindex switch between windows
+
+When CGDB is invoked, the interface is in @dfn{GDB mode}.  A @samp{*} at the 
+right of the status bar indicates that input will be passed to GDB.  To change
+the focus to the source window, hit the @key{ESC} key.  The 
+@dfn{cgdb mode key} is the key that is responsible for switching the user
+into @dfn{CGDB mode} from a different mode.  The cgdb mode 
+key is defaulted to the @key{ESC} key.  To change this value, look at the 
+configuration options for CGDB.  @xref{Configuring CGDB}.
+
+The interface is now in @dfn{CGDB mode}.  To switch back into @dfn{GDB mode}, 
+press @kbd{i}.  This syntax is based on the popular Unix text-editor, vi.
+
+@node Controlling CGDB
+@chapter CGDB commands
+@cindex controlling CGDB
+
+CGDB can be controlled in a variety of different ways.  Each mode that CGDB 
+is in acts differently. Currently CGDB implicitly changes modes depending on 
+which window is active.  The following information will help you determine 
+what commands are accessible during which modes.
+
+@menu
+* CGDB Mode::                   Commands available during CGDB mode
+* GDB Mode::                    Commands available during GDB mode
+* File Dialog Mode::            Commands available during the file dialog mode
+* TTY Mode::                    Commands available during TTY mode
+@end menu
+
+@node CGDB Mode
+@section Commands available during CGDB mode
+@cindex commands, in CGDB mode
+
+When you are in the source window, you are implicitly in @dfn{CGDB mode}.  
+All of the below commands are available during this mode.  This mode is 
+primarily available for the user to view the current source file, search it, 
+or switch to a different mode.
+
+@table @kbd
+@item cgdbmodekey
+Puts the user into command mode. However, you are already in this mode.
+This is defaulted to the @key{ESC} key.
+
+@item i
+Puts the user into @dfn{GDB mode}.
+
+@item I
+Puts the user into @dfn{TTY mode}.
+
+@item T
+Opens a window to give input to the debugged program.
+
+@item Ctrl-T
+Opens a new tty for the debugged program.
+
+@item k
+@itemx up arrow
+Move up a line.
+
+@item j
+@itemx down arrow
+Move down a line.
+
+@item h
+@itemx left arrow
+Move left a line.
+
+@item l
+@itemx right arrow
+Move right a line.
+
+@item Ctrl-b
+@itemx page up
+Move up a page.
+
+@item Ctrl-u
+Move up 1/2 a page.
+
+@item Ctrl-f
+@itemx page down
+Move down a page.
+
+@item Ctrl-d
+Move down 1/2 a page.
+
+@item gg
+Move to the top of file.
+
+@item G
+Move to the bottom of file.
+
+@item /
+search from current cursor position.
+
+@item ?
+reverse search from current cursor position.
+
+@item n
+next forward search.
+
+@item N
+next reverse search.
+
+@item o
+open the file dialog.
+
+@item spacebar
+Sets a breakpoint at the current line number.
+
+@item t
+Sets a temporary breakpoint at the current line number.
+
+@item -
+Shrink source window 1 line.
+
+@item =
+Grow source window 1 line.
+
+@item _
+Shrink source window 25% (or, shrink tty window 1 line, if visible).
+
+@item +
+Grow source window 25% (or, grow tty window 1 line, if visible).
+
+@item Ctrl-l
+Clear and redraw the screen.
+
+@item F5
+Send a run command to GDB.
+
+@item F6
+Send a continue command to GDB.
+
+@item F7
+Send a finish command to GDB.
+
+@item F8
+Send a next command to GDB.
+
+@item F10
+Send a step command to GDB.
+@end table
+
+@node GDB Mode
+@section Commands available during GDB mode
+@cindex commands, in GDB mode
+
+When in @dfn{GDB mode}, the user is mostly interested in working with the GDB 
+console.  That is, sending commands to GDB and receiving data back from GDB.
+Almost all data passed into this window is directly sent to readline and then
+to GDB.
+
+It is important to understand that CGDB parses the keys entered in
+the GDB window and has the first chance at dealing with them.  If it is
+interested in the keys, it will handle them. Below is a list of keys that
+CGDB is interested in, and does not pass along any further.
+
+@table @kbd
+@item cgdbmodekey
+Switch back to source window.  This is defaulted to the @key{ESC} key.
+
+@item page up
+Move up a page.
+
+@item page down
+Move down a page.
+
+@item F11
+Go to the beginning of the GDB buffer.
+
+@item F12
+Go to the end of the GDB buffer.
+@end table
+
+Any other keys, besides the ones above, CGDB is currently not interested in.  
+CGDB will pass along these keys to the readline library. When readline has 
+determined that a command has been received, it alerts CGDB, and a command is
+then sent to GDB. This is the same method used when invoking GDB directly.
+
+@node File Dialog Mode
+@section Commands available during the file dialog mode
+@cindex commands, in File Dialog mode
+
+The file dialog is primarily used to allow the user to find and open a source
+file that the program they are debugging is made up of.  The file dialog will
+be full screen, and will list each file that the debugged program is made up 
+of.  A usual instance of the file dialog would be to open it up from the 
+source window using the @kbd{o} key, and then to search for the file of 
+interest. If you are looking for foo.c type @code{/foo.c}, press @kbd{enter} 
+once to finish the regular expression and again to select the file.
+
+The commands available in the file dialog are:
+
+@table @kbd
+@item q
+Will exit the file dialog, and return to the source window.
+
+@item k
+@itemx up arrow
+Move up a line.
+
+@item j
+@itemx down arrow
+Move down a line.
+
+@item h
+@itemx left arrow
+Move left a line.
+
+@item l
+@itemx right arrow
+Move right a line.
+
+@item Ctrl-b
+@itemx page up
+Move up a page.
+
+@item Ctrl-f
+@itemx page down
+Move down a page.
+
+@item /
+search from current cursor position.
+
+@item ?
+reverse search from current cursor position.
+
+@item n
+next forward search.
+
+@item N
+next reverse search.
+
+@item enter
+Select the current file.
+@end table
+
+@node TTY Mode
+@section Commands available during TTY mode
+@cindex commands, in TTY mode
+
+@table @kbd
+@item cgdbmodekey
+Switch back to source window. This is defaulted to the @key{ESC} key.
+@item page up
+Move up a page.
+
+@item page down
+Move down a page.
+
+@item F11
+Go to the beginning of the GDB buffer.
+
+@item F12
+Go to the end of the GDB buffer.
+@end table
+
+@node Configuring CGDB
+@chapter CGDB configuration commands
+@cindex configuring CGDB
+
+There may be several features that you find useful in CGDB.  CGDB is capable
+of automating any of these commands through the use of the config file called
+@file{cgdbrc}.  It looks in @env{$HOME}@file{/.cgdb/} for that file.  If it 
+exists, CGDB executes each line in the file in order.  It is as if the user 
+typed in all the commands into the status bar after the tui was initialized.
+
+The following variables change the behavior of some aspect of CGDB.  Many
+of these commands may be abbreviated in some way, and all boolean commands
+my be negated by appending @samp{no} to the front.  For example: 
+@kbd{:set ignorecase} turns on case-insensitive searching; while
+@kbd{:set noignorecase} turns on case-sensitive searching.
+
+@table @kbd
+@item :set as=@var{style}
+@itemx :set arrowstyle=@var{style}
+Set the arrow style to @var{style}.  Possible values for @var{style}
+are @samp{short}, @samp{long}, and @samp{highlight}.  Changes the style of 
+the arrow that is used to indicate the currently executing line in the source 
+viewer.  The default value is short.  A longer arrow is available, for easier 
+readability.  Finally, the @samp{highlight} option draws no arrow at all, 
+instead drawing the entire line in inverse video.
+
+@item :set asr
+@itemx :set autosourcereload
+If this is on, CGDB will automatically reload a source file if it has 
+changed since CGDB has opened it.  If it is off, the file will never be 
+reloaded, until you start CGDB again. The default is on.
+This feature is useful when you are debugging a program, then you modify 
+a source file, recompile, and type @kbd{r} in GDB's CLI window. The file in 
+this case will be updated to show the new version.  Note, CGDB only looks at 
+the timestamp of the source file to determine if it has changed. So if 
+you modify the source file, and didn't recompile yet, CGDB will still 
+pick up on the changes.
+
+@item :set cgdbmodekey=@var{key}
+This option is used to determine what key puts CGDB into @dfn{CGDB Mode}.
+By default, the @kbd{ESC} key is used.  @var{key} can be any normal key
+on the keyboard.  It can also be any keycode, as long as the keycode notation 
+is used.  This option is especially useful when the user wants to use
+readline in vi mode.  If the user types @code{set cgdbmodekey=<PageUp>} 
+then the @kbd{Page Up} key will put CGDB into CGDB mode and the @kbd{ESC}
+key will flow through to readline.
+
+@item :set ic
+@itemx :set ignorecase
+Sets searching case insensitive.  The default is off.
+
+@item :set stc
+@itemx :set showtgdbcommands
+If this is on, CGDB will show all of the commands that it sends to GDB. 
+If it is off, CGDB will not show the commands that it gives to GDB. 
+The default is off. 
+
+@item :set syn=@var{style}
+@itemx :set syntax=@var{style}
+Sets the current highlighting mode of the current file to have the syntax 
+@var{style}.  Possible values for @var{syntax} are @samp{c}, @samp{ada}, and 
+@samp{off}.  Normally, the user will never have to do this, since CGDB 
+automatically detects what syntax a file should be based on its file 
+extension.  However, this feature can currently be useful for debugging 
+purposes.
+
+@item :set to
+@itemx :set timeout
+This option is used along with the @var{ttimeout} option to determine the 
+behavior CGDB should have when it receives part of a mapped key sequence or 
+a keyboard code sequence.  If this option is on, CGDB will time out on both
+user defined mappings and on key codes from the keyboard.  If this option 
+is off, user defined mappings will not be timed out on.  In this case, CGDB
+will determine if it should time out on key codes from the keyboard by
+examining the @var{ttimeout} option.  To determine how CGDB will time out
+on mappings and key codes, and what time out lengths CGDB will use, please 
+refer to the chart in @ref{Key User Interface}.  The default value for this
+option is on.
+
+@item :set tm=@var{delay}
+@itemx :set timeoutlen=@var{delay}
+This option is used along with the @var{ttimeoutlen} option.  It 
+represents the number of milliseconds that CGDB should wait for a key code
+from the keyboard or for a mapped key sequence to complete.  If @var{delay} is 
+0, CGDB immediately accepts each character it receives.  This will prevent any
+mappings or key codes to complete.  @var{delay} may be any value between 
+0 and 10000, inclusive.  The default setting for the @var{delay} variable is 
+1000 (one second).
+
+@item :set ttimeout
+This option is used along with the @var{timeout} option to determine the 
+behavior CGDB should have when it receives part of keyboard code sequence.  
+If this option is on, CGDB will time out on key codes from the keyboard.  If
+this option is off, CGDB will determine if it should time out on key codes
+from the keyboard by examining the @var{timeout} option.  To determine how
+CGDB will time out on key codes, what what time length it will use, please
+refer to the chart in @ref{Key User Interface}.  The default value for this 
+option is on.
+
+
+@item :set ttm=@var{delay}
+@itemx :set ttimeoutlen=@var{delay}
+This option is used along with the @var{ttimeoutlen} option.  It 
+represents the number of milliseconds that CGDB should wait for a key code
+from the keyboard.  If @var{delay} is 0, CGDB immediately accepts each character 
+it receives.  This will prevent any key codes to complete.  @var{delay} may 
+be any value between 0 and 10000, inclusive.  The default setting for the 
+@var{delay} variable is 100 (one tenth of a second).
+
+@item :set ts=@var{number}
+@itemx :set tabstop=@var{number}
+Sets the number of spaces that should be rendered on the screen for @key{TAB}
+characters.  The default value for @var{number} is 8.
+
+@item :set wmh=@var{number}
+@itemx :set winminheight=@var{number}
+The minimal height of a window.  Windows will never become smaller than 
+this value.  The default value for @var{number} is 0.
+
+@item :set winsplit=@var{style}
+Set the split point between source and GDB window.  This is especially useful
+as an init setting in your @file{cgdbrc} file.  @xref{Configuring CGDB}.  The 
+possible values for @var{style} are @samp{top_full}, @samp{top_big}, 
+@samp{even}, @samp{bottom_big}, and @samp{bottom_full}.
+
+@item :set ws
+@itemx :set wrapscan
+Searches wrap around the end of file.  The default is on.
+
+@item :c
+@itemx :continue
+Send a continue command to GDB.
+
+@itemx :down
+Send a down command to GDB.
+
+@item :e
+@itemx :edit
+reloads the file in the source window.  this can be useful if the file has 
+changed since it was opened by cgdb.
+
+@item :f
+@itemx :finish
+Send a finish command to GDB.
+
+@item :help
+This will display the current manual in text format, in the 
+@dfn{source window}.
+
+@item :hi @var{group} cterm=@var{attributes} ctermfg=@var{color} ctermbg=@var{color} term=@var{attributes}
+@itemx :highlight @var{group} cterm=@var{attributes} ctermfg=@var{color} ctermbg=@var{color} term=@var{attributes}
+Set the @var{color} and @var{attributes} for a highlighting group.  The syntax 
+mimics vim's ``highlight'' command.  Possible values for @var{group}, 
+@var{attributes} and @var{color} are available in @ref{Highlighting Groups}.
+
+You can give as many or as few of the name=value pairs as you wish, in any 
+order.  @samp{ctermfg} and @samp{ctermbg} set the foreground and background 
+colors.  These can be specified by color number or by using the same color 
+names that vim uses.  When CGDB is linked with ncurses, the number you use to
+represent the color can be between -1 and COLORS.  When CGDB is linked against
+curses, it must be between 0 and COLORS.  
+
+@samp{cterm} sets the video attributes for color terminals.  @samp{term} sets
+the video attributes for monochrome terminals.  Some examples are,
+@smallexample
+:highlight Logo cterm=bold,underline ctermfg=Red ctermbg=Black
+:highlight Normal cterm=reverse ctermfg=White ctermbg=Black
+:hi Normal term=bold
+@end smallexample
+
+@item :insert
+Move focus to the GDB window.
+
+@item :n
+@itemx :next
+Send a next command to GDB.
+
+@item :q
+@itemx :quit
+Quit CGDB.
+
+@item :r
+@itemx :run
+Send a run command to GDB.
+
+@item :start
+Send a start command to GDB.
+
+@item :k
+@itemx :kill
+Send a kill command to GDB.
+
+@item :s
+@itemx :step
+Send a step command to GDB.
+
+@item :syntax
+Turn the syntax on or off.
+
+@itemx :up
+Send an up command to GDB.
+
+@item :map @var{lhs} @var{rhs}
+Create a new mapping or overwrite an existing mapping in CGDB mode.  
+After the command is run, if @var{lhs} is typed, CGDB will get @var{rhs} 
+instead.  For more details on how to use the map command look in 
+@ref{Using Maps}.
+@item :unm @var{lhs}
+@item :unmap @var{lhs}
+Delete an existing mapping from CGDB mode.  @var{lhs} is what was typed
+in the left hand side when the user created the mapping.  For example, if 
+the user typed @code{:map a<Space>b foo} then the user could delete the
+existing mapping with @code{:unmap a<Space>b}.
+@item :im @var{lhs} @var{rhs}
+@itemx :imap @var{lhs} @var{rhs}
+Create a new mapping or overwrite an existing mapping in GDB mode.  
+After the command is run, if @var{lhs} is typed, CGDB will get @var{rhs} 
+instead.  For more details on how to use the map command look in 
+@ref{Using Maps}.
+@item :iu @var{lhs}
+@item :iunmap @var{lhs}
+Delete an existing mapping from GDB mode.  @var{lhs} is what was typed
+in the left hand side when the user created the mapping.  For example, if 
+the user typed @code{:imap a<Space>b foo} then the user could delete the
+existing mapping with @code{:iunmap a<Space>b}.
+@end table
+
+@node Highlighting Groups
+@chapter CGDB highlighting groups
+@cindex highlighting groups
+
+CGDB is capable of using colors if the terminal it is run in supports them.  
+Until version 0.6.1, CGDB did not allow the user to configure these colors in
+any way.  CGDB color use is now fully configurable.
+
+CGDB's modeled its use of color highlighting after vim.  Any data that will
+be colored in the terminal is represented by a highlighting group.  
+A @dfn{highlighting group} represents data that should be formatted using
+foreground colors, background colors and attributes.  There are currently 
+several types of highlighting groups in CGDB.  There are syntax highlighting 
+groups, which represent syntax highlighting of sources files.  There are also 
+User Interface groups, which represent things like CGDB's logo, or the status 
+bar.
+
+Each highlighting group has a default set of attributes and colors associated 
+with it.  You can modify a highlighting groups properties by using the
+highlight command.  @xref{Configuring CGDB}.
+
+Note that CGDB currently supports using the same background color the terminal 
+was using before CGDB was started.  However, this only works when CGDB was
+linked with ncurses.  If you link CGDB with curses, then CGDB will force
+the background to Black.
+
+@menu
+* Available Highlighting Groups::         The different highlighting groups.
+* Available Attributes::                  The different attributes.
+* Available Colors::                      The different colors.
+@end menu
+
+@node Available Highlighting Groups
+@section The different highlighting groups
+@cindex highlighting groups
+
+Below is a list of all the highlighting groups that CDGB will use when syntax 
+highlighting source files.
+
+@table @code
+@item Statement
+This represents the keywords a language defines.
+@item Type
+This represents the types a language defines.
+@item Constant
+This represents either a string or numeric value.
+@item Comment
+This represents the comments in a source file.
+@item PreProc
+This represents the C/C++ preprocessor commands.
+@item Normal
+This represents all normal text.
+@end table
+
+Below is a list of all the highlighting groups that CGDB will use when it is
+displaying it's User Interface.
+
+@table @code
+@item StatusLine
+This represents the @dfn{status bar} in CGDB.  The file dialog's status 
+bar also uses this group.
+@item IncSearch
+This represents the group used when the user is searching in either the source 
+window, or the @dfn{file dialog window}.
+@item Arrow
+This represents the arrow that CGDB draws to point to the currently viewed 
+line.
+@item LineHighlight
+This represents the group used when the user has the @code{arrowstyle} option 
+set to @code{highlight}.
+@item Breakpoint
+This represents the group that is used when CGDB displays a line that has a 
+breakpoint set.
+@item DisabledBreakpoint
+This represents the group that is used when CGDB displays a line that has a 
+disabled breakpoint set.
+@item SelectedLineNr
+This represents the group that is used when CGDB is displaying the currently
+selected line.  This is the line that the cursor is on.
+@item Logo
+This is the group CGDB uses to display its logo on startup when no source 
+file can be auto detected.
+@end table
+
+
+@node Available Attributes
+@section The different attributes
+@cindex attributes
+
+CGDB supports many of the attributes that curses provides.  It will apply the
+attributes to the output window, but it is up to the terminal you are using
+to support such features.
+
+The list of attributes that CGDB currently supports is below.
+
+@table @code
+@item normal
+@itemx NONE
+This will leave the text normal.  Uses A_NORMAL curses attribute.
+@item bold
+This will make the text appear bold.  Uses A_BOLD curses attribute.
+@item underline
+This will underline the text.  Uses A_UNDERLINE curses attribute.
+@item reverse
+@itemx inverse
+This will reverse the foreground and background colors.  Uses A_REVERSE curses
+attribute.
+@item standout
+This is the best highlighting mode of the terminal.  Uses A_STANDOUT curses 
+attribute.
+@item blink
+This will cause the text to blink.  Uses A_BLINK curses attribute.
+@item dim
+This will cause the text to be 1/2 bright.  Uses A_DIM curses attribute.
+@end table
+
+@node Available Colors
+@section The different colors
+@cindex colors
+
+CGDB supports several colors, depending on how many colors your terminal 
+supports.  Below is a chart of the colors that CGDB provides.  The heading 
+NR-16 is used to represent terminals that support at least 16 colors.  The
+heading NR-8 is used to represent terminals that support at least 8 colors.  
+The integer values for each color represent the values passed to the curses
+function init_pair() to ask curses to create a new color.
+
+@multitable @columnfractions .4 .2 .2 .2
+@item @code{COLOR NAME}
+@tab @code{NR-16}
+@tab @code{NR-8}
+@tab @code{NR-8 bold attribute}
+@item Black
+@tab 0
+@tab 0
+@tab No
+@item DarkBlue
+@tab 1
+@tab 4
+@tab No
+@item DarkGreen
+@tab 2
+@tab 2
+@tab No
+@item DarkCyan
+@tab 3
+@tab 6
+@tab No
+@item DarkRed
+@tab 4
+@tab 1
+@tab No
+@item DarkMagenta
+@tab 5
+@tab 5
+@tab No
+@item Brown, DarkYellow
+@tab 6
+@tab 3
+@tab No
+@item LightGray, LightGrey, Gray, Grey
+@tab 7
+@tab 7
+@tab No
+@item DarkGray, DarkGrey
+@tab 8
+@tab 0
+@tab Yes
+@item Blue, LightBlue
+@tab 9
+@tab 4
+@tab Yes
+@item Green, LightGreen
+@tab 10
+@tab 2
+@tab Yes
+@item Cyan, LightCyan
+@tab 11
+@tab 6
+@tab Yes
+@item Red, LightRed
+@tab 12
+@tab 1
+@tab Yes
+@item Magenta, LightMagenta
+@tab 13
+@tab 5
+@tab Yes
+@item Yellow, LightYellow
+@tab 14
+@tab 3
+@tab Yes
+@item White
+@tab 15
+@tab 7
+@tab Yes
+@end multitable
+
+@node Key User Interface
+@chapter CGDB key user interface
+@cindex CGDB key user interface
+
+The Key User Interface is how CGDB receives input from the user.  It is 
+usually referred to as the @dfn{KUI}.  CGDB simply asks the KUI for the next 
+key the user typed and the KUI will provide it.  
+
+The KUI has 2 major responsibilities besides reading normal user input 
+and providing it to CGDB.  It needs to detect when the user has typed a 
+user defined map or when the user has hit a special key on the keyboard.
+
+A user defined map, or simply @dfn{map}, is used to change the meaning
+of typed keys.  Some users may refer to this type of functionality as a 
+@dfn{macro}.  An example would be @code{map a b}.  If the user then typed 
+the @key{a} character, the KUI would detect that it was mapped to @key{b} 
+and return @key{b} to CGDB.
+
+When the user types a special key on the keyboard, a @dfn{key code} is
+sent to CGDB.  Typically, keys like  @kbd{HOME}, @kbd{DEL}, @key{F1}, etc,
+when pressed will send several characters to the application instead of just
+one character like a normal key does.  These characters combined are called a
+@dfn{key sequence}.  The KUI is responsible for assembling the key sequences 
+back together and reporting to CGDB that a particular key was typed by the 
+user.  The @kbd{ESC} key is special because typically most key codes start with 
+that key.  This usually gives all key codes a common first key in its key 
+sequence.  The KUI uses the terminfo database to determine what key sequences 
+are sent by which keycodes.  There are a few commonly used key sequences 
+that are hard coded into CGDB.
+
+A major challenge the KUI has to overcome is determining when a map or a 
+key sequence is received.  The KUI sometimes will need to read more than
+one character to determine this.  For example, if the user has 2 maps, 
+@code{map abc def} and @code{map abd def}, the KUI would have to buffer at 
+least the characters @key{a} and @key{b} before it could determine if the 
+user was going to type a map.  After the next key press, if the user types 
+@key{c} or @key{d} then a map was received and the KUI will return 
+@kbd{d e f} to CGDB.  Otherwise, no map was received and the KUI must return 
+@kbd{a b} to CGDB.
+
+The options @var{timeout}, @var{ttimeout}, @var{timeoutlen} and 
+@var{ttimeoutlen} can be used to tell the KUI if it should timeout on
+partial mappings or key sequences, and if so, how long it should wait before
+timing out.  
+
+@menu
+* Configuring the KUI Time Out Options::        The KUI's time out options
+* Using Maps::                                  Using maps
+* Understanding Keycodes::                      Understanding keycodes
+@end menu
+
+@node Configuring the KUI Time Out Options
+@section The KUI's time out options
+@cindex timeout
+@cindex ttimeout
+@cindex timeoutlen
+@cindex ttimeoutlen
+
+The KUI may be configured to time out on either maps or key sequences.
+
+When the KUI is matching a partial map or key sequence it is capable
+of timing out.  This means it will simply accepts the keys it has received so 
+far if a certain amount of time elapses between key presses.  This is 
+obvious when the user is typing a map because the user must press each key
+individually.  For partial key sequences, this is less obvious.  That is 
+because the user only presses a single key, but multiple characters are sent 
+to CGDB.  The table below describes how the user can configure the KUI
+to time out on key codes or maps.  The @var{timeout} and @var{ttimeout}
+options control this functionality.
+
+@multitable @columnfractions .15 .15 .45
+@headitem timeout @tab ttimeout @tab action
+@item off
+@tab off
+@tab do not time out
+@item on
+@tab on or off
+@tab time out on maps and key codes
+@item off
+@tab on
+@tab time out on key codes
+@end multitable
+
+It is also possible to tell the KUI how long to wait before timing out on 
+a partial match.  If @var{timeout} is on, then the KUI will wait a certain
+amount of time for the next character, when matching a map, before it 
+decides a match is no longer possible.  If @var{timeout} or 
+@var{ttimeout} is on, then the KUI will wait a certain amount of time for 
+the next character, when matching a key sequence, before it decides a 
+match is no longer possible.  The @var{timeoutlen} and @var{ttimeoutlen}
+options can be configured by the user to tell the KUI how long to wait
+before timing out.  The table below describes when the KUI uses which 
+option.
+
+@multitable @columnfractions .15 .2 .2
+@headitem timeoutlen @tab mapping delay @tab key code delay
+@item < 0
+@tab @var{timeoutlen}
+@tab @var{timeoutlen}
+@item >= 0
+@tab @var{timeoutlen}
+@tab @var{ttimeoutlen}
+@end multitable
+
+A value of 0 means that the KUI will time out right away.  It will not be 
+possible to match a map or key code in this circumstance.
+
+A common problem could be that when the user types a special key like 
+the left or right arrows, CGDB will go into the source mode and not 
+perform the action requested by the user.  This typically means that the
+key code delay is to small.  If you try setting the option 
+@code{set ttimeoutlen=1000} CGDB should start acting like the user expects.
+If not, please report this to the CGDB mailing list.
+
+@node Using Maps
+@section Using maps
+
+CGDB fully supports the use of maps.  It allows the user to change the 
+meaning of typed keys. For example, you could have the following map 
+@code{:map <F2> ip<Space>argc<CR>}.
+
+When the user is in CGDB mode and they hit @key{F2}, the value of the map
+will be used instead.  The @kbd{i} key will first be received by CGDB, and
+it will put the user into insert mode.  Next, CGDB will get @kbd{p argc}
+followed by the @key{Enter} key.
+
+CGDB currently supports two mapping lists.  Any mapping that was added 
+with the @var{map} command will be used by CGDB when it is in CGDB mode.
+You can delete a mapping that you have created with the @var{map} command
+with the @var{unmap} command.  If you want to have mappings in GDB mode, you 
+can use the @var{imap} command.  Similarly, @var{iunmap} will delete a
+mapping in the @var{imap} set.  Some examples of this would be 
+@example
+map a<Space>b foo
+unmap a<Space>b
+
+imap a<CR>b foo
+iunmap a<CR>b
+@end example
+
+@node Understanding Keycodes
+@section Understanding keycodes
+
+The above example could use a little more explaining for people unfamiliar
+with vim maps.  The map takes a key and a value.  They are separated by
+a space.  Neither the key or value can have a space in them, or it is
+considered to be the separator between the key and value.  If the user 
+desires to have a space in either the key or value part of a map, they can
+use the keycode notation <Space>.  Below is a table of the
+keycodes in @dfn{keycode notation} form.  The keycode notation can be 
+used in any mapping command.
+
+@multitable @columnfractions .15 .4
+@headitem notation @tab meaning
+@item <Esc>
+@tab escape key
+@item <Up>
+@tab cursor up key
+@item <Down>
+@tab cursor down key
+@item <Left>
+@tab cursor left key
+@item <Right>
+@tab cursor right key
+@item <Home>
+@tab home key
+@item <End>
+@tab end key
+@item <PageUp>
+@tab page up key
+@item <PageDown>
+@tab page down key
+@item <Del>
+@tab delete key
+@item <Insert>
+@tab insert key
+@item <Nul>
+@tab zero
+@item <Bs>
+@tab backspace key
+@item <Tab>
+@tab tab key
+@item <NL>
+@tab linefeed
+@item <FF>
+@tab formfeed
+@item <CR>
+@tab carriage return
+@item <Space>
+@tab space
+@item <Lt>
+@tab less-than
+@item <Bslash>
+@tab backslash
+@item <Bar>
+@tab vertical bar
+@item <F1> - <F12>
+@tab function keys 1 to 12
+@item <C-...>
+@tab control keys
+@item <S-...>
+@tab shift keys
+@end multitable
+
+@node Sending I/O to Inferior
+@chapter Sending I/O to the program being debugged
+@cindex sending I/O to inferior
+
+If the program being debugged takes input on the terminal it is recommended
+that the user start the program on one terminal, and attach to it with CGDB
+from another terminal.  This is the easiest way to pass input to the 
+debugged program.
+
+However, if the user wishes to pass input to the program being debugged from
+within CGDB, there is a mechanism available for doing so.  As of this writing, 
+the technique described below does not work on windows, using a natively 
+compiled GDB.  It may work when using the GDB that comes with Cygwin.
+
+This technique is similar to getting in and out of @dfn{GDB mode}.  The tty 
+window is not visible by default.  This is because it is only needed if the 
+user wishes to send data to the program being debugged.  To display the tty 
+window, hit @kbd{T} while in command mode.  After hitting @kbd{T} you will 
+notice that there is another window in the middle of the @dfn{source window} 
+and the @dfn{gdb window}.  This is called the @dfn{tty window}. You will also 
+see a new status bar called the tty status bar.  There will be a @samp{*} on 
+the tty status bar after the @kbd{T} was hit.  This is because when the 
+window is opened with the @kbd{T} command, CGDB automatically puts the user 
+into @dfn{TTY mode}.  To get out of this window hit the cgdb mode key.  
+This will put you back into command mode.  To make the tty window appear and 
+disappear hit the @kbd{T} key while in command mode.  It is a toggle.
+
+Once the tty window is already open, the user can then hit @kbd{I} in
+command mode to get into @dfn{TTY mode}.  The user can then hit the 
+cgdb mode key in the @dfn{TTY mode} to get back into command mode.
+
+When the tty window is open, all data that comes from the program, goes
+there.  Any data typed into the tty window will ONLY go to the program
+being debugged.  It will not go to GDB. When the tty window is closed,
+all output from the debugged program will go to the @dfn{GDB window} AND to
+the @dfn{tty window} (for viewing later when the tty window is opened). 
+
+If the user wishes to get a new tty for the program being debugged then
+they can type @kbd{Ctrl-T}.  This will delete all the buffered data
+waiting to be read into the debugged program. This might be useful when
+you rerun or start a new program.
+
+@node Terminal Control Flow
+@chapter Allowing terminal control flow in CGDB
+@cindex terminal control flow
+
+A user can typically set there control flow behavior by using the stty 
+command like so @code{stty -ixon -ixoff}.  This will disable control flow on
+the terminal where CGDB is started.  If you want to turn control flow back 
+on you can type @code{stty ixon ixoff}.  If flow control is on, when the user
+types @kbd{Ctrl-s}, the terminal stops.  When the user types @kbd{Ctrl-q}, the 
+terminal restarts.  When using readline, the @kbd{Ctrl-s} character usually does 
+a forward search.  So, if you want to get this, or other functionality out of 
+readline, simply turn off control flow and start CGDB.
+
+@node Building CGDB
+@chapter Building CGDB from source
+@cindex building CGDB
+
+Building CGDB from source requires several packages. First, CGDB is hosted
+at http://sf.net/projects/cgdb. You can determine how to get CGDB from source 
+by looking here: http://sourceforge.net/svn/?group_id=72581.
+
+Once you have the source to CGDB, now you can begin to build it.  You will of 
+course need many packages to build CGDB. Below is a list of all of them 
+that are required to build CGDB.
+
+@table @code
+@item GNU Make
+I have successfully used version 3.79.1, however, older versions probably 
+will work.
+
+@item GNU GCC
+The GNU C compiler. I've compiled CGDB with versions as old as 2.9.5, and as
+new as 4.0.2.
+
+@item GNU Readline
+The GNU readline library version 5.1. CGDB will not work with versions before 
+5.1.  Readline was modified specifically to work with CGDB.
+
+@item GNU Ncurses
+I have successfully used libncurses.so.5 successfully.  However, older versions
+probably will work.
+@end table
+
+Below is a list of optional packages you will need, if modifying certain files
+in CGDB.
+
+@table @code
+@item GNU Flex
+If you modify any files with an extension of @code{.l}, you will have to have 
+flex installed.  I have used flex 2.5.4 to build CGDB.
+
+@item GNU Texinfo
+If you modify @file{doc/cgdb.texinfo}, then you will be required to have this 
+package installed.  I have used version 4.7 to build the documentation for 
+CGDB.
+
+@item help2man
+If you are doing a release, then you will be required to have this package
+installed.  In the @file{doc/} build directory, you can execute the command 
+@code{make cgdb.1}, and the CGDB man page will be generated.
+@end table
+
+CGDB uses autoconf/automake to build its configure scripts and makefiles.  So, 
+if you change any of the autoconf/automake files, you will need this software 
+installed.
+
+@table @code
+@item GNU Automake
+This has the program aclocal, and must be version Version 1.9.5.
+
+@item GNU Autoconf
+This has the program autoconf, and must be version 2.59.
+
+@item GNU m4
+This has the program m4, and must be version 1.4.3.
+@end table
+
+@node Copying This Manual
+@appendix Copying This Manual
+
+@menu
+* GNU Free Documentation License::  License for copying this manual.
+@end menu
+
+@include fdl.texi
+
+
+@node Index
+@unnumbered Index
+
+@printindex cp
+
+@bye
+

@@ -1,0 +1,1844 @@
+Index: configure
+===================================================================
+--- configure	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ configure	(.../trunk/ocamlxarm)	(revision 402)
+@@ -24,9 +24,13 @@
+ host_type=unknown
+ ccoption=''
+ cclibs=''
++asppoption=''
++aroption=''
++ranliboption=''
+ curseslibs=''
+ mathlib='-lm'
+ dllib=''
++x11_wanted=yes
+ x11_include_dir=''
+ x11_lib_dir=''
+ tk_wanted=yes
+@@ -73,12 +77,22 @@
+         host_type=$2; shift;;
+     -cc*)
+         ccoption="$2"; shift;;
++    -aspp*)
++        asppoption="$2"; shift;;
++    -ar*)
++        aroption="$2"; shift;;
++    -ranlib*)
++        ranliboption="$2"; shift;;
++    -ld*)
++        ldoption="$2"; shift;;
+     -lib*)
+         cclibs="$2 $cclibs"; shift;;
+     -no-curses)
+         withcurses=no;;
+     -no-shared-libs)
+         withsharedlibs=no;;
++    -no-x11|--no-x11)
++        x11_wanted=no;;
+     -x11include*|--x11include*)
+         x11_include_dir=$2; shift;;
+     -x11lib*|--x11lib*)
+@@ -192,7 +206,7 @@
+ buggycc="no"
+ 
+ case "$host,$cc" in
+-  i[3456]86-*-*,gcc*)
++  i[3456]86-*-*,*gcc*)
+     case `$cc --version` in
+       2.7.2.1) cat <<'EOF'
+ 
+@@ -239,7 +253,7 @@
+ exe=""
+ 
+ case "$bytecc,$host" in
+-  cc,*-*-nextstep*)
++  *cc,*-*-nextstep*)
+     # GNU C extensions disabled, but __GNUC__ still defined!
+     bytecccompopts="-fno-defer-pop $gcc_warnings -U__GNUC__ -posix"
+     bytecclinkopts="-posix";;
+@@ -257,7 +271,7 @@
+     bytecccompopts="-fno-defer-pop $gcc_warnings"
+     # No -lm library
+     mathlib="";;
+-  gcc,alpha*-*-osf*)
++  *gcc,alpha*-*-osf*)
+     bytecccompopts="-fno-defer-pop $gcc_warnings"
+     if cc="$bytecc" sh ./hasgot -mieee; then
+       bytecccompopts="-mieee $bytecccompopts";
+@@ -266,41 +280,41 @@
+     bytecclinkopts="-Wl,-T,12000000 -Wl,-D,14000000"
+     # Tell gcc that we can use 32-bit code addresses for threaded code
+     echo "#define ARCH_CODE32" >> m.h;;
+-  cc,alpha*-*-osf*)
++  *cc,alpha*-*-osf*)
+     bytecccompopts="-std1 -ieee";;
+-  gcc,alpha*-*-linux*)
++  *gcc,alpha*-*-linux*)
+     if cc="$bytecc" sh ./hasgot -mieee; then
+       bytecccompopts="-mieee $bytecccompopts";
+     fi;;
+-  cc,mips-*-irix6*)
++  *cc,mips-*-irix6*)
+     # Add -n32 flag to ensure compatibility with native-code compiler
+     bytecccompopts="-n32"
+     # Turn off warning "unused library"
+     bytecclinkopts="-n32 -Wl,-woff,84";;
+-  cc*,mips-*-irix6*)
++  *cc*,mips-*-irix6*)
+     # (For those who want to force "cc -64")
+     # Turn off warning "unused library"
+     bytecclinkopts="-Wl,-woff,84";;
+   *,alpha*-*-unicos*)
+     # For the Cray T3E
+     bytecccompopts="-DUMK";;
+-  gcc*,powerpc-*-aix*)
++  *gcc*,powerpc-*-aix*)
+     # Avoid name-space pollution by requiring Unix98-conformant includes
+     bytecccompopts="-fno-defer-pop $gcc_warnings -D_XOPEN_SOURCE=500";;
+   *,powerpc-*-aix*)
+     bytecccompopts="-D_XOPEN_SOURCE=500";;
+-  gcc*,*-*-cygwin*)
++  *gcc*,*-*-cygwin*)
+     bytecccompopts="-fno-defer-pop $gcc_warnings -U_WIN32"
+     exe=".exe"
+     ostype="Cygwin";;
+-  gcc*,x86_64-*-linux*)
++  *gcc*,x86_64-*-linux*)
+     bytecccompopts="-fno-defer-pop $gcc_warnings"
+     # Tell gcc that we can use 32-bit code addresses for threaded code
+     # unless we are compiled for a shared library (-fPIC option)
+     echo "#ifndef __PIC__" >> m.h
+     echo "#  define ARCH_CODE32" >> m.h
+     echo "#endif" >> m.h;;
+-  gcc*)
++  *gcc*)
+     bytecccompopts="-fno-defer-pop $gcc_warnings";;
+ esac
+ 
+@@ -316,16 +330,22 @@
+   0) echo "The C compiler is ANSI-compliant.";;
+   1) echo "The C compiler $cc is not ANSI-compliant."
+      echo "You need an ANSI C compiler to build Objective Caml."
+-     exit 2;;
++     exec 2;;
+   *) echo "Unable to compile the test program."
+      echo "Make sure the C compiler $cc is properly installed."
+-     exit 2;;
++     echo "Press <enter> to proceed or <interrupt> to stop."
++     read reply;;
+ esac
+ 
+ # Check the sizes of data types
+ 
+ echo "Checking the sizes of integers and pointers..."
+-set `sh ./runtest sizes.c`
++reply=`sh ./runtest sizes.c`
++if test -z "$reply"; then
++  echo "Input sizeof(int) sizeof(long) sizeof(long *) sizeof(short)"
++  read reply
++fi
++set $reply
+ case "$2,$3" in
+   4,4) echo "OK, this is a regular 32 bit architecture."
+        echo "#undef ARCH_SIXTYFOUR" >> m.h
+@@ -375,11 +395,41 @@
+      echo "#define ARCH_UINT64_TYPE unsigned long long" >> m.h
+      echo '#undef ARCH_INT64_PRINTF_FORMAT' >> m.h
+      int64_native=true;;
+-  *) echo "No suitable 64-bit integer type found, will use software emulation."
++  3) echo "No suitable 64-bit integer type found, will use software emulation."
+      echo "#undef ARCH_INT64_TYPE" >> m.h
+      echo "#undef ARCH_UINT64_TYPE" >> m.h
+      echo '#undef ARCH_INT64_PRINTF_FORMAT' >> m.h
+      int64_native=false;;
++  *) echo "Is 64-bit integer supported? (y/n: default y)"
++     read reply
++     if test "$reply" = "n"; then
++       echo "#undef ARCH_INT64_TYPE" >> m.h
++       echo "#undef ARCH_UINT64_TYPE" >> m.h
++       int64_native=false
++     else
++       echo "What is the type of signed 64-bit integer? (example: long long)"
++       read reply
++       if test -z "$reply"; then
++         echo "Invalid type"
++         exit 1
++       fi
++       echo "#define ARCH_INT64_TYPE $reply" >> m.h
++       echo "What is the type of unsigned 64-bit integer? (example: unsigned long long)"
++       read reply
++       if test -z "$reply"; then
++         echo "Invalid type"
++         exit 1
++       fi
++       echo "#define ARCH_UINT64_TYPE $reply" >> m.h
++       echo "What is the printf format? (example: \"ll\")"
++       read reply
++       if test -z "$reply"; then
++         echo "Invalid type"
++         exit 1
++       fi
++       echo "#define ARCH_INT64_PRINTF_FORMAT $reply" >> m.h
++       int64_native=true
++     fi;;
+   esac
+ fi
+ 
+@@ -402,7 +452,13 @@
+      exit 2;;
+   *) echo "Something went wrong during endianness determination."
+      echo "You'll have to figure out endianness yourself"
+-     echo "(option ARCH_BIG_ENDIAN in m.h).";;
++     echo "Is this a big-endian architecture? (y/n: default n)"
++     read reply
++     if test "$reply" = "y"; then
++       echo "#define ARCH_BIG_ENDIAN" >> m.h
++     else
++       echo "#undef ARCH_BIG_ENDIAN" >> m.h
++     fi;;
+ esac
+ 
+ # Determine alignment constraints
+@@ -429,11 +485,13 @@
+          echo "#undef ARCH_ALIGN_DOUBLE" >> m.h;;
+       1) echo "Doubles must be doubleword-aligned."
+          echo "#define ARCH_ALIGN_DOUBLE" >> m.h;;
+-      *) echo "Something went wrong during alignment determination for doubles."
+-         echo "I'm going to assume this architecture has alignment constraints over doubles."
+-         echo "That's a safe bet: Objective Caml will work even if"
+-         echo "this architecture has actually no alignment constraints."
+-         echo "#define ARCH_ALIGN_DOUBLE" >> m.h;;
++      *) echo "Should doubles be doubleword-aligned? (y/n: default: y)"
++         read reply
++         if test "$reply" = "n"; then
++           echo "#undef ARCH_ALIGN_DOUBLE" >> m.h
++         else
++           echo "#define ARCH_ALIGN_DOUBLE" >> m.h
++         fi;;
+     esac;;
+ esac
+ 
+@@ -454,11 +512,13 @@
+            echo "#undef ARCH_ALIGN_INT64" >> m.h;;
+         1) echo "64-bit integers must be doubleword-aligned."
+            echo "#define ARCH_ALIGN_INT64" >> m.h;;
+-        *) echo "Something went wrong during alignment determination for 64-bit integers."
+-           echo "I'm going to assume this architecture has alignment constraints."
+-           echo "That's a safe bet: Objective Caml will work even if"
+-           echo "this architecture has actually no alignment constraints."
+-           echo "#define ARCH_ALIGN_INT64" >> m.h;;
++        *) echo "Should 64-bit integers be doubleword-aligned? (y/n: default y)"
++           read reply
++           if test "$reply" = "n"; then
++             echo "#undef ARCH_ALIGN_INT64" >> m.h
++           else
++             echo "#define ARCH_ALIGN_INT64" >> m.h
++           fi;;
+       esac
+   esac
+ else
+@@ -473,8 +533,13 @@
+      echo "#undef NONSTANDARD_DIV_MOD" >> m.h;;
+   1) echo "Native division and modulus do not have round-towards-zero semantics, will use software emulation."
+      echo "#define NONSTANDARD_DIV_MOD" >> m.h;;
+-  *) echo "Something went wrong while checking native division and modulus, please report it."
+-     echo "#define NONSTANDARD_DIV_MOD" >> m.h;;
++  *) echo "Do native division and modulus have round-towards-zero semantics? (y/n: default y)"
++     read reply
++     if test "$reply" = "n"; then
++       echo "#define NONSTANDARD_DIV_MOD" >> m.h
++     else
++       echo "#undef NONSTANDARD_DIV_MOD" >> m.h
++     fi;;
+ esac
+ 
+ # Shared library support
+@@ -596,6 +661,7 @@
+                                 if $arch64; then model=ppc64; else model=ppc; fi;;
+   arm*-*-linux*)                arch=arm; system=linux;;
+   arm*-*-gnu*)                  arch=arm; system=gnu;;
++  arm*-*-darwin*)               arch=arm; system=macosx;;
+   ia64-*-linux*)                arch=ia64; system=linux;;
+   ia64-*-gnu*)                  arch=ia64; system=gnu;;
+   ia64-*-freebsd*)              arch=ia64; system=freebsd;;
+@@ -646,7 +712,7 @@
+ esac
+ 
+ asflags=''
+-aspp=''
++aspp='$aspp'
+ asppflags=''
+ asppprofflags='-DPROFILING'
+ 
+@@ -674,6 +740,7 @@
+   power,*,rhapsody) aspp="$bytecc"; asppflags='-c';;
+   arm,*,linux)      aspp='gcc'; asppflags='-c -DSYS_$(SYSTEM)';;
+   arm,*,gnu)        aspp='gcc'; asppflags='-c -DSYS_$(SYSTEM)';;
++  arm,*,macosx)     aspp='gcc'; asppflags='-c -DSYS_$(SYSTEM)';;
+   ia64,*,*)         asflags=-xexplicit
+                     aspp='gcc'; asppflags='-c -DSYS_$(SYSTEM) -Wa,-xexplicit';;
+   amd64,*,*)        aspp='gcc'; asppflags='-c -DSYS_$(SYSTEM)';;
+@@ -696,16 +763,42 @@
+ 
+ # Where is ranlib?
+ 
++if test -z "$ranliboption"; then
++
+ if sh ./searchpath ranlib; then
+   echo "ranlib found"
+   echo "RANLIB=ranlib" >> Makefile
+   echo "RANLIBCMD=ranlib" >> Makefile
++  ranlib=ranlib
+ else
+   echo "ranlib not used"
+   echo "RANLIB=ar rs" >> Makefile
+   echo "RANLIBCMD=" >> Makefile
++  ranlib="ar rs"
+ fi
+ 
++else
++  echo "RANLIB=$ranliboption" >> Makefile
++  echo "RANLIBCMD=$ranliboption" >> Makefile
++  ranlib=$ranliboption
++fi
++
++if test -n "$asppoption"; then
++  aspp=$asppoption
++fi
++
++if test -z "$aroption"; then
++  echo "AR=ar" >> Makefile
++  ar=ar
++else
++  echo "AR=$aroption" >> Makefile
++  ar=$aroption
++fi
++
++if test -n "$ldoption"; then
++  partialld="$ldoption -r"
++fi
++
+ # Do #! scripts work?
+ 
+ if (SHELL=/bin/sh; export SHELL; (./sharpbang || ./sharpbang2) >/dev/null); then
+@@ -1246,6 +1339,11 @@
+ done
+ 
+ 
++if test "$x11_wanted" = "no"
++then
++        x11_include=""
++        x11_link=""
++else
+ if test "$x11_include" = "not found" || test "$x11_link" = "not found"
+ then
+   echo "X11 not found, the \"graph\" library will not be supported."
+@@ -1260,6 +1358,7 @@
+     x11_include="-I$x11_include"
+   fi
+ fi
++fi
+ echo "X11_INCLUDES=$x11_include" >> Makefile
+ echo "X11_LINK=$x11_link" >> Makefile
+ 
+@@ -1463,7 +1562,7 @@
+ #ml let mkdll out _implib files opts = Printf.sprintf "%s %s %s %s" "$mksharedlib" out opts files;;
+ 
+ ### How to build a static library
+-MKLIB=ar rc \$(1) \$(2); ranlib \$(1)
++MKLIB=$ar rc \$(1) \$(2); $ranlib \$(1)
+ #ml let mklib out files opts = Printf.sprintf "ar rc %s %s %s; ranlib %s" out opts files out;;
+ EOF
+ echo "ARCH=$arch" >> Makefile
+
+Index: Makefile.xarm
+===================================================================
+--- Makefile.xarm	(.../vendor/ocaml/3.10.2)	(revision 0)
++++ Makefile.xarm	(.../trunk/ocamlxarm)	(revision 402)
+@@ -0,0 +1,107 @@
++# Extra rules for ARM (iPhone) cross compiler
++#
++# As an initial test, define SVNBASE to the base URL of the svn
++# repository, check out this directory then "make xarm-populate"
++#
++# To make the cross compiler, "make xarm-build"
++#
++# To install the cross compiler, "make install"
++#
++# The install goes to XARMTARGET, currently /usr/local/ocamlxarm
++#
++
++OCAMLBASE = ../OCamlBase
++
++# Define XARMTARGET, the installation directory for the XARM compiler.
++#
++include $(OCAMLBASE)/Makefile.xarmtarg
++
++# Apple cross compiler toolchain
++#
++XARMPFM = /Developer/Platforms/iPhoneOS.platform
++XARMSDK = /Developer/SDKs/iPhoneOS4.2.sdk
++XARMBINDIR = $(XARMPFM)/Developer/usr/bin
++XARMGCC = $(XARMBINDIR)/gcc-4.2 -arch armv6 -isysroot $(XARMPFM)$(XARMSDK)
++XARMRANLIB = $(XARMBINDIR)/ranlib
++XARMAR = $(XARMBINDIR)/ar
++XARMLD = $(XARMBINDIR)/ld -syslibroot $(XARMPFM)$(XARMSDK)
++
++
++# Populate the worktree from svn.
++#
++xarm-populate: $(OCAMLBASE)
++	touch xarm-populate
++
++$(OCAMLBASE):
++	svn co $$SVNBASE/trunk/ocamlbase $(OCAMLBASE)
++
++
++# Build the native version of the base OCaml binaries.  This is defined
++# here to avoid another vendor branch just for this build.
++#
++xarm-build-base: xarm-populate \
++		$(OCAMLBASE)/byterun/ocamlrun \
++		$(OCAMLBASE)/yacc/ocamlyacc \
++		$(OCAMLBASE)/otherlibs/unix/dllunix.so \
++		$(OCAMLBASE)/otherlibs/str/dllstr.so
++	touch xarm-build-base
++
++$(OCAMLBASE)/byterun/ocamlrun:
++	cd $(OCAMLBASE); ./configure -cc 'gcc-4.2 -m32' -no-curses -no-tk
++	cd $(OCAMLBASE); make world bootstrap opt
++
++$(OCAMLBASE)/yacc/ocamlyacc \
++    $(OCAMLBASE)/otherlibs/unix/dllunix.so \
++    $(OCAMLBASE)/otherlibs/str/dllstr.so:
++	@echo Error in xarm-build-base: $@ not built
++
++
++# Build the cross compiler
++#
++xarm-build: xarm-build-base
++	./configure \
++		-bindir $(XARMTARGET)/bin \
++		-libdir $(XARMTARGET)/lib/ocaml \
++		-mandir $(XARMTARGET)/man/man1 \
++		-no-curses \
++		-no-tk \
++		-no-x11 \
++		-host arm-apple-darwin9 \
++		-cc "$(XARMGCC)" \
++		-ranlib $(XARMRANLIB) \
++		-ar $(XARMAR) \
++		-aspp "$(XARMGCC)" \
++		-ld "$(XARMLD)" < configure.answers
++	make clean
++	rm -f world.log.[12345] opt.log
++	-make world > world.log.1 2>&1
++	@if ! tail world.log.1 | grep -q '^/bin/sh: ../boot/ocamlrun' ; then \
++	    echo Cannot continue from world.log.1 >&2 ; \
++	    exit 1 ; \
++	fi
++	mv byterun/ocamlrun byterun/ocamlrun.xarm
++	cp $(OCAMLBASE)/byterun/ocamlrun byterun/ocamlrun
++	-make world > world.log.2 2>&1
++	@if ! tail world.log.2 | grep -q 'boot/ocamlyacc' ; then \
++	    echo Cannot continue from world.log.2 >&2 ; \
++	    exit 1 ; \
++	fi
++	mv yacc/ocamlyacc yacc/ocamlyacc.xarm
++	cp $(OCAMLBASE)/yacc/ocamlyacc yacc/ocamlyacc
++	-make world > world.log.3 2>&1
++	@if ! tail world.log.3 | grep -q 'otherlibs/unix/dllunix.so' ; then \
++	    echo Cannot continue from world.log.3 >&2 ; \
++	    exit 1 ; \
++	fi
++	mv otherlibs/unix/dllunix.so otherlibs/unix/dllunix.so.xarm
++	cp $(OCAMLBASE)/otherlibs/unix/dllunix.so otherlibs/unix/dllunix.so
++	-make world > world.log.4 2>&1
++	@if ! tail world.log.4 | grep -q 'otherlibs/str/dllstr.so' ; then \
++	    echo Cannot continue from world.log.4 >&2 ; \
++	    exit 1 ; \
++	fi
++	mv otherlibs/str/dllstr.so otherlibs/str/dllstr.so.xarm
++	cp $(OCAMLBASE)/otherlibs/str/dllstr.so otherlibs/str/dllstr.so
++	make world > world.log.5 2>&1
++	make opt > opt.log 2>&1
++	touch xarm-build
+
+Index: asmcomp/arm/emit.mlp
+===================================================================
+--- asmcomp/arm/emit.mlp	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ asmcomp/arm/emit.mlp	(.../trunk/ocamlxarm)	(revision 402)
+@@ -30,13 +30,31 @@
+ 
+ (* Output a label *)
+ 
++let label_prefix =
++  match Config.system with
++    "linux_elf" -> ".L"
++  | "bsd_elf" -> ".L"
++  | "solaris" -> ".L"
++  | "beos" -> ".L"
++  | "gnu" -> ".L"
++  | _ -> "L"
++
+ let emit_label lbl =
+-  emit_string ".L"; emit_int lbl
++  emit_string label_prefix; emit_int lbl
+ 
+ (* Output a symbol *)
+ 
++let symbol_prefix =
++  match Config.system with
++    "linux_elf" -> ""
++  | "bsd_elf" -> ""
++  | "solaris" -> ""
++  | "beos" -> ""
++  | "gnu" -> ""
++  | _ -> "_"
++
+ let emit_symbol s =
+-  Emitaux.emit_symbol '$' s
++  emit_string symbol_prefix; Emitaux.emit_symbol '$' s
+ 
+ (* Output a pseudo-register *)
+ 
+@@ -112,7 +130,7 @@
+   `{emit_label lbl}:`
+ 
+ let emit_frame fd =
+-  `	.word	{emit_label fd.fd_lbl} + 4\n`;
++  `	.long	{emit_label fd.fd_lbl} + 4\n`;
+   `	.short	{emit_int fd.fd_frame_size}\n`;
+   `	.short	{emit_int (List.length fd.fd_live_offset)}\n`;
+   List.iter
+@@ -159,14 +177,14 @@
+   | Ishiftsubrev -> "rsb"
+ 
+ let name_for_float_operation = function
+-    Inegf -> "mnfd"
+-  | Iabsf -> "absd"
+-  | Iaddf -> "adfd"
+-  | Isubf -> "sufd"
+-  | Imulf -> "mufd"
+-  | Idivf -> "dvfd"
+-  | Ifloatofint -> "fltd"
+-  | Iintoffloat -> "fixz"
++    Inegf -> "fnegd"
++  | Iabsf -> "fabsd"
++  | Iaddf -> "faddd"
++  | Isubf -> "fsubd"
++  | Imulf -> "fmuld"
++  | Idivf -> "fdivd"
++  | Ifloatofint -> "fsitod"
++  | Iintoffloat -> "ftosizd"
+   | _ -> assert false
+ 
+ (* Recognize immediate operands *)
+@@ -257,11 +275,15 @@
+ let emit_constants () =
+   Hashtbl.iter
+     (fun s lbl ->
+-      `{emit_label lbl}:        .word   {emit_symbol s}\n`)
++      `{emit_label lbl}:        .long   {emit_symbol s}\n`)
+     symbol_constants;
+   Hashtbl.iter
+     (fun s lbl ->
+-      `{emit_label lbl}:        .double {emit_string s}\n`)
++      let n = Int64.bits_of_float (float_of_string s) in
++      let lo = Int64.to_nativeint n in
++      let hi = Int64.to_nativeint (Int64.shift_right n 32) in
++      `{emit_label lbl}:        .long {emit_nativeint lo}\n`;
++      `                         .long {emit_nativeint hi}\n`)
+     float_constants;
+   Hashtbl.clear symbol_constants;
+   Hashtbl.clear float_constants;
+@@ -280,18 +302,23 @@
+             {loc = Reg rs; typ = Int|Addr}, {loc = Reg rd; typ = Int|Addr} ->
+               `	mov	{emit_reg dst}, {emit_reg src}\n`; 1
+           | {loc = Reg rs; typ = Float}, {loc = Reg rd; typ = Float} ->
+-              `	mvfd	{emit_reg dst}, {emit_reg src}\n`; 1
++              `	fcpyd	{emit_reg dst}, {emit_reg src}\n`; 1
+           | {loc = Reg rs; typ = Float}, {loc = Reg rd; typ = Int|Addr} ->
+-              `	stfd	{emit_reg src}, [sp, #-8]!\n`;
+-              `	ldmfd	sp!, \{{emit_reg dst}, {emit_next_reg dst}}\n`; 2
++              ` sub     sp, sp, #8\n`;
++              `	fstd	{emit_reg src}, [sp]\n`;
++              `	ldmfd	sp!, \{{emit_reg dst}, {emit_next_reg dst}}\n`; 3
++          | {loc = Reg rs; typ = Int|Addr}, {loc = Reg rd; typ = Float} ->
++              `	stmfd	sp!, \{{emit_reg src}, {emit_next_reg src}}\n`;
++              `	fldd	{emit_reg dst}, [sp]\n`;
++              `	add	sp, sp, #8\n`; 3
+           | {loc = Reg rs; typ = Int|Addr}, {loc = Stack sd} ->
+               `	str	{emit_reg src}, {emit_stack dst}\n`; 1
+           | {loc = Reg rs; typ = Float}, {loc = Stack sd} ->
+-              `	stfd	{emit_reg src}, {emit_stack dst}\n`; 1
++              `	fstd	{emit_reg src}, {emit_stack dst}\n`; 1
+           | {loc = Stack ss; typ = Int|Addr}, {loc = Reg rd} ->
+               `	ldr	{emit_reg dst}, {emit_stack src}\n`; 1
+           | {loc = Stack ss; typ = Float}, {loc = Reg rd} ->
+-              `	ldfd	{emit_reg dst}, {emit_stack src}\n`; 1
++              `	fldd	{emit_reg dst}, {emit_stack src}\n`; 1
+           | _ ->
+               assert false
+         end
+@@ -306,12 +333,14 @@
+           emit_complex_intconst r n
+     | Lop(Iconst_float s) ->
+         begin match Int64.bits_of_float (float_of_string s) with
++(*
+         | 0x0000_0000_0000_0000L ->       (* +0.0 *)
+           `	mvfd	{emit_reg i.res.(0)}, #0.0\n`
++*)
+         | _ ->
+           let lbl = label_constant float_constants s 2 in
+           pending_float := true;
+-          `	ldfd	{emit_reg i.res.(0)}, {emit_label lbl} @ {emit_string s}\n`
++          `	fldd	{emit_reg i.res.(0)}, {emit_label lbl} @ {emit_string s}\n`
+         end;
+         1
+     | Lop(Iconst_symbol s) ->
+@@ -326,8 +355,9 @@
+         let n = frame_size() in
+         if !contains_calls then
+           `	ldr	lr, [sp, #{emit_int (n-4)}]\n`;
+-        ignore (emit_stack_adjustment "add" n);
+-        `	mov	pc, {emit_reg i.arg.(0)}\n`; 3
++        let ninstr = emit_stack_adjustment "add" n in
++        `	mov	pc, {emit_reg i.arg.(0)}\n`;
++        2 + ninstr
+     | Lop(Itailcall_imm s) ->
+         if s = !function_name then begin
+           `	b	{emit_label !tailrec_entry_point}\n`; 1
+@@ -335,14 +365,14 @@
+           let n = frame_size() in
+           if !contains_calls then
+             `	ldr	lr, [sp, #{emit_int (n-4)}]\n`;
+-          ignore (emit_stack_adjustment "add" n);
++          ignore (emit_stack_adjustment "add" n); (* XXX *)
+           `	b	{emit_symbol s}\n`; 3
+         end
+     | Lop(Iextcall(s, alloc)) ->
+         if alloc then begin
+           let lbl = label_constant symbol_constants s 1 in
+-          `	ldr	r10, {emit_label lbl} @ {emit_symbol s}\n`;
+-          `{record_frame i.live}        bl      caml_c_call\n`; 2
++          `	ldr	r12, {emit_label lbl} @ {emit_symbol s}\n`;
++          `{record_frame i.live}        bl      {emit_symbol "caml_c_call"}\n`; 2
+         end else begin
+           `	bl	{emit_symbol s}\n`; 1
+         end
+@@ -355,8 +385,8 @@
+         ninstr
+     | Lop(Iload(Single, addr)) ->
+         let r = i.res.(0) in
+-        `	ldfs	{emit_reg	r}, {emit_addressing addr i.arg 0}\n`;
+-        `	mvfd	{emit_reg	r}, {emit_reg r}\n`;
++        `	flds	s31, {emit_addressing addr i.arg 0}\n`;
++        `	fcvtds	{emit_reg	r}, s31\n`;
+         2
+     | Lop(Iload(size, addr)) ->
+         let r = i.res.(0) in
+@@ -366,14 +396,14 @@
+           | Byte_signed -> "ldrsb"
+           | Sixteen_unsigned -> "ldrh"
+           | Sixteen_signed -> "ldrsh"
+-          | Double | Double_u -> "ldfd"
++          | Double | Double_u -> "fldd"
+           | _ (* Word | Thirtytwo_signed | Thirtytwo_unsigned *) -> "ldr" in
+         `	{emit_string	instr}     {emit_reg r}, {emit_addressing addr i.arg 0}\n`;
+         1
+     | Lop(Istore(Single, addr)) ->
+         let r = i.arg.(0) in
+-        `	mvfs	f7,	{emit_reg r}\n`;
+-        `	stfs	f7,	{emit_addressing addr i.arg 1}\n`;
++        `	fcvtsd	s31,	{emit_reg r}\n`;
++        `	fsts	s31,	{emit_addressing addr i.arg 1}\n`;
+         2
+     | Lop(Istore(size, addr)) ->
+         let r = i.arg.(0) in
+@@ -381,29 +411,29 @@
+           match size with
+             Byte_unsigned | Byte_signed -> "strb"
+           | Sixteen_unsigned | Sixteen_signed -> "strh"
+-          | Double | Double_u -> "stfd"
++          | Double | Double_u -> "fstd"
+           | _ (* Word | Thirtytwo_signed | Thirtytwo_unsigned *) -> "str" in
+         `	{emit_string	instr}     {emit_reg r}, {emit_addressing addr i.arg 1}\n`;
+         1
+     | Lop(Ialloc n) ->
+         if !fastcode_flag then begin
+-          `	ldr	r10, [alloc_limit, #0]\n`;
++          `	ldr	r12, [alloc_limit, #0]\n`;
+           let ni = emit_alloc_decrement n in
+-          `	cmp	alloc_ptr, r10\n`;
+-          `{record_frame i.live}        blcc    caml_call_gc\n`;
++          `	cmp	alloc_ptr, r12\n`;
++          `{record_frame i.live}        blcc    {emit_symbol "caml_call_gc"}\n`;
+           `	add	{emit_reg i.res.(0)}, alloc_ptr, #4\n`;
+           4 + ni
+         end else if n = 8 || n = 12 || n = 16 then begin
+-            `{record_frame i.live}      bl      caml_alloc{emit_int ((n-4)/4)}\n`;
++            `{record_frame i.live}      bl      {emit_symbol "caml_alloc"}{emit_int ((n-4)/4)}\n`;
+             `	add	{emit_reg i.res.(0)}, alloc_ptr, #4\n`; 2
+         end else begin
+             let nn = Nativeint.of_int n in
+             let ni =
+               if is_immediate nn then begin
+-                `	mov	r10, #{emit_int n}\n`; 1
++                `	mov	r12, #{emit_int n}\n`; 1
+               end else
+-                emit_complex_intconst (phys_reg 8 (*r10*)) nn in
+-            `{record_frame i.live}      bl      caml_allocN\n`;
++                emit_complex_intconst (phys_reg 8 (*r12*)) nn in
++            `{record_frame i.live}      bl      {emit_symbol "caml_allocN"}\n`;
+             `	add	{emit_reg i.res.(0)}, alloc_ptr, #4\n`;
+             2 + ni
+         end
+@@ -417,7 +447,7 @@
+         `	mov{emit_string	comp}   {emit_reg i.res.(0)}, #1\n`; 3
+     | Lop(Iintop(Icheckbound)) ->
+         `	cmp	{emit_reg i.arg.(0)}, {emit_reg i.arg.(1)}\n`;
+-        `	blls	caml_ml_array_bound_error\n`; 2
++        `	blls	{emit_symbol "caml_ml_array_bound_error"}\n`; 2
+     | Lop(Iintop op) ->
+         let instr = name_for_int_operation op in
+         `	{emit_string	instr}     {emit_reg i.res.(0)}, {emit_reg i.arg.(0)}, {emit_reg i.arg.(1)}\n`; 1
+@@ -454,13 +484,21 @@
+         `	mov{emit_string	comp}   {emit_reg i.res.(0)}, #1\n`; 3
+     | Lop(Iintop_imm(Icheckbound, n)) ->
+         `	cmp	{emit_reg i.arg.(0)}, #{emit_int n}\n`;
+-        `	blls	caml_ml_array_bound_error\n`; 2
++        `	blls	{emit_symbol "caml_ml_array_bound_error"}\n`; 2
+     | Lop(Iintop_imm(op, n)) ->
+         let instr = name_for_int_operation op in
+         `	{emit_string	instr}     {emit_reg i.res.(0)}, {emit_reg i.arg.(0)}, #{emit_int n}\n`; 1
+-    | Lop(Inegf | Iabsf | Ifloatofint | Iintoffloat as op) ->
++    | Lop(Inegf | Iabsf as op) ->
+         let instr = name_for_float_operation op in
+         `	{emit_string	instr}     {emit_reg i.res.(0)}, {emit_reg i.arg.(0)}\n`; 1
++    | Lop(Ifloatofint as op) ->
++        let instr = name_for_float_operation op in
++        `       fmsr s31, {emit_reg i.arg.(0)}\n`;
++        `	{emit_string	instr}     {emit_reg i.res.(0)}, s31\n`; 2
++    | Lop(Iintoffloat as op) ->
++        let instr = name_for_float_operation op in
++        `	{emit_string	instr}     s31, {emit_reg i.arg.(0)}\n`;
++        `       fmrs {emit_reg i.res.(0)}, s31\n`; 2
+     | Lop(Iaddf | Isubf | Imulf | Idivf as op) ->
+         let instr = name_for_float_operation op in
+         `	{emit_string	instr}     {emit_reg i.res.(0)}, {emit_reg i.arg.(0)}, {emit_reg i.arg.(1)}\n`; 1
+@@ -473,7 +511,7 @@
+         1
+     | Lop(Ispecific(Ishiftcheckbound shift)) ->
+         `	cmp	{emit_reg i.arg.(1)}, {emit_reg i.arg.(0)}, lsr #{emit_int shift}\n`;
+-        `	blcs	caml_ml_array_bound_error\n`; 2
++        `	blcs	{emit_symbol "caml_ml_array_bound_error"}\n`; 2
+     | Lop(Ispecific(Irevsubimm n)) ->
+         `	rsb	{emit_reg i.res.(0)}, {emit_reg i.arg.(0)}, #{emit_int n}\n`; 1
+     | Lreloadretaddr ->
+@@ -491,35 +529,30 @@
+         begin match tst with
+           Itruetest ->
+             `	cmp	{emit_reg i.arg.(0)}, #0\n`;
+-            `	bne	{emit_label lbl}\n`
++            `	bne	{emit_label lbl}\n`; 2
+         | Ifalsetest ->
+             `	cmp	{emit_reg i.arg.(0)}, #0\n`;
+-            `	beq	{emit_label lbl}\n`
++            `	beq	{emit_label lbl}\n`; 2
+         | Iinttest cmp ->
+             `	cmp	{emit_reg i.arg.(0)}, {emit_reg i.arg.(1)}\n`;
+             let comp = name_for_comparison cmp in
+-            `	b{emit_string	comp}     {emit_label lbl}\n`
++            `	b{emit_string	comp}     {emit_label lbl}\n`; 2
+         | Iinttest_imm(cmp, n) ->
+             `	cmp	{emit_reg i.arg.(0)}, #{emit_int n}\n`;
+             let comp = name_for_comparison cmp in
+-            `	b{emit_string	comp}     {emit_label lbl}\n`
++            `	b{emit_string	comp}     {emit_label lbl}\n`; 2
+         | Ifloattest(cmp, neg) ->
+-            begin match cmp with
+-              Ceq | Cne ->
+-                `	cmf	{emit_reg i.arg.(0)}, {emit_reg i.arg.(1)}\n`
+-            | _ ->
+-                `	cmfe	{emit_reg i.arg.(0)}, {emit_reg i.arg.(1)}\n`
+-            end;
++            `	fcmped	{emit_reg i.arg.(0)}, {emit_reg i.arg.(1)}\n`;
++            `   fmstat\n`;
+             let comp = name_for_float_comparison cmp neg in
+-            `	b{emit_string	comp}     {emit_label lbl}\n`
++            `	b{emit_string	comp}     {emit_label lbl}\n`; 3
+         | Ioddtest ->
+             `	tst	{emit_reg i.arg.(0)}, #1\n`;
+-            `	bne	{emit_label lbl}\n`
++            `	bne	{emit_label lbl}\n`; 2
+         | Ieventest ->
+             `	tst	{emit_reg i.arg.(0)}, #1\n`;
+-            `	beq	{emit_label lbl}\n`
+-        end;
+-        2
++            `	beq	{emit_label lbl}\n`; 2
++        end
+   | Lcondbranch3(lbl0, lbl1, lbl2) ->
+         `	cmp	{emit_reg i.arg.(0)}, #1\n`;
+         begin match lbl0 with
+@@ -539,7 +572,7 @@
+         `	ldr	pc, [pc, {emit_reg i.arg.(0)}, lsl #2]\n`;
+         `	mov	r0, r0\n`;      (* nop *)
+         for i = 0 to Array.length jumptbl - 1 do
+-          `	.word	{emit_label jumptbl.(i)}\n`
++          `	.long	{emit_label jumptbl.(i)}\n`
+         done;
+         2 + Array.length jumptbl
+     | Lsetuptrap lbl ->
+@@ -595,7 +628,7 @@
+   Hashtbl.clear float_constants;
+   `	.text\n`;
+   `	.align	0\n`;
+-  `	.global	{emit_symbol fundecl.fun_name}\n`;
++  `	.globl	{emit_symbol fundecl.fun_name}\n`;
+   `{emit_symbol fundecl.fun_name}:\n`;
+   let n = frame_size() in
+   ignore(emit_stack_adjustment "sub" n);
+@@ -609,7 +642,7 @@
+ 
+ let emit_item = function
+     Cglobal_symbol s ->
+-      `	.global	{emit_symbol s}\n`;
++      `	.globl	{emit_symbol s}\n`;
+   | Cdefine_symbol s ->
+       `{emit_symbol s}:\n`
+   | Cdefine_label lbl ->
+@@ -619,18 +652,22 @@
+   | Cint16 n ->
+       `	.short	{emit_int n}\n`
+   | Cint32 n ->
+-      `	.word	{emit_nativeint	n}\n`
++      `	.long	{emit_nativeint	n}\n`
+   | Cint n ->
+-      `	.word	{emit_nativeint n}\n`
++      `	.long	{emit_nativeint n}\n`
+   | Csingle f ->
+       `	.float	{emit_string	f}\n`
+   | Cdouble f ->
++      let n = Int64.bits_of_float (float_of_string f) in
++      let lo = Int64.to_nativeint n in
++      let hi = Int64.to_nativeint (Int64.shift_right n 32) in
+       `	.align	0\n`;
+-      `	.double	{emit_string f}\n`
++      ` .long {emit_nativeint lo}\n`;
++      ` .long {emit_nativeint hi}\n`
+   | Csymbol_address s ->
+-      `	.word	{emit_symbol s}\n`
++      `	.long	{emit_symbol s}\n`
+   | Clabel_address lbl ->
+-      `	.word	{emit_label (10000 + lbl)}\n`
++      `	.long	{emit_label (10000 + lbl)}\n`
+   | Cstring s ->
+       emit_string_directive "   .ascii  " s
+   | Cskip n ->
+@@ -645,32 +682,32 @@
+ (* Beginning / end of an assembly file *)
+ 
+ let begin_assembly() =
+-  `trap_ptr     .req    r11\n`;
+-  `alloc_ptr    .req    r8\n`;
+-  `alloc_limit  .req    r9\n`;
++  `#define trap_ptr     r11\n`;
++  `#define alloc_ptr    r8\n`;
++  `#define alloc_limit  r10\n`;
+   let lbl_begin = Compilenv.make_symbol (Some "data_begin") in
+   `	.data\n`;
+-  `	.global	{emit_symbol lbl_begin}\n`;
++  `	.globl	{emit_symbol lbl_begin}\n`;
+   `{emit_symbol lbl_begin}:\n`;
+   let lbl_begin = Compilenv.make_symbol (Some "code_begin") in
+   `	.text\n`;
+-  `	.global	{emit_symbol lbl_begin}\n`;
++  `	.globl	{emit_symbol lbl_begin}\n`;
+   `{emit_symbol lbl_begin}:\n`
+ 
+ let end_assembly () =
+   let lbl_end = Compilenv.make_symbol (Some "code_end") in
+   `	.text\n`;
+-  `	.global	{emit_symbol lbl_end}\n`;
++  `	.globl	{emit_symbol lbl_end}\n`;
+   `{emit_symbol lbl_end}:\n`;
+   let lbl_end = Compilenv.make_symbol (Some "data_end") in
+   `	.data\n`;
+-  `	.global	{emit_symbol lbl_end}\n`;
++  `	.globl	{emit_symbol lbl_end}\n`;
+   `{emit_symbol lbl_end}:\n`;
+-  `	.word	0\n`;
++  `	.long	0\n`;
+   let lbl = Compilenv.make_symbol (Some "frametable") in
+   `	.data\n`;
+-  `	.global	{emit_symbol lbl}\n`;
++  `	.globl	{emit_symbol lbl}\n`;
+   `{emit_symbol lbl}:\n`;
+-  `	.word	{emit_int (List.length !frame_descriptors)}\n`;
++  `	.long	{emit_int (List.length !frame_descriptors)}\n`;
+   List.iter emit_frame !frame_descriptors;
+   frame_descriptors := []
+Index: asmcomp/arm/proc.ml
+===================================================================
+--- asmcomp/arm/proc.ml	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ asmcomp/arm/proc.ml	(.../trunk/ocamlxarm)	(revision 402)
+@@ -27,26 +27,28 @@
+ (* Registers available for register allocation *)
+ 
+ (* Register map:
+-    r0 - r7                     general purpose (r4 - r7 preserved by C)
+-    r8                          allocation pointer (preserved by C)
+-    r9                          allocation limit (preserved by C)
+-    r10                         general purpose
+-    r11                         trap pointer (preserved by C)
+-    r12                         general purpose
++    r0 - r3                     general purpose (not preserved by C)
++    r4 - r7                     general purpose (preserved)
++    r8                          allocation pointer (preserved)
++    r9                          reserved for platform
++    r10                         allocation limit (preserved)
++    r11                         trap pointer (preserved C)
++    r12                         general purpose (not preserved by C)
+     r13                         stack pointer
+     r14                         return address
+     r15                         program counter
+ 
+-    f0 - f6                     general purpose (f4 - f6 preserved by C)
+-    f7                          temporary
++    d0 - d14                    general purpose (d8 - d14 preserved by C)
++    d15                         temporary
+ *)
+ 
+ let int_reg_name = [|
+-  "r0"; "r1"; "r2"; "r3"; "r4"; "r5"; "r6"; "r7"; "r10"; "r12"
++  "r0"; "r1"; "r2"; "r3"; "r4"; "r5"; "r6"; "r7"; "r12"
+ |]
+ 
+ let float_reg_name = [|
+-  "f0"; "f1"; "f2"; "f3"; "f4"; "f5"; "f6"
++  "d0";  "d1";  "d2";  "d3";  "d4";  "d5";  "d6"; "d7";
++  "d8";  "d9"; "d10"; "d11"; "d12"; "d13"; "d14"
+ |]
+ 
+ let num_register_classes = 2
+@@ -57,7 +59,7 @@
+   | Addr -> 0
+   | Float -> 1
+ 
+-let num_available_registers = [| 10; 7 |]
++let num_available_registers = [| 9; 15 |]
+ 
+ let first_available_register = [| 0; 100 |]
+ 
+@@ -69,13 +71,13 @@
+ (* Representation of hard registers by pseudo-registers *)
+ 
+ let hard_int_reg =
+-  let v = Array.create 10 Reg.dummy in
+-  for i = 0 to 9 do v.(i) <- Reg.at_location Int (Reg i) done;
++  let v = Array.create 9 Reg.dummy in
++  for i = 0 to 8 do v.(i) <- Reg.at_location Int (Reg i) done;
+   v
+ 
+ let hard_float_reg =
+-  let v = Array.create 7 Reg.dummy in
+-  for i = 0 to 6 do v.(i) <- Reg.at_location Float (Reg(100 + i)) done;
++  let v = Array.create 15 Reg.dummy in
++  for i = 0 to 14 do v.(i) <- Reg.at_location Float (Reg(100 + i)) done;
+   v
+ 
+ let all_phys_regs =
+@@ -121,11 +123,11 @@
+ let not_supported ofs = fatal_error "Proc.loc_results: cannot call"
+ 
+ let loc_arguments arg =
+-  calling_conventions 0 7 100 103 outgoing arg
++  calling_conventions 0 7 100 107 outgoing arg
+ let loc_parameters arg =
+-  let (loc, ofs) = calling_conventions 0 7 100 103 incoming arg in loc
++  let (loc, ofs) = calling_conventions 0 7 100 107 incoming arg in loc
+ let loc_results res =
+-  let (loc, ofs) = calling_conventions 0 7 100 103 not_supported res in loc
++  let (loc, ofs) = calling_conventions 0 7 100 107 not_supported res in loc
+ 
+ (* Calling conventions for C are as for Caml, except that float arguments
+    are passed in pairs of integer registers. *)
+@@ -155,20 +157,35 @@
+   done;
+   (loc, !ofs)
+ 
++(* Calling conventions of C on iPhone return all results in r0, or r0/r1
++ * for floats.  We create a fake register, used only here and in
++ * ./selection.ml, to represent the r0/r1 pair.
++ *)
++let loc_external_res_r0r1 = { (phys_reg 0) with name = "R0R1" }
++
+ let loc_external_results res =
+-  let (loc, ofs) = calling_conventions 0 0 100 100 not_supported res in loc
++  if Array.length res > 1 then
++    fatal_error "Proc.loc_external_results: cannot call"
++  else
++    let reg =
++        if Array.length res > 0 && res.(0).typ = Float then
++            loc_external_res_r0r1
++        else
++            (phys_reg 0)
++    in
++        Array.create (Array.length res) reg
+ 
+ let loc_exn_bucket = phys_reg 0
+ 
+ (* Registers destroyed by operations *)
+ 
+-let destroyed_at_c_call =               (* r4-r9, f4-f6 preserved *)
+-  Array.of_list(List.map phys_reg [0;1;2;3;8;9; 100;101;102;103])
++let destroyed_at_c_call =               (* r4-r7, d8-d14 preserved *)
++  Array.of_list(List.map phys_reg [0;1;2;3;8; 100;101;102;103;104;105;106;107])
+ 
+ let destroyed_at_oper = function
+     Iop(Icall_ind | Icall_imm _ | Iextcall(_, true)) -> all_phys_regs
+   | Iop(Iextcall(_, false)) -> destroyed_at_c_call
+-  | Iop(Ialloc(_)) -> [|phys_reg 8|]    (* r10 destroyed *)
++  | Iop(Ialloc(_)) -> [|phys_reg 8|]    (* r12 destroyed *)
+   | _ -> [||]
+ 
+ let destroyed_at_raise = all_phys_regs
+@@ -177,10 +194,10 @@
+ 
+ let safe_register_pressure = function
+     Iextcall(_, _) -> 4
+-  | _ -> 7
++  | _ -> 9
+ let max_register_pressure = function
+     Iextcall(_, _) -> [| 4; 4 |]
+-  | _ -> [| 10; 7 |]
++  | _ -> [| 9; 15 |]
+ 
+ (* Layout of the stack *)
+ 
+@@ -190,7 +207,7 @@
+ (* Calling the assembler *)
+ 
+ let assemble_file infile outfile =
+-  Sys.command ("as -o " ^ Filename.quote outfile ^ " " ^ Filename.quote infile)
++  Sys.command (Config.native_c_compiler ^ " -c -o " ^ Filename.quote outfile ^ " " ^ Filename.quote infile)
+ 
+ open Clflags;;
+ open Config;;
+Index: asmcomp/arm/selection.ml
+===================================================================
+--- asmcomp/arm/selection.ml	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ asmcomp/arm/selection.ml	(.../trunk/ocamlxarm)	(revision 402)
+@@ -20,6 +20,11 @@
+ open Arch
+ open Mach
+ 
++let macosx =
++  match Config.system with
++  | "macosx" -> true
++  | _ -> false
++
+ (* Immediate operands are 8-bit immediate values, zero-extended, and rotated
+    right by 0, 2, 4, ... 30 bits.
+    To avoid problems with Caml's 31-bit arithmetic,
+@@ -97,14 +102,16 @@
+         [arg1; Cconst_int n] when n = 1 lsl (Misc.log2 n) ->
+           (Iintop_imm(Idiv, n), [arg1])
+       | _ ->
+-          (Iextcall("__divsi3", false), args)
++          let prefix = if macosx then "__stub" else "" in
++          (Iextcall(prefix ^ "__divsi3", false), args)
+       end
+   | Cmodi ->
+       begin match args with
+         [arg1; Cconst_int n] when n = 1 lsl (Misc.log2 n) ->
+           (Iintop_imm(Imod, n), [arg1])
+       | _ ->
+-          (Iextcall("__modsi3", false), args)
++          let prefix = if macosx then "__stub" else "" in
++          (Iextcall(prefix ^ "__modsi3", false), args)
+       end
+   | Ccheckbound _ ->
+       begin match args with
+@@ -126,7 +133,55 @@
+   end else
+     super#insert_op_debug op dbg rs rd
+ 
++(* Here we handle floating returns on iPhone, which are in r0/r1 as a
++ * pair.  Proc.loc_external_results can return a fake register that
++ * represents the pair.  We detect it and replace it with (phys_reg 0)
++ * and (phys_reg 1).  This allows the liveness analysis to notice that
++ * r1 is in use.
++ *)
++
++method private loc_external_res_isr0r1 r =
++    r.name = "R0R1"
++
++method insert_debug desc dbg arg res =
++  (* Here, res.(0) might be the r0/r1 pair.
++   *)
++  let res' =
++    if Array.length res > 0 && self#loc_external_res_isr0r1 res.(0) then
++      [| (Proc.phys_reg 0); (Proc.phys_reg 1) |]
++    else
++      res
++  in
++    super#insert_debug desc dbg arg res'
++
++method insert_move_args arg loc stacksize =
++    (* Here we have a register pair as the target if the source is Float
++     * and the target is a physical register.
++     *)
++    if stacksize <> 0 then self#insert (Iop(Istackoffset stacksize)) [||] [||];
++    for i = 0 to Array.length arg - 1 do
++      match (arg.(i).typ, loc.(i).loc) with
++        | (Float, Reg n) ->
++          let rpair = [| Proc.phys_reg n; Proc.phys_reg (n + 1) |]
++          in
++            self#insert (Iop Imove) [|arg.(i)|] rpair
++        | _ ->
++          self#insert_move arg.(i) loc.(i)
++    done
++
++method insert_move_results loc res stacksize =
++  (* Here, loc.(0) might be the r0/r1 pair.
++   *)
++  if stacksize <> 0 then
++      self#insert(Iop(Istackoffset(-stacksize))) [||] [||];
++  for i = 0 to Array.length loc - 1 do
++    if self#loc_external_res_isr0r1 loc.(i) then
++      let r0r1 = [| (Proc.phys_reg 0); (Proc.phys_reg 1) |] in
++      self#insert (Iop Imove) r0r1 [|res.(i)|]
++    else
++      self#insert_move loc.(i) res.(i)
++  done
++
+ end
+ 
+ let fundecl f = (new selector)#emit_fundecl f
+-
+
+Index: configure.answers
+===================================================================
+--- configure.answers	(.../vendor/ocaml/3.10.2)	(revision 0)
++++ configure.answers	(.../trunk/ocamlxarm)	(revision 402)
+@@ -0,0 +1,11 @@
++
++4 4 4 2
++
++long long
++unsigned long long
++"ll"
++
++n
++n
++
++
+
+Index: Makefile
+===================================================================
+--- Makefile	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ Makefile	(.../trunk/ocamlxarm)	(revision 402)
+@@ -14,7 +14,7 @@
+ 
+ # The main Makefile
+ 
+-include config/Makefile
++-include config/Makefile
+ include stdlib/StdlibModules
+ 
+ CAMLC=boot/ocamlrun boot/ocamlc -nostdlib -I boot
+@@ -685,3 +685,4 @@
+ FORCE:
+ 
+ include .depend
++include Makefile.xarm
+
+Index: byterun/interp.c
+===================================================================
+--- byterun/interp.c	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ byterun/interp.c	(.../trunk/ocamlxarm)	(revision 402)
+@@ -154,7 +154,7 @@
+ #define SP_REG asm("a4")
+ #define ACCU_REG asm("d7")
+ #endif
+-#ifdef __arm__
++#if defined(__arm__) && 0
+ #define PC_REG asm("r9")
+ #define SP_REG asm("r8")
+ #define ACCU_REG asm("r7")
+Index: byterun/Makefile
+===================================================================
+--- byterun/Makefile	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ byterun/Makefile	(.../trunk/ocamlxarm)	(revision 402)
+@@ -62,11 +62,11 @@
+ 	echo "$(LIBDIR)" >>ld.conf
+ 
+ libcamlrun.a: $(OBJS)
+-	ar rc libcamlrun.a $(OBJS)
++	$(AR) rc libcamlrun.a $(OBJS)
+ 	$(RANLIB) libcamlrun.a
+ 
+ libcamlrund.a: $(DOBJS)
+-	ar rc libcamlrund.a $(DOBJS)
++	$(AR) rc libcamlrund.a $(DOBJS)
+ 	$(RANLIB) libcamlrund.a
+ 
+ clean:
+
+Index: config/auto-aux/runtest
+===================================================================
+--- config/auto-aux/runtest	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ config/auto-aux/runtest	(.../trunk/ocamlxarm)	(revision 402)
+@@ -5,4 +5,4 @@
+ else
+ $cc -o tst $* $cclibs 2> /dev/null || exit 100
+ fi
+-exec ./tst
++./tst
+
+Index: asmrun/arm.S
+===================================================================
+--- asmrun/arm.S	(.../vendor/ocaml/3.10.2)	(revision 402)
++++ asmrun/arm.S	(.../trunk/ocamlxarm)	(revision 402)
+@@ -13,155 +13,233 @@
+ 
+ /* $Id: arm.S,v 1.15.18.1 2008/02/20 12:25:17 xleroy Exp $ */
+ 
++/* Linux/BSD with ELF binaries and Solaris do not prefix identifiers with _.
++   Linux/BSD with a.out binaries and NextStep do.
++   Copied from asmrun/i386.S */
++
++#if defined(SYS_solaris)
++#define CONCAT(a,b) a/**/b
++#else
++#define CONCAT(a,b) a##b
++#endif
++
++#if defined(SYS_linux_elf) || defined(SYS_bsd_elf) \
++ || defined(SYS_solaris) || defined(SYS_beos) || defined(SYS_gnu)
++#define G(x) x
++#define LBL(x) CONCAT(.L,x)
++#else
++#define G(x) CONCAT(_,x)
++#define LBL(x) CONCAT(L,x)
++#endif
++
++#if defined(SYS_macosx)
++#define global globl
++#endif
++
+ /* Asm part of the runtime system, ARM processor */
+ 
+-trap_ptr        .req    r11
+-alloc_ptr       .req    r8
+-alloc_limit     .req    r9
+-sp              .req    r13
+-lr              .req    r14
+-pc              .req    r15
++#define trap_ptr        r11
++#define alloc_ptr       r8
++#define alloc_limit     r10
++#define sp              r13
++#define lr              r14
++#define pc              r15
+ 
+         .text
+ 
+ /* Allocation functions and GC interface */
+ 
+-        .global caml_call_gc
+-caml_call_gc:
++        .global G(caml_call_gc)
++G(caml_call_gc):
+     /* Record return address */
+-    /* We can use r10 as a temp reg since it's not live here */
+-        ldr     r10, .Lcaml_last_return_address
+-        str     lr, [r10, #0]
++    /* Can use alloc_limit as a temp reg since it will be reloaded by
++       invoke_gc */
++        ldr     alloc_limit, LBL(caml_last_return_address)
++        str     lr, [alloc_limit, #0]
+     /* Branch to shared GC code */
+-        bl      .Linvoke_gc
++        bl      LBL(invoke_gc)
+     /* Restart allocation sequence (4 instructions before) */
+         sub     lr, lr, #16
+         mov     pc, lr
+ 
+-        .global caml_alloc1
+-caml_alloc1:
+-        ldr     r10, [alloc_limit, #0]
++        .global G(caml_alloc1)
++G(caml_alloc1):
++	/* XXX -- this depends on r12 being saved by the caller 
++	 * (or its contents don't matter to the caller.
++	 */
++        ldr     r12, [alloc_limit, #0]
+         sub     alloc_ptr, alloc_ptr, #8
+-        cmp     alloc_ptr, r10
++        cmp     alloc_ptr, r12
+         movcs   pc, lr                /* Return if alloc_ptr >= alloc_limit */
+     /* Record return address */
+-        ldr     r10, .Lcaml_last_return_address
+-        str     lr, [r10, #0]
++        ldr     r12, LBL(caml_last_return_address)
++        str     lr, [r12, #0]
+     /* Invoke GC */
+-        bl      .Linvoke_gc
++        bl      LBL(invoke_gc)
+     /* Try again */
+-        b       caml_alloc1
++        b       G(caml_alloc1)
+ 
+-        .global caml_alloc2
+-caml_alloc2:
+-        ldr     r10, [alloc_limit, #0]
++        .global G(caml_alloc2)
++G(caml_alloc2):
++        ldr     r12, [alloc_limit, #0]
+         sub     alloc_ptr, alloc_ptr, #12
+-        cmp     alloc_ptr, r10
++        cmp     alloc_ptr, r12
+         movcs   pc, lr                /* Return if alloc_ptr >= alloc_limit */
+     /* Record return address */
+-        ldr     r10, .Lcaml_last_return_address
+-        str     lr, [r10, #0]
++        ldr     r12, LBL(caml_last_return_address)
++        str     lr, [r12, #0]
+     /* Invoke GC */
+-        bl      .Linvoke_gc
++        bl      LBL(invoke_gc)
+     /* Try again */
+-        b       caml_alloc2
++        b       G(caml_alloc2)
+ 
+-        .global caml_alloc3
+-caml_alloc3:
+-        ldr     r10, [alloc_limit, #0]
++        .global G(caml_alloc3)
++G(caml_alloc3):
++        ldr     r12, [alloc_limit, #0]
+         sub     alloc_ptr, alloc_ptr, #16
+-        cmp     alloc_ptr, r10
++        cmp     alloc_ptr, r12
+         movcs   pc, lr                /* Return if alloc_ptr >= alloc_limit */
+     /* Record return address */
+-        ldr     r10, .Lcaml_last_return_address
+-        str     lr, [r10, #0]
++        ldr     r12, LBL(caml_last_return_address)
++        str     lr, [r12, #0]
+     /* Invoke GC */
+-        bl      .Linvoke_gc
++        bl      LBL(invoke_gc)
+     /* Try again */
+-        b       caml_alloc3
++        b       G(caml_alloc3)
+ 
+-        .global caml_allocN
+-caml_allocN:
+-        str     r12, [sp, #-4]!
+-        ldr     r12, [alloc_limit, #0]
+-        sub     alloc_ptr, alloc_ptr, r10
+-        cmp     alloc_ptr, r12
+-        ldr     r12, [sp], #4
++        .global G(caml_allocN)
++G(caml_allocN):
++	/* in the old code, the amount to be allocated was passed
++	 * in r10.  r12 was used to do some computing, so it was
++	 * saved at the top of the function before we do the
++	 * comparison, then restored after the comparison.
++	 *
++	 * here, the amount to be allocated is passed in r12.
++	 * this means we can't really use it very well to do
++	 * our computations.  Instead, we'll borrow alloc_limit
++	 * (r10), being careful to save it on top of the stack
++	 * before we clobber it, then restore it from the stack
++	 * pronto.
++	 */
++
++        sub     alloc_ptr, alloc_ptr, r12
++        stmfd   sp!, {alloc_limit}	/* push alloc_limit on stack */
++	ldr     alloc_limit, [alloc_limit, #0]
++	cmp     alloc_ptr, alloc_limit
++	ldmfd   sp!, {alloc_limit}	/* pop stack, restore alloc_limit */
++
++    /* XXX -- the following is the old code, except r12 has been
++     * substituted for r10.
++     */
++
+         movcs   pc, lr                /* Return if alloc_ptr >= alloc_limit */
+     /* Record return address and desired size */
+-        ldr     alloc_limit, .Lcaml_last_return_address
++        ldr     alloc_limit, LBL(caml_last_return_address)
+         str     lr, [alloc_limit, #0]
+-        ldr     alloc_limit, .LLcaml_requested_size
+-        str     r10, [alloc_limit, #0]
++        ldr     alloc_limit, LBL(Lcaml_requested_size)
++        str     r12, [alloc_limit, #0]
+     /* Invoke GC */
+-        bl      .Linvoke_gc
++        bl      LBL(invoke_gc)
+     /* Try again */
+-        ldr     r10, .LLcaml_requested_size
+-        ldr     r10, [r10, #0]
+-        b       caml_allocN
++        ldr     r12, LBL(Lcaml_requested_size)
++        ldr     r12, [r12, #0]
++        b       G(caml_allocN)
+ 
+ /* Shared code to invoke the GC */
+-.Linvoke_gc:
++LBL(invoke_gc):
+     /* Record lowest stack address */
+-        ldr     r10, .Lcaml_bottom_of_stack
+-        str     sp, [r10, #0]
++        ldr     r12, LBL(caml_bottom_of_stack)
++        str     sp, [r12, #0]
+     /* Save integer registers and return address on stack */
++
++	/* XXX -- 3.12 doesn't save r10, it does save r12.
++	 * it seems harmless to save both here, so I'm doing
++	 * that.  Why are we saving r12 on the stack, even though
++	 * we've already clobbered it?  It now has the return
++	 * address, so when we're all done here, we can branch
++	 * to that address by just popping the value off the stack
++	 * into the pc register.
++	 */
++
+         stmfd   sp!, {r0,r1,r2,r3,r4,r5,r6,r7,r10,r12,lr}
+     /* Store pointer to saved integer registers in caml_gc_regs */
+-        ldr     r10, .Lcaml_gc_regs
+-        str     sp, [r10, #0]
++        ldr     r12, LBL(caml_gc_regs)
++
++	    /* XXX -- I wonder what semantics we want here for
++	     * caml_gc_regs.  Should it point at the stack after
++	     * we've pushed the floating point regs, or before?
++	     * Seems to me after, if caml_gc_regs has any meaning
++	     * at all, but I'll leave it like this for now, since 
++	     * it seemed to work ok.
++	     *
++	     * Jeff, I'm inclined to want to change this, but will
++	     * defer to you on it.
++	     */
++
++        str     sp, [r12, #0]
+     /* Save non-callee-save float registers */
+-        stfd    f0, [sp, #-8]!
+-        stfd    f1, [sp, #-8]!
+-        stfd    f2, [sp, #-8]!
+-        stfd    f3, [sp, #-8]!
++        sub     sp, sp, #64
++        fstd    d0, [sp, #56]
++        fstd    d1, [sp, #48]
++        fstd    d2, [sp, #40]
++        fstd    d3, [sp, #32]
++        fstd    d4, [sp, #24]
++        fstd    d5, [sp, #16]
++        fstd    d6, [sp, #8]
++        fstd    d7, [sp, #0]
+     /* Save current allocation pointer for debugging purposes */
+-        ldr     r10, .Lcaml_young_ptr
+-        str     alloc_ptr, [r10, #0]
++        ldr     r12, LBL(caml_young_ptr)
++        str     alloc_ptr, [r12, #0]
+     /* Save trap pointer in case an exception is raised during GC */
+-        ldr     r10, .Lcaml_exception_pointer
+-        str     trap_ptr, [r10, #0]
++        ldr     r12, LBL(caml_exception_pointer)
++        str     trap_ptr, [r12, #0]
+     /* Call the garbage collector */
+-        bl      caml_garbage_collection
++        bl      G(caml_garbage_collection)
+     /* Restore the registers from the stack */
+-        ldfd    f4, [sp], #8
+-        ldfd    f5, [sp], #8
+-        ldfd    f6, [sp], #8
+-        ldfd    f7, [sp], #8
++        fldd    d7, [sp, #0]
++        fldd    d6, [sp, #8]
++        fldd    d5, [sp, #16]
++        fldd    d4, [sp, #24]
++        fldd    d3, [sp, #32]
++        fldd    d2, [sp, #40]
++        fldd    d1, [sp, #48]
++        fldd    d0, [sp, #56]
++        add     sp, sp, #64
+         ldmfd   sp!, {r0,r1,r2,r3,r4,r5,r6,r7,r10,r12}
+     /* Reload return address */
+-        ldr     r10, .Lcaml_last_return_address
+-        ldr     lr, [r10, #0]
++        ldr     r12, LBL(caml_last_return_address)
++        ldr     lr, [r12, #0]
+     /* Say that we are back into Caml code */
+         mov     alloc_ptr, #0
+-        str     alloc_ptr, [r10, #0]
++        str     alloc_ptr, [r12, #0]
+     /* Reload new allocation pointer and allocation limit */
+-        ldr     r10, .Lcaml_young_ptr
+-        ldr     alloc_ptr, [r10, #0]
+-        ldr     alloc_limit, .Lcaml_young_limit
++        ldr     r12, LBL(caml_young_ptr)
++        ldr     alloc_ptr, [r12, #0]
++        ldr     alloc_limit, LBL(caml_young_limit)
+     /* Return to caller */
+         ldmfd   sp!, {pc}
+ 
+ /* Call a C function from Caml */
+-/* Function to call is in r10 */
++/* Function to call is in r12 */
+ 
+-        .global caml_c_call
+-caml_c_call:
++        .global G(caml_c_call)
++G(caml_c_call):
+     /* Preserve return address in callee-save register r4 */
+         mov     r4, lr
+     /* Record lowest stack address and return address */
+-        ldr     r5, .Lcaml_last_return_address
+-        ldr     r6, .Lcaml_bottom_of_stack
++        ldr     r5, LBL(caml_last_return_address)
++        ldr     r6, LBL(caml_bottom_of_stack)
+         str     lr, [r5, #0]
+         str     sp, [r6, #0]
+     /* Make the exception handler and alloc ptr available to the C code */
+-        ldr     r6, .Lcaml_young_ptr
+-        ldr     r7, .Lcaml_exception_pointer
++        ldr     r6, LBL(caml_young_ptr)
++        ldr     r7, LBL(caml_exception_pointer)
+         str     alloc_ptr, [r6, #0]
+         str     trap_ptr, [r7, #0]
+     /* Call the function */
+         mov     lr, pc
+-        mov     pc, r10
++	mov     pc, r12
++
+     /* Reload alloc ptr */
+         ldr     alloc_ptr, [r6, #0]    /* r6 still points to caml_young_ptr */
+     /* Say that we are back into Caml code */
+@@ -172,173 +250,236 @@
+ 
+ /* Start the Caml program */
+ 
+-        .global caml_start_program
+-caml_start_program:
+-        ldr     r10, .Lcaml_program
++        .global G(caml_start_program)
++G(caml_start_program):
++        ldr     r12, LBL(caml_program)
+ 
+ /* Code shared with caml_callback* */
+-/* Address of Caml code to call is in r10 */
++/* Address of Caml code to call is in r12 */
+ /* Arguments to the Caml code are in r0...r3 */
+ 
+-.Ljump_to_caml:
++LBL(jump_to_caml):
+     /* Save return address and callee-save registers */
+-        stmfd   sp!, {r4,r5,r6,r7,r8,r9,r11,lr}
+-        stfd    f7, [sp, #-8]!
+-        stfd    f6, [sp, #-8]!
+-        stfd    f5, [sp, #-8]!
+-        stfd    f4, [sp, #-8]!
++        stmfd   sp!, {r4,r5,r6,r7,r8,r10,r11,lr}
++        sub     sp, sp, #64
++        fstd    d15, [sp, #56]
++        fstd    d14, [sp, #48]
++        fstd    d13, [sp, #40]
++        fstd    d12, [sp, #32]
++        fstd    d11, [sp, #24]
++        fstd    d10, [sp, #16]
++        fstd    d9, [sp, #8]
++        fstd    d8, [sp, #0]
+     /* Setup a callback link on the stack */
+-        sub     sp, sp, #4*3
+-        ldr     r4, .Lcaml_bottom_of_stack
++        sub     sp, sp, #(4*3)
++        ldr     r4, LBL(caml_bottom_of_stack)
+         ldr     r4, [r4, #0]
+         str     r4, [sp, #0]
+-        ldr     r4, .Lcaml_last_return_address
++        ldr     r4, LBL(caml_last_return_address)
+         ldr     r4, [r4, #0]
+         str     r4, [sp, #4]
+-        ldr     r4, .Lcaml_gc_regs
++        ldr     r4, LBL(caml_gc_regs)
+         ldr     r4, [r4, #0]
+         str     r4, [sp, #8]
+     /* Setup a trap frame to catch exceptions escaping the Caml code */
+-        sub     sp, sp, #4*2
+-        ldr     r4, .Lcaml_exception_pointer
++        sub     sp, sp, #(4*2)
++        ldr     r4, LBL(caml_exception_pointer)
+         ldr     r4, [r4, #0]
+         str     r4, [sp, #0]
+-        ldr     r4, .LLtrap_handler
++        ldr     r4, LBL(Ltrap_handler)
+         str     r4, [sp, #4]
+         mov     trap_ptr, sp
+     /* Reload allocation pointers */
+-        ldr     r4, .Lcaml_young_ptr
++        ldr     r4, LBL(caml_young_ptr)
+         ldr     alloc_ptr, [r4, #0]
+-        ldr     alloc_limit, .Lcaml_young_limit
++        ldr     alloc_limit, LBL(caml_young_limit)
+     /* We are back into Caml code */
+-        ldr     r4, .Lcaml_last_return_address
++        ldr     r4, LBL(caml_last_return_address)
+         mov     r5, #0
+         str     r5, [r4, #0]
+     /* Call the Caml code */
+         mov     lr, pc
+-        mov     pc, r10
+-.Lcaml_retaddr:
++        mov     pc, r12
++LBL(caml_retaddr):
+     /* Pop the trap frame, restoring caml_exception_pointer */
+-        ldr     r4, .Lcaml_exception_pointer
++        ldr     r4, LBL(caml_exception_pointer)
+         ldr     r5, [sp, #0]
+         str     r5, [r4, #0]
+-        add     sp, sp, #2 * 4
++        add     sp, sp, #(2 * 4)
+     /* Pop the callback link, restoring the global variables */
+-.Lreturn_result:
+-        ldr     r4, .Lcaml_bottom_of_stack
++LBL(return_result):
++        ldr     r4, LBL(caml_bottom_of_stack)
+         ldr     r5, [sp, #0]
+         str     r5, [r4, #0]
+-        ldr     r4, .Lcaml_last_return_address
++        ldr     r4, LBL(caml_last_return_address)
+         ldr     r5, [sp, #4]
+         str     r5, [r4, #0]
+-        ldr     r4, .Lcaml_gc_regs
++        ldr     r4, LBL(caml_gc_regs)
+         ldr     r5, [sp, #8]
+         str     r5, [r4, #0]
+-        add     sp, sp, #4*3
++        add     sp, sp, #(4*3)
+     /* Update allocation pointer */
+-        ldr     r4, .Lcaml_young_ptr
++        ldr     r4, LBL(caml_young_ptr)
+         str     alloc_ptr, [r4, #0]
+     /* Reload callee-save registers and return */
+-        ldfd    f4, [sp], #8
+-        ldfd    f5, [sp], #8
+-        ldfd    f6, [sp], #8
+-        ldfd    f7, [sp], #8
+-        ldmfd   sp!, {r4,r5,r6,r7,r8,r9,r11,pc}
++        fldd    d8, [sp, #0]
++        fldd    d9, [sp, #8]
++        fldd    d10, [sp, #16]
++        fldd    d11, [sp, #24]
++        fldd    d12, [sp, #32]
++        fldd    d13, [sp, #40]
++        fldd    d14, [sp, #48]
++        fldd    d15, [sp, #56]
++        add     sp, sp, #64
++        ldmfd   sp!, {r4,r5,r6,r7,r8,r10,r11,lr}
+ 
++	    /* XXX -- the callback functions pushed r12 on the stack
++	     * before calling us.  v3.12 does not do this.
++	     */
++	ldmfd   sp!, {r12}
++        mov     pc, lr
++
+     /* The trap handler */
+-.Ltrap_handler:
++LBL(trap_handler):
+     /* Save exception pointer */
+-        ldr     r4, .Lcaml_exception_pointer
++        ldr     r4, LBL(caml_exception_pointer)
+         str     trap_ptr, [r4, #0]
+     /* Encode exception bucket as an exception result */
+         orr     r0, r0, #2
+     /* Return it */
+-        b       .Lreturn_result
++        b       LBL(return_result)
+ 
+ /* Raise an exception from C */
+ 
+-        .global caml_raise_exception
+-caml_raise_exception:
++        .global G(caml_raise_exception)
++G(caml_raise_exception):
+     /* Reload Caml allocation pointers */
+-        ldr     r1, .Lcaml_young_ptr
++        ldr     r1, LBL(caml_young_ptr)
+         ldr     alloc_ptr, [r1, #0]
+-        ldr     alloc_limit, .Lcaml_young_limit
++        ldr     alloc_limit, LBL(caml_young_limit)
+     /* Say we're back into Caml */
+-        ldr     r1, .Lcaml_last_return_address
++        ldr     r1, LBL(caml_last_return_address)
+         mov     r2, #0
+         str     r2, [r1, #0]
+     /* Cut stack at current trap handler */
+-        ldr     r1, .Lcaml_exception_pointer
++        ldr     r1, LBL(caml_exception_pointer)
+         ldr     sp, [r1, #0]
+     /* Pop previous handler and addr of trap, and jump to it */
+         ldmfd   sp!, {trap_ptr, pc}
+ 
+ /* Callback from C to Caml */
+ 
+-        .global caml_callback_exn
+-caml_callback_exn:
++        .global G(caml_callback_exn)
++G(caml_callback_exn):
+     /* Initial shuffling of arguments (r0 = closure, r1 = first arg) */
+-        mov     r10, r0
++        stmfd   sp!, {r12}
++        mov     r12, r0
+         mov     r0, r1            /* r0 = first arg */
+-        mov     r1, r10           /* r1 = closure environment */
+-        ldr     r10, [r10, #0]    /* code pointer */
+-        b       .Ljump_to_caml
++        mov     r1, r12           /* r1 = closure environment */
++        ldr     r12, [r12, #0]    /* code pointer */
++        b       LBL(jump_to_caml)
+ 
+-        .global caml_callback2_exn
+-caml_callback2_exn:
++        .global G(caml_callback2_exn)
++G(caml_callback2_exn):
+     /* Initial shuffling of arguments (r0 = closure, r1 = arg1, r2 = arg2) */
+-        mov     r10, r0
++        stmfd   sp!, {r10}
++        mov     r12, r0
+         mov     r0, r1           /* r0 = first arg */
+         mov     r1, r2           /* r1 = second arg */
+-        mov     r2, r10          /* r2 = closure environment */
+-        ldr     r10, .Lcaml_apply2
+-        b       .Ljump_to_caml
++        mov     r2, r12          /* r2 = closure environment */
++        ldr     r12, LBL(caml_apply2)
++        b       LBL(jump_to_caml)
+ 
+-        .global caml_callback3_exn
+-caml_callback3_exn:
++        .global G(caml_callback3_exn)
++G(caml_callback3_exn):
+     /* Initial shuffling of arguments */
+     /* (r0 = closure, r1 = arg1, r2 = arg2, r3 = arg3) */
+-        mov     r10, r0
++        stmfd   sp!, {r10}
++        mov     r12, r0
+         mov     r0, r1          /* r0 = first arg */
+         mov     r1, r2          /* r1 = second arg */
+         mov     r2, r3          /* r2 = third arg */
+-        mov     r3, r10         /* r3 = closure environment */
+-        ldr     r10, .Lcaml_apply3
+-        b       .Ljump_to_caml
++        mov     r3, r12         /* r3 = closure environment */
++        ldr     r12, LBL(caml_apply3)
++        b       LBL(jump_to_caml)
+ 
+-        .global caml_ml_array_bound_error
+-caml_ml_array_bound_error:
+-    /* Load address of [caml_array_bound_error] in r10 */
+-        ldr     r10, .Lcaml_array_bound_error
++        .global G(caml_ml_array_bound_error)
++G(caml_ml_array_bound_error):
++    /* Load address of [caml_array_bound_error] in r12 */
++        ldr     r12, LBL(caml_array_bound_error)
+     /* Call that function */
+-        b       caml_c_call
++        b       G(caml_c_call)
+ 
+ /* Global references */
+ 
+-.Lcaml_last_return_address:     .word caml_last_return_address
+-.Lcaml_bottom_of_stack:         .word caml_bottom_of_stack
+-.Lcaml_gc_regs:                 .word caml_gc_regs
+-.Lcaml_young_ptr:               .word caml_young_ptr
+-.Lcaml_young_limit:             .word caml_young_limit
+-.Lcaml_exception_pointer:       .word caml_exception_pointer
+-.Lcaml_program:                 .word caml_program
+-.LLtrap_handler:                .word .Ltrap_handler
+-.Lcaml_apply2:                  .word caml_apply2
+-.Lcaml_apply3:                  .word caml_apply3
+-.LLcaml_requested_size:         .word .Lcaml_requested_size
+-.Lcaml_array_bound_error:       .word caml_array_bound_error
++LBL(caml_last_return_address):     .long G(caml_last_return_address)
++LBL(caml_bottom_of_stack):         .long G(caml_bottom_of_stack)
++LBL(caml_gc_regs):                 .long G(caml_gc_regs)
++LBL(caml_young_ptr):               .long G(caml_young_ptr)
++LBL(caml_young_limit):             .long G(caml_young_limit)
++LBL(caml_exception_pointer):       .long G(caml_exception_pointer)
++LBL(caml_program):                 .long G(caml_program)
++LBL(Ltrap_handler):                .long LBL(trap_handler)
++LBL(caml_apply2):                  .long G(caml_apply2)
++LBL(caml_apply3):                  .long G(caml_apply3)
++LBL(Lcaml_requested_size):         .long LBL(caml_requested_size)
++LBL(caml_array_bound_error):       .long G(caml_array_bound_error)
++LBL(Lcaml_touch_threadctx):        .long LBL(caml_touch_threadctx)
+ 
+ .data
+-.Lcaml_requested_size:          .word 0
++LBL(caml_requested_size):          .long 0
++LBL(caml_touch_threadctx):         .long 0
+ 
+ /* GC roots for callback */
+ 
+         .data
+ 
+-        .global caml_system__frametable
+-caml_system__frametable:
+-        .word   1               /* one descriptor */
+-        .word   .Lcaml_retaddr  /* return address into callback */
++        .global G(caml_system__frametable)
++G(caml_system__frametable):
++        .long   1               /* one descriptor */
++        .long   LBL(caml_retaddr)  /* return address into callback */
+         .short  -1              /* negative frame size => use callback link */
+         .short  0               /* no roots */
+         .align  2
++
++#if defined(SYS_macosx)
++        .text
++        .global G(__stub__modsi3)
++G(__stub__modsi3):
++        b       LBL(__stub__modsi3)
++        .global G(__stub__divsi3)
++G(__stub__divsi3):
++        b       LBL(__stub__divsi3)
++
++        .section __TEXT,__picsymbolstub4,symbol_stubs,none,16
++        .align 2
++LBL(__stub__modsi3):
++        .indirect_symbol G(__modsi3)
++        ldr     ip, LBL(__stub__modsi3$slp)
++LBL(__stub__modsi3$scv):
++        add     ip, pc, ip
++        ldr     pc, [ip, #0]
++LBL(__stub__modsi3$slp):
++        .long   LBL(__stub__modsi3$lazy_ptr) - (LBL(__stub__modsi3$scv) + 8)
++        .lazy_symbol_pointer
++LBL(__stub__modsi3$lazy_ptr):
++        .indirect_symbol G(__modsi3)
++        .long   dyld_stub_binding_helper
++
++        .section __TEXT,__picsymbolstub4,symbol_stubs,none,16
++        .align 2
++LBL(__stub__divsi3):
++        .indirect_symbol G(__divsi3)
++        ldr     ip, LBL(__stub__divsi3$slp)
++LBL(__stub__divsi3$scv):
++        add     ip, pc, ip
++        ldr     pc, [ip, #0]
++LBL(__stub__divsi3$slp):
++        .long   LBL(__stub__divsi3$lazy_ptr) - (LBL(__stub__divsi3$scv) + 8)
++        .lazy_symbol_pointer
++LBL(__stub__divsi3$lazy_ptr):
++        .indirect_symbol G(__divsi3)
++        .long   dyld_stub_binding_helper
++
++        .subsections_via_symbols
++#endif
+

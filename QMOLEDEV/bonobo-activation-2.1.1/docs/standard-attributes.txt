@@ -1,0 +1,178 @@
+
+
+Standard .oafinfo file attributes. 
+
+Not all components must specify all of these, but if they are present
+they ought to have these standardized meanings. A component should
+specify at least "repo_ids", "name" and "description" to be useful.
+
+Other attributes should be placed in a colon-separated namespace.
+
+
+General
+
+* "repo_ids" (stringv) - all the IDL interfaces this component
+  implements, including inherited interfaces. If Bonobo::Unknown is
+  one of the interfaces, this should include all interfaces that can
+  be query_interface()d for.  Fake interfaces like
+  IDL:BonoboControl/text-plain:1.0 should _not_ be included. If this
+  attribute is omitted, the object will be assuemd to support no IDL
+  interfaces, which makes no sense.
+
+* "description" (string) - a free text description of the component,
+  much like the gnorba description field. If omitted, the "name"
+  attribute will be used, if present, otherwise the empty string.
+
+* "name" (string) - a short name suitable for display to the end user,
+  e.g. in a menu. If omitted, the "description" attribute will be
+  used, if present, otherwise the iid.
+
+
+Bonobo
+
+* "bonobo:editable" (boolean) - does this component allow editing of
+  its contents? If omitted, assumed false or not applicable.
+
+* "bonobo:supported_mime_types" (stringv) - a list of mime types this
+  component understands as input. In addition to specific mime types,
+  it is possible to include supertypes (e.g. "image/*" or "text/*") or
+  "*/*" to indicate the component can display any mime
+  type. Specifying "*/*" is only necessary if "supported_uri_schemes"
+  is not specified, otherwise it is assumed. This only really makes
+  sense if the component implements one of the following interfaces:
+  Bonobo::PersistStream, Bonobo::ProgressiveDataSink, Nautilus::View.
+
+* "bonobo:supported_uri_schemes" (stringv) - a list of protocols this
+  component knows how to handle. This only really makes sense if the
+  component implements one of the following interfaces:
+  Bonobo::PersistFile or Nautilus::View
+
+  If "bonobo:supported_uri_schemes" is specified but
+"bonobo:supported_mime_types" is not, it is assumed the component can
+handle any type of data that might come via that protocol. Some
+schemes may not even have an associated mime type for any given URI,
+for instance irc: or news:
+
+  If "bonobo:supported_mime_types" is specified but
+"bonobo:supported_uri_schemes" is not, the component is assumed to be
+able to handle all common URI schemes (possible definition: anything
+gnome-vfs can handle).
+
+  If neither "bonobo:supported_uri_schemes" nor
+"bonobo:supported_mime_types" is specified, it is assumed the
+component cannot handle any data at all in a general way and should
+never be generically selected for such purposes.
+
+
+Nautilus - Content Views
+
+* "nautilus:view_as_name" (string) - a suitable name for use as a view
+as name (it will be displayed as "View as <foo>" where <foo> is the
+name). This must be implemented by any Bonobo Embeddables
+or Controls that can be used as Nautilus views (for the content in
+the main window, not in the sidebar).
+
+* "nautilus:view_as_label" (string) - A string generally of the form
+"View as <view_as_name>". This is easier for translators to handle
+than composed strings. It also allows changes to that text, like "View
+with <foo>" rather than "View as <foo>".
+
+* "nautilus:viewer_label" (string) - A string generally of the form
+"<view_as_name> Viewer". This is easier for translators to handle
+than composed strings.
+
+
+I am not totally sure if the following two should be in the nautilus:
+or bonobo: namespace; I can see them being useful for other components
+at least in theory. Leaving as "nautilus:" attributes for now.
+
+* "nautilus:required_directory_content_mime_types" (stringv) - if the
+component is to be activated on a URI with mime type
+special/directory, it is only really applicable if the directory
+contains one of these mime types. As before, supertypes like "audio/*"
+are allowed. If this attribute is omitted, "*/*" is assumed.
+
+* "nautilus:required_uri_tester" (string) - this specifies the OAFIID
+of a component that implements the Nautilus::URITester interface (see
+proposal below). If the criteria established by all the other
+attributes are satisfied, an object with that OAFIID should be
+activated and its is_applicable() method should be called on the URI
+to test if it this component _really_, _really_ applies to the given
+URI. This should be used as a last resort. (Not yet implemented.)
+
+The reason for the "required_uri_tester" attribute is as follows. In
+Nautilus, we plan to have custom directory views that express
+higher-level semantics about certain directories, but that depend
+heavily on the directory contents. For example, there maybe "View as
+Version Controlled Directory" or the like which depends on their being
+a directory named "CVS/" in the appropriate directory. So in the most
+general case, we need to run some code specific to the component to
+make sure it is applicable to a given URI. Now, we could just activate
+the component, require it to have the URITester interface, do the
+test, and then destroy it to find out if it applies. But that might be
+quite heavyweight. So intead we specify the OAFIID of a different
+component, one which could be very lightweight (shlib or minimal exe
+that does not pull gnome/gtk stuff) which does the test and nothing
+else.
+
+If this attribute is not provided, no such testing is assumed
+necessary.
+
+
+Nautilus - Sidebar Views:
+
+* "nautilus:sidebar_panel_name" (string) - a suitable name for use as
+a sidebar panel label name. This must be implemented by any Bonobo
+Controls that can be used as a Nautilus sidebar view.
+
+* "nautilus:recommended_uri_schemes" (string) - the URI schemes this
+meta view is most recommended for. If "*" is included, this component
+is recommended for all schemes. If omitted or empty, it is not
+recommended for any. (Not yet implemented.)
+
+
+Vertigo:
+
+* "vertigo:category" - the name of the category a panel applet falls
+  into, for purposes of generating the menu.
+
+
+General open questions
+
+* How does Bonobo::PersistStorage play into this?
+
+* An "icon" attribute has been proposed for component browser/selector
+  purposes. If included it would have to be inline probably
+  (base64-encoded png?) since the oafinfo file may not be on the same
+  machine as the code doing the browsing or activation.
+
+* How to specify interesting info about applicable components when
+  there is no relevant URI? For instance a regular dumb control, or
+  something like the gnomines control where there is no relevant
+  type. Maybe you only ever want to pick these off a list or activate
+  a specific one by IID. Maybe controls that want to be activatable in
+  nautilus somehow can just register their own URI scheme, for
+  instance `gnome-control-mines:' for the gnomines thing. This seems
+  like kind of a hack though.
+
+* Should "description" and the various name attributes be
+  internationalized? If so, how? should there be other attributes with
+  names like "description_${LANG}"? Someone proposed using
+  lang="de"/lang="ru" in the XML tag.
+
+Nautilus-specific open questions
+
+* Should there be a way to use a Bonobo Control or Embeddable with
+  Nautilus without requiring the developer to include a definition
+  for "nautilus:sidebar_panel_name" or "nautilus:view_as_name"?
+
+* Should the user level of a component be an attribute? That lets just
+  any component author set the user level instead of centralizing it.
+
+==================
+
+module Nautilus {
+        interface URITester {
+                boolean is_applicable (string uri);
+        }
+}

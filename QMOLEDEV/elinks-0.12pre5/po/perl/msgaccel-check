@@ -1,0 +1,322 @@
+#! /usr/bin/perl
+# The copyright notice and license are in the POD at the bottom.
+
+use strict;
+use warnings;
+use Locale::PO qw();
+use Getopt::Long qw(GetOptions :config bundling gnu_compat);
+use autouse 'Pod::Usage' => qw(pod2usage);
+
+my $VERSION = "1.6";
+
+sub show_version
+{
+    print "msgaccel-check $VERSION\n";
+    pod2usage({-verbose => 99, -sections => "COPYRIGHT AND LICENSE",
+	       -exitval => 0});
+}
+
+# The character that precedes accelerators in strings.
+# Set with the --accelerator-tag=CHARACTER option.
+my $Opt_accelerator_tag;
+
+# True if, for missing or fuzzy translations, the msgid string should
+# be checked instead of msgstr.  Set with the --msgid-fallback and
+# --no-msgid-fallback options.
+my $Opt_msgid_fallback = 1;
+
+sub acceleration_arrays_eq ($$)
+{
+    my($left, $right) = @_;
+    ref($left) eq "ARRAY" or return 0;
+    ref($right) eq "ARRAY" or return 0;
+    @$left == @$right or return 0;
+    $left->[$_] eq $right->[$_] or return 0
+	foreach (0 .. $#$right);
+    return 1;
+}
+
+sub check_po_file ($)
+{
+    # The name of the PO file to be checked.
+    my($po_file_name) = @_;
+
+    # A nested hash that lists the accelerators and their uses.
+    # $accelerators{$accelerator}{$ctxname}{ACCELERATIONS}[$i]{LINENO}
+    # 1. In %accelerators, the keys are one-character strings,
+    #    and the values are hash references.
+    # 2. In %{$accelerators{$accelerator}}, the keys are names
+    #    of contexts in which the accelerator is used, and the
+    #    values are references to "crossing" hashes.
+    # 3. %{$accelerators{$accelerator}{$ctxname}} is a "crossing" hash,
+    #    so named because it describes how an accelerator and a context
+    #    cross each other.  It has the following elements:
+    #    (ACCELERATIONS => [see point 4 below],
+    #     REPORTED => (1 if this is a conflict and has been reported),
+    #     AVOID => (1 if this accelerator should not be suggested in this
+    #               context))
+    # 4. @{$accelerators{$accelerator}{$ctxname}{ACCELERATIONS}} is a list of
+    #    references to "acceleration" hashes.  If the same acceleration occurs
+    #    in multiple contexts, then the references are to the same hash.
+    # 5. %{$accelerators{$accelerator}{ctxname}{ACCELERATIONS}[$i]} is an
+    #    "acceleration" hash.  It has the following structure:
+    #    (PO => (the Locale::PO object),
+    #     CTXNAMES => [read-only list of names of contexts in which the
+    #                  accelerator is used],
+    #     ACCELERATOR => (a one-character string),
+    #     LINENO => (line number in the PO file),
+    #     STRING => (the msgid or msgstr string that defines the accelerator;
+    #                unquoted as much as possible),
+    #     EXPLAIN => (a string to be displayed if a conflict is found))
+    my %accelerators;
+
+    # How many entries had checkable accelerators.
+    my $checkable_count = 0;
+
+    # How many conflicts have been found so far.
+    my $conflict_count = 0;
+
+    {
+	my $pos = Locale::PO->load_file_asarray($po_file_name)
+	    or warn "$po_file_name: $!\n", return 2;
+	foreach my $po (@$pos) {
+	    my $automatic = $po->automatic()
+		or next;
+	    my($ctxnames) = ($automatic =~ /^accelerator_context\(([^\)]*)\)/)
+		or next;
+	    my @ctxnames = split(/\s*,\s*/, $ctxnames);
+	    my @accelerations;
+	    my $msgid = $po->msgid();
+	    my $msgstr = $po->msgstr();
+	    if ($po->dequote($msgstr) ne "" && !$po->fuzzy()) {
+		if (my($accelerator) = ($msgstr =~ /\Q$Opt_accelerator_tag\E(.)/s)) {
+		    push @accelerations, { PO => $po,
+					   CTXNAMES => \@ctxnames,
+					   ACCELERATOR => $accelerator,
+					   LINENO => $po->msgstr_begin_lineno(),
+					   STRING => $msgstr,
+					   EXPLAIN => "msgstr $msgstr" };
+		}
+
+		# TODO: look for accelerators in plural forms?
+	    }
+ 	    elsif ($Opt_msgid_fallback && $po->dequote($msgid) ne "") {
+ 	    	if (my($accelerator) = ($msgid =~ /\Q$Opt_accelerator_tag\E(.)/s)) {
+ 	    	    push @accelerations, { PO => $po,
+					   CTXNAMES => \@ctxnames,
+ 	    				   ACCELERATOR => $accelerator,
+ 	    				   LINENO => $po->msgid_begin_lineno(),
+ 	    				   STRING => $msgid,
+ 	    				   EXPLAIN => "msgid $msgid" };
+ 	    	}
+ 	    }
+
+	    $checkable_count++ if @accelerations;
+	    foreach my $acceleration (@accelerations) {
+		my $accelerator = uc($acceleration->{ACCELERATOR});
+		foreach my $crossing (@{$accelerators{$accelerator}}{@ctxnames}) {
+		    push @{$crossing->{ACCELERATIONS}}, $acceleration;
+		    $crossing->{AVOID} = 1 if $acceleration->{EXPLAIN} =~ /^msgstr/;
+		}
+	    }
+	}
+    }
+
+    foreach my $accelerator (sort keys %accelerators) {
+	my $ctxhash = $accelerators{$accelerator};
+	foreach my $crossing (@{$ctxhash}{sort keys %$ctxhash}) {
+	    my $accelerations = $crossing->{ACCELERATIONS};
+	    if ($accelerations && @$accelerations > 1 && !$crossing->{REPORTED}) {
+		my @ctxnames_in_conflict;
+		foreach my $inner_ctxname (keys %$ctxhash) {
+		    my $inner_crossing = $ctxhash->{$inner_ctxname};
+		    if (acceleration_arrays_eq($inner_crossing->{ACCELERATIONS},
+					       $accelerations)) {
+			push @ctxnames_in_conflict, $inner_ctxname;
+			$inner_crossing->{REPORTED} = 1;
+		    }
+		}
+		my $ctxnames_in_conflict = join(", ", map(qq("$_"), @ctxnames_in_conflict));
+		warn "$po_file_name: Accelerator conflict for \"$accelerator\" in $ctxnames_in_conflict:\n";
+		foreach my $acceleration (@$accelerations) {
+		    my $lineno = $acceleration->{LINENO};
+		    my $explain = $acceleration->{EXPLAIN};
+
+		    # Get a string of unique characters in the string,
+		    # preferring characters that start a word.
+		    # FIXME: should remove quotes and resolve \n etc.
+		    my $displaystr = $acceleration->{STRING};
+		    $displaystr =~ s/\Q$Opt_accelerator_tag\E//g;
+		    my $suggestions = "";
+		    foreach my $char ($displaystr =~ /\b(\w)/g,
+				      $displaystr =~ /(\w)/g) {
+			$suggestions .= $char unless $suggestions =~ /\Q$char\E/i;
+		    }
+
+		    # But don't suggest unavailable characters.
+		    SUGGESTION: foreach my $char (split(//, $suggestions)) {
+			foreach my $ctxname (@{$acceleration->{CTXNAMES}}) {
+			    $suggestions =~ s/\Q$char\E//, next SUGGESTION
+				if $accelerators{uc($char)}{$ctxname}{AVOID};
+			}
+		    }
+
+		    warn "$po_file_name:$lineno: $explain\n";
+		    if ($suggestions eq "") {
+			warn "$po_file_name:$lineno: no suggestions :-(\n";
+		    }
+		    else {
+			warn "$po_file_name:$lineno: suggestions: $suggestions\n";
+		    }
+		} # foreach $acceleration in conflict
+		$conflict_count++;
+	    } # if found a conflict 
+	} # foreach context known for $accelerator
+    } # foreach $accelerator
+
+    print "$po_file_name: "
+	. ($checkable_count == 1 ? "Checked 1 entry" : "Checked $checkable_count entries")
+	. ", "
+	. ($conflict_count == 1 ? "found 1 accelerator conflict" : "found $conflict_count accelerator conflicts")
+	. ".\n";
+    return $conflict_count ? 1 : 0;
+}
+
+GetOptions("accelerator-tag=s" => sub {
+	       my($option, $value) = @_;
+	       die "Cannot use multiple --accelerator-tag options\n"
+		   if defined($Opt_accelerator_tag);
+	       die "--accelerator-tag requires a single-character argument\n"
+		   if length($value) != 1;
+	       $Opt_accelerator_tag = $value;
+	   },
+	   "msgid-fallback!" => \$Opt_msgid_fallback,
+	   "help" => sub { pod2usage({-verbose => 1, -exitval => 0}) },
+	   "version" => \&show_version)
+    or exit 2;
+$Opt_accelerator_tag = "~" unless defined $Opt_accelerator_tag;
+print(STDERR "$0: missing file operand\n"), exit 2 unless @ARGV;
+
+my $max_error = 0;
+foreach my $po_file_name (@ARGV) {
+    my $error = check_po_file($po_file_name);
+    $max_error = $error if $error > $max_error;
+}
+exit $max_error;
+
+__END__
+
+=head1 NAME
+
+msgaccel-check - Scan a PO file for conflicting accelerator keys.
+
+=head1 SYNOPSIS
+
+B<msgaccel-check> [I<option> ...] F<I<language>.po> [...]
+
+=head1 DESCRIPTION
+
+B<msgaccel-check> is part of a framework that detects conflicting
+accelerator keys in Gettext PO files.  A conflict is when two items in
+the same menu or two buttons in the same dialog box use the same
+accelerator key.
+
+The PO file format does not normally include any information on which
+strings will be used in the same menu or dialog box.
+B<msgaccel-check> can only be used on PO files to which this
+information has been added with B<msgaccel-prepare> or merged with
+B<msgmerge>.
+
+B<msgaccel-check> reads the F<I<language>.po> file named on the
+command line and reports any conflicts to standard error.  It also
+tries to suggest replacements for the conflicting accelerators.
+
+B<msgaccel-check> does not access the source files to which
+F<I<language>.po> refers.  Thus, it does not matter if the line
+numbers in "#:" lines are out of date.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--accelerator-tag=>I<character>
+
+Specify the character that marks accelerators in C<msgstr> strings.
+Whenever this character occurs in a C<msgstr>, B<msgaccel-check>
+treats the next character as an accelerator and checks that it is
+unique in each of the contexts in which the C<msgstr> is used.
+
+Omitting the B<--accelerator-tag> option implies
+B<--accelerator-tag="~">.  The option must be given to each program
+separately because there is no standard way to save this information
+in the PO file.
+
+=item B<--msgid-fallback>
+
+=item B<--no-msgid-fallback>
+
+Select how to check entries where the C<msgstr> is missing or fuzzy.
+The default is B<--msgid-fallback>, which makes B<msgaccel-check> use
+the C<msgid> instead, and report any conflicts between C<msgid> and
+C<msgstr> strings.  The alternative is B<--no-msgid-fallback>, which
+makes B<msgaccel-check> completely ignore such entries.
+
+Regardless of these options, B<msgaccel-check> will suggest
+accelerators that would conflict with ones defined in C<msgid>
+strings.  Those strings will be eventually shadowed by C<msgstr>
+strings, so their accelerators should not affect which accelerators
+the translator chooses for C<msgstr> strings.
+
+=back
+
+=head1 ARGUMENTS
+
+=over
+
+=item F<I<language>.po> [...]
+
+The PO files to be scanned for conflicts.  These files must include
+the "accelerator_context" comments added by B<msgaccel-prepare>.
+If the special comments are missing, no conflicts will be found.
+
+=back
+
+=head1 EXIT CODE
+
+0 if no conflicts were found.
+
+1 if some conflicts were found.
+
+2 if the command line is invalid or a file cannot be read.
+
+=head1 BUGS
+
+=head2 Waiting for Locale::PO fixes
+
+When B<msgaccel-check> includes C<msgstr> strings in warnings, it
+should transcode them from the charset of the PO file to the one
+specified by the user's locale.
+
+=head1 AUTHOR
+
+Kalle Olavi Niemitalo <kon@iki.fi>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2005-2006 Kalle Olavi Niemitalo.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+=head1 SEE ALSO
+
+L<msgaccel-prepare>, C<xgettext(1)>, C<msgmerge(1)>

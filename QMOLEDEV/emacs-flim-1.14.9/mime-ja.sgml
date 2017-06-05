@@ -1,0 +1,1422 @@
+<!doctype sinfo system>
+<head>
+<title>FLIM 1.14 MIME 機能説明書
+<author>守岡 知彦 <mail>morioka@jaist.ac.jp</mail>
+<date>1999-01-27
+
+<toc>
+</head>
+
+<body>
+
+<abstract>
+<p>
+This file documents MIME features of FLIM, a fundamental library to
+process Internet Messages for GNU Emacsen.
+<p>
+GNU Emacsen 用の Internet Message 処理のための基礎 library である FLIM 
+の MIME 機能に関して説明します。
+</abstract>
+
+
+<h1> FLIM って何？
+<node> Introduction
+<p>
+FLIM は Internet Message の表現や符号化に関する基礎的な機能を提供する
+ための library です。
+
+
+<h1> FLIM の MIME 機能の使い方
+<node> How to use
+<p>
+FLIM の提供する MIME 機能を使うためには
+
+<lisp>
+(require 'mime)
+</lisp>
+
+<noindent>を評価してください。
+
+
+<h1> Message と Entity
+<node> Entity
+<p>
+<dref>RFC 2045</dref> によれば、「Entity という語は、message, もしくは、
+multipart entity の body 中の１つの部分の、MIME で定義された header
+field と内容を指す」となっています。ここでは、MIME で定義された header
+field 以外の全ての header と body を指す語として 
+<concept>entity</concept>を用いることにします。
+<p>
+RFC 2045 の定義は、MIME message が entity を節とする木構造であることを
+示しています。つまり、MIME は message を木構造に拡張した訳です。
+<p>
+FLIM は entity の情報を表現するために<concept>mime-entity</concept> 構
+造体を用います。以下では単に mime-entity と呼ぶことにします。
+
+
+<h2> Entity の生成
+<node> Entity creation
+<p>
+<defun name="mime-open-entity">
+	  <opts> type location
+<p>
+Entity を開いて、それを返します。
+<p>
+<var>type</var> は representation-type です。 <cf node="mm-backend">
+<p>
+<var>location</var> は entity の位置です。指定方法は
+representation-type に依って変わります。
+</defun>
+
+<defun name="mime-parse-buffer">
+	  <opts> buffer type
+<p>
+<var>buffer</var> を message として構文解析し、その結果の mime-entity 
+を <var>buffer</var> の<code>mime-message-structure</code> に格納する。
+<p>
+<var>buffer</var> が省略された場合、現在の buffer を構文解析する。
+<p>
+<var>type</var> が指定された場合、その値を生成される mime-entity の表
+象型として用いる。省略された場合は <var>buffer</var> となる。<cf
+node="mm-backend">
+</defun>
+
+
+<h2> Entity 階層
+<node> Entity hierarchy
+<p>
+MIME message は entity を単位とする木構造になっています。
+<p>
+この木において根となる節は message 全体を表す entity です。ここでは、
+これを <concept>root-entity</concept> もしくは
+<concept>message</concept> と呼びます。
+<p>
+root-entity 以外の entity は親を持ちます。また、entity は子供を持つか
+も知れません。この親子関係を考えることで entity の相対関係を扱うことが
+できます。
+<p>
+一方、entity の message における位置を考えることもできます。
+<p>
+entity はこの木における節となりますが、この木には深さと同じ深さの中の
+順番に従って番号が付けることができます。即ち、
+<verb>
+
+                              ┌───┐
+                              │  nil │
+                              └─┬─┘
+              ┌─────────┼─────────┐
+            ┌┴┐              ┌┴┐              ┌┴┐
+            │０│              │１│              │２│
+            └┬┘              └┬┘              └┬┘
+              │        ┌────┼────┐        │
+          ┌─┴─┐┌─┴─┐┌─┴─┐┌─┴─┐┌─┴─┐
+          │ ０.０││ １.０││ １.１││ １.２││ ２.０│
+          └───┘└───┘└───┘└───┘└───┘
+
+</verb>
+<p>
+<noindent>のように深さ n の節には長さ n の整数列の節番号が振れます。これ
+を <concept>entity-number</concept> と呼びます。entity-number は S 式と
+しては <code>(1 2 3)</code> のような整数のリストとして表現されます。
+<p>
+mime-entity では、これと同様の <concept>node-id</concept> を用います。
+node-id はちょうど entity-number を逆にしたリストで、entity-number
+1.2.3 に対応する node-id は <code>(3 2 1)</code> です。
+<p>
+前述のように、MIME message は entity を単位とした木構造になっているので、
+この根である message 全体も mime-entity で表現することができ、buffer
+local 変数 <code>mime-message-structure</code> に格納することにします。
+<p>
+<code>mime-message-structure</code> を起点に entity-number や node-id 
+で示される entity を取り出すことができます。
+
+<defvar name="mime-message-structure">
+<p>
+現在の buffer における message 全体の mime-entity 構造体を格納する
+buffer local 変数。
+</defvar>
+
+<defun name="mime-entity-children">
+	  <args> entity
+<p>
+<var>entity</var> に含まれる entity の list を返す。
+</defun>
+
+<defun name="mime-entity-parent">
+	  <args> entity <opts> message
+<p>
+<var>entity</var> の親の entity を返す。
+<p>
+<var>message</var> が指定された場合、これを根と見倣す。
+</defun>
+
+<defun name="mime-root-entity-p">
+	  <args> entity
+<p>
+<var>entity</var> が根（即ち、message 全体）である場合に、
+非-<code>nil</code> を返す。
+</defun>
+
+<defun name="mime-entity-node-id">
+	  <args> entity
+<p>
+<var>entity</var> の node-id を返す。
+</defun>
+
+<defun name="mime-entity-number">
+	  <args> entity
+<p>
+<var>entity</var> の entity-number を返す。
+</defun>
+
+
+<h2> Entity の検索
+<node> Entity Search
+<p>
+<defun name="mime-find-entity-from-number">
+	    <args> entity-number <opts> message
+<p>
+<var>message</var> から、<var>enity-number</var> の entity を返します。
+<p>
+<var>message</var> が指定されていない場合は、
+<code>mime-message-structrue</code> が使われます。
+</defun>
+
+<defun name="mime-find-entity-from-node-id">
+	    <args> entity-node-id <opts> message
+<p>
+<var>message</var> から、<var>entity-node-id</var> の entity を返しま
+す。
+<p>
+<var>message</var> が指定されていない場合は、
+<code>mime-message-structure</code> が使われます。
+</defun>
+
+<defun name="mime-find-entity-from-content-id">
+	    <args> cid <opts> message
+<p>
+<var>message</var> から、<var>cid</var> の entity を返します。
+<p>
+<var>message</var> が指定されていない場合は、
+<code>mime-message-structure</code> が使われます。
+</defun>
+
+
+<h2> Entity の属性
+<node> Entity Attributes
+<p>
+<defun name="mime-entity-content-type">
+	    <args> entity
+<p>
+<var>entity</var> の content-type を返す。<cf
+node="mime-content-type">
+</defun>
+
+<defun name="mime-entity-content-disposition">
+	    <args> entity
+<p>
+<var>entity</var> の content-disposition を返す。<cf
+node="mime-content-disposition">
+</defun>
+
+<defun name="mime-entity-filename">
+	    <args> entity
+<p>
+<var>entity</var> の file 名を返す。
+</defun>
+
+<defun name="mime-entity-encoding">
+	    <args> entity <opts> default-encoding
+<p>
+<var>entity</var> の content-transfer-encoding を返す。<cf
+node="Content-Transfer-Encoding">
+<p>
+もし、<var>entity</var> に Content-Transfer-Encoding 欄が存在しない場
+合は、<var>default-encoding</var> を返す。これが指定されない場合は、
+<code>"7bit"</code> を用いる。
+</defun>
+
+<defun name="mime-entity-cooked-p">
+	    <args> entity
+<p>
+<var>entity</var> の内容が既にコード変換されている場合は nil で無い値
+を返す。
+</defun>
+
+
+<h2> Entity header の情報
+<node> Entity-header
+<p>
+<defun name="mime-fetch-field">
+	    <args> field-name <opts> entity
+<p>
+<var>entity</var> の header 中の <var>field-name</var> 欄の body を返す。
+<p>
+結果の文字列は network 表現のままである。
+<p>
+<var>entity</var> が省略された場合は、
+<code>mime-message-structure</code> の値を用いる。
+<p>
+<var>field-name</var> 欄が存在しない場合は <code>nil</code> を返す。
+</defun>
+
+<defun name="mime-read-field">
+	    <args> field-name <opts> entity
+<p>
+<var>entity</var> の header 中の <var>field-name</var> 欄を構文解析した
+結果を返す。
+<p>
+結果の形式は欄毎に異なる。非構造化欄の場合は文字列を返し、構造化欄の場合
+はその形式に従った list を返す。
+<p>
+結果中の文字列は Emacs の内部表現に変換される。
+<p>
+<var>entity</var> が省略された場合は、
+<code>mime-message-structure</code> の値を用いる。
+<p>
+<var>field-name</var> 欄が存在しない場合は nil を返す。
+</defun>
+
+
+<h2> Entity の文字表現
+<node> entity formatting
+<p>
+<defun name="mime-insert-header">
+	    <args> entity <opts> invisible-fields visible-fields
+<p>
+現在位置に <var>entity</var> の復号した header を挿入する。
+<p>
+<var>invisible-fields</var> と <var>visible-fields</var> は正規表現の
+list で、それぞれ、表示したくない field 名と表示したい欄名を表現したもの
+である。
+<p>
+<var>invisible-fields</var> の要素のどれかに match し、かつ、
+<var>visible-fields</var> の要素のどれにも match しない欄は表示されな
+い。
+<p>
+<dref>encoded-word</dref> は復号される。『生の非 us-ascii 文字』は 
+<code>default-mime-charset</code> として解釈される。
+</defun>
+
+<defun name="mime-insert-text-content">
+	    <args> entity
+<p>
+point の前に <var>entity</var> を text entity として挿入します。
+<p>
+<var>entity</var> の内容は <dref>MIME charset</dref> として復号化され
+ます。<var>entity</var> の Content-Type field に charset paramter が無
+いと、<code>default-mime-charset</code> が初期値として使われます。
+</defun>
+
+<defvar name="default-mime-charset">
+<p>
+適切な <dref>MIME charset</dref> が見つからなかった場合に用いられる
+MIME charset.
+<p>
+本来は APEL の変数である。
+</defvar>
+
+
+<h2> Entity の内容
+<node> Entity-content
+<p>
+<defun name="mime-entity-content">
+	    <args> entity
+<p>
+<var>entity</var> の内容の byte 列を返す。
+</defun>
+
+<defun name="mime-insert-entity-content">
+	    <args> entity
+<p>
+point の位置に <var>entity</var> の内容を挿入します。
+</defun>
+
+<defun name="mime-write-entity-content">
+	    <args> entity filename
+<p>
+<var>entity</var> の内容を <var>filename</var> に書き込みます。
+</defun>
+
+
+<h2> Entity のネットワーク表現
+<node> Entity-network-representation
+<p>
+<defun name="mime-insert-entity">
+	    <args> entity
+<p>
+<var>entity</var> の header と body を point のところに挿入します。
+</defun>
+
+<defun name="mime-write-entity">
+	    <args> entity filename
+<p>
+<var>entity</var> の表現を <var>filename</var> に書き込みます。
+</defun>
+
+<defun name="mime-write-entity-body">
+	    <args> entity filename
+<p>
+<var>entity</var> の body を <var>filename</var> に書き込みます。
+</defun>
+
+
+<h2> Entity の buffer による表現
+<node> Entity buffer
+<p>
+<defun name="mime-entity-buffer">
+	    <args> entity
+<p>
+<var>entity</var> が存在する buffer を返す。
+</defun>
+
+<defun name="mime-entity-point-min">
+	    <args> entity
+<p>
+<var>entity</var> が存在する buffer における、<var>entity</var> が占める
+領域の先頭位置を返す。
+</defun>
+
+<defun name="mime-entity-point-max">
+	    <args> entity
+<p>
+<var>entity</var> が存在する buffer における、<var>entity</var> が占める
+領域の末尾位置を返す。
+</defun>
+
+<defun name="mime-entity-header-start">
+	    <args> entity
+<p>
+<var>entity</var> が存在する buffer における、header が占める領域の先頭
+位置を返す。
+</defun>
+
+<defun name="mime-entity-header-end">
+	    <args> entity
+<p>
+<var>entity</var> が存在する buffer における、header が占める領域の末尾
+位置を返す。
+</defun>
+
+<defun name="mime-entity-body-start">
+	    <args> entity
+<p>
+<var>entity</var> が存在する buffer における、body が占める領域の先頭位
+置を返す。
+</defun>
+
+<defun name="mime-entity-body-end">
+	    <args> entity
+<p>
+<var>entity</var> が存在する buffer における、body が占める領域の末尾位
+置を返す。
+</defun>
+
+
+<h2> Entity の表現と実現
+<node> mm-backend
+<p>
+Entity は抽象化されたデータ表現で、実際のデータ表現としては用途に応じて
+さまざまなものが利用できるように設計されています。
+<p>
+ここで、entity がどういう種類の表現を行っているかを示すのが
+<concept>representation-type</concept> で、entity を生成する時にはこれを
+指定します。<cf node="Entity Creation">
+<p>
+前節までに述べて来た entity に対する処理は、entity に対してその処理を依
+頼することによって実現されています。Entity は自分の 
+representation-type を知っており、その representation-type に応じて実際
+の処理を行う関数を呼び出します。このような関数を <concept>entity 処理
+method</concept> と呼びます。また、representation-type 毎にこのような関
+数をまとめたものを <concept>mm-backend</concept> と呼びます。
+<p>
+mm-backend は representation-type の名前の先頭に <code>mm</code> という
+接頭辞を付けた関数名からなる module で、その module 名は同様に
+representation-type の名前の先頭に <code>mm</code> を付けたものになって
+います。この module は representation-type の entity が最初に生成される
+時に自動的に require されます。
+
+
+<h3> Entity への便り
+<node> Request for entity
+<p>
+<defun name="mime-entity-send">
+	      <args> entity message <rest> args
+<p>
+<var>entity</var> に <var>message</var> を送る。
+<p>
+<var>args</var> は <var>message</var> の引数である。
+</defun>
+
+
+<h3> mm-backend の作り方
+<node> mm-backend module
+<p>
+<defmacro name="mm-define-backend">
+<args> type
+<opts> parents
+<p>
+<var>type</var> を mm-backend として定義します。
+<p>
+<var>PARENTS</var> が指定されている場合は、<var>type</var> は prents
+を継承します。それぞれの parent は representation-type である必要があ
+ります。
+<p>
+例:
+<p>
+<lisp>
+(mm-define-backend chao (generic))
+</lisp>
+</defmacro>
+
+<defmacro name="mm-define-method">
+<args> name args <rest> body
+<p>
+<var>name</var> を (nth 1 (car <var>args</var>)) backend の method 関
+数として定義します。
+<p>
+<var>args</var> は lambda の引数リストのようなものですが、(car
+<var>args</var>) は指定された parameter である必要があります。(car
+(car <var>args</var>)) は変数の名前で、(nth 1 (car <var>args</var>))
+は backend の名前 (representation-type) です。
+<p>
+例:
+<p>
+<lisp>
+(mm-define-method entity-cooked-p ((entity chao)) nil)
+</lisp>
+</defmacro>
+
+
+<h1> Content-Type 欄の情報
+<node> Content-Type
+<p>
+<concept>Content-Type 欄</concept> は <dref>media-type</dref> や MIME
+charset といった <dref>entity</dref> の内容の種類や表現形式などを記述
+するためのもので、<dref>RFC 2045</dref> で定義されています。
+
+<memo>
+<p>
+歴史的には RFC 1049 で Content-Type 欄が提案されている。但し、MIME の
+media-type のような type と subtype の区別はなく、MIME charset のよう
+な文字符号の種類を表現することもできない。
+</memo>
+
+<p>
+FLIM は Content-Type 欄を構文解析する関数と Content-Type 欄の解析結果を
+格納する構造体 <concept>mime-content-type</concept> を提供します。
+
+
+<h2> Content-Type 欄の形式
+<node> Content-Type field
+<p>
+Content-Type 欄の形式は以下のように定義されています：
+
+<quote>
+``Content-Type'' ``:'' <concept>type</concept> ``/''
+<concept>subtype</concept> *( ``;'' <concept>parameter</concept> )
+</quote>
+<p>
+例えば、
+
+<quote>
+<verb>
+Content-Type: image/jpeg
+</verb>
+</quote>
+
+<noindent>
+や
+
+<quote>
+<verb>
+Content-Type: text/plain; charset=iso-2022-jp
+</verb>
+</quote>
+
+<noindent>
+などのように用いられます。
+<p>
+ここで、`type' と `subtype' は entity の形式を示すもので、両者を総称し
+て、`media-type' と呼ぶことにします。上記の例における `image/jpeg' や
+`text/plain' は media-type の１つです。
+
+<memo>
+<p>
+Content-Type 欄のない entity は
+
+<quote>
+<verb>
+Content-Type: text/plain; charset=us-ascii
+</verb>
+</quote>
+
+<noindent>
+として解釈される。<cf node="us-ascii">
+</memo>
+
+
+<h2> mime-content-type 構造体
+<node> mime-content-type
+<p>
+<define type="Structure" name="mime-content-type">
+<p>
+Content-Type 欄の情報を格納するための構造体。
+<p>
+この構造体を参照するには <code>mime-content-type-要素名</code> という名
+前の参照関数を用いる。
+<p>
+この構造体の要素は以下の通りである：
+
+<vl>
+<dt>primary-type<dd>media-type の主型 (symbol).
+</dd>
+<dt>subtype<dd>media-type の副型 (symbol).
+</dd>
+<dt>parameters<dd>Content-Type 欄の parameter (連想 list).
+</dd>
+</vl>
+</define>
+
+<defun name="make-mime-content-type">
+	  <args> type subtype
+	  <opts> parameters
+<p>content-type の生成子。
+</defun>
+
+<defun name="mime-content-type-parameter">
+<args> content-type parameter
+<p>
+<var>content-type</var> の <var>parameter</var> の値を返す。
+</defun>
+
+
+<h2> Content-Type 欄の解析器
+<node> Content-Type parser
+<p>
+<defun name="mime-parse-Content-Type">
+	  <args> string
+<p>
+<var>string</var> を content-type として解析した結果を返す。
+</defun>
+
+<defun name="mime-read-Content-Type">
+<p>
+現在の buffer の Content-Type 欄を読み取り、解析した結果を返す。
+<p>
+Content-Type 欄が存在しない場合は nil を返す。
+</defun>
+
+
+<h2> Content-Type に関する有用な関数
+<node> Content-Type utility
+<p>
+<defun name="mime-type/subtype-string">
+	  <args> type <opts> subtype
+<p>
+<var>type</var> と <var>subtype</var> から type/subtype 形式の文字列を返
+す。
+</defun>
+
+
+<h1> Content-Disposition 欄の情報
+<node> Content-Disposition
+<p>
+<concept>Content-Disposition 欄</concept> は entity の表示や file 名など
+の属性になどに関する情報を記述するためのものです。
+
+<rfc number="2183" type="Standards Track"
+	      author="S. Dorner, K. Moore and R. Troost"
+	      title="Communicating Presentation Information in
+	      Internet Messages: The Content-Disposition Header"
+	      date="August 1997">
+<p>
+FLIM は Content-Disposition 欄を構文解析する関数と Content-Disposition 
+欄の解析結果を格納する構造体 
+<concept>mime-content-disposition</concept> を提供します。
+
+
+<h2> mime-content-disposition 構造体
+<node> mime-content-disposition
+<p>
+<define type="Structure" name="mime-content-disposition">
+<p>
+Content-Disposition 欄の解析結果を収めるための構造体。
+<p>
+この構造体を参照するには <code>mime-content-disposition-要素名</code> と
+いう名前の参照関数を用いる。
+<p>
+この構造体の要素は以下の通りである：
+
+<vl>
+<dt>disposition-type<dd>disposition-type (symbol).
+</dd>
+<dt>parameters<dd>Content-Disposition 欄の parameter (連想 list).
+</dd>
+</vl>
+</define>
+
+<defun name="mime-content-disposition-parameter">
+<args> content-disposition parameter
+<p>
+<var>content-disposition</var> の <var>parameter</var> の値を返す。
+</defun>
+
+<defun name="mime-content-disposition-filename">
+<args> content-disposition
+<p>
+<var>content-disposition</var> の filename の値を返す。
+</defun>
+
+
+<h2> Content-Disposition 欄の解析器
+<node> Content-Disposition parser
+<p>
+<defun name="mime-parse-Content-Disposition">
+	    <args> string
+<p>
+<var>string</var> を content-disposition として解析した結果を返す。
+</defun>
+
+<defun name="mime-read-Content-Disposition">
+<p>
+現在の buffer の Content-Disposition 欄を読み取り、解析した結果を返す。
+<p>
+Content-Disposition 欄が存在しない場合は nil を返す。
+</defun>
+
+
+<h1> 符号化法
+<node> Content-Transfer-Encoding
+<p>
+<concept>Content-Transfer-Encoding 欄</concept> は entity の符号化法を記
+述するためのものです。
+<p>
+FLIM では Content-Transfer-Encoding 欄を構文解析する関数を提供します。こ
+れらの関数は Content-Transfer-Encoding 欄の情報は文字列で表現します。
+<p>
+また、Content-Transfer-Encoding に基づいて符号化・復号化を行う関数も提
+供されます。
+
+
+<h2> Content-Transfer-Encoding 欄の解析器
+<node> Content-Transfer-Encoding parser
+<p>
+<defun name="mime-parse-Content-Transfer-Encoding">
+	  <args> string
+<p>
+<var>string</var> を content-transfer-encoding として解析した結果を返す。
+</defun>
+
+<defun name="mime-read-Content-Transfer-Encoding">
+	  <opts>default-encoding
+<p>
+現在の buffer の Content-Transfer-Encoding 欄を読み取り、解析した結果を
+返す。
+<p>
+Content-Transfer-Encoding 欄が存在しない場合は
+<var>default-encoding</var> を返す。
+</defun>
+
+
+<h2> 符号化・復号化
+<node> encoder/decoder
+<p>
+<defun name="mime-encode-region">
+	    <args> start end encoding
+<p>
+現在の buffer の <var>start</var> から <var>end</var> までの region を
+<var>encoding</var> を使って符号化します。
+</defun>
+
+<defun name="mime-decode-region">
+	    <args> start end encoding
+<p>
+現在の buffer の <var>start</var> から <var>end</var> までの region を
+<var>encoding</var> を使って復号化します。
+</defun>
+
+
+<defun name="mime-decode-string">
+	    <args> string encoding
+<p>
+<var>string</var> を <var>encoding</var> として復号した結果を返す。
+</defun>
+
+
+<defun name="mime-insert-encoded-file">
+	    <args> filename encoding
+<p>
+<var>ENCODING</var> format で符号化された file <var>FILENAME</var> を
+挿入する。
+</defun>
+
+<defun name="mime-write-decoded-region">
+	      <args> start end filename encoding
+<p>
+<var>encoding</var> で符号化された現在の region を復号化して
+<var>filename</var>に書き込みます。
+<p>
+<var>start<var> と <var>end</var> は buffer の位置です。
+</defun>
+
+
+<h2> 他の utility
+<node> Encoding information
+<p>
+<defun name="mime-encoding-list">
+	    <opts> SERVICE
+<p>
+Content-Transfer-Encoding の list を返します。
+<p>
+<var>service</var> が指定されていると、それに対する
+Content-Transfer-Encoding を返します。
+</defun>
+
+<defun name="mime-encoding-alist">
+	    <opts> SERVICE
+<p>
+補完のための Content-Transfer-Encoding の表を返します。
+<p>
+<var>service</var> が指定されている場合はそれに対する
+Content-Transfer-Encoding の list を返します。
+</defun>
+
+
+<h2> 符号化/復号化 module の書き方
+<node> mel-backend
+<p>
+<defmacro name="mel-define-method">
+<args> name args <rest> body
+<p>
+<var>name</var> を (nth 1 (car (last <var>args</var>))) backend の
+method 関数として定義します。
+<p>
+<var>args</var> は lambda の引数 list と似ていますが、(car (last
+<var>args</var>)) は指定された parameter である必要があります。(car
+(car (last <var>args</var>))) は変数の名前で、(nth 1 (car (last
+<var>args</var>))) は backend の名前 (encoding) です。
+<p>
+例:
+<p>
+<lisp>
+(mel-define-method mime-write-decoded-region (start end filename
+						    (nil "base64"))
+  "Decode and write current region encoded by base64 into FILENAME.
+START and END are buffer positions."
+  (interactive
+   (list (region-beginning) (region-end)
+	 (read-file-name "Write decoded region to file: ")))
+  (let ((str (buffer-substring start end)))
+    (with-temp-buffer
+      (insert (decode-base64-string str))
+      (write-region-as-binary (point-min) (point-max) filename)
+      )))
+</lisp>
+</defmacro>
+
+<defmacro name="mel-define-method-function">
+<args> spec function
+<p>
+<var>spec</var> の関数定義を <var>function</var> に設定します。
+<p>
+<var>spec</var> の最初の要素は service です。
+<p>
+<var>args</var> の残りは lambda の引数 list 似ていますが、(car (last
+<var>args</var>)) は指定された parameter である必要があります。(car
+(car (last <var>args</var>))) は変数の名前で、(nth 1 (car (last
+<var>args</var>))) は backend の名前 (encoding) です。
+<p>
+例:
+<p>
+<lisp>
+(mel-define-method-function (mime-encode-string string (nil "base64"))
+			    'encode-base64-string)
+</lisp>
+</defmacro>
+
+
+<h2> 符号化/復号化 service を追加する方法
+<node> generic function for mel-backend
+<p>
+<defmacro name="mel-define-service">
+<args> name
+<opts> args doc-string
+<p>
+<var>name</var> を Content-Transfer-Encoding の service として定義しま
+す。
+<p>
+<var>args</var> が指定されていると、<var>name</var> は service の
+generic function として定義されます。
+<p>
+例:
+<p>
+<lisp>
+(mel-define-service encoded-text-encode-string (string encoding)
+  "Encode STRING as encoded-text using ENCODING.
+ENCODING must be string.")
+</lisp>
+</defmacro>
+
+
+<h1> Header の network 表現
+<node> encoded-word
+<p>
+encoded-word は header で非 <dref>ASCII</dref> 文字を表現するための形
+式で、<concept>RFC 2047</concept> で定義されています。
+<p>
+<rfc number="2047" type="Standards Track" author="K. Moore"
+	      title="MIME (Multipurpose Internet Mail Extensions) Part
+	      Three: Message Header Extensions for Non-ASCII Text"
+	      date="November 1996" obsolete="1521,1522,1590">
+<p>
+また、行儀の悪いことだと言えますが、encoded-word を用いずに非 
+<dref>ASCII</dref> 文字を header に入れた記事も存在します。
+<p>
+FLIM はこれらを符号化・復号化する機能を提供します。
+
+
+<h2> Header の符号化・復号化
+<node> Header encoder/decoder
+<p>
+<defun name="eword-decode-header">
+	    <opts> code-conversion separator
+<p>
+Header 中の encoded-word を復号する。
+<p>
+もし <var>code-conversion</var> が <code>nil</code> なら、encoded-word 
+だけが復号される。もし、<var>code-conversion</var> が <dref>MIME
+charset</dref> なら、非 ASCII bit patterns はその MIME charset として
+復号される。これ以外の場合、非 ASCII bit patterns は
+<code>default-mime-charset</code>. として復号される。<cf node="entity
+formatting">
+<p>
+もし <var>separator</var> が <code>nil</code> でなければ、その値が
+header separator として用いられる。
+</defun>
+
+<defun name="eword-encode-header">
+	    <opts> code-conversion
+<p>
+Header を network 表現に符号化する。
+<p>
+各 field は <code>mime-field-encoding-method-alist</code> で指定され
+た方式で符号化される。
+</defun>
+
+<defvar name="mime-field-encoding-method-alist">
+<p>
+Field を符号化する方法を指定する連想 list。各 element は (FIELD
+. METHOD) の様になっている。
+<p>
+METHOD が <code>mime</code> であれば、FIELD は MIME format に符号化さ
+れる (encoded-word)。
+<p>
+METHOD が <code>nil</code> であれば、FIELD は符号化されない。
+<p>
+METHOD が MIME charset であれば、FIELD はネットワークコードに変換しな
+ければならないときに charset に符号化される。
+<p>
+そうでなければ、FIELD はネットワークコードに変換しなければならないとき
+に 変数 <code>default-mime-charset</code> で符号化される
+</defvar>
+
+
+<h1> 一般設定
+<node> custom
+<p>
+<define type="group" name="mime">
+<p>
+MIME 関連機能に関する group.
+<p>
+<code>mail</code> と <code>news</code> に属する。
+</define>
+
+
+<h1> 付録
+<node> Appendix
+
+<h2> 用語
+<node> Glossary
+
+<h3> 7bit
+<node> 7bit
+<p>
+ここでは 0 から 127 の整数を指す。
+<p>
+0 から 127 の整数の列で表現できるような data を ``7bit の data'' と呼
+ぶ。
+<p>
+また、0 から 31 および 127 で表現される制御文字と 32 で表現される空白
+と 33 から 126 で表現される図形文字からなる文字列のことを ``7bit の文
+字列'' と呼ぶ（これは <dref>ISO 2022</dref> の「7 単位系」と同様）。
+<p>
+伝統的な Internet の <dref>MTA</dref> は 7bit の data を転送できるので、
+7bit の data は <dref>Quoted-Printable</dref> や <dref>Base64</dref> 
+といった変換を行わなくてもそのまま転送できる。
+<p>
+しかし、7bit であればどんな data でも良いとはいえない。なぜなら、１行
+の長さがあまりに長いと、MTA はその message を転送することができないか
+らである。ちなみに、<dref>RFC 821</dref> は１行は改行文字を除いて 998
+byte 以内であることを求めている。よって、これ以上の行が含まれる可能性
+のある data, 例えば、Postscript の data などは Quoted-Printable 等で 
+encodeする必用がある。
+
+
+<h3> 8bit
+<node> 8bit
+<p>
+ここでは 0 から 255 の整数を指す。
+<p>
+0 から 255 の整数の列で表現できるような data を ``8bit の data'' と呼
+ぶ。
+<p>
+また、0 から 31, 127 および 128 から 159 で表現される制御文字と 32 で
+表現される空白と 33 から 126 と 160 から 255 で表現される図形文字から
+なる文字列のことを ``8bit の文字列'' と呼ぶ（これは <dref>ISO
+2022</dref> の「8 単位系」と同様）。
+<p>
+<dref>iso-8859-1</dref> や <dref>euc-kr</dref> といった符号化文字集合
+は 8bit の文字列である。
+<p>
+伝統的な Internet の <dref>MTA</dref> は <dref>7bit</dref> の data し
+か転送できないので、そうした MTA を経由する場合、
+<dref>Quoted-Printable</dref> や <dref>Base64</dref> といった変換を行
+わなくてはならない。
+<p>
+しかし、最近では 8bit の文字列をそのまま通すことができる MTA も登場し
+てきたので、そのまま送ることができる場合も増えてきた。
+<p>
+しかし、8bit であればどんな data でも良いとはいえない。なぜなら、１行
+の長さがあまりに長いと、MTA はその message を転送することができないか
+らである。ちなみに、<dref>RFC 821</dref> は１行は改行文字を除いて 998
+byte 以内であることを求めている。よって、これ以上の行が含まれる可能性
+のある data, 例えば、Postscript の data などは Quoted-Printable 等で 
+encodeする必用がある。
+<p>
+また、こうした理由から、１行が 999 byte 以上の行が存在する可能性のある
+data は <a node="binary"><concept>binary</concept></a> と呼ぶことにす
+る。
+<p>
+ちなみに、7bit で表現できる data は 8bit でも表現できる。よって、
+``8bit'' と言った場合、１行が 998 byte 以下の任意の data を指すことが
+ある。
+
+
+<h3> ASCII
+<node> ASCII
+<p>
+アメリカ連邦で使われる文字を符号化した<dref>符号化文字集合</dref>。
+A-Z, a-z の Latin 文字と数字、幾つかの記号からなる。ISO 646 の一つで、
+現在は国際基準版 (IRV) になっている。
+
+<standard abbrev="ASCII" title-en="Coded Character Set -- 7-Bit
+	      American Standard Code for Information Interchange"
+	      number="ANSI X3.4" year="1986">
+
+
+<h3> Base64
+<node> Base64
+<p>
+<dref>RFC 2045</dref> で定義されている <dref>MIME</dref> における <a
+node="binary">binary data</a> の network での変換法の１つ。
+<p>
+『64 進数』という意味で、3 byte の data を 0 から 63 の数を表す 
+<dref>ASCII</dref> 4 文字に変換する方法。（もし、4 文字にならなければ 
+<concept>pad</concept> と呼ばれる詰め物をして長さを調整する）
+<p>
+この 65 種類の文字は ASCII と EBCDIC の共通部分から選ばれており、
+Internet 以外の network を経由する場合でも安全に転送できるように設計さ
+れている。
+
+
+<h3> binary
+<node> binary
+<p>
+任意の byte 列を <concept>binary</concept> と呼ぶ。
+<p>
+<dref>8bit</dref> と異なるのは data に行の構造を仮定しないことである。
+<p>
+また、行の構造があっても、999 byte 以上からなる行がある場合も binary 
+と呼ぶことにする。
+<p>
+ちなみに、<dref>7bit</dref> や 8bit で表現できる data は binary でも表
+現できる。よって、<concept>binary data</concept> と言った場合、任意の 
+data を指すことがある。
+
+
+<h3> Coded character set（符号化文字集合）, Character code（文字符号）
+<node> Coded character set
+<p>
+文字と byte 列と１対１に対応付ける曖昧でない規則の集合。
+
+
+<h3> media-type
+<node> media-type
+<p>
+<dref>MIME</dref> における <dref>entity</dref> の種類。
+<concept>primary-type</concept> と <concept>subtype</concept> からなる。
+<dref>RFC 2046</dref> で定義されている。
+<p>
+primary-type は標準では
+
+<ul>
+<li><concept>text</concept>
+</li>
+<li><concept>image</concept>
+</li>
+<li><concept>audio</concept>
+</li>
+<li><concept>video</concept>
+</li>
+<li><concept>application</concept>
+</li>
+<li><a node="multipart"><concept>multipart</concept></a>
+</li>
+<li><concept>message</concept>
+</ul>
+
+<noindent>
+が定義され、それぞれには application/octet-stream, audio/basic,
+image/jpeg, <dref>multipart/mixed</dref>, <dref>text/plain</dref>,
+video/mpeg などのさまざまな subtype が定義されている。
+
+<memo title="注意">
+<p>
+ここでは、text/plain などの type/subtype の組をしばしば 
+<concept>primary-type/subtype</concept> と書く。
+</memo>
+
+<p>
+media-type は、RFC 2046 で定義されているものに加えて、登録することもで
+きる。現在、登録されているものは <a
+href="ftp://ftp.isi.edu/in-notes/iana/assignments/media-types">MEDIA
+TYPES</a> で参照できる。
+<p>
+また、type もしくは subtype に、前に `x-' を付けた 
+<concept>x-token</concept> を用いることにより、登録されていないものを
+私的に用いることもできる。しかし、当然のことながら、こうした私的な 
+media-type は諒解を得た者の間でしか解釈できないので利用には注意するこ
+と。
+<p>
+<cf node="Content-Type">
+
+
+<h3> message
+<node> message
+<p>
+ここでは mail と news 記事の総称として用いる。
+
+
+<h3> MIME
+<node> MIME
+<p>
+<concept>Multipurpose Internet Mail Extensions</concept> の略で、
+Internet の mail や news で <a node="us-ascii">us-ascii plain text</a> 
+以外の文字を使うための <dref>RFC 822</dref> に対する拡張。
+<p>
+RFC 2045 は冒頭で次のように述べている：
+<p>
+STD 11, RFC 822 は、US-ASCII message header に関して非常に詳細に規定し
+た message 表現 protocol を定義している。しかし、それは単に flat な 
+US-ASCII text のみに留まり、message の内容や message body に関する規定
+はなされていない。Multipurpose Internet Mail Extensions, あるいは MIME 
+と総称される、この一連の文書は、以下の事を可能とするために message の
+形式を再定義した：
+
+<ol>
+<li>文書 message body における US-ASCII 以外の文字集合
+</li>
+<li>非文書 message body
+</li>
+<li>複数の部分からなる message body
+</li>
+<li>US-ASCII 以外の文字集合からなる文書 header 情報
+</ol>
+
+<p>
+<dref>RFC 2045</dref>, <dref>RFC 2046</dref>, <a
+node="encoded-word">RFC 2047</a>, <dref>RFC 2048</dref>, <dref>RFC
+2049</dref> で定義されている。
+
+
+<h3> MIME charset
+<node> MIME charset
+<p>
+<dref>Content-Type</dref> 欄や <dref>encoded-word</dref> の charset
+parameter で用いられる登録された<a node="Coded character set">符号化文
+字集合</a>。
+<p>
+<dref>RFC 2045</dref> で定義されている。
+<p>
+iso-2022-jp や euc-kr はその１つ。
+
+
+<h3> MTA
+<node> MTA
+<p>
+<concept>Message Transfer Agent</concept> の略で、qmail や sendmail な
+どの mail 配送 program と inn などの news server の総称。
+<p>
+<cf node="MUA">
+
+
+<h3> MUA
+<node> MUA
+<p>
+<concept>Message User Agent</concept> の略で、mail reader と news
+reader の総称。
+<p>
+<cf node="MTA">
+
+
+<h3> Quoted-Printable
+<node> Quoted-Printable
+<p>
+<dref>RFC 2045</dref> で定義されている <dref>MIME</dref> における 
+<dref>binary data</dref> の network での変換法の１つ。
+<p>
+`=' や制御文字や 128 以上の文字などは `=AF' のように `=' の後に続く 16 
+進数で表現する。このため、<dref>ASCII</dref> 文字中心の data では 
+<dref>Base64</dref> に比べると可読性が高くなる可能性がある。
+<p>
+しかしながら、EBCDIC には存在しない文字を利用する場合、EBCDIC を利用し
+ている network では安全に転送することができず、Base64 に比べて安全性は
+低い。
+
+
+<h3> RFC 822
+<node> RFC 822
+<p>
+Internet mail の主に <concept>message header</concept> に関する形式に
+関する標準を定めている RFC.
+
+<memo>
+<p>
+news message もこれに準じているので、<concept>Internet mail</concept> 
+と書くよりも、<concept>Internet message</concept> と書いた方が良いかも
+しれない。
+</memo>
+
+<rfc number="822" type="STD 11" author="D. Crocker" title="Standard
+	      for the Format of ARPA Internet Text Messages"
+	      date="August 1982">
+
+
+<h3> RFC 1036
+<node> RFC 1036
+<p>
+USENET での message の形式を定めた RFC.  <dref>RFC 822</dref> の 
+subset になっている。Internet の標準ではないが、USENET 以外の netnews 
+でもこれに準じているものが多い。
+
+<rfc name="USENET" number="1036" author="M. Horton and R. Adams"
+	      title="Standard for Interchange of USENET Messages"
+	      date="December 1987" obsolete="850">
+
+
+<h3> RFC 2045
+<node> RFC 2045
+<p>
+<rfc number="2045" type="Standards Track" author="N. Freed and
+	      N. Borenstein" title="Multipurpose Internet Mail
+	      Extensions (MIME) Part One: Format of Internet Message
+	      Bodies" date="November 1996" obsolete="1521, 1522,
+	      1590">
+
+
+<h3> RFC 2046
+<node> RFC 2046
+<p>
+<rfc number="2046" type="Standards Track" author="N. Freed and
+	      N. Borenstein" title="Multipurpose Internet Mail
+                 Extensions (MIME) Part Two: Media Types"
+                 date="November 1996" obsolete="1521, 1522, 1590">
+
+
+<h3> RFC 2048
+<node> RFC 2048
+<p>
+<rfc number="2048" type="Standards Track" author="N. Freed, J. Klensin
+	      and J. Postel" title="Multipurpose Internet Mail
+	      Extensions (MIME) Part Four: Registration Procedures"
+	      date="November 1996" obsolete="1521, 1522, 1590">
+
+
+<h3> RFC 2049
+<node> RFC 2049
+<p>
+<rfc number="2049" type="Standards Track" author="N. Freed and
+	      N. Borenstein" title="Multipurpose Internet Mail
+	      Extensions (MIME) Part Five: Conformance Criteria and
+	      Examples" date="November 1996" obsolete="1521, 1522,
+	      1590">
+
+
+<h3> plain text
+<node> plain text
+<p>
+書体や組版に関する情報を持たない<a node="Coded character set">文字符号
+</a>のみで表現される text 情報。<cf node="text/plain">
+
+
+<h3> us-ascii
+<node> us-ascii
+<p>
+アメリカ連邦などで使われる英語などを表現するための <dref>MIME
+charset</dref> の１つ。
+<p>
+<dref>ASCII</dref> のみからなり ISO 2022 による符号拡張は許されない。
+<p>
+Internet message における標準の<a node="Coded character set">符号化文
+字集合</a>であり、明示的に MIME charset が示されない場合は原則として 
+<concept>us-ascii</concept> が使われる。
+<p>
+また、<dref>RFC 822</dref> における <concept>ASCII</concept> 
+は us-ascii である。
+
+
+<h2> bug 報告の仕方
+<node> Bug report
+<p>
+FLIM のバグを見つけたら、以下の address に mail を送ってください：
+
+<ul>
+<li> 英語 <mail>emacs-mime-en@m17n.org</mail>
+<li> 日本語 <mail>emacs-mime-ja@m17n.org</mail>
+</ul>
+
+<p>
+但し、あまりにも古い版に関する報告は歓迎されません。古い版の bug は、
+新しい版では治っているかもしれません。まず、最新版で確認してみましょう。
+<p>
+それから、適切な報告をしましょう。単に「うまく動かない」と言われてもど
+ういう状況なのかはさっぱり判りません。最低限、OS, emacs, APEL, FLIM,
+SEMI, 使っている MUA の種類および版、設定を書く必要があります。また、
+error が起っている場合は backtrace を送ることも重要です。<cf
+file="emacs" node="Bugs">
+<p>
+また、bug は大抵複数の人が遭遇するものです（そうでなければ、bug ではな
+い可能性があります）。だから、作者に直接 mail を送ると作者は同じ mail
+を何通も書く羽目になります。だから、必ず bug 報告は上記の address に送っ
+てください。
+
+<p>
+EMACS-MIME ML では FLIM のバグ情報の交換や最新版の配布、FLIM の改良に
+関する議論を行なっています。EMACS-MIME ML に参加したい方は
+
+<ul>
+<li> 英語 <mail>emacs-mime-en-ctl@m17n.org</mail>
+<li> 日本語 <mail>emacs-mime-ja-ctl@m17n.org</mail>
+</ul>
+
+<noindent>
+に空の mail を送って下さい。
+
+
+<h2> CVS による開発
+<node> CVS
+<p>
+FLIM の file は CVS を使って管理されています。このため、以下の方法で最
+新の FLIM を入手することができます：
+
+<verb>
+(0) cvs login
+
+    % cvs -d :pserver:anonymous@cvs.m17n.org:/cvs/root login
+
+    CVS password: [CR] # NULL string
+
+(1) checkout
+
+    % cvs -d :pserver:anonymous@cvs.m17n.org:/cvs/root \
+	checkout [-r TAG] flim
+</verb>
+
+<p>
+CVS を用いた開発に参加したい方は
+
+<ul>
+<li> <mail>cvs@cvs.m17n.org</mail>
+</ul>
+
+<noindent>
+まで、アカウント名と ssh の公開鍵を送ってください。ssh 経由では、
+cvsroot は :ext:cvs@cvs.m17n.org:/cvs/root となります。
+
+
+<h2> 歴史
+<node> History
+<p>
+FLIM の code の最古の部分は 榎並 嗣智 氏が書いた <file>mime.el</file>
+に起源します。この小さな program は Nemacs で動作する iso-2022-jp の 
+B-encoding 専用の encoded-word の復号化プログラムでした。
+<p>
+その後、守岡 知彦 は <file>mime.el</file> を元に
+<file>tiny-mime.el</file> というプログラムを書きます。これは、Nemacs 
+と Mule で動作する encoded-word の符号化・復号化プログラムでした。
+<file>tiny-mime.el</file> は B-encoding だけでなく Q-encoding も
+support し、また、MULE で扱うことができるさまざまな <dref>MIME
+charset</dref> を同時に使うことができました。この時、Nemacs と Mule の
+双方を support するために用いられたテクニックは後に emu package にまと
+められます。
+<p>
+この頃、守岡 知彦 は <file>tiny-mime.el</file> をさまざまな MUA で使う
+ための設定集も配布していましたが、それらは後に
+<file>tiny-mime.el</file> とともに１つの package にまとめられ、tm とい
+う名前で配布されます。
+<p>
+守岡 知彦 はやがて、MIME message を閲覧するためのプログラムである
+<file>tm-body.el</file> を書きます。これは、すぐに
+<file>tm-view.el</file> という名前に変わりましたが、やがて、これが
+<file>tiny-mime.el</file> に代わって、tm の中核となります。
+<p>
+<file>tm-view.el</file> は当然、Content-Transfer-Encoding を扱う必要が
+あります。この目的のために、MEL が整備されはじめました。Base64 に関し
+ては <file>tiny-mime.el</file> の code が移され、また、新たに
+Quoted-Printable の code が追加されました。これらが
+<file>mel-b.el</file> と <file>mel-q.el</file> になりました。
+<p>
+また、後に、守岡 知彦 によって uuencode 用の <file>mel-u.el</file> が
+追加され、その後に、小林 修平 氏によって x-gzip64 用の
+<file>mel-g.el</file> が追加されました。
+<p>
+tm では後に、守岡 知彦 によって <file>tiny-mime.el</file> の再実装が行
+われ、この過程で、STD 11 の parser が書かれました。これは、現在の 
+<file>std11.el</file> に当たります。また、この過程で 
+<file>tiny-mime.el</file> は復号化を行う <file>tm-ew-d.el</file> と符
+号化を行う <file>tm-ew-e.el</file> に分けられました。この両者が現在の 
+<file>eword-decode.el</file> と <file>eword-encode.el</file> の先祖に
+当たります。
+<p>
+後に、守岡 知彦 らによって tm の全面書き換え作業が行われ、この過程で、
+tm は APEL, MEL, SEMI, EMH, RMAIL-MIME, Gnus-MIME などに分けられました。
+このうちの MEL が FLIM の直接の先祖に当たります。
+<p>
+後に、APEL から <file>std11.el</file> が移され、また、
+<file>mailcap.el</file>, <file>eword-decode.el</file> および 
+<file>eword-encode.el</file> が SEMI から移され、package の名前が FLIM
+となります。
+<p>
+この直前から田中 哲 氏がより RFC に忠実な実装を書き始め、これは、現在、
+FLIM の枝である ``FLIM-FLAM'' となっています。
+
+
+<h1> 概念索引
+<node> Concept Index
+
+<cindex>
+
+
+<h1> 関数索引
+<node> Function Index
+
+<findex>
+
+
+<h1> 変数索引
+<node> Variable Index
+
+<vindex>
+
+</body>

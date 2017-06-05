@@ -1,0 +1,58 @@
+*** This is a detail of OAF internals. You do not need to know this information
+in order to write programs that use the OAF API. ***
+
+This whole setup is to allow finding objects that give us initial
+entry to a universe of CORBA objects. The references to these initial
+objects must be bootstrapped out of thin air, so we use well-known
+locations to check if they are running and to make their existence
+known when started.
+
+OAFRegistrationCategory:
+	Attributes that an initial object needs to have.
+
+	'name' is the repo ID of the object that would need
+	bootstrapping - IOW the object type. Currently this would be
+	either IDL:OAF/ActivationContext:1.0 or IDL
+
+	'session_name' is to allow things like two different OD's on the same
+	user/host/domain for different $DISPLAY.
+
+	'username', 'hostname' - in the traditional UNIX sense.
+
+	'domain' - I think this was supposed to work like 'session_name'.
+	So broken and confusing - need to run through the usage in some
+	sample cases to get it right.
+
+OAFRegistrationLocation:
+	Provides the implementation of a "well-known location". liboaf comes
+	with one that looks in local files in /tmp/orbit-sopwith. gnome-libs
+	HEAD has one that looks at a root window property.
+
+OAFServiceActivator: A function that can get called to start an
+initial object if it can't be found by any of the
+OAFRegistrationLocations. gnome-libs defines one of these that tries
+to start oafd on a remote machine via rsh/ssh, but I think I forgot to
+write the accompanying OAFRegistrationLocation that checks for an
+existing one. Or something like that.
+
+OAF handles multiple OAFRegistrationLocations and OAFServiceActivators
+internally.
+
+BUGS:
+
+. You really want to be able to do things like use the
+ActivationContext listed on $DISPLAY even if you aren't in a GUI
+program, or be able to have remote ObjectDirectorys activated even in
+a local non-gnome-libs-HEAD program. The only solution that has
+presented itself so far is to install a shared library for each
+regloc/serviceactivator, then have liboaf run a small program that
+checks all the reglocs and returns the object requested. This is
+slow. This would also have problems if the non-GUI program was run as
+a daemon or something else (e.g. what if you have a BIFF-like program
+that gets run from procmailrc and tries to talk to Your Favorite Mail
+Check Program? $DISPLAY won't be set for /usr/bin/corbabiff)
+
+. Yes, the naming really sucks, but people writing OAF-using programs
+don't have to use this API so it's not too bad.
+
+- ECL

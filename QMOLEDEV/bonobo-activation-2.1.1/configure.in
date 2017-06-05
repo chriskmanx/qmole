@@ -1,0 +1,279 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(idl/Bonobo_ActivationContext.idl)
+
+BONOBO_ACTIVATION_MAJOR_VERSION=2
+BONOBO_ACTIVATION_MINOR_VERSION=1
+BONOBO_ACTIVATION_MICRO_VERSION=1
+BONOBO_ACTIVATION_INTERFACE_AGE=4
+BONOBO_ACTIVATION_BINARY_AGE=0
+BONOBO_ACTIVATION_VERSION="$BONOBO_ACTIVATION_MAJOR_VERSION.$BONOBO_ACTIVATION_MINOR_VERSION.$BONOBO_ACTIVATION_MICRO_VERSION"
+AM_INIT_AUTOMAKE(bonobo-activation, $BONOBO_ACTIVATION_VERSION)
+AC_SUBST(BONOBO_ACTIVATION_MAJOR_VERSION)
+AC_SUBST(BONOBO_ACTIVATION_MINOR_VERSION)
+AC_SUBST(BONOBO_ACTIVATION_MICRO_VERSION)
+AC_SUBST(BONOBO_ACTIVATION_INTERFACE_AGE)
+AC_SUBST(BONOBO_ACTIVATION_BINARY_AGE)
+
+AC_PROG_INTLTOOL
+
+# libtool versioning
+LT_CURRENT=4
+LT_REVISION=0
+LT_AGE=0
+LT_VERSION_INFO='-version-info ${LT_CURRENT}:${LT_REVISION}:${LT_AGE}'
+AC_SUBST(LT_VERSION_INFO)
+AC_SUBST(LT_CURRENT)
+AC_SUBST(LT_REVISION)
+AC_SUBST(LT_AGE)
+
+
+dnl Specify a header configuration file
+AM_CONFIG_HEADER(config.h)
+
+dnl Initialize maintainer mode
+AM_MAINTAINER_MODE
+
+dnl Initialize libtool
+AM_DISABLE_STATIC
+AM_PROG_LIBTOOL
+
+dnl Build time sanity check
+AM_SANITY_CHECK
+
+dnl Checks for programs.
+AC_PROG_CC
+AM_PROG_LEX
+if [[ "$LEX" != "flex" ]]; then
+        AC_MSG_ERROR([flex is required to build bonobo-activation])
+fi
+AC_SUBST(LFLAGS)
+
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+AC_ISC_POSIX
+
+AC_CHECK_PROGS(YACC, 'bison -y' byacc yacc, no)
+if test "x$YACC" = "xno" ; then
+  AC_MSG_ERROR([yacc is required to build bonobo-activation])
+fi
+
+dnl internationalization support
+ALL_LINGUAS="az ar be bg ca cs da de el es fi fr ga gl hi hu it ja ko lv ms nl nn no pl pt pt_BR ro ru sk sl sq sv ta tr uk vi zh_CN zh_TW"
+
+GETTEXT_PACKAGE=bonobo-activation
+AC_SUBST(GETTEXT_PACKAGE)
+AC_DEFINE_UNQUOTED(GETTEXT_PACKAGE, "$GETTEXT_PACKAGE")
+
+AM_GLIB_GNU_GETTEXT
+
+dnl Checks for libraries.
+PKG_CHECK_MODULES(BONOBO_ACTIVATION, \
+	gmodule-2.0 >= 2.0.1 \
+	ORBit-2.0 >= 2.4.0 \
+	linc >= 0.5.1)
+AC_SUBST(BONOBO_ACTIVATION_LIBS)
+AC_SUBST(BONOBO_ACTIVATION_CFLAGS)
+
+PKG_CHECK_MODULES(SERVER, \
+	gmodule-2.0 >= 2.0.1 \
+	ORBit-2.0 >= 2.4.0 \
+	ORBit-CosNaming-2.0 >= 2.4.0 \
+	libxml-2.0 >= 2.4.20)
+AC_SUBST(SERVER_LIBS)
+AC_SUBST(SERVER_CFLAGS)
+
+PKG_CHECK_MODULES(UTILS, \
+	gmodule-2.0 >= 2.0.1 \
+	ORBit-2.0 >= 2.4.0 \
+	libxml-2.0 >= 2.4.20)
+AC_SUBST(UTILS_LIBS)
+AC_SUBST(UTILS_CFLAGS)
+
+ORBIT_IDL="`$PKG_CONFIG --variable=orbit_idl ORBit-2.0`"
+AC_SUBST(ORBIT_IDL)
+
+  
+dnl **************************
+dnl *** Checks for gtk-doc ***
+dnl **************************
+
+AC_ARG_WITH(html-dir, [  --with-html-dir=PATH path to installed docs ])
+
+if test "x$with_html_dir" = "x" ; then
+  HTML_DIR='${datadir}/gtk-doc/html'
+else
+  HTML_DIR=$with_html_dir
+fi
+
+AC_SUBST(HTML_DIR)
+
+AC_CHECK_PROG(GTKDOC, gtkdoc-mkdb, true, false)
+
+gtk_doc_min_version=0.6
+if $GTKDOC ; then 
+    gtk_doc_version=`gtkdoc-mkdb --version`
+    AC_MSG_CHECKING([gtk-doc version ($gtk_doc_version) >= $gtk_doc_min_version])
+
+    IFS="${IFS= 	}"; bonobo_activation_save_IFS="$IFS"; IFS="."
+    set $gtk_doc_version
+    for min in $gtk_doc_min_version ; do
+        cur=$1; shift
+        if test -z $min ; then break; fi
+        if test -z $cur ; then GTKDOC=false; break; fi
+        if test $cur -gt $min ; then break ; fi
+        if test $cur -lt $min ; then GTKDOC=false; break ; fi
+    done
+    IFS="$bonobo_activation_save_IFS"
+
+    if $GTKDOC ; then
+      AC_MSG_RESULT(yes)
+   else
+      AC_MSG_RESULT(no)
+   fi
+fi
+
+AM_CONDITIONAL(HAVE_GTK_DOC, $GTKDOC)
+AC_SUBST(HAVE_GTK_DOC)
+
+AC_CHECK_PROG(DB2HTML, db2html, true, false)
+AM_CONDITIONAL(HAVE_DOCBOOK, $DB2HTML)
+
+dnl Let people disable the gtk-doc stuff.
+AC_ARG_ENABLE(gtk-doc, [  --enable-gtk-doc  Use gtk-doc to build documentation [default=auto]], enable_gtk_doc="$enableval", enable_gtk_doc=auto)
+
+if test x$enable_gtk_doc = xauto ; then
+  if test x$GTKDOC = xtrue ; then
+    enable_gtk_doc=yes
+  else
+    enable_gtk_doc=no 
+  fi
+fi
+
+dnl NOTE: We need to use a separate automake conditional for this
+dnl       to make this work with the tarballs.
+AM_CONDITIONAL(ENABLE_GTK_DOC, test x$enable_gtk_doc = xyes)
+
+  
+dnl **************************
+dnl *** End checks for gtk-doc ***
+dnl **************************
+
+
+AC_CHECK_LIB(popt, poptStrippedArgv,, AC_MSG_ERROR([popt 1.5 or newer is required to build
+bonobo-activation. You can download the latest version from ftp://ftp.rpm.org/pub/rpm/dist/rpm-4.0.x/]))
+
+dnl Checks for header files.
+AC_HEADER_DIRENT
+AC_HEADER_STDC
+AC_CHECK_HEADERS(fcntl.h unistd.h alloca.h malloc.h locale.h)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+
+dnl Checks for library functions
+AC_CHECK_FUNCS(select strcspn strdup strtol snprintf usleep nanosleep unsetenv)
+
+dnl declare --enable-* args
+
+bonobo_activation_debug_default=no;
+
+AC_ARG_ENABLE(bonobo-activation-debug, [
+  --enable-bonobo-activation-debug=[no/yes] turn on debugging [default=$bonobo_activation_debug_default]
+],enable_bonobo_activation_debug=$enableval,enable_bonobo_activation_debug=$debug_default)
+
+if test "x$enable_bonobo_activation_debug" = "xyes"; then
+	AC_DEFINE(BONOBO_ACTIVATION_DEBUG)
+fi
+
+dnl turn warnings into errors to enforce clean code
+
+
+AC_ARG_ENABLE(more-warnings,
+[  --enable-more-warnings  Maximum compiler warnings],
+set_more_warnings="$enableval",[
+if test -f $srcdir/CVSVERSION; then
+	set_more_warnings=yes
+else
+	set_more_warnings=no
+fi
+])
+
+if test "$GCC" = "yes" -a "$set_more_warnings" != "no"; then
+	echo "enable compile warnings = $set_more_warnings"
+	CFLAGS="\
+	-Wall \
+	-Wchar-subscripts -Wmissing-declarations -Wmissing-prototypes \
+	-Wnested-externs -Wpointer-arith \
+	-Wno-unused \
+	$CFLAGS"
+
+	for option in -Wsign-promo -Wno-sign-compare; do
+		SAVE_CFLAGS="$CFLAGS"
+		CFLAGS="$CFLAGS $option"
+		AC_MSG_CHECKING([whether gcc understands $option])
+		AC_TRY_COMPILE([], [],
+			has_option=yes,
+			has_option=no,)
+		CFLAGS="$SAVE_CFLAGS"
+		if test $has_option = yes; then
+		  CFLAGS="$CFLAGS $option"
+		fi
+		AC_MSG_RESULT($has_option)
+		unset has_option
+		unset SAVE_CFLAGS
+	done
+	unset option
+fi
+
+AC_PATH_PROG(PERL_PATH, perl)
+if test -n "$PERL_PATH"; then
+	BONOBO_SLAY=bonobo-slay
+	AC_PATH_PROG(PS_PATH, ps)
+	AC_CACHE_CHECK([for POSIX ps], ac_cv_prog_ps_posix, [
+		USER=${USER:-${LOGNAME:-`logname`}}
+		if $PS_PATH -U $USER -opid,args >/dev/null 2>&1; then
+			ac_cv_prog_ps_posix=yes
+		else
+			ac_cv_prog_ps_posix=no
+		fi
+	])
+	if test "$ac_cv_prog_ps_posix" = yes; then
+		IF_BSD_PS=#
+	else
+		IF_POSIX_PS=#
+	fi
+fi
+AC_SUBST(PERL_PATH)
+AC_SUBST(BONOBO_SLAY)
+AC_SUBST(PS_PATH)
+AC_SUBST(IF_BSD_PS)
+AC_SUBST(IF_POSIX_PS)
+
+
+AC_OUTPUT([
+Makefile
+bonobo-activation.spec
+idl/Makefile
+docs/Makefile
+api-docs/Makefile
+bonobo-activation/Makefile
+bonobo-activation/bonobo-activation-version.h
+server/Makefile
+test/Makefile
+utils/Makefile
+utils/bonobo-slay
+po/Makefile.in
+bonobo-activation-2.0.pc
+])
+
+echo "
+bonobo-activation-$BONOBO_ACTIVATION_VERSION
+
+configuration:
+
+	prefix:                 ${prefix}
+	source code location:	${srcdir}
+	compiler:		${CC}
+	yacc:			${YACC}
+"

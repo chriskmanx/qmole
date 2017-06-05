@@ -1,0 +1,707 @@
+<!doctype sinfo system>
+<head>
+<title>SEMI 1.14 Manual
+<author>MORIOKA Tomohiko <mail>morioka@jaist.ac.jp</mail>
+<date>1998/07/03
+
+<toc>
+</head>
+
+<body>
+
+<abstract>
+<p>
+This file documents SEMI, a MIME user interface for GNU Emacs.
+</abstract>
+
+
+<h1> What is SEMI?
+<node> Introduction
+<p>
+SEMI is a package for GNU Emacs to provide features related with MIME
+user interface.
+<p>
+SEMI provides two user interfaces: MIME-View and MIME-Edit.
+<p> 
+MIME-View is a kernel of user interface to display or operate MIME
+messages, STD 11 messages or ``localized RFC 822'' messages.
+<p>
+MIME-Edit is a user interface to compose MIME messages.
+<p>
+Each MUA can use powerful MIME features to combine these features.
+
+
+<h1> MIME message viewing
+<node> MIME-View
+<p>
+MIME-View is a MIME viewer for wide use that runs on GNU Emacs.
+<p>
+MIME-View is the kernel of the user interface for browsing MIME
+messages. You can start some presentation-method which is a program for
+creating some representation, or some acting-method which is a program
+for processing the entity. Then you can deal with a variety of entities.
+
+
+<h2> Basic design
+<node> Overview of MIME-View
+<p>
+The representation form of the internet messages in electric letters
+or in net news is based on STD 11. The STD 11 message body is a plain
+text which consists of lines as its only structure, and the character
+code is fixed as us-ascii. Actually, there are ``localized STD 11''
+messages that use some character code in their linguistic range
+instead of using us-ascii. Even in that case, the character code in
+the message is single. Therefore, Message User Agents have considered
+(byte row) = (us-ascii string), or (byte row) = (string in the
+character code in the linguistic range).
+<p>
+Although, the MIME message has the tree structure in entity unit.
+And one message can contain multiple character codes. The content of
+an entity can be not only a letter or an image that can be displayed
+simply, but also can be a voice or an animation that are played for
+some time interval, a data for some specific application, a source
+code of some program, or an external reference that consists of
+the usage of ftp or mail service, or some URL. Therefore the simple
+extension of STD 11 user interface, which only consider displaying
+the message, cannot treat all of the MIME functionalities.
+Then it is not sufficient to decode message along its MIME type, but
+it is also required to consider a playback processing through some
+dialogue with the user. The format of MIME messages is designed
+to easily be passed to automatic processing. But some contents in the
+MIME message should not be passed to automatic processing for security
+reasons. So it should be designed to ask user in such cases.
+After all, in order to deal with MIME message, it is required to
+distinguish the representation for information exchange which is
+written in STD 11 or MIME construction, and its result
+after some interpretation which is a display screen or a playback
+process. It is also needed to converse with user for playback
+processing.
+<p>
+Therefore, MIME-View uses two buffers for one document, one is the
+mime-raw-buffer that stores the representation for information exchange,
+and the other is the mime-preview-buffer that stores the representation
+for displaying.
+<p>
+MIME-View provides a mode in the mime-preview-buffer for reading MIME
+message, which is called as mime-view-mode. User can manipulate each
+entity there.
+
+
+<h2> Presentation of mime-preview-buffer
+<node> MIME-Preview
+<p>
+mime-view-mode displays information about each entity as
+<p>
+<verb>
+	[entity-button]
+	(header)
+	
+	(body)
+	(separator)
+</verb>
+<p>
+<noindent>
+You can change their design or inhibit showing some of them, according
+to some condition
+<p>
+See following example
+
+
+<verb>
+From: morioka@jaist.ac.jp (MORIOKA Tomohiko)
+Subject: Re: question?
+Newsgroups: zxr.message.mime
+Date: 22 Oct 93 11:02:44
+Mime-Version: 1.0
+Organization: Japan Advanced Institute of Science and Technology,
+        Ishikawa, Japan
+
+[1  (text/plain)]
+  How to compose MIME message in MIME-Edit mode.
+
+  C-c C-x ? shows its help.
+
+C-c C-x C-t	insert a text message.
+C-c C-x TAB	insert a (binary) file.
+C-c C-x C-e	insert a reference to external body.
+C-c C-x C-v	insert a voice message.
+C-c C-x C-y	insert a mail or news message.
+C-c C-x RET	insert a mail message.
+C-c C-x C-s	insert a signature file at end.
+C-c C-x t	insert a new MIME tag.
+C-c C-x a	enclose as multipart/alternative.
+C-c C-x p	enclose as multipart/parallel.
+C-c C-x m	enclose as multipart/mixed.
+C-c C-x d	enclose as multipart/digest.
+C-c C-x s	enclose as PGP signed.
+C-c C-x e	enclose as PGP encrypted.
+C-c C-x C-k	insert PGP public key.
+C-c C-x C-p	preview editing MIME message.
+...
+
+therefore, you should type C-c C-x C-i and specify the binary file
+which you want to insert.
+
+  You should select Base64 as MIME encoding for binary file.
+
+[2  (image/gif)]
+
+[3  (text/plain)]
+
+  Like above, you can compose the message with image.
+
+==================== Take A Cup Of Russian Tea  ======================
+=========  ** Not With Jam Nor Marmalade But With Honey **  ==========
+=========                 MORIOKA TOMOHIKO                  ==========
+==============  Internet E-mail: &lt;morioka@@jaist.ac.jp&gt;  ==============
+</verb>
+
+
+<h3> entity-button
+<node> entity-button
+<p>
+<concept>entity-button</concept> is a tag on the top of the entity
+which shows brief information of the part.
+<p>
+Normally, it appears as
+
+<verb>
+        [1.3 test (text/plain)]
+</verb>
+
+<p>
+The number on the head describes the place of the entity in the
+message (like the section number) and it is called as
+<concept>entity-number</concept>.
+<p>
+The string in the next describes its title. This information is
+taken from
+
+<ol>
+<li>Title described in Content-Description field or Subject field
+<li>File name specified by filename parameter in Content-Disposition field
+<li>File name specified by name parameter in Content-Type field
+<li>File name for uuencode'ing
+</ol>
+
+<noindent>
+If none of them are specified, displays a blank.
+<p>
+The 3rd item in the parenthesis describes media-type/subtype of
+the entity. If it is is not MIME entity, it displays <code>nil</code>.
+<p>
+This entity-button plays a role like icon that symbolically
+shows the content of the entity. For example, push <kbd>v</kbd> on
+
+<verb>
+        [2  (image/gif)]
+</verb>
+
+<noindent>
+shows up the image contained there.
+<p>
+If the mouse operation is possible, you can display the image
+by pushing 2nd button (the middle button for 3 button mouse) too.
+
+
+<h3> entity-header
+<node> entity-header
+<p>
+<concept>entity-header</concept> is the header of the entity.
+(Don't blame me as ``You say nothing more than as it is'',
+It is no more than that.)
+
+<h3> entity-body
+<node> entity-body
+<p>
+<concept>entity-body</concept> is the content of the part.
+<p>
+Sophistication does not seem enough here also, but it is really such
+a thing.
+<p>
+Though, it actually be twisted a little.
+<p>
+The text entity is passed to code conversion according to its charset,
+and the image entity should be converted on XEmacs.
+<p>
+Details will be described later.
+
+
+<h2> Operation in mime-preview-buffer
+<node> mime-view-mode
+<p>
+mime-preview-buffer posesses following functionalities.
+<p>
+<kl>
+<kt>u
+<kd>
+go back to upper part (in the first part of the message,
+go back to the Summary mode (*1))
+</kd>
+<kt>p<kd>go to previous part
+</kd>
+<kt>M-TAB<kd>go to previous part
+</kd>
+<kt>n<kd>go to next part
+</kd>
+<kt>TAB<kd>go to next part
+</kd>
+<kt>SPC<kd>scroll up
+</kd>
+<kt>M-SPC<kd>scroll down
+</kd>
+<kt>DEL<kd>scroll down
+</kd>
+<kt>RET<kd>go to next line
+</kd>
+<kt>M-RET<kd>go to previous line
+</kd>
+<kt>v<kd>play current part (*2)
+</kd>
+<kt>e<kd>extract file from current part (*2)
+</kd>
+<kt>C-c C-p<kd>print current part (*2)
+</kd>
+<kt>mouse-button-2
+<kd>
+start the mouse button in preview-buffer
+<p>
+on content-button, play current part (*2)
+<p>
+on URL-button, start WWW browser
+</kd>
+</kl>
+<p>
+<memo title="Notice">
+<p>
+(*1) Do not go back to Summary mode unless appropriately
+configured for mime-view in the MUA.
+<p>
+(*2) actual behavior depends on the associated method
+</memo>
+
+
+<h1> MIME message editing
+<node> MIME-Edit
+<p>
+<concept>MIME-Edit</concept> is a general MIME composer for GNU Emacs.
+
+
+<h2> Minor-mode to edit MIME message
+<node> mime-edit-mode
+<p>
+<concept>mime-edit-mode</concept> is a minor mode to compose MIME
+message.  In this mode, <concept>tag</concept> represents various
+kinds of data, so you can edit multi part message consists of various
+kinds of data, such as text, image, audio, etc.
+<p>
+There are 2 kinds of tags:
+
+<ul>
+<li> single-part tag
+<li> multi-part tag
+</ul>
+<p>
+single-part tag represents single part, this form is following:
+<p>
+<verb>
+        --[[TYPE/SUBTYPE;PARAMETERS][ENCODING]
+        OPTIONAL-FIELDS]
+</verb>
+<p>
+TYPE/SUBTYPE and PARAMETERS indicates type/subtype and parameters of
+<dref file="mime-en">Content-Type</dref> field.  TYPE/SUBTYPE is
+required, PARAMETERS is optional.
+<p>
+ENCODING indicates <dref
+file="mime-ja">Content-Transfer-Encoding</dref> field.  It is optional
+too.
+<p>
+OPTIONAL-FIELDS is to represent another fields except Content-Type
+field and Content-Transfer-Encoding field.
+<p>
+multi-part tags represent <a file="mime-en" node="multipart">multi
+part</a>.  They consist of a pair of <concept>multi-part beginning
+tag</concept> and <concept>multi-part ending tag</concept>.
+<p>
+multi-part beginning tag's form is following:
+
+<verb>
+        --<<TYPE>>-{
+</verb>
+<p>
+multi-part ending tag's form is following:
+
+<verb>
+        --}-<<TYPE>>
+</verb>
+<p>
+A region from multi-part beginning tag to multi-part ending tag is
+called as <concept>enclosure</concept>.
+
+
+<h2> Operations for single-part
+<node> single-part tags
+<p>
+Operations to make single-part are following:
+
+<kl>
+<kt>C-c C-x C-t
+<kd>
+Insert single-part tag indicates text part.
+</kd>
+<kt>C-c C-x C-i
+<kd>
+Insert file as a MIME attachment.  If <kbd>C-u</kbd> is followed by
+it, it asks media-type, subtype or encoding even if their default
+values are specified. <cf node="tag specification for inserted file">
+</kd>
+<kt>C-c C-x C-e
+<kd>
+Insert external part.
+</kd>
+<kt>C-c C-x C-v
+<kd>
+Record audio input until <kbd>C-g</kbd> is pressed, and insert as a
+audio part. (It requires /dev/audio in default.)
+</kd>
+<kt>C-c C-x C-y
+<kd>
+Insert current (mail or news) message. (It is MUA depended.)
+</kd>
+<kt>C-c C-x C-m
+<kd>
+Insert mail message. (It is MUA depended.)
+</kd>
+<dt><key>C-c C-x C-w</key>, <key>C-c C-x C-s</key>
+<dd>
+Insert signature.
+</dd>
+<kt>C-c C-x C-k
+<kd>
+Insert <dref>PGP</dref> public key.
+</kd>
+<kt>C-c C-x t
+<kd>
+Insert any single-part tag.
+</kl>
+
+
+<h2> Operations for enclosure
+<node> enclosure tags
+<p>
+Operations to make enclosure are following:
+
+<kl>
+<kt>C-c C-m C-a
+<kd>
+Enclose specified region as multipart/alternative.
+</kd>
+<kt>C-c C-x C-p
+<kd>
+Enclose specified region as multipart/parallel.
+</kd>
+<kt>C-c C-x C-m
+<kd>
+Enclose specified region as multipart/mixed.
+</kd>
+<kt>C-c C-x C-d
+<kd>
+Enclose specified region as multipart/digest.
+</kd>
+<kt>C-c C-x C-s
+<kd>
+Digital-sign to specified region. <cf node="PGP">
+</kd>
+<kt>C-c C-x C-e
+<kd>
+Encrypt to specified region. <cf node="PGP">
+</kd>
+<kt>C-c C-x C-q
+<kd>
+avoid to encode tags in specified region.  In other words, tags is
+interpreted as such string.  (In current version, it may be
+incomplete.  Maybe PGP-signature does not work for this enclosure.)
+</kl>
+
+
+<h2> Other operations
+<node> other MIME-Edit operations
+<p>
+There are another operations in mime-edit-mode.
+
+<kl>
+<kt>C-c C-c
+<kd>
+Send current editing message.
+</kd>
+<kt>C-c C-x p
+<kd>
+Preview current editing message. <cf node="MIME-View">
+</kd>
+<kt>C-c C-x C-z
+<kd>
+Exit mime-edit-mode without sending.
+</kd>
+<kt>C-c C-x /
+<kd>
+Set current editing message to enable automatic splitting or not.
+Form of automatic split messages is message/partial.
+</kd>
+<kt>C-c C-x 7
+<kd>
+Set <dref file="mime-en">7bit</dref> to <dref>transfer level</dref>.
+</kd>
+<kt>C-c C-x 8
+<kd>
+Set <dref file="mime-en">8bit</dref> to <dref>transfer level</dref>.
+</kd>
+<kt>C-c C-x v
+<kd>
+Set current editing message to digital-sign or not. <cf node="PGP">
+</kd>
+<kt>C-c C-x h
+<kd>
+Set current editing message to encrypt or not. <cf node="PGP">
+<kt>C-c C-x ?
+<kd>
+Display help message.
+</kl>
+
+
+<h2> How to detect tag for inserted file
+<node> file-type specification
+<p>
+When <kbd>C-c C-x C-i</kbd> (<code>mime-edit-insert-file</code>) is
+pressed, tag parameters for inserted file, such as media-type or
+encoding, are detected by variable <code>mime-file-types</code>.
+<p>
+When <kbd>C-u</kbd> is followed by it or parameter is not found from
+the variable, it asks from user.  (When <kbd>C-u</kbd> is followed by
+it, detected value is used as default value)
+<p>
+If you want to change default value for file names, please change
+variable <code>mime-file-types</code>.
+
+<defvar name="mime-file-types">
+<p>
+Specification of default value of tag for file name of inserted file.
+<p>
+It is a list of following list:
+
+<lisp>
+	(FILE_PAT TYPE SUBTYPE PARAMS ENCODING
+	 DISPOSITION_TYPE DISPOSITION_PARAMS)
+</lisp>
+
+Each element of the list is following:
+
+<dl>
+<dt>FILE_PAT
+<dd>regular expression of file name
+<dt>TYPE
+<dd>primary-type of media-type
+<dt>SUBTYPE
+<dd>subtype of media-type
+<dt>PARAMS
+<dd>parameters of Content-Type field
+<dt>ENCODING
+<dd>Content-Transfer-Encoding
+<dt>DISPOSITION_TYPE
+<dd>disposition-type
+<dt>DISPOSITION_PARAMS
+<dd>parameters of Content-Disposition field
+</dl>
+
+<noindent>
+Example: Specify application/rtf as default media type for
+<file>*.rtf</file>
+
+<lisp>
+(eval-after-load
+    "mime-edit"
+  '(set-alist 'mime-file-types
+	      "\\.rtf$"
+	      '("application" "rtf" nil nil
+		"attachment" (("filename" . file)))
+	      ))
+</lisp>
+</defvar>
+
+
+<h2> transfer level
+<node> transfer level
+<p>
+Each content inserted in a message is represented by <dref
+file="mime-en">7bit</dref>, <dref file="mime-en">8bit</dref> or <dref
+file="mime-en">binary</dref>.
+<p>
+If a message is translated by 7bit-through <dref
+file="mime-en">MTA</dref>, there is no need to encode 7bit data, but
+8bit and binary data must be encoded to 7bit data.
+<p>
+Similarly, if a message is translated by 8bit-through MTA, there is no
+need to encode 7bit or 8bit data, but binary data must be encoded to
+7bit or 8bit data.
+<p>
+<memo>
+EBCDIC MTA breaks 7bit data, so in this case, 7bit data must be
+encoded by base64.  But I don't know EBCDIC. (^_^;
+<p>
+Similarly, I wish ASCII-printable only MTA and code-conversion MTA
+disappeared. (^_^;
+<p>
+Maybe there are binary-through MTA, but I think it is not major.
+</memo>
+<p>
+<concept>transfer level</concept> represents how range data are
+available.  mime-edit has a variable <code>mime-transfer-level</code>
+to represent transfer level.
+
+
+<defvar name="mime-transfer-level">
+<p>
+transfer level.
+<p>
+If transfer level of a data is over it, a data is encoded to 7bit.
+<p>
+Currently, 7 or 8 is available.  Default value is 7.
+<p>
+In extension plan, EBCDIC will be 5, ASCII printable only will be 6,
+binary will be 9.  But it will not be implemented.
+</defvar>
+
+
+<memo>
+transfer level is only for body, not for <a node="header">message
+header</a>.  MIME extends <dref file="mime-en">RFC 822</dref> to use
+8bit data in body, but it requires to use <dref
+file="mime-en">us-ascii</dref> in header.
+</memo>
+
+
+<h2> Splitting
+<node> message/partial sending
+<p>
+<defvar name="mime-edit-split-message">
+<p>
+Split large message if it is non-nil.
+</defvar>
+
+<defvar name="mime-edit-message-default-max-lines">
+<p>
+Default maximum lines of a message.
+</defvar>
+
+<defvar name="mime-edit-message-max-lines-alist">
+<p>
+Alist of major-mode vs maximum lines of a message.
+<p>
+If it is not specified for a major-mode,
+<code>mime-edit-message-default-max-lines</code> is used.
+</defvar>
+
+<defvar name="mime-edit-split-blind-field-regexp">
+<p>
+Regular expression to match field-name to be ignored when split
+sending.
+</defvar>
+
+
+<h1> Miscellaneous
+<node> Various
+
+<h2> PGP
+<node> PGP
+<p>
+mime-edit provides PGP encryption, signature and inserting public-key
+features based on <concept>PGP/MIME</concept> (RFC 2015) or
+<concept>PGP-kazu</concept> (draft-kazu-pgp-mime-00.txt).
+<p>
+This feature requires your pgp command.
+
+<defvar name="pgg-default-scheme">
+<p>
+Version of PGP or GnuPG command to be used for encryption or sign.
+The value should be a symbol.  Allowed versions are <code>gpg</code>,
+<code>pgp</code> or <code>pgp5</code>.
+</defvar>
+
+<defvar name="pgg-scheme">
+<p>
+Version of PGP or GnuPG command to be used for decryption or verification.
+The value should be a symbol.  Allowed versions are <code>gpg</code>,
+<code>pgp</code> or <code>pgp5</code>.
+</defvar>
+
+<defvar name="pgg-insert-url-function">
+<p>
+The function to fetch public key from the keyserver.
+Use Emacs/W3 by the default setting. To use emacs-w3m
+instead, set as follows:
+<lisp>
+(setq pgg-insert-url-function #'w3m-retrieve)
+</lisp>
+</defvar>
+
+
+<h2> Mouse button
+<node> Buttons
+<p>
+<defvar name="mime-button-face">
+<p>
+Face used for content-button or URL-button of MIME-Preview buffer.
+</defvar>
+
+<defvar name="mime-button-mouse-face">
+<p>
+Face used for MIME-preview buffer mouse highlighting.
+</defvar>
+
+<defvar name="mime-browse-url-function">
+<p>
+Function to browse URL.
+</defvar>
+
+
+<h2> Utility for configuration
+<node> Acting-condition configuration
+<p>
+<defun name="mime-add-condition">
+	    <args> target-type condition <opts> mode file
+<p>
+Add <var>condition</var> to database specified by
+<var>target-type</var>.
+<p>
+<var>target-type</var> must be <code>preview</code> or
+<code>action</code>.
+<p>
+If optional argument <var>mode</var> is <code>strict</code> or
+<code>nil</code> (omitted), <var>condition</var> is added strictly.
+<p>
+If optional argument <var>mode</var> is <code>with-default</code>,
+<var>condition</var> is added with default rule.
+<p>
+If optional argument <var>file</var> is specified, it is loaded when
+<var>condition</var> is activate.
+</defun>
+
+
+<h1> Concept Index
+<node> Concept Index
+
+<cindex>
+
+
+<h1> Function Index
+<node> Function Index
+
+<findex>
+
+
+<h1> Variable Index
+<node> Variable Index
+
+<vindex>
+
+</body>

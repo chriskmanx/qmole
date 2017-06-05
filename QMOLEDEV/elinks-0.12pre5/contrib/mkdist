@@ -1,0 +1,159 @@
+#!/bin/bash
+#
+# This script can be used by a cron to generate snapshots.
+# For example, use:
+# 35 0 * * * mkdist -r elinks-0.11 -l 0.11 -s >>mkdist.log 2>&1
+# 40 0 * * * mkdist -r HEAD -l 0.12 -s >>mkdist.log 2>&1
+#
+# Options:
+#   -g GIT_DIR   Git repository from which this script exports ELinks.
+#                May be given in the environment instead.
+#   -r REVISION  Git revision to be exported from the repository.
+#   -l LABEL     User-friendly name of the branch or release.
+#                This ends up in the name of the tar file, and in the
+#                name of the directory it contains.
+#   -s           Generate a snapshot (which has a date in the top-level
+#                directory).
+#   -d DOCDIR    Copy prebuilt documentation from DOCDIR.
+#   -o OUTDIR    Place the output files in OUTDIR.  Defaults to the
+#                current directory.
+
+# set -x
+
+cat <<EOF
+-------------------------------------------------
+Date: $(date)
+Args: $*
+-------------------------------------------------
+EOF
+
+# Variables used in this script:
+# $GIT_DIR     = option -g GIT_DIR; passed in environment to Git
+# $OPTARG      = Bash special: argument of the option being parsed
+# $OPTIND      = Bash special: index of argument to be parsed next
+# $commit      = commit ID corresponding to $rev
+# $docdir      = option -d DOCDIR
+# $label       = option -l LABEL
+# $opt         = option letter being parsed, or '?' on error
+# $outdir      = option -o OUTDIR
+# $rev         = option -r REVISION
+# $snap        = option -s
+# $tarbasename = name of the tar file without .tar.* extensions
+# $tartopdir   = name of the top directory within the tar file
+# $tmpdir      = temporary directory created by this script
+
+rev=
+label=
+snap=
+docdir=
+outdir=.
+while getopts "g:r:l:sd:o:" opt
+do
+    case "$opt" in
+	(g)	GIT_DIR=$OPTARG ;;
+	(r)	rev=$OPTARG ;;
+	(l)	label=$OPTARG ;;
+	(s)     snap=1 ;;
+	(d)	docdir=$OPTARG ;;
+	(o)	outdir=$OPTARG ;;
+	("?")	exit 1 ;;
+	(*)	printf >&2 "%s:%d: bug found\n" "$0" "$LINENO"
+		exit 1 ;;
+    esac
+done
+
+if [ $OPTIND -le $# ]
+then
+    printf >&2 "%s: too many non-option arguments\n" "$0"
+    exit 1
+fi
+
+if [ -z "$GIT_DIR" ]
+then
+    printf >&2 "%s: Must specify -g GIT_DIR option\n" "$0"
+    exit 1
+fi
+if [ -z "$outdir" ]
+then
+    printf >&2 "%s: Must specify -o OUTDIR option\n" "$0"
+    exit 1
+fi
+if [ -z "$rev" ]
+then
+    printf >&2 "%s: Must specify -r REVISION option\n" "$0"
+    exit 1
+fi
+if [ -z "$label" ]
+then
+    label=$rev
+fi
+
+commit=$(git --git-dir="$GIT_DIR" rev-parse --verify "$rev^{commit}") || exit 1
+
+if [ "$snap" ]
+then
+    tartopdir=elinks-$label-$(date +%Y%m%d)
+    tarbasename=elinks-current-$label
+else
+    tartopdir=elinks-$label
+    tarbasename=elinks-$label
+fi
+
+tmpdir=$(mktemp -d -t elinks-dist-XXXXXXXX) || exit 1
+
+# To make it easier to compare build logs, put the source first in an
+# "elinks" directory, and only move to "$tartopdir" when finished.
+
+git --git-dir="$GIT_DIR" archive --format=tar --prefix="elinks/" "$rev" |
+	(cd -- "$tmpdir" && tar -xf -)
+printf "%s\n" "$commit" > "$tmpdir/elinks/git-commit-id"
+
+(set -e
+ cd -- "$tmpdir/elinks"
+ ./autogen.sh
+ mkdir build
+ cd build
+ # Enable lots of features so that their options will appear in elinks
+ # --config-help and doc/html/elinks.conf.5.html.
+ ../configure --enable-bittorrent --enable-cgi --enable-fsp --enable-nntp
+ make -C po
+ mv po/*.gmo ../po/
+ mv contrib/elinks.spec ../contrib/
+) || exit 1
+
+if [ -n "$docdir" ]; then
+	mkdir -- "$tmpdir/elinks/doc/html"
+	cp -r -- "$docdir"/*.html* "$tmpdir/elinks/doc/html/"
+	# mkdir doc/pdf
+	# cp "$docdir"/*.pdf doc/pdf
+else
+	make -C "$tmpdir/elinks/build"
+	make -C "$tmpdir/elinks/build/doc" html
+	mkdir -- "$tmpdir/elinks/doc/html"
+	mv -- "$tmpdir/elinks/build/doc"/*.html* "$tmpdir/elinks/doc/html/"
+	# <http://translationproject.org/html/maintainers.html>:
+	# "this tarball should contain an up to date POT file."
+	# Build that here.  The Makefile also creates potfiles.list
+	# in the source directory; that one we don't need.
+	# Use rm -f so it's not an error if the file is not there.
+	make -C "$tmpdir/elinks/build/po" ../../po/elinks.pot
+	rm -f -- "$tmpdir/elinks/po/potfiles.list"
+fi
+
+rm -rf -- "$tmpdir/elinks/build"
+mv -- "$tmpdir/elinks" "$tmpdir/$tartopdir"
+
+(set -e
+ cd -- "$tmpdir"
+ tar cf "$tarbasename.tar" "$tartopdir"
+ bzip2 --keep -- "$tarbasename.tar"
+ gzip -9 -- "$tarbasename.tar"
+ md5sum --binary -- "$tarbasename.tar.gz" > "$tarbasename.tar.gz.md5"
+ md5sum --binary -- "$tarbasename.tar.bz2" > "$tarbasename.tar.bz2.md5"
+) || exit 1
+ 
+mv -- "$tmpdir/$tarbasename.tar.gz"      "$outdir"
+mv -- "$tmpdir/$tarbasename.tar.bz2"     "$outdir"
+mv -- "$tmpdir/$tarbasename.tar.gz.md5"  "$outdir"
+mv -- "$tmpdir/$tarbasename.tar.bz2.md5" "$outdir"
+rm -rf -- "$tmpdir"

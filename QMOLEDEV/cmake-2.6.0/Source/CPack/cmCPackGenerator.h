@@ -1,0 +1,137 @@
+/*=========================================================================
+
+  Program:   CMake - Cross-Platform Makefile Generator
+  Module:    $RCSfile: cmCPackGenerator.h,v $
+  Language:  C++
+  Date:      $Date: 2007-11-06 13:28:26 $
+  Version:   $Revision: 1.2 $
+
+  Copyright (c) 2002 Kitware, Inc. All rights reserved.
+  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even 
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+
+#ifndef cmCPackGenerator_h
+#define cmCPackGenerator_h
+
+#include "cmObject.h"
+
+#define cmCPackTypeMacro(class, superclass) \
+  cmTypeMacro(class, superclass); \
+  static cmCPackGenerator* CreateGenerator() { return new class; }
+
+#define cmCPackLogger(logType, msg) \
+  do { \
+    cmOStringStream cmCPackLog_msg; \
+    cmCPackLog_msg << msg; \
+    this->Logger->Log(logType, __FILE__, __LINE__,\
+                      cmCPackLog_msg.str().c_str());\
+  } while ( 0 )
+
+#ifdef cerr
+#  undef cerr
+#endif
+#define cerr no_cerr_use_cmCPack_Log
+
+#ifdef cout
+#  undef cout
+#endif
+#define cout no_cout_use_cmCPack_Log
+
+class cmMakefile;
+class cmCPackLog;
+
+/** \class cmCPackGenerator
+ * \brief A superclass of all CPack Generators
+ *
+ */
+class cmCPackGenerator : public cmObject
+{
+public:
+  cmTypeMacro(cmCPackGenerator, cmObject);
+  /**
+   * If verbose then more informaiton is printed out
+   */
+  void SetVerbose(bool val) { this->GeneratorVerbose = val; }
+
+  /**
+   * Do the actual processing. Subclass has to override it.
+   * Return 0 if error.
+   */
+  virtual int DoPackage();
+
+  /**
+   * Initialize generator
+   */
+  int Initialize(const char* name, cmMakefile* mf, const char* argv0);
+
+  /**
+   * Construct generator
+   */
+  cmCPackGenerator();
+  virtual ~cmCPackGenerator();
+
+  //! Set and get the options
+  void SetOption(const char* op, const char* value);
+  void SetOptionIfNotSet(const char* op, const char* value);
+  const char* GetOption(const char* op);
+  bool IsSet(const char* name) const;
+
+  //! Set all the variables
+  int FindRunningCMake(const char* arg0);
+
+  //! Set the logger
+  void SetLogger(cmCPackLog* log) { this->Logger = log; }
+
+  //! Display verbose information via logger
+  void DisplayVerboseOutput(const char* msg, float progress);
+  
+  bool ReadListFile(const char* moduleName);
+
+protected:
+  int PrepareNames();
+  int InstallProject();
+  int CleanTemporaryDirectory();
+  virtual const char* GetOutputExtension() { return ".cpack"; }
+  virtual const char* GetOutputPostfix() { return 0; }
+  virtual int CompressFiles(const char* outFileName, const char* toplevel,
+    const std::vector<std::string>& files);
+  virtual const char* GetInstallPath();
+  virtual const char* GetPackagingInstallPrefix();
+
+  virtual std::string FindTemplate(const char* name);
+  virtual bool ConfigureFile(const char* inName, const char* outName,
+    bool copyOnly = false);
+  virtual bool ConfigureString(const std::string& input, std::string& output);
+  virtual int InitializeInternal();
+
+
+  //! Run install commands if specified
+  virtual int InstallProjectViaInstallCommands(
+    bool setDestDir, const char* tempInstallDirectory);
+  virtual int InstallProjectViaInstallScript(
+    bool setDestDir, const char* tempInstallDirectory);
+  virtual int InstallProjectViaInstalledDirectories(
+    bool setDestDir, const char* tempInstallDirectory);
+  virtual int InstallProjectViaInstallCMakeProjects(
+    bool setDestDir, const char* tempInstallDirectory);
+
+  bool GeneratorVerbose;
+  std::string Name;
+
+  std::string InstallPath;
+
+  std::string CPackSelf;
+  std::string CMakeSelf;
+  std::string CMakeRoot;
+
+  cmCPackLog* Logger;
+private:
+  cmMakefile* MakefileMap;
+};
+
+#endif

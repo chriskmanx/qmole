@@ -1,0 +1,125 @@
+This file documents the Grand OAF Database Query Language.
+
+	Constants:
+
+Strings: As in SQL, delimited by single quotes. Example: 'mystring'
+
+Stringvs (string arrays): A comma-separated list of strings, surrounded by square brackets. Example: ['red','blue']
+
+Numbers: Floating point decimals. (aka "whatever atof() accepts" :)
+
+Booleans: TRUE or FALSE (other common boolean value identifiers also accepted, but not encouraged).
+
+	Field identifiers:
+
+Names of fields are attributes of a ServerInfo record. These include
+'type', 'location_info', and 'iid', even though these are explicitly
+stored instead of just other attributes.
+
+Some pseudo-fields are also available - they are all prefaced with an underscore:
+	_active - Whether the server is currently running (boolean)
+
+	Variables:
+
+Variables are various miscellaneous data items that are part of the
+environment. The syntax for referring to a variable is a '$' sign
+followed by the variable name. The following variables are available:
+
+$hostname - the hostname that the requesting client is running on.
+$domain - the "domain" that the client is requesting activation in.
+
+	Functions:
+
+Functions perform transformations on data and return a result. There are two possible syntaxes for a function call:
+	funcname(arguments)
+	field.funcname(other-arguments...)
+
+Internally, 'field.funcname(other-arguments...)' is translated to be
+exactly the same as 'funcname(field, other-arguments)', so
+'priority.max()' is exactly the same as 'max(priority)'. The following functions are available:
+
+defined(expression)
+   Returns a boolean value that indicates whether the given expression is defined for the current
+   record. For example, using a field name would indicate whether that field is defined for the
+   record.
+
+has_one(stringv1, stringv2)
+   Returns a boolean value that indicates whether any of the strings
+   in the 'stringv2' array are contained in the 'stringv1' array.
+
+has_all(stringv1, stringv2)
+   Returns a boolean value that indicates whether all of the strings
+   in the 'stringv2' array are contained in the 'stringv1' array.
+
+has(stringv, string)
+   Returns a boolean value that indicates whether 'string' is contained in the 'stringv' array.
+
+prefer_by_list_order(string, stringv) 
+   This function is intended to use as a sort condition when you have a prioritized list of 
+   preferred values. It returns -1 if the 'string' is not in the 'stringv' array, otherwise 
+   it's position measured from the end of 'stringv'. The result is that the first item is 
+   most preferred, items after that are next most preferred, and items not in the list are 
+   lowest priority.
+
+max(expr)
+   Evaluates 'expr' over all the available server information records in the database, and returns
+   the maximum value as dictated by the normal sort order for the data type of 'expr'.
+   This function is not valid for string vectors.
+
+min(expr)
+   As with the 'max' function, but finds the minimum value.
+
+Function names are case insensitive.
+
+	Operators:
+
+Binary relational operators 
+
+==    equal
+!=    not equal
+<     less than
+>     greater than
+<=    less than or equal
+>=    greater than or equal
+
+Binary boolean operators
+
+&&, AND   and
+||, OR    or
+^^, XOR   exclusive or
+
+Unary boolean operators
+
+~, NOT    not
+
+Binary arithmetic operators
+
+/   divided by
++   plus
+-   minus
+*   times
+
+Unary arithmetic operators
+
+-   negate
+
+
+	Example queries:
+
+To get a component implementing the IDL:GNOME/Graph/Layout interface you might use:
+
+CORBA_Object o = oaf_activate ("repo_ids.has ('IDL:GNOME/Graph/Layout:1.0')",
+                               NULL, 0, NULL, &ev);
+
+A more complicated query might be:
+
+"(repo_ids.has_all (['IDL:Bonobo/Control:1.0',
+		     'IDL:Nautilus/ContentView:1.0']) OR
+  repo_ids.has_one (['IDL:Bonobo/Control:1.0',
+                     'IDL:Bonobo/Embeddable:1.0'])) AND
+  repo_ids.has('IDL:Bonobo/PersistFile:1.0') AND
+  foo:bar.defined()"
+
+This would get any component with both 'Control' and 'ContentView' or
+with either 'Control' or 'Embeddable' as long as they supported the
+'PersistFile' interface, and defined the attribute 'foo:bar'.

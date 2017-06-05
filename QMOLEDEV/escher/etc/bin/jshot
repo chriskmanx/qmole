@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+
+### Automatically take screenshot of a Java application. It generates
+### FILENAME.help (help screen), FILENAME.output (text output), and
+### FILENAME.gif (screen capture) in 'etc/screenshot'. It checks for a
+### '@screenshot' tag on line just before main method definition in
+### the Java file. See 'gnu/x11/test/Hello.java' for examples.
+###
+### ARG0: filename of Java application
+
+use File::Basename;
+
+$javafile = shift || die;
+$basedir = "etc/screenshot";
+$packagedir = dirname $javafile;
+$classname = `jfile2class $javafile` || die;
+chomp $classname;
+$basename = basename $javafile, '.java';
+$dir = "$basedir/$packagedir";
+$prefix = "$dir/$basename";
+system "mkdir $dir -p" || die;
+
+
+## check if runnable
+$runnable_keyword = "'public static" . " void main'";
+$command = `grep $runnable_keyword $javafile` || exit;
+
+
+## screenshot of help output
+$help_keyword = "' * help output</a>'";
+if (`grep $help_keyword $javafile`) {
+  system "java $classname --help > $prefix.help" || die;
+}
+
+
+## setup screenshot of text output
+$text_keyword = "' * text output</a>'";
+$text_flag = `grep $text_keyword $javafile`;
+
+
+## setup screenshot of gif
+$gif_keyword = "' * screenshot'";
+$gif_tag = `grep $gif_keyword $javafile`;
+$gif_no = ($gif_tag =~ /screenshot (\d+)/) [0];
+
+
+## screenshots of text output and gif
+exit if !$text_flag && !$gif_tag;
+
+$text_command = " > $prefix.output" if $text_flag;
+$one_gif_command = "import $prefix.gif" if $gif_tag;
+$many_gif_command = "(cd $dir; import-more $basename $gif_no)" if $gif_no;
+$gif_command = $gif_no ? $many_gif_command : $one_gif_command;
+$java_command = "java $classname $text_command";
+$shell_command = $gif_tag ? "($java_command &); $gif_command" : $java_command;
+
+system $shell_command;

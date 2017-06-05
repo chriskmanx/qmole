@@ -1,0 +1,1004 @@
+### Eclipse Workspace Patch 1.0
+#P classpath
+Index: gnu/java/awt/peer/x/PixmapVolatileImage.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/PixmapVolatileImage.java,v
+retrieving revision 1.2
+diff -u -r1.2 PixmapVolatileImage.java
+--- gnu/java/awt/peer/x/PixmapVolatileImage.java	16 Jul 2007 15:04:53 -0000	1.2
++++ gnu/java/awt/peer/x/PixmapVolatileImage.java	2 May 2010 05:52:00 -0000
+@@ -37,6 +37,7 @@
+ 
+ package gnu.java.awt.peer.x;
+ 
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.GC;
+ import gnu.x11.Pixmap;
+ import gnu.x11.image.Image;
+@@ -63,8 +64,7 @@
+ /**
+  * A {@link VolatileImage} implementation that wraps an X Pixmap.
+  */
+-class PixmapVolatileImage
+-  extends VolatileImage
++class PixmapVolatileImage extends VolatileImage
+ {
+ 
+   /**
+@@ -79,14 +79,15 @@
+ 
+   /**
+    * Creates a new PixmapVolatileImage.
+-   *
+-   * @param w the width of the image
+-   * @param h the height of the image
++   * 
++   * @param w
++   *          the width of the image
++   * @param h
++   *          the height of the image
+    */
+   public PixmapVolatileImage(int w, int h)
+   {
+-    GraphicsEnvironment env =
+-      GraphicsEnvironment.getLocalGraphicsEnvironment();
++    GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
+     XGraphicsDevice dev = (XGraphicsDevice) env.getDefaultScreenDevice();
+     pixmap = new Pixmap(dev.getDisplay(), w, h);
+ 
+@@ -124,22 +125,28 @@
+   @Override
+   public BufferedImage getSnapshot()
+   {
+-    // TODO: Support non-24-bit resolutions.
+-    int w = pixmap.width;
+-    int h = pixmap.height;
+-    ZPixmap zpixmap = (ZPixmap) pixmap.image(0, 0, w, h, 0xffffffff,
+-                                             Image.Format.ZPIXMAP);
+-    DataBuffer buffer = new ZPixmapDataBuffer(zpixmap);
+-    SampleModel sm = new ComponentSampleModel(DataBuffer.TYPE_BYTE, w, h, 4,
+-                                              w * 4,
+-                                              new int[]{0, 1, 2, 3 });
+-    ColorSpace cs = ColorSpace.getInstance(ColorSpace.CS_LINEAR_RGB);
+-    ColorModel cm = new ComponentColorModel(cs, true, false,
+-                                            Transparency.OPAQUE,
+-                                            DataBuffer.TYPE_BYTE);
+-    WritableRaster raster = Raster.createWritableRaster(sm, buffer,
+-                                                        new Point(0, 0));
+-    return new BufferedImage(cm, raster, false, null);
++    try
++    { // TODO: Support non-24-bit resolutions.
++      int w = pixmap.width;
++      int h = pixmap.height;
++      ZPixmap zpixmap = (ZPixmap) pixmap.image(0, 0, w, h, 0xffffffff,
++          Image.Format.ZPIXMAP);
++      DataBuffer buffer = new ZPixmapDataBuffer(zpixmap);
++      SampleModel sm = new ComponentSampleModel(DataBuffer.TYPE_BYTE, w, h, 4,
++          w * 4, new int[] { 0, 1, 2, 3 });
++      ColorSpace cs = ColorSpace.getInstance(ColorSpace.CS_LINEAR_RGB);
++      ColorModel cm = new ComponentColorModel(cs, true, false,
++          Transparency.OPAQUE, DataBuffer.TYPE_BYTE);
++      WritableRaster raster = Raster.createWritableRaster(sm, buffer,
++          new Point(0, 0));
++      return new BufferedImage(cm, raster, false, null);
++    }
++    catch (EscherUnsupportedScreenBitDepthException e)
++    {
++      // TODO See this exception
++      e.printStackTrace();
++      return null;
++    }
+   }
+ 
+   @Override
+@@ -175,7 +182,7 @@
+ 
+   /**
+    * Returns the underlying X pixmap. This is used for the graphics code.
+-   *
++   * 
+    * @return the underlying X pixmap
+    */
+   Pixmap getPixmap()
+Index: gnu/java/awt/peer/x/XGraphics2D.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XGraphics2D.java,v
+retrieving revision 1.12
+diff -u -r1.12 XGraphics2D.java
+--- gnu/java/awt/peer/x/XGraphics2D.java	15 Jun 2008 18:14:55 -0000	1.12
++++ gnu/java/awt/peer/x/XGraphics2D.java	2 May 2010 05:52:02 -0000
+@@ -62,20 +62,21 @@
+ import gnu.java.awt.java2d.ScanlineCoverage;
+ import gnu.x11.Colormap;
+ import gnu.x11.Drawable;
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.GC;
++import gnu.x11.RGB;
+ import gnu.x11.image.ZPixmap;
+ 
+-public class XGraphics2D
+-  extends AbstractGraphics2D
++public class XGraphics2D extends AbstractGraphics2D
+ {
+ 
+   /**
+    * When this property is set to true, then images are always rendered as
+-   * opaque images, ignoring their translucence. This is intended for
+-   * debugging and demonstration purposes.
++   * opaque images, ignoring their translucence. This is intended for debugging
++   * and demonstration purposes.
+    */
+-  private static final boolean RENDER_OPAQUE =
+-    Boolean.getBoolean("escherpeer.renderopaque");
++  private static final boolean RENDER_OPAQUE = Boolean
++      .getBoolean("escherpeer.renderopaque");
+ 
+   /**
+    * The X Drawable to draw on.
+@@ -104,7 +105,7 @@
+     xgc = new GC(d);
+     init();
+     disposed = false;
+-    //setClip(new Rectangle(0, 0, xdrawable.width, xdrawable.height));
++    // setClip(new Rectangle(0, 0, xdrawable.width, xdrawable.height));
+   }
+ 
+   @Override
+@@ -127,7 +128,7 @@
+ 
+   /**
+    * Returns the color model of this Graphics object.
+-   *
++   * 
+    * @return the color model of this Graphics object
+    */
+   protected ColorModel getColorModel()
+@@ -137,7 +138,7 @@
+ 
+   /**
+    * Returns the color model of the target device.
+-   *
++   * 
+    * @return the color model of the target device
+    */
+   protected ColorModel getDestinationColorModel()
+@@ -147,7 +148,7 @@
+ 
+   /**
+    * Returns the bounds of the target.
+-   *
++   * 
+    * @return the bounds of the target
+    */
+   protected Rectangle getDeviceBounds()
+@@ -164,11 +165,11 @@
+   public void dispose()
+   {
+     if (!disposed)
+-      {
+-        xgc.free();
+-        xdrawable.display.flush();
+-        disposed = true;
+-      }
++    {
++      xgc.free();
++      xdrawable.display.flush();
++      disposed = true;
++    }
+   }
+ 
+   public Graphics create()
+@@ -184,60 +185,75 @@
+   {
+     super.setClip(c);
+     if (c instanceof Rectangle)
+-      {
+-        Rectangle r = (Rectangle) c;
+-        AffineTransform t = getTransform();
+-        int translateX = (int) t.getTranslateX();
+-        //System.err.println("translateX: " + translateX);
+-        int translateY = (int) t.getTranslateY();
+-        //System.err.println("translateY: " + translateY);
+-        //System.err.println("clip: " + c);
+-        gnu.x11.Rectangle clip = new gnu.x11.Rectangle(r.x, r.y, r.width,
+-                                                       r.height);
+-        xgc.set_clip_rectangles(translateX, translateY,
+-                                new gnu.x11.Rectangle[]{clip}, GC.UN_SORTED);
+-      }
++    {
++      Rectangle r = (Rectangle) c;
++      AffineTransform t = getTransform();
++      int translateX = (int) t.getTranslateX();
++      // System.err.println("translateX: " + translateX);
++      int translateY = (int) t.getTranslateY();
++      // System.err.println("translateY: " + translateY);
++      // System.err.println("clip: " + c);
++      gnu.x11.Rectangle clip = new gnu.x11.Rectangle(r.x, r.y, r.width,
++          r.height);
++      xgc.set_clip_rectangles(translateX, translateY,
++          new gnu.x11.Rectangle[] { clip }, GC.UN_SORTED);
++    }
+   }
+ 
+   /**
+    * Notifies the backend that the raster has changed in the specified
+-   * rectangular area. The raster that is provided in this method is always
+-   * the same as the one returned in {@link #getDestinationRaster}.
+-   * Backends that reflect changes to this raster directly don't need to do
+-   * anything here.
+-   *
+-   * @param raster the updated raster, identical to the raster returned
+-   *        by {@link #getDestinationRaster()}
+-   * @param x the upper left corner of the updated region, X coordinate
+-   * @param y the upper lef corner of the updated region, Y coordinate
+-   * @param w the width of the updated region
+-   * @param h the height of the updated region
++   * rectangular area. The raster that is provided in this method is always the
++   * same as the one returned in {@link #getDestinationRaster}. Backends that
++   * reflect changes to this raster directly don't need to do anything here.
++   * 
++   * @param raster
++   *          the updated raster, identical to the raster returned by
++   *          {@link #getDestinationRaster()}
++   * @param x
++   *          the upper left corner of the updated region, X coordinate
++   * @param y
++   *          the upper lef corner of the updated region, Y coordinate
++   * @param w
++   *          the width of the updated region
++   * @param h
++   *          the height of the updated region
+    */
+   protected void updateRaster(Raster raster, int x, int y, int w, int h)
+   {
+-    if (w > 0 && h > 0)
++    try
++    {
++      if (w > 0 && h > 0)
+       {
+         ZPixmap zPixmap = new ZPixmap(xdrawable.display, w, h,
+-                                      xdrawable.display.default_pixmap_format);
++            xdrawable.display.default_pixmap_format, xdrawable.display
++                .getVisualInfo(xdrawable.display.display_no));
+         int[] pixel = null;
+         int x1 = x + w;
+         int y1 = y + h;
+         for (int tx = x; tx < x1; tx++)
++        {
++          for (int ty = y; ty < y1; ty++)
+           {
+-            for (int ty = y; ty < y1; ty++)
+-              {
+-                pixel = raster.getPixel(tx, ty, pixel);
+-                //System.err.println("tx: " + tx + ", ty: " + ty + ", pixel: " + pixel[0] + ", " + pixel[1] + ", " + pixel[2]);
+-//              System.err.print("r: " + pixel[0]);
+-//              System.err.print(", g: " + pixel[1]);
+-//              System.err.println(", b: " + pixel[2]);
+-                zPixmap.set_red(tx - x, ty - y, pixel[0]);
+-                zPixmap.set_green(tx - x, ty - y, pixel[1]);
+-                zPixmap.set_blue(tx - x, ty - y, pixel[2]);
+-              }
++            pixel = raster.getPixel(tx, ty, pixel);
++            // System.err.println("tx: " + tx + ", ty: " + ty + ", pixel: " +
++            // pixel[0] + ", " + pixel[1] + ", " + pixel[2]);
++            // System.err.print("r: " + pixel[0]);
++            // System.err.print(", g: " + pixel[1]);
++            // System.err.println(", b: " + pixel[2]);
++            zPixmap.putRGB(tx - x, ty - y,
++                new RGB(pixel[0], pixel[1], pixel[2]));
++            // zPixmap.set_red(tx - x, ty - y, pixel[0]);
++            // zPixmap.set_green(tx - x, ty - y, pixel[1]);
++            // zPixmap.set_blue(tx - x, ty - y, pixel[2]);
+           }
++        }
+         xdrawable.put_image(xgc, zPixmap, x, y);
+       }
++    }
++    catch (EscherUnsupportedScreenBitDepthException e)
++    {
++      e.printStackTrace();
++    }
+   }
+ 
+   @Override
+@@ -251,54 +267,64 @@
+     int coverageAlpha = 0;
+     int maxCoverage = c.getMaxCoverage();
+     while (iter.hasNext())
+-      {
+-        ScanlineCoverage.Range range = iter.next();
++    {
++      ScanlineCoverage.Range range = iter.next();
+ 
+-        coverageAlpha = range.getCoverage();
+-        int x0 = range.getXPos();
+-        int l = range.getLength();
+-        if (coverageAlpha == c.getMaxCoverage())
++      coverageAlpha = range.getCoverage();
++      int x0 = range.getXPos();
++      int l = range.getLength();
++      if (coverageAlpha == c.getMaxCoverage())
++      {
++        // Simply paint the current color over the existing pixels.
++        xdrawable.fill_rectangle(xgc, x0, y, l, 1);
++      }
++      else if (coverageAlpha > 0)
++      {
++        try
++        {
++          // Composite the current color with the existing pixels.
++          int x1 = x0 + l;
++          x0 = Math.min(Math.max(0, x0), xdrawable.width - 1);
++          x1 = Math.min(Math.max(0, x1), xdrawable.width - 1);
++          if ((x1 - x0) < 1)
++            continue;
++          l = x1 - x0;
++          gnu.x11.image.ZPixmap existing = (ZPixmap) xdrawable.image(x0, y, l,
++              1, 0xFFFFFFFF, gnu.x11.image.Image.Format.ZPIXMAP);
++          for (int x = 0; x < l; x++)
+           {
+-            // Simply paint the current color over the existing pixels.
+-            xdrawable.fill_rectangle(xgc, x0, y, l, 1);
+-          }
+-        else if (coverageAlpha > 0)
+-          {
+-            // Composite the current color with the existing pixels.
+-            int x1 = x0 + l;
+-            x0 = Math.min(Math.max(0, x0), xdrawable.width - 1);
+-            x1 = Math.min(Math.max(0, x1), xdrawable.width - 1);
+-            if ((x1 - x0) < 1)
+-              continue;
+-            l = x1 - x0;
+-            gnu.x11.image.ZPixmap existing = (ZPixmap)
+-            xdrawable.image(x0, y, l, 1, 0xFFFFFFFF,
+-                            gnu.x11.image.Image.Format.ZPIXMAP);
+-            for (int x = 0; x < l; x++)
+-              {
+-                Color col = getColor();
+-                if (col == null)
+-                  {
+-                    col = Color.BLACK;
+-                  }
+-                int red = col.getRed();
+-                int green = col.getGreen();
+-                int blue = col.getBlue();
+-                int redOut = existing.get_red(x, 0);
+-                int greenOut = existing.get_green(x, 0);
+-                int blueOut = existing.get_blue(x, 0);
+-                int outAlpha = maxCoverage - coverageAlpha;
+-                redOut = redOut * outAlpha + red * coverageAlpha;
+-                redOut = redOut / maxCoverage;
+-                greenOut = greenOut * outAlpha + green * coverageAlpha;
+-                greenOut = greenOut / maxCoverage;
+-                blueOut = blueOut * outAlpha + blue * coverageAlpha;
+-                blueOut = blueOut / maxCoverage;
+-                existing.set(x, 0, redOut, greenOut, blueOut);
+-              }
+-            xdrawable.put_image(xgc, existing, x0, y);
++            Color col = getColor();
++            if (col == null)
++            {
++              col = Color.BLACK;
++            }
++            int red = col.getRed();
++            int green = col.getGreen();
++            int blue = col.getBlue();
++
++            RGB exRGB = existing.getRGB(x, 0);
++            int redOut = exRGB.red;
++            int greenOut = exRGB.green;
++            int blueOut = exRGB.blue;
++            int outAlpha = maxCoverage - coverageAlpha;
++
++            redOut = redOut * outAlpha + red * coverageAlpha;
++            redOut = redOut / maxCoverage;
++            greenOut = greenOut * outAlpha + green * coverageAlpha;
++            greenOut = greenOut / maxCoverage;
++            blueOut = blueOut * outAlpha + blue * coverageAlpha;
++            blueOut = blueOut / maxCoverage;
++
++            existing.putRGB(x, 0, redOut, greenOut, blueOut);
+           }
++          xdrawable.put_image(xgc, existing, x0, y);
++        }
++        catch (EscherUnsupportedScreenBitDepthException e)
++        {
++          e.printStackTrace();
++        }
+       }
++    }
+   }
+ 
+   protected void init()
+@@ -310,153 +336,168 @@
+   {
+     super.setPaint(p);
+     if (p instanceof Color)
+-      {
+-        // TODO: Optimize for different standard bit-depths.
+-        Color c = (Color) p;
+-       /* XToolkit tk = (XToolkit) Toolkit.getDefaultToolkit();
+-        HashMap colorMap = tk.colorMap;
+-        gnu.x11.Color col = (gnu.x11.Color) colorMap.get(c);
+-        if (col == null)
+-          {
+-            Colormap map = xdrawable.display.default_colormap;
+-            col = map.alloc_color (c.getRed() * 256,
+-                                   c.getGreen() * 256,
+-                                   c.getBlue() * 256);
+-            colorMap.put(c, col);
+-          }*/
+-        //xgc.set_foreground(col);
+-        
+-        xgc.set_foreground(c.getRGB());
+-        foreground = c;
+-      }
++    {
++      // TODO: Optimize for different standard bit-depths.
++      Color c = (Color) p;
++      /*
++       * XToolkit tk = (XToolkit) Toolkit.getDefaultToolkit(); HashMap colorMap
++       * = tk.colorMap; gnu.x11.Color col = (gnu.x11.Color) colorMap.get(c); if
++       * (col == null) { Colormap map = xdrawable.display.default_colormap; col
++       * = map.alloc_color (c.getRed() * 256, c.getGreen() * 256, c.getBlue() *
++       * 256); colorMap.put(c, col); }
++       */
++      // xgc.set_foreground(col);
++
++      xgc.set_foreground(c.getRGB());
++      foreground = c;
++    }
+   }
+ 
+   protected void fillShape(Shape s, boolean isFont)
+   {
+-    synchronized (xdrawable.display) {
++    synchronized (xdrawable.display)
++    {
+       super.fillShape(s, isFont);
+     }
+   }
+ 
+-  private static WeakHashMap<Image,ZPixmap> imageCache = new WeakHashMap<Image,ZPixmap>();
++  private static WeakHashMap<Image, ZPixmap> imageCache = new WeakHashMap<Image, ZPixmap>();
+ 
+   protected boolean rawDrawImage(Image image, int x, int y, ImageObserver obs)
+   {
+     image = unwrap(image);
+     boolean ret;
+     if (image instanceof XImage)
+-      {
+-        XImage xImage = (XImage) image;
+-        xdrawable.copy_area(xImage.pixmap, xgc, 0, 0, xImage.getWidth(obs),
+-                            xImage.getHeight(obs), x, y);
+-        ret = true;
+-      }
++    {
++      XImage xImage = (XImage) image;
++      xdrawable.copy_area(xImage.pixmap, xgc, 0, 0, xImage.getWidth(obs),
++          xImage.getHeight(obs), x, y);
++      ret = true;
++    }
+     else if (image instanceof PixmapVolatileImage)
+-      {
+-        PixmapVolatileImage pvi = (PixmapVolatileImage) image;
+-        xdrawable.copy_area(pvi.getPixmap(), xgc, 0, 0, pvi.getWidth(obs),
+-                            pvi.getHeight(obs), x, y);
++    {
++      PixmapVolatileImage pvi = (PixmapVolatileImage) image;
++      xdrawable.copy_area(pvi.getPixmap(), xgc, 0, 0, pvi.getWidth(obs), pvi
++          .getHeight(obs), x, y);
++      ret = true;
++    }
++    else if (image instanceof BufferedImage)
++    {
++      BufferedImage bi = (BufferedImage) image;
++      DataBuffer db = bi.getRaster().getDataBuffer();
++      if (db instanceof ZPixmapDataBuffer)
++      {
++        ZPixmapDataBuffer zpmdb = (ZPixmapDataBuffer) db;
++        ZPixmap zpixmap = zpmdb.getZPixmap();
++        xdrawable.put_image(xgc, zpixmap, x, y);
+         ret = true;
+       }
+-    else if (image instanceof BufferedImage)
++      else
+       {
+-        BufferedImage bi = (BufferedImage) image;
+-        DataBuffer db = bi.getRaster().getDataBuffer();
+-        if (db instanceof ZPixmapDataBuffer)
++        int transparency = bi.getTransparency();
++        int w = bi.getWidth();
++        int h = bi.getHeight();
++        if (imageCache.containsKey(image))
++        {
++          ZPixmap zpixmap = imageCache.get(image);
++          xdrawable.put_image(xgc, zpixmap, x, y);
++        }
++        else if (transparency == Transparency.OPAQUE || RENDER_OPAQUE)
++        {
++          try
+           {
+-            ZPixmapDataBuffer zpmdb = (ZPixmapDataBuffer) db;
+-            ZPixmap zpixmap = zpmdb.getZPixmap();
++            XGraphicsDevice gd = XToolkit.getDefaultDevice();
++            ZPixmap zpixmap = new ZPixmap(gd.getDisplay(), w, h,
++                xdrawable.display.getVisualInfo(xdrawable.display.display_no));
++            for (int yy = 0; yy < h; yy++)
++            {
++              for (int xx = 0; xx < w; xx++)
++              {
++                int rgb = bi.getRGB(xx, yy);
++                int currentRed = 0xFF & (rgb >> 16);
++                int currentGreen = 0xFF & (rgb >> 8);
++                int currentBlue = 0xFF & rgb;
++                zpixmap.putRGB(xx, yy, currentRed, currentGreen, currentBlue);
++              }
++            }
+             xdrawable.put_image(xgc, zpixmap, x, y);
+-            ret = true;
++            imageCache.put(image, zpixmap);
+           }
++          catch (EscherUnsupportedScreenBitDepthException e)
++          {
++            e.printStackTrace();
++          }
++        }
+         else
++        {
++          try
+           {
+-            int transparency = bi.getTransparency();
+-            int w = bi.getWidth();
+-            int h = bi.getHeight();
+-            if (imageCache.containsKey(image))
+-              {
+-                ZPixmap zpixmap = imageCache.get(image);
+-                xdrawable.put_image(xgc, zpixmap, x, y);
+-              }
+-            else if (transparency == Transparency.OPAQUE || RENDER_OPAQUE)
++            // TODO optimize reusing the rectangles
++            Rectangle source = new Rectangle(0, 0, xdrawable.width,
++                xdrawable.height);
++            Rectangle target = new Rectangle(x, y, w, h);
++
++            Rectangle destination = source.intersection(target);
++
++            x = destination.x;
++            y = destination.y;
++            w = destination.width;
++            h = destination.height;
++
++            ZPixmap zpixmap = (ZPixmap) xdrawable.image(x, y, w, h, 0xffffffff,
++                gnu.x11.image.Image.Format.ZPIXMAP);
++            for (int yy = 0; yy < h; yy++)
++            {
++              for (int xx = 0; xx < w; xx++)
+               {
+-                XGraphicsDevice gd = XToolkit.getDefaultDevice();
+-                ZPixmap zpixmap = new ZPixmap(gd.getDisplay(), w, h);
+-                for (int yy = 0; yy < h; yy++)
+-                  {
+-                    for (int xx = 0; xx < w; xx++)
+-                      {
+-                        int rgb = bi.getRGB(xx, yy);
+-                        zpixmap.set(xx, yy, rgb);
+-                      }
+-                  }
+-                xdrawable.put_image(xgc, zpixmap, x, y);
+-                imageCache.put(image, zpixmap);
+-              } else {
+-                
+-                // TODO optimize reusing the rectangles
+-                Rectangle source =
+-                  new Rectangle(0, 0, xdrawable.width, xdrawable.height);
+-                Rectangle target = new Rectangle(x, y, w, h);
+-                
+-                Rectangle destination = source.intersection(target); 
+-                
+-                x = destination.x;
+-                y = destination.y;
+-                w = destination.width;
+-                h = destination.height;
+-                
+-                ZPixmap zpixmap =
+-                  (ZPixmap) xdrawable.image(x, y, w, h,
+-                                            0xffffffff,
+-                                            gnu.x11.image.Image.Format.ZPIXMAP);
+-                for (int yy = 0; yy < h; yy++)
+-                  {
+-                    for (int xx = 0; xx < w; xx++)
+-                      {
+-                        int rgb = bi.getRGB(xx, yy);
+-                        int alpha = 0xff & (rgb >> 24);
+-                        if (alpha == 0)
+-                          {
+-                            // Completely translucent.
+-                            rgb = zpixmap.get_red(xx, yy) << 16
+-                                  | zpixmap.get_green(xx, yy) << 8
+-                                  | zpixmap.get_blue(xx, yy);
+-                          }
+-                        else if (alpha < 255)
+-                          {
+-                            // Composite pixels.
+-                            int red = 0xff & (rgb >> 16);
+-                            red = red * alpha
+-                                     + (255 - alpha) * zpixmap.get_red(xx, yy);
+-                            red = red / 255;
+-                            int green = 0xff & (rgb >> 8);
+-                            green = green * alpha
+-                                   + (255 - alpha) * zpixmap.get_green(xx, yy);
+-                            green = green / 255;
+-                            int blue = 0xff & rgb;
+-                            blue = blue * alpha
+-                                    + (255 - alpha) * zpixmap.get_blue(xx, yy);
+-                            blue = blue / 255;
+-                            rgb = red << 16 | green << 8 | blue;
+-                          }
+-                        // else keep rgb value from source image.
+-
+-                        zpixmap.set(xx, yy, rgb);
+-                      }
+-                  }
+-                xdrawable.put_image(xgc, zpixmap, x, y);
+-                // We can't cache prerendered translucent images, because
+-                // we never know how the background changes.
++                int rgb = bi.getRGB(xx, yy);
++                int currentRed = 0xFF & (rgb >> 16);
++                int currentGreen = 0xFF & (rgb >> 8);
++                int currentBlue = 0xFF & rgb;
++                int alpha = 0xff & (rgb >> 24);
++                if (alpha == 0)
++                {
++                  // Completely translucent.
++                  // rgb = currentRed << 16 | currentGreen << 8 | currentBlue;
++                }
++                else if (alpha < 255)
++                {
++                  // Composite pixels.
++                  int red = 0xff & (rgb >> 16);
++                  red = red * alpha + (255 - alpha) * currentRed;
++                  red = red / 255;
++                  int green = 0xff & (rgb >> 8);
++                  green = green * alpha + (255 - alpha) * currentGreen;
++                  green = green / 255;
++                  int blue = 0xff & rgb;
++                  blue = blue * alpha + (255 - alpha) * currentBlue;
++                  blue = blue / 255;
++
++                  currentRed = red;
++                  currentGreen = green;
++                  currentBlue = blue;
++                  // rgb = red << 16 | green << 8 | blue;
++                }
++                // else keep rgb value from source image.
++                zpixmap.putRGB(xx, yy, currentRed, currentGreen, currentBlue);
+               }
+-            ret = true;
++            }
++            xdrawable.put_image(xgc, zpixmap, x, y);
++            // We can't cache prerendered translucent images, because
++            // we never know how the background changes.
++          }
++          catch (EscherUnsupportedScreenBitDepthException e)
++          {
++            e.printStackTrace();
+           }
++        }
++        ret = true;
+       }
++    }
+     else
+-      {
+-        ret = super.rawDrawImage(image, x, y, obs);
+-      }
++    {
++      ret = super.rawDrawImage(image, x, y, obs);
++    }
+     return ret;
+   }
+ 
+@@ -465,45 +506,45 @@
+     super.setFont(f);
+     FontPeer p = getFont().getPeer();
+     if (p instanceof XFontPeer)
+-      {
+-        XFontPeer xFontPeer = (XFontPeer) p;
+-        xgc.set_font(xFontPeer.getXFont());
+-      }
++    {
++      XFontPeer xFontPeer = (XFontPeer) p;
++      xgc.set_font(xFontPeer.getXFont());
++    }
+   }
+ 
+   public void drawString(String s, int x, int y)
+   {
+     FontPeer p = getFont().getPeer();
+     if (p instanceof XFontPeer)
+-      {
+-        int tx = (int) transform.getTranslateX();
+-        int ty = (int) transform.getTranslateY();
+-        xdrawable.text(xgc, x + tx, y + ty, s);
+-      }
++    {
++      int tx = (int) transform.getTranslateX();
++      int ty = (int) transform.getTranslateY();
++      xdrawable.text(xgc, x + tx, y + ty, s);
++    }
+     else
+-      {
+-        super.drawString(s, x, y);
+-      }
++    {
++      super.drawString(s, x, y);
++    }
+   }
+ 
+   /**
+-   * Extracts an image instance out of an AsyncImage. If the image isn't
+-   * an AsyncImage, then the original instance is returned.
+-   *
+-   * @param im the image
+-   *
++   * Extracts an image instance out of an AsyncImage. If the image isn't an
++   * AsyncImage, then the original instance is returned.
++   * 
++   * @param im
++   *          the image
++   * 
+    * @return the image to render
+    */
+   private Image unwrap(Image im)
+   {
+     Image image = im;
+     if (image instanceof AsyncImage)
+-      {
+-        AsyncImage aIm = (AsyncImage) image;
+-        image = aIm.getRealImage();
+-      }
++    {
++      AsyncImage aIm = (AsyncImage) image;
++      image = aIm.getRealImage();
++    }
+     return image;
+   }
+ 
+ }
+-
+Index: gnu/java/awt/peer/x/XWindowPeer.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XWindowPeer.java,v
+retrieving revision 1.8
+diff -u -r1.8 XWindowPeer.java
+--- gnu/java/awt/peer/x/XWindowPeer.java	19 May 2008 14:16:18 -0000	1.8
++++ gnu/java/awt/peer/x/XWindowPeer.java	2 May 2010 05:52:03 -0000
+@@ -103,7 +103,7 @@
+     int y = Math.max(window.getY(), 0);
+     int w = Math.max(window.getWidth(), 1);
+     int h = Math.max(window.getHeight(), 1);
+-    xwindow = new Window(dev.getDisplay().default_root, x, y, w, h, 0, atts);
++    xwindow = new Window(dev.getDisplay().getRootWindow(), x, y, w, h, 0, atts);
+     xwindow.select_input(standardSelect);
+     
+     dev.getEventPump().registerWindow(xwindow, window);
+Index: gnu/java/awt/peer/x/ZPixmapDataBuffer.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/ZPixmapDataBuffer.java,v
+retrieving revision 1.2
+diff -u -r1.2 ZPixmapDataBuffer.java
+--- gnu/java/awt/peer/x/ZPixmapDataBuffer.java	20 Sep 2007 14:01:09 -0000	1.2
++++ gnu/java/awt/peer/x/ZPixmapDataBuffer.java	2 May 2010 05:52:03 -0000
+@@ -1,17 +1,17 @@
+ package gnu.java.awt.peer.x;
+ 
+ import gnu.x11.Display;
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.image.ZPixmap;
+ 
+ import java.awt.GraphicsEnvironment;
+ import java.awt.image.DataBuffer;
+ 
+ /**
+- * A DataBuffer implementation that is based on a ZPixmap. This is used
+- * as backing store for BufferedImages.
++ * A DataBuffer implementation that is based on a ZPixmap. This is used as
++ * backing store for BufferedImages.
+  */
+-class ZPixmapDataBuffer
+-  extends DataBuffer
++class ZPixmapDataBuffer extends DataBuffer
+ {
+ 
+   /**
+@@ -21,42 +21,52 @@
+ 
+   /**
+    * Creates a new ZPixmapDataBuffer with a specified width and height.
+-   *
+-   * @param d the X display
+-   * @param w the width
+-   * @param h the height
++   * 
++   * @param d
++   *          the X display
++   * @param w
++   *          the width
++   * @param h
++   *          the height
+    */
+   ZPixmapDataBuffer(int w, int h)
+   {
+     super(TYPE_BYTE, w * h * 3); // TODO: Support non-24-bit-resolutions.
+-    GraphicsEnvironment env =
+-      GraphicsEnvironment.getLocalGraphicsEnvironment();
++    GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
+     XGraphicsDevice dev = (XGraphicsDevice) env.getDefaultScreenDevice();
+     Display d = dev.getDisplay();
+-    zpixmap = new ZPixmap(d, w, h, d.default_pixmap_format);
++    try
++    {
++      zpixmap = new ZPixmap(d, w, h, d.default_pixmap_format, d.getVisualInfo(d.display_no));
++    }
++    catch (EscherUnsupportedScreenBitDepthException e)
++    {
++      e.printStackTrace();
++    }
+   }
+ 
+   /**
+    * Creates a ZPixmapDataBuffer from an existing ZPixmap.
+-   *
+-   * @param zpixmap the ZPixmap to wrap
++   * 
++   * @param zpixmap
++   *          the ZPixmap to wrap
+    */
+   ZPixmapDataBuffer(ZPixmap zpixmap)
+   {
+-    super(TYPE_BYTE, zpixmap.get_data_length());
++    super(TYPE_BYTE, zpixmap.getDataLength());
+     this.zpixmap = zpixmap;
+   }
+ 
+   @Override
+   public int getElem(int bank, int i)
+   {
+-    return 0xff & zpixmap.get_data_element(i);
++    return 0xff & zpixmap.getDataElement(i);
+   }
+ 
+   @Override
+   public void setElem(int bank, int i, int val)
+   {
+-    zpixmap.set_data_element(i, (byte) val);
++    zpixmap.setDataElement(i, (byte) val);
+   }
+ 
+   ZPixmap getZPixmap()
+Index: gnu/java/awt/peer/x/XImage.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XImage.java,v
+retrieving revision 1.6
+diff -u -r1.6 XImage.java
+--- gnu/java/awt/peer/x/XImage.java	1 Sep 2008 17:29:53 -0000	1.6
++++ gnu/java/awt/peer/x/XImage.java	2 May 2010 05:52:02 -0000
+@@ -35,9 +35,9 @@
+ obligated to do so.  If you do not wish to do so, delete this
+ exception statement from your version. */
+ 
+-
+ package gnu.java.awt.peer.x;
+ 
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.Pixmap;
+ import gnu.x11.image.ZPixmap;
+ 
+@@ -53,8 +53,7 @@
+ import java.util.Hashtable;
+ import java.util.Vector;
+ 
+-public class XImage
+-  extends Image
++public class XImage extends Image
+ {
+ 
+   Pixmap pixmap;
+@@ -63,8 +62,7 @@
+ 
+   XImage(int w, int h)
+   {
+-    GraphicsEnvironment env =
+-      GraphicsEnvironment.getLocalGraphicsEnvironment();
++    GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
+     XGraphicsDevice dev = (XGraphicsDevice) env.getDefaultScreenDevice();
+     pixmap = new Pixmap(dev.getDisplay(), w, h);
+   }
+@@ -81,12 +79,12 @@
+ 
+   public ImageProducer getSource()
+   {
+-    return new XImageProducer(); 
++    return new XImageProducer();
+   }
+ 
+   /**
+    * Creates an XGraphics for drawing on this XImage.
+-   *
++   * 
+    * @return an XGraphics for drawing on this XImage
+    */
+   public Graphics getGraphics()
+@@ -113,11 +111,11 @@
+   {
+     pixmap.free();
+   }
+-  
++
+   protected class XImageProducer implements ImageProducer
+   {
+     private Vector<ImageConsumer> consumers = new Vector<ImageConsumer>();
+-    
++
+     public void addConsumer(ImageConsumer ic)
+     {
+       if (ic != null && !isConsumer(ic))
+@@ -145,33 +143,38 @@
+       this.addConsumer(ic);
+ 
+       for (ImageConsumer consumer : this.consumers)
++      {
++        int width = XImage.this.getWidth(null);
++        int height = XImage.this.getHeight(null);
++
++        XGraphics2D graphics = (XGraphics2D) getGraphics();
++        ColorModel model = graphics.getColorModel();
++        graphics.dispose();
++
++        try
+         {
+-          int width = XImage.this.getWidth(null);
+-          int height = XImage.this.getHeight(null);
+-          
+-          XGraphics2D graphics = (XGraphics2D) getGraphics();
+-          ColorModel model = graphics.getColorModel();
+-          graphics.dispose();
+-          
+-          ZPixmap zpixmap = (ZPixmap)
+-            XImage.this.pixmap.image(0, 0, width, height,
+-                                     0xffffffff,
+-                                     gnu.x11.image.Image.Format.ZPIXMAP);
+-          
+-          int size = zpixmap.get_data_length();
+-          System.out.println("size: " + size + ", w = " + width + ", h = " + height);
+-          
+-          int [] pixel = new int[size];
++          ZPixmap zpixmap = (ZPixmap) XImage.this.pixmap.image(0, 0, width,
++              height, 0xffffffff, gnu.x11.image.Image.Format.ZPIXMAP);
++
++          int size = zpixmap.getDataLength();
++          System.out.println("size: " + size + ", w = " + width + ", h = "
++              + height);
++
++          int[] pixel = new int[size];
+           for (int i = 0; i < size; i++)
+-            pixel[i] = zpixmap.get_data_element(i);
++            pixel[i] = zpixmap.getDataLength();
+ 
+           consumer.setHints(ImageConsumer.SINGLEPASS);
+-          
++
+           consumer.setDimensions(width, height);
+           consumer.setPixels(0, 0, width, height, model, pixel, 0, width);
+           consumer.imageComplete(ImageConsumer.STATICIMAGEDONE);
+         }
+-      
++        catch (EscherUnsupportedScreenBitDepthException e)
++        {
++          e.printStackTrace();
++        }
++      }
+       System.out.println("done!");
+     }
+   }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 

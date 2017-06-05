@@ -1,0 +1,98 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+# Uncomment this too, to turn on EXTRA verbose mode
+#export DH_OPTIONS=-v
+
+# include /usr/share/dpatch/dpatch.make
+
+# Default CFLAGS are specified in package file Makefile.config.
+# Any override must be passed to make as CFLAGS=<whatever> in MAKEOPTS
+MAKEOPTS = \
+ WITH_GTK2=1 \
+ WITH_LATEST=1 NEW_COMMAND=1 \
+ EXTRA_BINDINGS=0 \
+ WITH_KERNELFAM=1 \
+ WITH_OUTPUTSTYLES=0 \
+ WITH_CUSTOMMOUSE=0 \
+ WITH_THUMBS=1 WITH_THUMBLIB=0 \
+ WITH_ACL=0 \
+ WITH_POLKIT=1 \
+ WITH_UDISKS=1 \
+ STRIP=0
+
+# alternate for WITH_UDISKS :: WITH_HAL=1
+
+patch: patch-stamp
+patch-stamp:
+	# Add here commands to patch the package contents.
+	touch $@
+
+unpatch:
+	# Add here commands to reverse patch(es) of the package contents.
+	rm -f patch-stamp
+
+configure: configure-stamp
+configure-stamp:
+	dh_testdir
+	# Add here commands to configure the package.
+	touch $@
+
+build: patch-stamp build-stamp
+
+build-stamp: configure-stamp
+	dh_testdir
+	convert icons/emelfm2_24.png debian/emelfm2.xpm
+	$(MAKE) PREFIX=/usr $(MAKEOPTS)
+	touch $@
+
+clean: unpatch
+	dh_testdir
+	dh_testroot
+	$(RM) debian/emelfm2.xpm
+	$(RM) build-stamp configure-stamp
+
+	[ ! -f Makefile ] || $(MAKE) clean
+
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean
+	dh_installdirs
+
+	$(MAKE) install PREFIX=$(CURDIR)/debian/emelfm2/usr/
+	$(RM) $(CURDIR)/debian/emelfm2/usr/share/doc/emelfm2/INSTALL
+	$(RM) $(CURDIR)/debian/emelfm2/usr/share/doc/emelfm2/HACKING
+	$(RM) $(CURDIR)/debian/emelfm2/usr/share/doc/emelfm2/LGPL
+	$(RM) $(CURDIR)/debian/emelfm2/usr/share/doc/emelfm2/GPL
+	cp $(CURDIR)/debian/emelfm2.xpm $(CURDIR)/debian/emelfm2/usr/share/pixmaps/emelfm2/
+	cp $(CURDIR)/icons/emelfm2_24.png $(CURDIR)/debian/emelfm2/usr/share/icons/hicolor/24x24/apps/emelfm2.png
+	cp $(CURDIR)/icons/emelfm2_32.png $(CURDIR)/debian/emelfm2/usr/share/icons/hicolor/32x32/apps/emelfm2.png
+	cp $(CURDIR)/icons/emelfm2_48.png $(CURDIR)/debian/emelfm2/usr/share/icons/hicolor/48x48/apps/emelfm2.png
+
+	install -g 0 -o 0 -m 755 -d debian/emelfm2-i18n
+	$(MAKE) install_i18n PREFIX=$(CURDIR)/debian/emelfm2-i18n/usr $(MAKEOPTS)
+
+binary-indep: build install
+
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs
+	dh_installdocs
+	dh_installmenu
+	dh_installman
+	dh_strip
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary patch unpatch install configure

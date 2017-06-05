@@ -1,0 +1,1197 @@
+### Eclipse Workspace Patch 1.0
+#P classpath
+Index: gnu/java/awt/peer/x/GLGraphics.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/GLGraphics.java,v
+retrieving revision 1.4
+diff -u -r1.4 GLGraphics.java
+--- gnu/java/awt/peer/x/GLGraphics.java	3 Jun 2010 19:11:29 -0000	1.4
++++ gnu/java/awt/peer/x/GLGraphics.java	15 Jul 2010 03:17:10 -0000
+@@ -128,7 +128,7 @@
+   {
+     // FIXME: not sure it's correct
+     return new Rectangle(0, 0,
+-                         gl.display.default_screen.width,
+-                         gl.display.default_screen.height);
++                         gl.getDisplay().getDefaultScreen().getWidth(),
++                         gl.getDisplay().getDefaultScreen().getHeight());
+   }
+ }
+Index: gnu/java/awt/peer/x/KeyboardMapping.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/KeyboardMapping.java,v
+retrieving revision 1.3
+diff -u -r1.3 KeyboardMapping.java
+--- gnu/java/awt/peer/x/KeyboardMapping.java	3 Jun 2010 19:11:29 -0000	1.3
++++ gnu/java/awt/peer/x/KeyboardMapping.java	15 Jul 2010 03:17:12 -0000
+@@ -64,7 +64,7 @@
+   static int mapToKeyCode(gnu.x11.Input xInput, int xKeyCode, int xMods)
+   {
+     int mapped = KeyEvent.VK_UNDEFINED;
+-    int keysym = xInput.keycode_to_keysym(xKeyCode, xMods, true);
++    int keysym = xInput.keycodeToKeysym(xKeyCode, xMods, true);
+ 
+     // Special keys.
+     if (keysym >= 255 << 8)
+@@ -383,7 +383,7 @@
+   static char mapToKeyChar(gnu.x11.Input xInput, int xKeyCode, int xMods)
+   {
+     char mapped = KeyEvent.CHAR_UNDEFINED;
+-    char keysym = (char) xInput.keycode_to_keysym(xKeyCode, xMods, false);
++    char keysym = (char) xInput.keycodeToKeysym(xKeyCode, xMods, false);
+     // FIXME: Map other encodings properly.
+     if (keysym < 256) // Latin1.
+       {
+@@ -403,15 +403,15 @@
+   {
+     int mods = 0;
+ 
+-    if ((xMods & Input.SHIFT_MASK) != 0)
++    if ((xMods & Input.KeyMask.SHIFT_MASK.getCode()) != 0)
+       mods |= KeyEvent.SHIFT_MASK | KeyEvent.SHIFT_DOWN_MASK;
+-    if ((xMods & Input.META_MASK) != 0)
++    if ((xMods & Input.KeyMask.META_MASK.getCode()) != 0)
+       mods |= KeyEvent.META_MASK | KeyEvent.META_DOWN_MASK;
+-    if ((xMods & Input.ALT_MASK) != 0)
++    if ((xMods & Input.KeyMask.ALT_MASK.getCode()) != 0)
+       mods |= KeyEvent.ALT_MASK | KeyEvent.ALT_DOWN_MASK;
+-    if ((xMods & Input.MOD5_MASK) != 0)
++    if ((xMods & Input.KeyMask.MOD5_MASK.getCode()) != 0)
+       mods |= KeyEvent.ALT_GRAPH_MASK | KeyEvent.ALT_GRAPH_DOWN_MASK;
+-    if ((xMods & Input.CONTROL_MASK) != 0)
++    if ((xMods & Input.KeyMask.CONTROL_MASK.getCode()) != 0)
+       mods |= KeyEvent.CTRL_MASK | KeyEvent.CTRL_DOWN_MASK;
+ 
+     return mods;
+Index: gnu/java/awt/peer/x/PixmapVolatileImage.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/PixmapVolatileImage.java,v
+retrieving revision 1.2
+diff -u -r1.2 PixmapVolatileImage.java
+--- gnu/java/awt/peer/x/PixmapVolatileImage.java	16 Jul 2007 15:04:53 -0000	1.2
++++ gnu/java/awt/peer/x/PixmapVolatileImage.java	15 Jul 2010 03:17:12 -0000
+@@ -37,6 +37,7 @@
+ 
+ package gnu.java.awt.peer.x;
+ 
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.GC;
+ import gnu.x11.Pixmap;
+ import gnu.x11.image.Image;
+@@ -92,7 +93,7 @@
+ 
+     // Clear pixmap.
+     GC gc = new GC(pixmap);
+-    gc.set_foreground(0xffffffff);
++    gc.setForeground(0xffffffff);
+     pixmap.fill_rectangle(gc, 0, 0, w, h);
+ 
+   }
+@@ -124,6 +125,8 @@
+   @Override
+   public BufferedImage getSnapshot()
+   {
++    try
++    {
+     // TODO: Support non-24-bit resolutions.
+     int w = pixmap.width;
+     int h = pixmap.height;
+@@ -140,8 +143,15 @@
+     WritableRaster raster = Raster.createWritableRaster(sm, buffer,
+                                                         new Point(0, 0));
+     return new BufferedImage(cm, raster, false, null);
++    }
++    catch (EscherUnsupportedScreenBitDepthException e)
++    {
++      // TODO See this exception
++      e.printStackTrace();
++      return null;
++    }
+   }
+-
++  
+   @Override
+   public int getWidth()
+   {
+Index: gnu/java/awt/peer/x/XEventPump.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XEventPump.java,v
+retrieving revision 1.13
+diff -u -r1.13 XEventPump.java
+--- gnu/java/awt/peer/x/XEventPump.java	3 Jun 2010 19:11:29 -0000	1.13
++++ gnu/java/awt/peer/x/XEventPump.java	15 Jul 2010 03:17:13 -0000
+@@ -62,6 +62,7 @@
+ import gnu.x11.event.ConfigureNotify;
+ import gnu.x11.event.DestroyNotify;
+ import gnu.x11.event.Event;
++import gnu.x11.event.EventCode;
+ import gnu.x11.event.Expose;
+ import gnu.x11.event.Input;
+ import gnu.x11.event.KeyPress;
+@@ -120,11 +121,11 @@
+    */
+   public void run()
+   {
+-    while (display.connected)
++    while (display.isConnected())
+       {
+         try
+           {
+-            Event xEvent = display.next_event();
++            Event xEvent = display.nextEvent();
+             handleEvent(xEvent);
+           }
+         catch (ThreadDeath death)
+@@ -150,13 +151,13 @@
+   void registerWindow(gnu.x11.Window xWindow, Window awtWindow)
+   {
+     if (XToolkit.DEBUG)
+-      System.err.println("registering window id: " + xWindow.id);
+-    windows.put(new Integer(xWindow.id), awtWindow);
++      System.err.println("registering window id: " + xWindow.getID());
++    windows.put(new Integer(xWindow.getID()), awtWindow);
+   }
+ 
+   void unregisterWindow(gnu.x11.Window xWindow)
+   {
+-    windows.remove(new Integer(xWindow.id));
++    windows.remove(new Integer(xWindow.getID()));
+   }
+ 
+   private void handleButtonPress(ButtonPress event)
+@@ -168,7 +169,7 @@
+     int button = event.detail();
+ 
+     // AWT cannot handle more than 3 buttons and expects 0 instead.
+-    if (button >= gnu.x11.Input.BUTTON3)
++    if (button >= gnu.x11.Input.KeyMask.BUTTON3.getCode())
+       button = 0;
+     drag = button;
+ 
+@@ -196,7 +197,7 @@
+     int button = event.detail();
+ 
+     // AWT cannot handle more than 3 buttons and expects 0 instead.
+-    if (button >= gnu.x11.Input.BUTTON3)
++    if (button >= gnu.x11.Input.KeyMask.BUTTON3.getCode())
+       button = 0;
+     drag = -1;
+ 
+@@ -225,7 +226,7 @@
+     int button = event.detail();
+ 
+     // AWT cannot handle more than 3 buttons and expects 0 instead.
+-    if (button >= gnu.x11.Input.BUTTON3)
++    if (button >= gnu.x11.Input.KeyMask.BUTTON3.getCode())
+       button = 0;
+ 
+     MouseEvent mm = null;
+@@ -255,7 +256,7 @@
+   // and/or check timing (timing is generated for PropertyChange)?
+   private void handleExpose(Expose event)
+   {
+-    Integer key = new Integer(event.window_id);
++    Integer key = new Integer(event.getWindowID());
+     Window awtWindow = (Window) windows.get(key);
+ 
+     if (XToolkit.DEBUG)
+@@ -277,8 +278,8 @@
+       {
+         int w = event.width();
+         int h = event.height();
+-        int x = xwindow.xwindow.x;
+-        int y = xwindow.xwindow.y;
++        int x = xwindow.xwindow.getX();
++        int y = xwindow.xwindow.getY();
+ 
+         if (XToolkit.DEBUG)
+           System.err.println("Setting size on AWT window: " + w
+@@ -308,7 +309,7 @@
+     if (XToolkit.DEBUG)
+       System.err.println("DestroyNotify event: " + destroyNotify);
+ 
+-    Integer key = new Integer(destroyNotify.event_window_id);
++    Integer key = new Integer(destroyNotify.getEventWindowID());
+     Window awtWindow = (Window) windows.get(key);
+ 
+     AWTEvent event = new WindowEvent(awtWindow, WindowEvent.WINDOW_CLOSED);
+@@ -320,12 +321,12 @@
+     if (XToolkit.DEBUG)
+       System.err.println("ClientMessage event: " + clientMessage);
+ 
+-    if (clientMessage.delete_window())
++    if (clientMessage.deleteWindow())
+       {
+         if (XToolkit.DEBUG)
+           System.err.println("ClientMessage is a delete_window event");
+ 
+-        Integer key = new Integer(clientMessage.window_id);
++        Integer key = new Integer(clientMessage.getWindowID());
+         Window awtWindow = (Window) windows.get(key);
+ 
+         AWTEvent event = new WindowEvent(awtWindow, WindowEvent.WINDOW_CLOSING);
+@@ -338,33 +339,33 @@
+     if (XToolkit.DEBUG)
+       System.err.println("fetched event: " + xEvent);
+ 
+-    switch (xEvent.code() & 0x7f)
++    switch (xEvent.code().and(0x7f))
+     {
+-    case ButtonPress.CODE:
++    case BUTTON_PRESS:
+       this.handleButtonPress((ButtonPress) xEvent);
+       break;
+-    case ButtonRelease.CODE:
++    case BUTTON_RELEASE:
+       this.handleButtonRelease((ButtonRelease) xEvent);
+       break;
+-    case MotionNotify.CODE:
++    case MOTION_NOTIFY:
+       this.handleMotionNotify((MotionNotify) xEvent);
+       break;
+-    case Expose.CODE:
++    case EXPOSE:
+       this.handleExpose((Expose) xEvent);
+       break;
+-    case KeyPress.CODE:
+-    case KeyRelease.CODE:
++    case KEY_PRESS:
++    case KEY_RELEASE:
+       Integer key = new Integer(((Input) xEvent).getEventWindowID());
+       Window awtWindow = (Window) windows.get(key);
+       handleKeyEvent(xEvent, awtWindow);
+       break;
+-    case DestroyNotify.CODE:
++    case DESTROY_NOTIFY:
+       this.handleDestroyNotify((DestroyNotify) xEvent);
+       break;
+-    case ClientMessage.CODE:
++    case CLIENT_MESSAGE:
+       this.handleClientMessage((ClientMessage) xEvent);
+       break;
+-    case PropertyNotify.CODE:
++    case PROPERTY_NOTIFY:
+       key = new Integer (((PropertyNotify) xEvent).getWindowID());
+       awtWindow = (Window) windows.get(key);
+       AWTEvent event = new WindowEvent(awtWindow, WindowEvent.WINDOW_STATE_CHANGED);
+@@ -387,9 +388,9 @@
+     Input keyEvent = (Input) xEvent;
+     int xKeyCode = keyEvent.detail();
+     int xMods = keyEvent.getState();
+-    int keyCode = KeyboardMapping.mapToKeyCode(xEvent.display.input, xKeyCode,
++    int keyCode = KeyboardMapping.mapToKeyCode(xEvent.display.getInput(), xKeyCode,
+                                                xMods);
+-    char keyChar = KeyboardMapping.mapToKeyChar(xEvent.display.input, xKeyCode,
++    char keyChar = KeyboardMapping.mapToKeyChar(xEvent.display.getInput(), xKeyCode,
+                                                 xMods);
+     if (XToolkit.DEBUG)
+       System.err.println("XEventPump.handleKeyEvent: " + xKeyCode + ", "
+@@ -397,7 +398,7 @@
+     int awtMods = KeyboardMapping.mapModifiers(xMods);
+     long when = System.currentTimeMillis();
+     KeyEvent ke;
+-    if (keyEvent.code() == KeyPress.CODE)
++    if (keyEvent.code() == EventCode.KEY_PRESS)
+       {
+         ke = new KeyEvent(awtWindow, KeyEvent.KEY_PRESSED, when,
+                           awtMods, keyCode,
+@@ -428,13 +429,14 @@
+    */
+   static int buttonToModifier(int button)
+   {
+-    switch (button)
++    gnu.x11.Input.KeyMask key = gnu.x11.Input.KeyMask.getButton(button);
++    switch (key)
+     {
+-      case gnu.x11.Input.BUTTON1:
++      case BUTTON1:
+         return MouseEvent.BUTTON1_DOWN_MASK | MouseEvent.BUTTON1_MASK;
+-      case gnu.x11.Input.BUTTON2:
++      case BUTTON2:
+         return MouseEvent.BUTTON2_DOWN_MASK | MouseEvent.BUTTON2_MASK;
+-      case gnu.x11.Input.BUTTON3:
++      case BUTTON3:
+         return MouseEvent.BUTTON3_DOWN_MASK | MouseEvent.BUTTON3_MASK;
+     }
+ 
+Index: gnu/java/awt/peer/x/XFontPeer.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XFontPeer.java,v
+retrieving revision 1.7
+diff -u -r1.7 XFontPeer.java
+--- gnu/java/awt/peer/x/XFontPeer.java	3 Jun 2010 19:11:29 -0000	1.7
++++ gnu/java/awt/peer/x/XFontPeer.java	15 Jul 2010 03:17:14 -0000
+@@ -286,7 +286,7 @@
+             }
+           else
+             {
+-              Fontable.TextExtentInfo extents = getXFont().text_extent(s);
++              Fontable.TextExtentInfo extents = getXFont().textExtent(s);
+               /*
+                System.err.println("string: '" + s + "' : ");
+                System.err.println("ascent: " + extents.getAscent());
+@@ -297,7 +297,7 @@
+                System.err.println("overall left: " + extents.getOverallLeft());
+                System.err.println("overall right: " + extents.getOverallRight());
+                */
+-              width = extents.overall_width(); // + extents.overall_left();
++              width = extents.overallWidth(); // + extents.overall_left();
+               //System.err.println("String: " + s + ", width: " + width);
+               metricsCache.put(s, new Integer(width));
+             }
+Index: gnu/java/awt/peer/x/XFramePeer.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XFramePeer.java,v
+retrieving revision 1.7
+diff -u -r1.7 XFramePeer.java
+--- gnu/java/awt/peer/x/XFramePeer.java	3 Jun 2010 19:11:29 -0000	1.7
++++ gnu/java/awt/peer/x/XFramePeer.java	15 Jul 2010 03:17:14 -0000
+@@ -88,7 +88,7 @@
+ 
+   public void setTitle(String title)
+   {
+-    xwindow.set_wm_name (title);
++    xwindow.setWMName (title);
+   }
+ 
+   public int getState()
+Index: gnu/java/awt/peer/x/XGraphics2D.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XGraphics2D.java,v
+retrieving revision 1.13
+diff -u -r1.13 XGraphics2D.java
+--- gnu/java/awt/peer/x/XGraphics2D.java	3 Jun 2010 19:11:29 -0000	1.13
++++ gnu/java/awt/peer/x/XGraphics2D.java	15 Jul 2010 03:17:15 -0000
+@@ -61,8 +61,11 @@
+ import gnu.java.awt.java2d.AbstractGraphics2D;
+ import gnu.java.awt.java2d.ScanlineCoverage;
+ import gnu.x11.Colormap;
++import gnu.x11.Display;
+ import gnu.x11.Drawable;
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.GC;
++import gnu.x11.RGB;
+ import gnu.x11.image.ZPixmap;
+ 
+ public class XGraphics2D
+@@ -166,7 +169,7 @@
+     if (!disposed)
+       {
+         xgc.free();
+-        xdrawable.display.flush();
++        xdrawable.getDisplay().flush();
+         disposed = true;
+       }
+   }
+@@ -194,8 +197,8 @@
+         //System.err.println("clip: " + c);
+         gnu.x11.Rectangle clip = new gnu.x11.Rectangle(r.x, r.y, r.width,
+                                                        r.height);
+-        xgc.set_clip_rectangles(translateX, translateY,
+-                                new gnu.x11.Rectangle[]{clip}, GC.UN_SORTED);
++        xgc.setClipRectangles(translateX, translateY, new gnu.x11.Rectangle[]{clip},
++                              GC.Values.RectangleOrder.UN_SORTED);
+       }
+   }
+ 
+@@ -215,10 +218,13 @@
+    */
+   protected void updateRaster(Raster raster, int x, int y, int w, int h)
+   {
++    try
++    {
+     if (w > 0 && h > 0)
+       {
+-        ZPixmap zPixmap = new ZPixmap(xdrawable.display, w, h,
+-                                      xdrawable.display.default_pixmap_format);
++        Display display = xdrawable.getDisplay();
++        ZPixmap zPixmap = new ZPixmap(display, w, h, display.getDefaultPixmapFormat(), 
++            display.getVisualInfo(display.getDisplayNumber()));
+         int[] pixel = null;
+         int x1 = x + w;
+         int y1 = y + h;
+@@ -231,13 +237,17 @@
+ //              System.err.print("r: " + pixel[0]);
+ //              System.err.print(", g: " + pixel[1]);
+ //              System.err.println(", b: " + pixel[2]);
+-                zPixmap.set_red(tx - x, ty - y, pixel[0]);
+-                zPixmap.set_green(tx - x, ty - y, pixel[1]);
+-                zPixmap.set_blue(tx - x, ty - y, pixel[2]);
++                zPixmap.putRGB(tx - x, ty - y, new RGB(pixel[0], pixel[1], pixel[2]));
+               }
+           }
+         xdrawable.put_image(xgc, zPixmap, x, y);
+       }
++    }
++    catch (EscherUnsupportedScreenBitDepthException e)
++    {
++      // TODO See this exception
++      e.printStackTrace();
++    }
+   }
+ 
+   @Override
+@@ -264,6 +274,8 @@
+           }
+         else if (coverageAlpha > 0)
+           {
++          try
++          {
+             // Composite the current color with the existing pixels.
+             int x1 = x0 + l;
+             x0 = Math.min(Math.max(0, x0), xdrawable.width - 1);
+@@ -284,9 +296,10 @@
+                 int red = col.getRed();
+                 int green = col.getGreen();
+                 int blue = col.getBlue();
+-                int redOut = existing.get_red(x, 0);
+-                int greenOut = existing.get_green(x, 0);
+-                int blueOut = existing.get_blue(x, 0);
++                RGB exRGB = existing.getRGB(x, 0);
++                int redOut = exRGB.getRed();
++                int greenOut = exRGB.getGreen();
++                int blueOut = exRGB.getBlue();
+                 int outAlpha = maxCoverage - coverageAlpha;
+                 redOut = redOut * outAlpha + red * coverageAlpha;
+                 redOut = redOut / maxCoverage;
+@@ -294,10 +307,16 @@
+                 greenOut = greenOut / maxCoverage;
+                 blueOut = blueOut * outAlpha + blue * coverageAlpha;
+                 blueOut = blueOut / maxCoverage;
+-                existing.set(x, 0, redOut, greenOut, blueOut);
++                existing.putRGB(x, 0, redOut, greenOut, blueOut);
+               }
+             xdrawable.put_image(xgc, existing, x0, y);
+-          }
++        }
++        catch (EscherUnsupportedScreenBitDepthException e)
++        {
++          // TODO See this exception
++          e.printStackTrace();
++        }
++      }
+       }
+   }
+ 
+@@ -326,14 +345,14 @@
+           }*/
+         //xgc.set_foreground(col);
+ 
+-        xgc.set_foreground(c.getRGB());
++        xgc.setForeground(c.getRGB());
+         foreground = c;
+       }
+   }
+ 
+   protected void fillShape(Shape s, boolean isFont)
+   {
+-    synchronized (xdrawable.display) {
++    synchronized (xdrawable.getDisplay()) {
+       super.fillShape(s, isFont);
+     }
+   }
+@@ -347,66 +366,93 @@
+     if (image instanceof XImage)
+       {
+         XImage xImage = (XImage) image;
+-        xdrawable.copy_area(xImage.pixmap, xgc, 0, 0, xImage.getWidth(obs),
++        xdrawable.copyArea(xImage.pixmap, xgc, 0, 0, xImage.getWidth(obs),
+                             xImage.getHeight(obs), x, y);
+         ret = true;
+       }
+     else if (image instanceof PixmapVolatileImage)
+       {
+         PixmapVolatileImage pvi = (PixmapVolatileImage) image;
+-        xdrawable.copy_area(pvi.getPixmap(), xgc, 0, 0, pvi.getWidth(obs),
++        xdrawable.copyArea(pvi.getPixmap(), xgc, 0, 0, pvi.getWidth(obs),
+                             pvi.getHeight(obs), x, y);
+         ret = true;
+       }
+     else if (image instanceof BufferedImage)
+       {
+-        BufferedImage bi = (BufferedImage) image;
+-        DataBuffer db = bi.getRaster().getDataBuffer();
+-        if (db instanceof ZPixmapDataBuffer)
++        ret = rawDrawBufferedImage(image, x, y);
++      }
++    else
++      {
++        ret = super.rawDrawImage(image, x, y, obs);
++      }
++    return ret;
++  }
++
++  private boolean rawDrawBufferedImage(Image image, int x, int y)
++  {
++    boolean ret;
++    BufferedImage bi = (BufferedImage) image;
++    DataBuffer db = bi.getRaster().getDataBuffer();
++    if (db instanceof ZPixmapDataBuffer)
++      {
++        ZPixmapDataBuffer zpmdb = (ZPixmapDataBuffer) db;
++        ZPixmap zpixmap = zpmdb.getZPixmap();
++        xdrawable.put_image(xgc, zpixmap, x, y);
++        ret = true;
++      }
++    else
++      {
++        int transparency = bi.getTransparency();
++        int w = bi.getWidth();
++        int h = bi.getHeight();
++        if (imageCache.containsKey(image))
+           {
+-            ZPixmapDataBuffer zpmdb = (ZPixmapDataBuffer) db;
+-            ZPixmap zpixmap = zpmdb.getZPixmap();
++            ZPixmap zpixmap = imageCache.get(image);
+             xdrawable.put_image(xgc, zpixmap, x, y);
+-            ret = true;
+           }
+-        else
++        else if (transparency == Transparency.OPAQUE || RENDER_OPAQUE)
+           {
+-            int transparency = bi.getTransparency();
+-            int w = bi.getWidth();
+-            int h = bi.getHeight();
+-            if (imageCache.containsKey(image))
+-              {
+-                ZPixmap zpixmap = imageCache.get(image);
+-                xdrawable.put_image(xgc, zpixmap, x, y);
+-              }
+-            else if (transparency == Transparency.OPAQUE || RENDER_OPAQUE)
++            try
+               {
+                 XGraphicsDevice gd = XToolkit.getDefaultDevice();
+-                ZPixmap zpixmap = new ZPixmap(gd.getDisplay(), w, h);
++                Display display = gd.getDisplay();
++                ZPixmap zpixmap = new ZPixmap(display, w, h,
++                     display.getVisualInfo(display.getDisplayNumber()));
+                 for (int yy = 0; yy < h; yy++)
+                   {
+                     for (int xx = 0; xx < w; xx++)
+                       {
+                         int rgb = bi.getRGB(xx, yy);
+-                        zpixmap.set(xx, yy, rgb);
++                        int currentRed = 0xFF & (rgb >> 16);
++                        int currentGreen = 0xFF & (rgb >> 8);
++                        int currentBlue = 0xFF & rgb;
++                        zpixmap.putRGB(xx, yy, currentRed, currentGreen, currentBlue);
+                       }
+                   }
+                 xdrawable.put_image(xgc, zpixmap, x, y);
+                 imageCache.put(image, zpixmap);
+-              } else {
+-
++              }
++            catch (EscherUnsupportedScreenBitDepthException e)
++              {
++                e.printStackTrace();
++              }
++          }
++        else
++          {
++            try
++              {
+                 // TODO optimize reusing the rectangles
+                 Rectangle source =
+                   new Rectangle(0, 0, xdrawable.width, xdrawable.height);
+                 Rectangle target = new Rectangle(x, y, w, h);
+-
++  
+                 Rectangle destination = source.intersection(target);
+-
++  
+                 x = destination.x;
+                 y = destination.y;
+                 w = destination.width;
+                 h = destination.height;
+-
++  
+                 ZPixmap zpixmap =
+                   (ZPixmap) xdrawable.image(x, y, w, h,
+                                             0xffffffff,
+@@ -416,46 +462,50 @@
+                     for (int xx = 0; xx < w; xx++)
+                       {
+                         int rgb = bi.getRGB(xx, yy);
++                        int currentRed = 0xFF & (rgb >> 16);
++                        int currentGreen = 0xFF & (rgb >> 8);
++                        int currentBlue = 0xFF & rgb;
+                         int alpha = 0xff & (rgb >> 24);
+                         if (alpha == 0)
+                           {
+                             // Completely translucent.
+-                            rgb = zpixmap.get_red(xx, yy) << 16
+-                                  | zpixmap.get_green(xx, yy) << 8
+-                                  | zpixmap.get_blue(xx, yy);
++                            //rgb = zpixmap.get_red(xx, yy) << 16
++                            //      | zpixmap.get_green(xx, yy) << 8
++                            //      | zpixmap.get_blue(xx, yy);
+                           }
+                         else if (alpha < 255)
+                           {
+                             // Composite pixels.
+                             int red = 0xff & (rgb >> 16);
+-                            red = red * alpha
+-                                     + (255 - alpha) * zpixmap.get_red(xx, yy);
++                            red = red * alpha + (255 - alpha) * currentRed;
+                             red = red / 255;
+                             int green = 0xff & (rgb >> 8);
+-                            green = green * alpha
+-                                   + (255 - alpha) * zpixmap.get_green(xx, yy);
++                            green = green * alpha + (255 - alpha) * currentGreen;
+                             green = green / 255;
+                             int blue = 0xff & rgb;
+-                            blue = blue * alpha
+-                                    + (255 - alpha) * zpixmap.get_blue(xx, yy);
++                            blue = blue * alpha + (255 - alpha) * currentBlue;
+                             blue = blue / 255;
++                            
++                            currentRed = red;
++                            currentGreen = green;
++                            currentBlue = blue;
+                             rgb = red << 16 | green << 8 | blue;
+                           }
+                         // else keep rgb value from source image.
+-
+-                        zpixmap.set(xx, yy, rgb);
++  
++                        zpixmap.putRGB(xx, yy, currentRed, currentGreen, currentBlue);
+                       }
+                   }
+                 xdrawable.put_image(xgc, zpixmap, x, y);
+                 // We can't cache prerendered translucent images, because
+                 // we never know how the background changes.
+               }
+-            ret = true;
++            catch (EscherUnsupportedScreenBitDepthException e) 
++              {
++                e.printStackTrace();
++              }
+           }
+-      }
+-    else
+-      {
+-        ret = super.rawDrawImage(image, x, y, obs);
++        ret = true;
+       }
+     return ret;
+   }
+@@ -467,7 +517,7 @@
+     if (p instanceof XFontPeer)
+       {
+         XFontPeer xFontPeer = (XFontPeer) p;
+-        xgc.set_font(xFontPeer.getXFont());
++        xgc.setFont(xFontPeer.getXFont());
+       }
+   }
+ 
+Index: gnu/java/awt/peer/x/XGraphicsConfiguration.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XGraphicsConfiguration.java,v
+retrieving revision 1.5
+diff -u -r1.5 XGraphicsConfiguration.java
+--- gnu/java/awt/peer/x/XGraphicsConfiguration.java	3 Jun 2010 19:11:29 -0000	1.5
++++ gnu/java/awt/peer/x/XGraphicsConfiguration.java	15 Jul 2010 03:17:15 -0000
+@@ -158,9 +158,9 @@
+   public Rectangle getBounds()
+   {
+     Display d = device.getDisplay();
+-    Screen screen = d.default_screen;
++    Screen screen = d.getDefaultScreen();
+ 
+-    return new Rectangle(0, 0, screen.width, screen.height);
++    return new Rectangle(0, 0, screen.getWidth(), screen.getHeight());
+   }
+ 
+   /**
+@@ -172,9 +172,9 @@
+   {
+     // TODO: A GraphicsConfiguration should correspond to a Screen instance.
+     Display d = device.getDisplay();
+-    Screen screen = d.default_screen;
+-    int w = screen.width;
+-    int h = screen.height;
++    Screen screen = d.getDefaultScreen();
++    int w = screen.getWidth();
++    int h = screen.getHeight();
+     return new Dimension(w, h);
+   }
+ 
+@@ -186,11 +186,11 @@
+   int getResolution()
+   {
+     Display d = device.getDisplay();
+-    Screen screen = d.default_screen;
+-    int w = screen.width * 254;
+-    int h = screen.height * 254;
+-    int wmm = screen.width_in_mm * 10;
+-    int hmm = screen.height_in_mm * 10;
++    Screen screen = d.getDefaultScreen();
++    int w = screen.getWidth()* 254;
++    int h = screen.getHeight() * 254;
++    int wmm = screen.getWidthInMM() * 10;
++    int hmm = screen.getHeightInMM() * 10;
+     int xdpi = w / wmm;
+     int ydpi = h / hmm;
+     int dpi = (xdpi + ydpi) / 2;
+Index: gnu/java/awt/peer/x/XGraphicsDevice.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XGraphicsDevice.java,v
+retrieving revision 1.4
+diff -u -r1.4 XGraphicsDevice.java
+--- gnu/java/awt/peer/x/XGraphicsDevice.java	3 Jun 2010 19:11:29 -0000	1.4
++++ gnu/java/awt/peer/x/XGraphicsDevice.java	15 Jul 2010 03:17:16 -0000
+@@ -65,11 +65,6 @@
+   private Display display;
+ 
+   /**
+-   * The display name from which the display will be initialized.
+-   */
+-  private Display.Name displayName;
+-
+-  /**
+    * The event pump for this X Display.
+    */
+   private XEventPump eventPump;
+@@ -77,9 +72,9 @@
+   /**
+    * Creates a new XGraphicsDevice.
+    */
+-  XGraphicsDevice(Display.Name dn)
++  XGraphicsDevice(String displayVar)
+   {
+-    displayName = dn;
++    this.display = initDisplay(parseDisplayVar(displayVar));
+   }
+ 
+   public int getType()
+@@ -108,59 +103,18 @@
+ 
+   /**
+    * Returns the X Display associated with this XGraphicsDevice.
+-   * This establishes the connection to the X server on the first invocation.
+    *
+    * @return the X Display associated with this XGraphicsDevice
+    */
+   Display getDisplay()
+   {
+-    if (display == null)
+-      {
+-        if (displayName.hostname.equals(""))
+-          displayName.hostname = "localhost";
+-        if (XToolkit.DEBUG)
+-          System.err.println("connecting to : " + displayName);
+-        // Try to connect via unix domain sockets when host == localhost.
+-        if ((displayName.hostname.equals("localhost")
+-             || displayName.hostname.equals(""))
+-          && SystemProperties.getProperty("gnu.xawt.no_local_sockets") == null)
+-          {
+-            Socket socket = createLocalSocket();
+-            if (socket != null)
+-              {
+-                try
+-                  {
+-                    display = new Display(socket, "localhost",
+-                                          displayName.display_no,
+-                                          displayName.screen_no);
+-                  }
+-                catch (EscherServerConnectionException e)
+-                  {
+-                    throw new RuntimeException(e.getCause());
+-                  }
+-              }
+-          }
+-
+-        // The following happens when we are configured to use plain sockets,
+-        // when the connection is probably remote or when we couldn't load
+-        // the LocalSocket class stuff.
+-        if (display == null)
+-          {
+-            try
+-              {
+-                display = new Display(displayName);
+-              }
+-            catch (EscherServerConnectionException e)
+-              {
+-                throw new RuntimeException(e.getCause());
+-              }
+-          }
+-
+-        eventPump = new XEventPump(display);
+-      }
+     return display;
+   }
+ 
++  /**
++   * Returns the {@link XEventPump} associated with this XGraphicsDevice
++   * @return the X Event Pump
++   */
+   XEventPump getEventPump()
+   {
+     return eventPump;
+@@ -170,13 +124,13 @@
+    * Tries to load the LocalSocket class and initiate a connection to the
+    * local X server.
+    */
+-  private Socket createLocalSocket()
++  private Socket createLocalSocket(int displayNumber)
+   {
+     Socket socket = null;
+     try
+       {
+         // TODO: Is this 100% ok?
+-        String sockPath = "/tmp/.X11-unix/X" + displayName.display_no;
++        String sockPath = "/tmp/.X11-unix/X" + displayNumber;
+         Class localSocketAddressClass =
+           Class.forName("gnu.java.net.local.LocalSocketAddress");
+         Constructor localSocketAddressConstr =
+@@ -197,4 +151,101 @@
+       }
+     return socket;
+   }
++  
++  /**
++   * Parses a DISPLAY environment variable, the variable value syntax is:
++   * 
++   * <pre>
++   * hostname:displayNumber.screenNumber
++   * </pre>
++   * 
++   * @param envVar the environment variable to parse
++   * @return a String array of size 3 containing the hostname, displayNumber and
++   *         screenNumber
++   */
++  private String[] parseDisplayVar(String envVar) {
++    // Default Values
++    String[] parsedVar = new String[] {"localhost", "0", "0"};
++    
++    if (envVar == null)
++      return parsedVar;
++  
++    int i = envVar.indexOf(':');
++  
++    // Case 1: envVar = hostname
++    if (i == -1) 
++      {
++        parsedVar[0] = envVar.equals("") ? "localhost" : envVar;
++        return parsedVar;
++      }
++    
++    String hostname = envVar.substring(0, i);
++    parsedVar[0] = hostname.equals("") ? "localhost" : hostname;
++    int j = envVar.indexOf('.', i);
++
++    // Case 2: envVar = hostname:displayNumber
++    if (j == -1) 
++      {
++        parsedVar[1] = envVar.substring(i + 1, envVar.length());
++        return parsedVar;
++      }
++  
++    // Case 3: envVar = hostname:displayNumber.screenNumber
++    parsedVar[1] = envVar.substring(i + 1, j);
++    parsedVar[2] = envVar.substring(j + 1, envVar.length());
++    
++    return parsedVar;
++  }
++
++  /**
++   * Initialize the connection with the X11 Server through Escher
++   * 
++   * @param envVar a array of String containing the envVar parsed (hostname,
++   *          displayNumber and screenNumber)
++   * @return the X Display
++   */
++  private Display initDisplay(String[] envVar) {
++    if (XToolkit.DEBUG)
++      System.err.println("Connecting to = " + envVar[0] + ":" + envVar[1] + "." + envVar[2]);
++    
++    // Try to connect via unix domain sockets when host == localhost.
++    if ((envVar[0].equals("localhost") || envVar[0].equals(""))
++      && SystemProperties.getProperty("gnu.xawt.no_local_sockets") == null)
++      {
++        Socket socket = createLocalSocket(Integer.parseInt(envVar[1]));
++        if (socket != null)
++          {
++            try
++              {
++                display = new Display(socket, "localhost",
++                                      Integer.parseInt(envVar[1]),  // Display Number
++                                      Integer.parseInt(envVar[2])); // Screen Number
++              }
++            catch (EscherServerConnectionException e)
++              {
++                throw new RuntimeException(e.getCause());
++              }
++          }
++      }
++
++    // The following happens when we are configured to use plain sockets,
++    // when the connection is probably remote or when we couldn't load
++    // the LocalSocket class stuff.
++    if (display == null)
++      {
++        try
++          {
++            display = new Display(envVar[0],                    // Hostname
++                                  Integer.parseInt(envVar[1]),  // Display Number
++                                  Integer.parseInt(envVar[2])); // Screen Number
++          }
++        catch (EscherServerConnectionException e)
++          {
++            throw new RuntimeException(e.getCause());
++          }
++      }
++    
++    eventPump = new XEventPump(display);
++    return display;
++  }
+ }
+Index: gnu/java/awt/peer/x/XGraphicsEnvironment.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XGraphicsEnvironment.java,v
+retrieving revision 1.4
+diff -u -r1.4 XGraphicsEnvironment.java
+--- gnu/java/awt/peer/x/XGraphicsEnvironment.java	3 Jun 2010 19:11:29 -0000	1.4
++++ gnu/java/awt/peer/x/XGraphicsEnvironment.java	15 Jul 2010 03:17:16 -0000
+@@ -100,8 +100,7 @@
+             String propValue = props.getProperty(propName);
+             if (propValue != null)
+               {
+-                Display.Name displayName = new Display.Name(propValue);
+-                XGraphicsDevice device = new XGraphicsDevice(displayName);
++                XGraphicsDevice device = new XGraphicsDevice(propValue);
+                 if (dev == 1)
+                   defaultDevice = device;
+                 deviceList.add(device);
+@@ -142,8 +141,7 @@
+     String display = System.getenv("DISPLAY");
+     if (display == null)
+       display = ":0.0";
+-    Display.Name displayName = new Display.Name(display);
+-    return new XGraphicsDevice(displayName);
++    return new XGraphicsDevice(display);
+   }
+ 
+   /**
+Index: gnu/java/awt/peer/x/XImage.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XImage.java,v
+retrieving revision 1.7
+diff -u -r1.7 XImage.java
+--- gnu/java/awt/peer/x/XImage.java	3 Jun 2010 19:11:29 -0000	1.7
++++ gnu/java/awt/peer/x/XImage.java	15 Jul 2010 03:17:16 -0000
+@@ -38,6 +38,7 @@
+ 
+ package gnu.java.awt.peer.x;
+ 
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.Pixmap;
+ import gnu.x11.image.ZPixmap;
+ 
+@@ -153,20 +154,28 @@
+           ColorModel model = graphics.getColorModel();
+           graphics.dispose();
+ 
+-          ZPixmap zpixmap = (ZPixmap)
+-            XImage.this.pixmap.image(0, 0, width, height,
+-                                     0xffffffff,
+-                                     gnu.x11.image.Image.Format.ZPIXMAP);
++          ZPixmap zpixmap = null;
++          try
++            {
++              zpixmap = (ZPixmap)
++                XImage.this.pixmap.image(0, 0, width, height,
++                                         0xffffffff,
++                                         gnu.x11.image.Image.Format.ZPIXMAP);
++            }
++          catch (EscherUnsupportedScreenBitDepthException e)
++            {
++              // TODO Auto-generated catch block
++              e.printStackTrace();
++            }
+ 
+-          int size = zpixmap.get_data_length();
++          int size = zpixmap.getDataLength();
+           System.out.println("size: " + size + ", w = " + width + ", h = " + height);
+ 
+           int [] pixel = new int[size];
+           for (int i = 0; i < size; i++)
+-            pixel[i] = zpixmap.get_data_element(i);
++            pixel[i] = zpixmap.getDataElement(i);
+ 
+           consumer.setHints(ImageConsumer.SINGLEPASS);
+-
+           consumer.setDimensions(width, height);
+           consumer.setPixels(0, 0, width, height, model, pixel, 0, width);
+           consumer.imageComplete(ImageConsumer.STATICIMAGEDONE);
+Index: gnu/java/awt/peer/x/XWindowPeer.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/XWindowPeer.java,v
+retrieving revision 1.9
+diff -u -r1.9 XWindowPeer.java
+--- gnu/java/awt/peer/x/XWindowPeer.java	3 Jun 2010 19:11:29 -0000	1.9
++++ gnu/java/awt/peer/x/XWindowPeer.java	15 Jul 2010 03:17:16 -0000
+@@ -58,9 +58,10 @@
+ 
+ import gnu.x11.Atom;
+ import gnu.x11.Window;
++import gnu.x11.WindowAttributes;
+ import gnu.x11.event.Event;
++import gnu.x11.event.Event.EventMask;
+ 
+-import gnu.java.awt.font.OpenTypeFontPeer;
+ import gnu.java.awt.peer.ClasspathFontPeer;
+ import gnu.java.awt.peer.swing.SwingWindowPeer;
+ 
+@@ -68,18 +69,17 @@
+     extends SwingWindowPeer
+ {
+ 
+-  private static int standardSelect = Event.BUTTON_PRESS_MASK
+-                                      | Event.BUTTON_RELEASE_MASK
+-                                      | Event.POINTER_MOTION_MASK
+-                                     // | Event.RESIZE_REDIRECT_MASK //
+-                                      | Event.EXPOSURE_MASK
+-                                      | Event.PROPERTY_CHANGE_MASK
+-                                      //| Event.STRUCTURE_NOTIFY_MASK
+-                                      //| Event.SUBSTRUCTURE_NOTIFY_MASK
+-                                      | Event.KEY_PRESS_MASK
+-                                      | Event.KEY_RELEASE_MASK
+-                                      //| Event.VISIBILITY_CHANGE_MASK //
+-                                      ;
++  private static int standardSelect = Event.EventMask.maskOr(new EventMask[] {
++                                           EventMask.BUTTON_PRESS_MASK,
++                                           EventMask.BUTTON_RELEASE_MASK,
++                                           EventMask.POINTER_MOTION_MASK,
++                                           // | Event.RESIZE_REDIRECT_MASK //
++                                           EventMask.EXPOSURE_MASK,
++                                           EventMask.PROPERTY_CHANGE_MASK,
++                                           //| Event.STRUCTURE_NOTIFY_MASK
++                                           //| Event.SUBSTRUCTURE_NOTIFY_MASK
++                                           EventMask.KEY_PRESS_MASK,
++                                           EventMask.KEY_RELEASE_MASK});
+ 
+   /**
+    * The X window.
+@@ -97,17 +97,17 @@
+     XGraphicsDevice dev = XToolkit.getDefaultDevice();
+ 
+     // TODO: Maybe initialize lazily in show().
+-    Window.Attributes atts = new Window.Attributes();
++    WindowAttributes atts = new WindowAttributes();
+     // FIXME: Howto generate a Window without decorations?
+     int x = Math.max(window.getX(), 0);
+     int y = Math.max(window.getY(), 0);
+     int w = Math.max(window.getWidth(), 1);
+     int h = Math.max(window.getHeight(), 1);
+-    xwindow = new Window(dev.getDisplay().default_root, x, y, w, h, 0, atts);
+-    xwindow.select_input(standardSelect);
++    xwindow = new Window(dev.getDisplay().getDefaultRoot(), x, y, w, h, 0, atts);
++    xwindow.selectInput(standardSelect);
+ 
+     dev.getEventPump().registerWindow(xwindow, window);
+-    xwindow.set_wm_delete_window();
++    xwindow.setWMDeleteWindow();
+ 
+     boolean undecorated;
+     if (awtComponent instanceof Frame)
+@@ -135,7 +135,7 @@
+         Atom at = Atom.intern(dev.getDisplay(), "_MOTIF_WM_HINTS");
+         if (at != null)
+           {
+-            xwindow.change_property(Window.REPLACE, at, at, 32,
++            xwindow.changeProperty(Window.PropertyMode.REPLACE, at, at, 32,
+                                     new int[]{1 << 1, 0, 0, 0, 0}, 0, 5);
+           }
+       }
+@@ -168,7 +168,7 @@
+ 
+   public Point getLocationOnScreen()
+   {
+-    return new Point(xwindow.x, xwindow.y);
++    return new Point(xwindow.getX(), xwindow.getY());
+   }
+ 
+   /**
+@@ -229,14 +229,14 @@
+ 
+     // Determine the frame insets.
+     Atom atom = (Atom) Atom.intern(dev.getDisplay(), "_NET_FRAME_EXTENTS");
+-    Window.Property p = xwindow.get_property(false, atom, Atom.CARDINAL, 0,
++    Window.Property p = xwindow.getProperty(false, atom, Atom.CARDINAL, 0,
+                                              Window.MAX_WM_LENGTH);
+     if (p.format() != 0)
+       {
+         insets = new Insets(p.value(0), p.value(1), p.value(2), p.value(3));
+         Window.Changes ch = new Window.Changes();
+-        ch.width(awtComponent.getWidth() - insets.left - insets.top);
+-        ch.height(awtComponent.getHeight() - insets.top - insets.bottom);
++        ch.setWidth(awtComponent.getWidth() - insets.left - insets.top);
++        ch.setHeight(awtComponent.getHeight() - insets.top - insets.bottom);
+         xwindow.configure(ch);
+       }
+ 
+@@ -267,7 +267,7 @@
+   public void reshape(int x, int y, int width, int height)
+   {
+     Insets i = insets;
+-    xwindow.move_resize(x - i.left, y - i.right, width - i.left - i.right,
++    xwindow.moveResize(x - i.left, y - i.right, width - i.left - i.right,
+                         height - i.top - i.bottom);
+   }
+ 
+Index: gnu/java/awt/peer/x/ZPixmapDataBuffer.java
+===================================================================
+RCS file: /sources/classpath/classpath/gnu/java/awt/peer/x/ZPixmapDataBuffer.java,v
+retrieving revision 1.2
+diff -u -r1.2 ZPixmapDataBuffer.java
+--- gnu/java/awt/peer/x/ZPixmapDataBuffer.java	20 Sep 2007 14:01:09 -0000	1.2
++++ gnu/java/awt/peer/x/ZPixmapDataBuffer.java	15 Jul 2010 03:17:16 -0000
+@@ -1,6 +1,7 @@
+ package gnu.java.awt.peer.x;
+ 
+ import gnu.x11.Display;
++import gnu.x11.EscherUnsupportedScreenBitDepthException;
+ import gnu.x11.image.ZPixmap;
+ 
+ import java.awt.GraphicsEnvironment;
+@@ -33,7 +34,14 @@
+       GraphicsEnvironment.getLocalGraphicsEnvironment();
+     XGraphicsDevice dev = (XGraphicsDevice) env.getDefaultScreenDevice();
+     Display d = dev.getDisplay();
+-    zpixmap = new ZPixmap(d, w, h, d.default_pixmap_format);
++    try
++    {
++      zpixmap = new ZPixmap(d, w, h, d.getDefaultPixmapFormat(), d.getVisualInfo(d.getDisplayNumber()));
++    }
++    catch (EscherUnsupportedScreenBitDepthException e)
++    {
++      e.printStackTrace();
++    }
+   }
+ 
+   /**
+@@ -43,19 +51,19 @@
+    */
+   ZPixmapDataBuffer(ZPixmap zpixmap)
+   {
+-    super(TYPE_BYTE, zpixmap.get_data_length());
++    super(TYPE_BYTE, zpixmap.getDataLength());
+     this.zpixmap = zpixmap;
+   }
+ 
+   @Override
+   public int getElem(int bank, int i)
+   {
+-    return 0xff & zpixmap.get_data_element(i);
++    return 0xff & zpixmap.getDataElement(i);
+   }
+ 
+   @Override
+   public void setElem(int bank, int i, int val)
+   {
+-    zpixmap.set_data_element(i, (byte) val);
++    zpixmap.setDataElement(i, (byte) val);
+   }
+ 

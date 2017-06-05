@@ -1,0 +1,264 @@
+This is ../../info/auth, produced by makeinfo version 4.11 from
+auth.texi.
+
+This file describes the Emacs auth-source library.
+
+   Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
+
+     Permission is granted to copy, distribute and/or modify this
+     document under the terms of the GNU Free Documentation License,
+     Version 1.3 or any later version published by the Free Software
+     Foundation; with no Invariant Sections, with the Front-Cover texts
+     being "A GNU Manual," and with the Back-Cover Texts as in (a)
+     below.  A copy of the license is included in the section entitled
+     "GNU Free Documentation License" in the Emacs manual.
+
+     (a) The FSF's Back-Cover Text is: "You have the freedom to copy and
+     modify this GNU manual.  Buying copies from the FSF supports it in
+     developing GNU and promoting software freedom."
+
+     This document is part of a collection distributed under the GNU
+     Free Documentation License.  If you want to distribute this
+     document separately from the collection, you can do so by adding a
+     copy of the license to the document, as described in section 6 of
+     the license.
+
+INFO-DIR-SECTION Emacs
+START-INFO-DIR-ENTRY
+* Auth-source: (auth).   The Emacs auth-source library.
+END-INFO-DIR-ENTRY
+
+
+File: auth,  Node: Top,  Next: Overview,  Up: (dir)
+
+Emacs auth-source
+*****************
+
+This manual describes the Emacs auth-source library.
+
+   It is a way for multiple applications to share a single configuration
+(in Emacs and in files) for user convenience.
+
+   This file describes the Emacs auth-source library.
+
+   Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
+
+     Permission is granted to copy, distribute and/or modify this
+     document under the terms of the GNU Free Documentation License,
+     Version 1.3 or any later version published by the Free Software
+     Foundation; with no Invariant Sections, with the Front-Cover texts
+     being "A GNU Manual," and with the Back-Cover Texts as in (a)
+     below.  A copy of the license is included in the section entitled
+     "GNU Free Documentation License" in the Emacs manual.
+
+     (a) The FSF's Back-Cover Text is: "You have the freedom to copy and
+     modify this GNU manual.  Buying copies from the FSF supports it in
+     developing GNU and promoting software freedom."
+
+     This document is part of a collection distributed under the GNU
+     Free Documentation License.  If you want to distribute this
+     document separately from the collection, you can do so by adding a
+     copy of the license to the document, as described in section 6 of
+     the license.
+
+* Menu:
+
+* Overview::                    Overview of the auth-source library.
+* Help for users::
+* Help for developers::
+* Index::
+* Function Index::
+* Variable Index::
+
+
+File: auth,  Node: Overview,  Next: Help for users,  Prev: Top,  Up: Top
+
+1 Overview
+**********
+
+The auth-source library is simply a way for Emacs and Gnus, among
+others, to find the answer to the old burning question "I have a server
+name and a port, what are my user name and password?"
+
+   The auth-source library actually supports more than just the user
+name (known as the login) or the password, but only those two are in use
+today in Emacs or Gnus.  Similarly, the auth-source library can in
+theory support multiple storage formats, but currently it only
+understands the classic "netrc" format, examples of which you can see
+later in this document.
+
+
+File: auth,  Node: Help for users,  Next: Help for developers,  Prev: Overview,  Up: Top
+
+2 Help for users
+****************
+
+"Netrc" files are a de facto standard.  They look like this:
+     machine MYMACHINE login MYLOGINNAME password MYPASSWORD port MYPORT
+
+   The machine is the server (either a DNS name or an IP address).
+
+   The port is optional.  If it's missing, auth-source will assume any
+port is OK.  Actually the port is a protocol name or a port number so
+you can have separate entries for port 143 and for protocol IMAP if you
+fancy that.  Anyway, you can just omit the port if you don't need it.
+
+   The login and password are simply your login credentials to the
+server.
+
+   "Netrc" files are usually called `.authinfo' or `.netrc'; nowadays
+`.authinfo' seems to be more popular and the auth-source library
+encourages this confusion by making it the default, as you'll see later.
+
+   If you have problems with the port, set `auth-source-debug' to `t'
+and see what port the library is checking in the `*Messages*' buffer.
+Ditto for any other problems, your first step is always to see what's
+being checked.  The second step, of course, is to write a blog entry
+about it and wait for the answer in the comments.
+
+   You can customize the variable `auth-sources'.  The following may be
+needed if you are using an older version of Emacs or if the auth-source
+library is not loaded for some other reason.
+
+     (require 'auth-source)             ;; probably not necessary
+     (customize-variable 'auth-sources) ;; optional, do it once
+
+ -- Variable: auth-sources
+     The `auth-sources' variable tells the auth-source library where
+     your netrc files live for a particular host and protocol.  While
+     you can get fancy, the default and simplest configuration is:
+
+          (setq auth-sources '((:source "~/.authinfo.gpg" :host t :protocol t)))
+
+     This says "for any host and any protocol, use just that one file."
+     Sweet simplicity.  In fact, this is already the default, so unless
+     you want to move your netrc file, it will just work if you have
+     that file.  You may not, though, so make sure it exists.
+
+     By adding multiple entries to `auth-sources' with a particular
+     host or protocol, you can have specific netrc files for that host
+     or protocol.  Usually this is unnecessary but may make sense if
+     you have shared netrc files or some other unusual setup (90% of
+     Emacs users have unusual setups and the remaining 10% are _really_
+     unusual).
+
+
+   If you don't customize `auth-sources', you'll have to live with the
+defaults: any host and any port are looked up in the netrc file
+`~/.authinfo.gpg'.  This is an encrypted file if and only if you set up
+EPA, which is strongly recommended.
+
+     (require 'epa-file)
+     (epa-file-enable)
+     ;;; VERY important if you want symmetric encryption
+     ;;; irrelevant if you don't
+     (setq epa-file-cache-passphrase-for-symmetric-encryption t)
+
+   The simplest working netrc line example is one without a port.
+
+     machine YOURMACHINE login YOU password YOURPASSWORD
+
+   This will match any authentication port.  Simple, right?  But what if
+there's a SMTP server on port 433 of that machine that needs a
+different password from the IMAP server?
+
+     machine YOURMACHINE login YOU password SMTPPASSWORD port 433
+     machine YOURMACHINE login YOU password GENERALPASSWORD
+
+   For url-auth authentication (HTTP/HTTPS), you need to put this in
+your netrc file:
+
+     machine yourmachine.com:80 port http login testuser password testpass
+
+   This will match any realm and authentication method (basic or digest)
+over HTTP.  HTTPS is set up similarly.  If you want finer controls,
+explore the url-auth source code and variables.
+
+   For Tramp authentication, use:
+
+     machine yourmachine.com port scp login testuser password testpass
+
+   Note that the port denotes the Tramp connection method.  When you
+don't use a port entry, you match any Tramp method, as explained
+earlier.  Since Tramp has about 88 connection methods, this may be
+necessary if you have an unusual (see earlier comment on those) setup.
+
+
+File: auth,  Node: Help for developers,  Next: Index,  Prev: Help for users,  Up: Top
+
+3 Help for developers
+*********************
+
+The auth-source library only has one function for external use.
+
+ -- Function: auth-source-user-or-password mode host port
+     Retrieve appropriate authentication tokens, determined by MODE,
+     for host HOST and PORT.  If `auth-source-debug' is t, debugging
+     messages will be printed.  Set `auth-source-debug' to a function
+     to use that function for logging.  The parameters passed will be
+     the same that the `message' function takes, that is, a string
+     formatting spec and optional parameters.
+
+     If MODE is a list of strings, the function will return a list of
+     strings or `nil' objects (thus you can avoid parsing the netrc
+     file more than once).  If it's a string, the function will return a
+     string or a `nil' object.  Currently only the modes "login" and
+     "password" are recognized but more may be added in the future.
+
+     HOST is a string containing the host name.
+
+     PORT contains the protocol name (e.g. "imap") or a port number.
+     It must be a string, corresponding to the port in the users' netrc
+     files.
+
+          ;; IMAP example
+          (setq auth (auth-source-user-or-password
+                      '("login" "password")
+                      "anyhostnamehere"
+                      "imap"))
+          (nth 0 auth) ; the login name
+          (nth 1 auth) ; the password
+
+
+
+File: auth,  Node: Index,  Next: Function Index,  Prev: Help for developers,  Up: Top
+
+4 Index
+*******
+
+ [index ]
+* Menu:
+
+File: auth,  Node: Function Index,  Next: Variable Index,  Prev: Index,  Up: Top
+
+5 Function Index
+****************
+
+ [index ]
+* Menu:
+
+* auth-source-user-or-password:          Help for developers.   (line 9)
+
+
+File: auth,  Node: Variable Index,  Prev: Function Index,  Up: Top
+
+6 Variable Index
+****************
+
+ [index ]
+* Menu:
+
+* auth-sources:                          Help for users.       (line 37)
+
+
+
+Tag Table:
+Node: Top1283
+Node: Overview2809
+Node: Help for users3468
+Node: Help for developers7587
+Node: Index9060
+Node: Function Index9186
+Node: Variable Index9400
+
+End Tag Table

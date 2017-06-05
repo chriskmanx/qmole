@@ -1,0 +1,228 @@
+#!/bin/bash
+
+# bmpanel configuration script
+
+#----------------------------------------------------------------------------
+# help message
+#----------------------------------------------------------------------------
+help() {
+	echo "Options:"
+	echo -e "  --help             print this help and exit"
+	echo -e "  --prefix=PREFIX    specify install path [default=/usr]"
+	echo -e "  --debug            enable debug mode"
+	echo -e "  --mem-debug        become a memleak hunter"
+	echo -e "  --optimize         extra optimizations"
+	echo -e "  --ugly             enable ugly verbose mode"
+	echo -e "  --with-ev          implement event loop with libev"
+	echo -e "  --with-event       implement event loop with libevent"
+}
+
+TIMERFDMSG="\n***************************************************************************\nWARNING! Probably you have an old glibc library and/or an old linux kernel,\nyou need glibc >= 2.8 and the linux kernel >= 2.6.22 to compile this panel.\n***************************************************************************\n"
+LIBEVMSG="\n***************************************************************************\nWARNING! You selected --with-ev options, but it looks like you have no\nlibev, please make sure that libev was installed in compiler-known place.\n***************************************************************************\n"
+LIBEVENTMSG="\n***************************************************************************\nWARNING! You selected --with-event options, but it looks like you have no\nlibevent, please make sure that libevent was installed in compiler-known\nplace.\n***************************************************************************\n"
+
+#----------------------------------------------------------------------------
+# globals
+#----------------------------------------------------------------------------
+CFLAGS="-Wall"
+LIBS=""
+PACKAGES=""
+
+#----------------------------------------------------------------------------
+# helper functions
+#----------------------------------------------------------------------------
+append_libs_and_cflags() {
+	CFLAGS="${CFLAGS} `pkg-config --cflags ${PACKAGES}`"
+	LIBS="${LIBS} `pkg-config --libs ${PACKAGES}`"
+}
+
+check_header() {
+	local HEADER=$1
+	local MSG=$2
+	echo -n "checking for $HEADER... "
+
+	cat <<EOF > tmp.c && gcc tmp.c 2> /dev/null
+#include <$1>
+int main() { return 0; }
+EOF
+
+	RESULT=$?
+	rm -rf tmp.c
+	rm -rf a.out
+
+	if [ $RESULT -ne 0 ]; then
+		echo "no"
+		if [[ -n $MSG ]]; then
+			echo -e $MSG
+		fi
+		return
+	fi
+	echo "yes"
+}
+
+check_event_header() {
+	local MSG=$1
+	echo -n "checking for event.h... "
+
+	cat <<EOF > tmp.c && gcc tmp.c 2> /dev/null
+#include <sys/types.h>
+#include <event.h>
+int main() { return 0; }
+EOF
+
+	RESULT=$?
+	rm -rf tmp.c
+	rm -rf a.out
+
+	if [ $RESULT -ne 0 ]; then
+		echo "no"
+		if [[ -n $MSG ]]; then
+			echo -e $MSG
+		fi
+		return
+	fi
+	echo "yes"
+}
+
+check_pkg_version() {
+	local PACKAGE=$1
+	local VERSION=$2
+	echo -n "checking for $PACKAGE >= $VERSION... "
+	if ! (pkg-config --exists --atleast-version=${VERSION} ${PACKAGE}); then
+		echo "no"
+		exit 1
+	fi
+	echo "yes"
+	PACKAGES="${PACKAGES} ${PACKAGE}" 
+}
+
+check_pkg() {
+	local PACKAGE=$1
+	echo -n "checking for $PACKAGE... "
+	if ! (pkg-config --exists ${PACKAGE}); then
+		echo "no"
+		exit 1
+	fi
+	echo "yes"
+	PACKAGES="${PACKAGES} ${PACKAGE}" 
+}
+
+yes_no() {
+	local VAR=$1
+	if [ $VAR -eq 1 ]; then
+		echo "yes"
+	else
+		echo "no"
+	fi
+}
+
+#----------------------------------------------------------------------------
+# parse command line options
+#----------------------------------------------------------------------------
+PREFIX="/usr"
+DEBUG=0
+MEMDEBUG=0
+OPTIMIZE=0
+UGLY=0
+WITH_EV=0
+WITH_EVENT=0
+
+while [ $# -gt 0 ]; do
+	case $1 in
+		--help)
+			help
+			exit 0
+			;;
+		--prefix=*)
+			PREFIX=`echo $1 | sed 's/--prefix=//'`
+			;;
+		--debug)
+			DEBUG=1
+			;;
+		--mem-debug)
+			MEMDEBUG=1
+			;;
+		--optimize)
+			OPTIMIZE=1
+			;;
+		--ugly)
+			UGLY=1
+			;;
+		--with-ev)
+			WITH_EV=1
+			;;
+		--with-event)
+			WITH_EVENT=1
+			;;
+		*)
+			echo "unknown option $1"
+			help
+			exit 1
+			;;
+	esac
+	shift
+done
+
+#----------------------------------------------------------------------------
+# general flow
+#----------------------------------------------------------------------------
+echo "checking for installed devel packages"
+if [ $WITH_EV -eq 1 ]; then
+	check_header ev.h "$LIBEVMSG"
+elif [ $WITH_EVENT -eq 1 ]; then
+	check_event_header "$LIBEVENTMSG"
+else
+	check_header sys/timerfd.h "$TIMERFDMSG"
+fi
+check_pkg_version imlib2 1.4.0
+check_pkg x11
+check_pkg xrender
+check_pkg xcomposite
+check_pkg fontconfig
+append_libs_and_cflags
+
+if [ $MEMDEBUG -eq 1 ]; then
+	CFLAGS="$CFLAGS -DMEMDEBUG"
+fi
+
+if [ $WITH_EV -eq 1 ]; then
+	CFLAGS="$CFLAGS -DWITH_EV"
+	LIBS="$LIBS -lev"
+elif [ $WITH_EVENT -eq 1 ]; then
+	CFLAGS="$CFLAGS -DWITH_EVENT"
+	LIBS="$LIBS -levent"
+fi
+
+if [ $DEBUG -eq 1 ]; then
+	CFLAGS="$CFLAGS -g -O0 -DLOG_ASSERT_ENABLED -DDEBUG"
+else
+	if [ $OPTIMIZE -eq 1 ]; then
+		CFLAGS="$CFLAGS -O2 -march=native"
+	fi
+fi
+
+CFLAGS="$CFLAGS -DPREFIX=\\\\\\\"$PREFIX\\\\\\\""
+
+CFLAGS=`echo $CFLAGS | xargs`
+LIBS=`echo $LIBS | xargs`
+
+echo ""
+echo "---------- summary ----------"
+echo "  CFLAGS : $CFLAGS"
+echo "    LIBS : $LIBS"
+echo "  PREFIX : $PREFIX"
+echo -n "   DEBUG : "; yes_no $DEBUG
+echo -n "MEMDEBUG : "; yes_no $MEMDEBUG
+echo -n "OPTIMIZE : "; yes_no $OPTIMIZE
+echo -n "    UGLY : "; yes_no $UGLY
+echo "-----------------------------"
+echo ""
+
+echo "writing .mk/config.mk..."
+mkdir -p .mk
+echo "PREFIX:=$PREFIX" > .mk/config.mk
+echo "UGLY:=$UGLY" >> .mk/config.mk
+echo "DEBUG:=$DEBUG" >> .mk/config.mk
+echo "CFLAGS+=$CFLAGS" >> .mk/config.mk
+echo "LIBS+=$LIBS" >> .mk/config.mk
+echo "configure done"

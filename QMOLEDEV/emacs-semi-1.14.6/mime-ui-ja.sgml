@@ -1,0 +1,713 @@
+<!doctype sinfo system>
+<head>
+<title>SEMI 1.14 説明書
+<author>守岡 知彦 <mail>morioka@jaist.ac.jp</mail>
+<date>1998/07/03
+
+<toc>
+</head>
+
+<body>
+
+<abstract>
+<p>
+This file documents SEMI, a MIME user interface for GNU Emacs.
+<p>
+GNU Emacs 用の MIME user interface である SEMI について説明します。
+</abstract>
+
+
+<h1> SEMI って何？
+<node> Introduction
+<p>
+SEMI は GNU Emacs 用の MIME user interface を提供する package です。
+<p>
+SEMI が提供する MIME user interface は MIME-View と MIME-Edit からなりま
+す。
+<p> 
+MIME-View は MIME や STD 11 および『地域化された RFC 822』message を表示
+したり、操作したりするための user interface の中核です。
+<p>
+MIME-Edit は MIME message を生成するための user interface です。
+<p>
+各 MUA でこれらの機能を利用することにより、高度な MIME 機能を利用するこ
+とができます。
+
+
+<h1> MIME message の閲覧
+<node> MIME-View
+<p>
+MIME-View は GNU Emacs で動作する汎用的な MIME viewer です。
+<p>
+MIME-View は MIME message を閲覧するための利用者界面 (user interface) 
+の核であり、この上で presentation-method と呼ばれる表示を作るプログラム
+を動かしたり、acting-method と呼ばれる entity の処理プログラムを動かす
+ことが可能で、さまざまな種類の entity を扱う事ができるようになっています。
+
+
+<h2> MIME-View 概説
+<node> Overview of MIME-View
+<p>
+Internet の電子書簡・ネットニュースなどの書面 (message) の表現形式は 
+STD 11 に基づいています。STD 11 の書面本体 (message body) は行を唯一の
+構造とする簡易文面 (plain text) であり、文字符号も us-ascii と定められ
+ています。実際には、文字符号を us-ascii の代わりにその言語圏で用いられ
+る文字符号とした『地域化された STD 11』書面も用いられてきましたが、こ
+の場合も書面の文字符号は１つです。このため、利用者界面 (Message User
+Agent) は、しばしば、byte 列 = us-ascii 文字列、ないしは、byte 列 = そ
+の言語圏で用いる文字符号の文字列のように見倣してきました。
+<p>
+しかしながら、MIME では書面は entity を単位とする木構造になり、また、
+１つの書面で複数の文字符号を用いることができます。また、entity の内容
+は文面や絵のような単純に表示可能なものだけでなく、音声や動画などの一定
+時間再生されるようなものや特定のアプリケーションのデータやプログラムの
+ソース、あるいは、ftp や mail service の利用法や URL といった形で表さ
+れた外部参照などのさまざまなものが考えらます。このため、表示だけを考え
+ていた STD 11 における利用者界面の単純な延長では MIME の全ての機能を扱
+うことはできません。つまり、MIME の形式に合わせて復号するだけでは不十
+分であり、利用者との対話的な再生処理を考慮する必要があります。MIME 書
+面の形式は自動処理がしやすく設計されていますが、MIME 書面に含まれる内
+容の中にはセキュリティー上の問題から自動処理をするべきでないものがあり、
+こういったものの再生に関しては利用者の判断を仰ぐように設計されるべきで
+しょう。結局、MIME 書面を扱うためには STD 11 および MIME の構文で記述
+されたメッセージの情報交換用表現とその解釈結果である表示画面や再生等の
+処理を区別して考える必要があります。また、利用者との対話的な再生処理が
+必要です。
+<p>
+このため、MIME-View は１つの書面に対して、情報交換用表現を格納する 
+mime-raw-buffer と表示用表現を格納する mime-preview-buffer の２つの 
+buffer を用います。
+<p>
+MIME-View は mime-preview-buffer に対して mime-view-mode という MIME
+message を閲覧するための mode を提供します。利用者はここで各 entity に
+対して操作を行うことができます。
+
+
+<h2> mime-preview-buffer の画面構成
+<node> MIME-Preview
+<p>
+mime-view-mode では各 entity に対して
+<p>
+<verb>
+	[entity-button]
+	(header)
+	
+	(body)
+	(separator)
+</verb>
+<p>
+<noindent>
+という情報を表示します。これらは条件に従って design を変更したり、表示
+を抑制することもできます。
+<p>
+以下に、表示例を示します。
+
+
+<verb>
+From: morioka@jaist.ac.jp (守岡 知彦 / MORIOKA Tomohiko)
+Subject: Re: 質問？
+Newsgroups: zxr.message.mime
+Date: 22 Oct 93 11:02:44
+Mime-Version: 1.0
+Organization: Japan Advanced Institute of Science and Technology,
+        Ishikawa, Japan
+
+[1  (text/plain)]
+  MIME-Edit mode における、MIME message の作り方。
+
+  C-c C-x ? を押すと help が出てくる。
+
+C-c C-x C-t	insert a text message.
+C-c C-x TAB	insert a (binary) file.
+C-c C-x C-e	insert a reference to external body.
+C-c C-x C-v	insert a voice message.
+C-c C-x C-y	insert a mail or news message.
+C-c C-x RET	insert a mail message.
+C-c C-x C-s	insert a signature file at end.
+C-c C-x t	insert a new MIME tag.
+C-c C-x a	enclose as multipart/alternative.
+C-c C-x p	enclose as multipart/parallel.
+C-c C-x m	enclose as multipart/mixed.
+C-c C-x d	enclose as multipart/digest.
+C-c C-x s	enclose as PGP signed.
+C-c C-x e	enclose as PGP encrypted.
+C-c C-x C-k	insert PGP public key.
+C-c C-x C-p	preview editing MIME message.
+...
+
+って訳で、C-c C-x C-i を押して、挿入したい binary file を指定します。
+
+  binary file の MIME encoding には、普通、Base64 を指定します。
+
+[2  (image/gif)]
+
+[3  (text/plain)]
+
+  こんな風に、絵入り message のでき上がり。
+
+〓〓〓〓〓〓〓〓〓〓〓 ロシアン・ティーを一杯。 〓〓〓〓〓〓〓〓〓〓〓
+〓〓〓〓〓  ☆ ジャムではなくマーマレードでもなく蜂蜜で ☆  〓〓〓〓〓
+〓〓〓〓〓         МОРいОКА  ТОМОХИКО         〓〓〓〓〓
+〓〓〓〓〓〓〓  Internet E-mail: &lt;morioka@jaist.ac.jp&gt;  〓〓〓〓〓〓〓
+</verb>
+
+
+<h3> entity-button
+<node> entity-button
+<p>
+<concept>entity-button</concept> は entity の先頭にあって、その entity 
+に関する大まかな情報を表示する部分です。
+<p>
+標準では
+
+<verb>
+        [1.3 test (text/plain)]
+</verb>
+
+<noindent>
+のような感じに表示されます。
+<p>
+最初の数字は message 中のこの entity の位置を節番号のように表したもの
+で、<concept>entity-number</concept> と呼びます。
+<p>
+２番目の文字列は表題を表します。この情報は、
+
+<ol>
+<li>Content-Description field もしくは Subject field に書かれた表題
+<li>Content-Disposition field の filename parameter に書かれた file 名
+<li>Content-Type field の name parameter に書かれた file 名
+<li> uuencode の場合の file 名
+</ol>
+
+<noindent>
+から作ります。どれも存在しない場合は空白が表示されます。
+<p>
+３番目の括弧の中の情報はその entity の media-type/subtype を表します。
+非 MIME entity の場合、<code>nil</code> が表示されます。
+<p>
+この entity-button は entity の内容を象徴する icon のような役割を果た
+します。例えば、
+
+<verb>
+        [2  (image/gif)]
+</verb>
+
+<noindent>
+の上で <kbd>v</kbd> を押せばここに入っている絵が表示されます。
+<p>
+また、mouse 操作が可能な場合、entity-button を第２ボタン（3 button
+mouse の場合、中央のボタン）で押せば、同様にその絵が表示されます。
+
+
+<h3> entity-header
+<node> entity-header
+<p>
+<concept>entity-header</concept> はある entity の header を表示する部
+分です（「そのままやんけ」って怒らないで。そういうもんなんです）。
+
+
+<h3> entity-body
+<node> entity-body
+<p>
+<concept>entity-body</concept> は part の内容を表示する部分です。
+<p>
+これもひねりが足りないですが、まあ、そういうもんです。
+<p>
+とはいえ、実際には少しひねってます。
+<p>
+text entity の場合は charset に応じて code 変換したりしますし、XEmacs 
+では image entity を変換しないといけないし。
+<p>
+詳しくはまた後で。
+
+
+<h2> mime-preview-buffer での操作
+<node> mime-view-mode
+<p>
+mime-preview-buffer には以下の機能があります。
+<p>
+<kl>
+<kt>u
+<kd>
+上の part に戻る（message の一番上の part でこれを行なうと Summary
+mode に戻る (*1)）
+</kd>
+<kt>p<kd>前の part に移動する
+</kd>
+<kt>M-TAB<kd>前の part に移動する
+</kd>
+<kt>n<kd>次の part に移動する
+</kd>
+<kt>TAB<kd>次の part に移動する
+</kd>
+<kt>SPC<kd>scroll up する
+</kd>
+<kt>M-SPC<kd>scroll down する
+</kd>
+<kt>DEL<kd>scroll down する
+</kd>
+<kt>RET<kd>次の行に移動する
+</kd>
+<kt>M-RET<kd>前の行に移動する
+</kd>
+<kt>v<kd>part を再生する (*2)
+</kd>
+<kt>e<kd>part から file を取り出す (*2)
+</kd>
+<kt>C-c C-p<kd>part を印刷する (*2)
+</kd>
+<kt>mouse-button-2
+<kd>
+preview-buffer 中の mouse button を起動する
+<p>
+content-button を押せば、その part が再生される(*2)
+<p>
+URL-button を押せば、その WWW browser が起動される
+</kd>
+</kl>
+<p>
+<memo title="注意">
+<p>
+(*1) MUA で mime-view の設定をしていない場合、Summary mode には戻りま
+せん。
+<p>
+(*2) 実際の動作は対応する method に依ります。
+</memo>
+
+
+<h1> MIME message の編集
+<node> MIME-Edit
+<p>
+<concept>MIME-Edit</concept> は GNU Emacs で動作する汎用的な MIME
+composer です。
+
+
+<h2> MIME message を編集するための minor-mode
+<node> mime-edit-mode
+<p>
+<concept>mime-edit-mode</concept> は MIME message を作成するための 
+minor-mode です。この mode では <concept>tag</concept> を使ってさまざま
+な種類の data を表現し、さまざまな種類の data からなる複数の部分からなる 
+message を編集することを可能にしています。
+<p>
+tag には
+
+<ul>
+<li> single-part tag
+<li> multi-part tag
+</ul>
+
+<noindent>
+の２つがあります。
+<p>
+single-part tag は single part を表現するための tag で、
+<p>
+<verb>
+        --[[TYPE/SUBTYPE;PARAMETERS][ENCODING]
+        OPTIONAL-FIELDS]
+</verb>
+<p>
+<noindent>
+というような形をしています。
+<p>
+TYPE/SUBTYPE および PARAMETERS は <dref file="mime-ja">Content-Type
+</dref> 欄の type/subtype および parameters を表します。TYPE/SUBTYPE は
+必須であり、PARAMETERS は省略可です。
+<p>
+ENCODING は <dref file="mime-ja">Content-Transfer-Encoding</dref> 欄を表
+します。これも省略可です。
+<p>
+OPTIONAL-FIELDS は Content-Type, Content-Transfer-Encoding 以外の 
+field を書くための部分で、省略可です。
+<p>
+multi-part tag は <a file="mime-ja" node="multipart">multi part</a> を表
+現するための tag で、
+<p>
+<verb>
+        --<<TYPE>>-@{
+</verb>
+<p>
+<noindent>
+という形の <concept>multi-part 開始 tag</concept> と呼ばれる multi
+part の開始を示す tag と
+<p>
+<verb>
+        --@}-<<TYPE>>
+</verb>
+<p>
+<noindent>
+という形の <concept>multi-part 終了 tag</concept> と呼ばれる multi
+part の終了を示す tag があります。
+<p>
+また、multi-part 開始 tag と multi-part 終了 tag で囲まれた部分を 
+<concept>enclosure</concept> と呼びます。
+
+
+<h2> single-part に対する操作
+<node> single-part tags
+<p>
+single-part を作るための操作には以下のようなものがあります。
+
+<kl>
+<kt>C-c C-x C-t
+<kd>
+text part を表す single-part tag を挿入します。
+</kd>
+<kt>C-c C-x C-i
+<kd>
+file を MIME part として添付します。前に <kbd>C-u</kbd> を付けた場合、
+常に media-type, subtype 等を聞いて来ます。<cf node="tag specification
+for inserted file">
+</kd>
+<kt>C-c C-x C-e
+<kd>
+external part を挿入します。
+</kd>
+<kt>C-c C-x C-v
+<kd>
+<kbd>C-g</kbd> が押されるまで録音を行い、音声 part を挿入します。（使
+用できない場合があります）
+</kd>
+<kt>C-c C-x C-y
+<kd>
+現在表示中の (mail or news) message を挿入します。（実際の動作は使用し
+ている MUA に依存します）
+</kd>
+<kt>C-c C-x C-m
+<kd>
+mail message を挿入します。
+</kd>
+<dt><key>C-c C-x C-w</key>, <key>C-c C-x C-s</key>
+<dd>
+signature を挿入します。
+</dd>
+<kt>C-c C-x C-k
+<kd>
+<dref>PGP</dref> の公開鍵を挿入します。
+</kd>
+<kt>C-c C-x t
+<kd>
+任意の single-part tag を挿入します。
+</kl>
+
+
+<h2> enclosure に対する操作
+<node> enclosure tags
+<p>
+enclosure を作るための操作としては以下のようなものがあります。
+
+<kl>
+<kt>C-c C-m C-a
+<kd>
+指定した region を multipart/alternative として囲みます。
+</kd>
+<kt>C-c C-x C-p
+<kd>
+指定した region を multipart/parallel として囲みます。
+</kd>
+<kt>C-c C-x C-m
+<kd>
+指定した region を multipart/mixed として囲みます。
+</kd>
+<kt>C-c C-x C-d
+<kd>
+指定した region を multipart/digest として囲みます。
+</kd>
+<kt>C-c C-x C-s
+<kd>
+指定した region に電子署名を行います。<cf node="PGP">
+</kd>
+<kt>C-c C-x C-e
+<kd>
+指定した region を暗号化します。<cf node="PGP">
+<kt>C-c C-x C-q
+<kd>
+指定した region 内の tag を無効にし、その tag を文字列として利用できる
+ようにします。（現在の版ではうまく働かないことがあります。また、電子署
+名との併用に関しても不完全です）
+</kl>
+
+
+<h2> mime-edit-mode におけるその他の操作
+<node> other MIME-Edit operations
+<p>
+mime-edit-mode におけるその他の操作を説明します。
+
+<kl>
+<kt>C-c C-c
+<kd>
+編集中の message を送信します。
+</kd>
+<kt>C-c C-x p
+<kd>
+編集中の message を preview します。<cf node="MIME-View">
+</kd>
+<kt>C-c C-x C-z
+<kd>
+編集中の message を送信することなく、mime-edit-mode を終了します。
+</kd>
+<kt>C-c C-x /
+<kd>
+大きな message を送信する場合に message/partial 形式に自動分割可能とす
+るかどうかを決めます。
+</kd>
+<kt>C-c C-x 7
+<kd>
+<dref>transfer level</dref> を <dref file="mime-ja">7bit</dref> にします。
+</kd>
+<kt>C-c C-x 8
+<kd>
+<dref>transfer level</dref> を <dref file="mime-ja">8bit</dref> にします。
+</kd>
+<kt>C-c C-x v
+<kd>
+message 全体を電子署名するかどうかを決めます。<cf node="PGP">
+</kd>
+<kt>C-c C-x h
+<kd>
+message 全体を暗号化するかどうかを決めます。<cf node="PGP">
+<kt>C-c C-x ?
+<kd>
+help message を表示します。
+</kl>
+
+
+<h2> 挿入される file に対する tag の決定
+<node> file-type specification
+<p>
+<kbd>C-c C-x C-i</kbd> (<code>mime-edit-insert-file</code>) を実行した時、
+挿入される file に対する media-type や encoding などの tag の情報は変数 
+<code>mime-file-types</code> によって file 名から推測されます。
+<p>
+前に <kbd>C-u</kbd> を付けた時、および、適当な値が見付からなかった場合、
+user に対して値の入力を促します。（前に <kbd>C-u</kbd> を付けた時、推
+測された値が既定値として用いられます）
+<p>
+file 名に対する既定値を変えたい場合は変数 <code>mime-file-types</code>
+を設定して下さい。
+
+<defvar name="mime-file-types">
+<p>
+挿入される file の file 名に対する tag の既定値を与える。
+<p>
+この変数は
+
+<lisp>
+	(FILE_PAT TYPE SUBTYPE PARAMS ENCODING
+	 DISPOSITION_TYPE DISPOSITION_PARAMS)
+</lisp>
+
+という list の list で、各要素は以下の通りである：
+
+<dl>
+<dt>FILE_PAT
+<dd>file 名を表す正規表現
+<dt>TYPE
+<dd>media type
+<dt>SUBTYPE
+<dd>media subtype
+<dt>PARAMS
+<dd>Content-Type field の parameter
+<dt>ENCODING
+<dd>Content-Transfer-Encoding
+<dt>DISPOSITION_TYPE
+<dd>disposition-type
+<dt>DISPOSITION_PARAMS
+<dd>Content-Disposition field の parameter
+</dl>
+
+<noindent>
+設定例： <file>*.rtf</file> に対する media type を application/rtf に
+する場合
+
+<lisp>
+(eval-after-load
+    "mime-edit"
+  '(set-alist 'mime-file-types
+	      "\\.rtf$"
+	      '("application" "rtf" nil nil
+		"attachment" (("filename" . file)))
+	      ))
+</lisp>
+</defvar>
+
+
+<h2> transfer level
+<node> transfer level
+<p>
+message に挿入する data は <dref file="mime-ja">7bit</dref> ないし 
+<dref file="mime-ja">8bit</dref> もしくは <dref
+file="mime-ja">binary</dref> で表現することができます。
+<p>
+よって、7bit しか通さない <dref file="mime-ja">MTA</dref> を経由する場合、
+7bit の data はそのままで送れますが、8bit や binary の data は 7bit に変
+換しなければなりません。
+<p>
+同様に、8bit しか通さない MTA を経由する場合、7bit や 8bit の data は
+そのままで送れますが、binary の data は 7bit か 8bit に変換しなければ
+なりません。
+<p>
+<memo>
+EBCDIC しか通さない MTA を経由する場合、7bit の data も base64 等で変
+換しないと送れませんが、私は EBCDIC のことまでは知りません。(^_^;
+<p>
+同様に、制御文字を通さない MTA のことや code 変換を行なう MTA も消えて
+なくなって欲しいです。(^_^;
+<p>
+binary も通す MTA も存在するんでしょうが、今のところあまり一般的とはい
+えないでしょう。
+</memo>
+<p>
+<concept>transfer level</concept> というのはどの範囲の data まで送れるか
+ということを表すものです。mime-edit は 
+<code>mime-transfer-level</code> という変数を持っており、これで 
+transfer level を表現します。
+
+
+<defvar name="mime-transfer-level">
+<p>
+transfer level を表す。
+<p>
+ある data の transfer level がこの値を越える場合、7bit data への変換が
+行われる。
+<p>
+現在のところ、7 か 8 が有効である。既定値は 7 である。
+<p>
+EBCDIC を 5, ASCII printable のみを 6, binary を 9 とすることを計画し
+ているが、実装の予定はない。
+</defvar>
+
+
+<memo>
+transfer level は <a node="header">message header</a> には関係しない。
+MIME は body において、8bit の data を使えるように <dref
+file="mime-ja">STD 11</dref> を拡張しているが、message header では 
+<dref file="mime-ja">us-ascii</dref> のみを用いることを求めている。
+</memo>
+
+
+<h2> Splitting
+<node> message/partial sending
+<p>
+<defvar name="mime-edit-split-message">
+<p>
+Non-nil ならば大きなメッセージを分割して送信します。
+</defvar>
+
+<defvar name="mime-edit-message-default-max-lines">
+<p>
+メッセージの最大行数のデフォルト値です。
+</defvar>
+
+<defvar name="mime-edit-message-max-lines-alist">
+<p>
+メジャーモード対メッセージの最大行数から成る連想リストです。
+<p>
+メジャーモードがここで指定されてない場合には
+<code>mime-edit-message-default-max-lines</code> を用います。
+</defvar>
+
+<defvar name="mime-edit-split-blind-field-regexp">
+<p>
+分割送信の際に無視されるフィールド名にマッチする正規表現です。
+</defvar>
+
+
+<h1> その他
+<node> Various
+<p>
+<h2> 暗号化、署名
+<node> PGP
+<p>
+mime-edit では <concept>PGP/MIME</concept> (RFC 2015) および
+<concept>PGP-kazu</concept> (draft-kazu-pgp-mime-00.txt) による暗号化・
+電子署名・公開鍵の挿入機能を利用することができます。
+<p>
+但し、この機能を利用するには各種 pgp command が必要です。
+
+<defvar name="pgg-default-scheme">
+<p>
+暗号化もしくは署名に用いる PGP もしくは GnuPG コマンドのバージョンです。
+値は symbol を指定します。使えるバージョンは <code>gpg</code>、
+<code>pgp</code> もしくは <code>pgp5</code> です。
+</defvar>
+
+<defvar name="pgg-scheme">
+<p>
+復号もしくは検証に用いる PGP もしくは GnuPG コマンドのバージョンです。
+値は symbol を指定します。使えるバージョンは <code>gpg</code>、
+<code>pgp</code> もしくは <code>pgp5</code> です。
+</defvar>
+
+<defvar name="pgg-insert-url-function">
+<p>
+鍵サーバから公開鍵を取り寄せる際に使う関数です。デフォルトでは
+Emacs/W3 を使う設定になっています。emacs-w3m を使う場合には
+次のように設定します。
+<lisp>
+(setq pgg-insert-url-function #'w3m-retrieve)
+</lisp>
+</defvar>
+
+
+<h2> 押釦
+<node> Buttons
+<p>
+<defvar name="mime-button-face">
+<p>
+MIME-Preview バッファで  content-button もしくは URL-button  に用いる
+face です。
+</defvar>
+
+<defvar name="mime-button-mouse-face">
+<p>
+MIME-preview バッファでマウスをハイライトする際に用いる face です。
+</defvar>
+
+<defvar name="mime-browse-url-function">
+<p>
+URL をブラウズする関数です。
+</defvar>
+
+
+<h2> 実行条件の設定
+<node> Acting-condition configuration
+<p>
+<defun name="mime-add-condition">
+	    <args> target-type condition <opts> mode file
+<p>
+Add <var>condition</var> to database specified by
+<var>target-type</var>.
+<p>
+<var>target-type</var> must be <code>preview</code> or
+<code>action</code>.
+<p>
+If optional argument <var>mode</var> is <code>strict</code> or
+<code>nil</code> (omitted), <var>condition</var> is added strictly.
+<p>
+If optional argument <var>mode</var> is <code>with-default</code>,
+<var>condition</var> is added with default rule.
+<p>
+If optional argument <var>file</var> is specified, it is loaded when
+<var>condition</var> is activate.
+</defun>
+
+
+<h1> 概念索引
+<node> Concept Index
+
+<cindex>
+
+
+<h1> 関数索引
+<node> Function Index
+
+<findex>
+
+
+<h1> 変数索引
+<node> Variable Index
+
+<vindex>
+
+</body>

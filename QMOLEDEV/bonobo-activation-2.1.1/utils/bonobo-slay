@@ -1,0 +1,223 @@
+#!/usr/local/bin/perl
+# 
+# bonobo-slay
+# 
+# Kills bonobo processes
+#
+# Return code of -1 (255) returned if usage error.
+# Return code of 1 indicates bonobo processes were running
+#   when script was run.  
+# Return code of 0 indicates no bonobo processes were
+#   running when script was run.
+#
+use             Getopt::Std;
+
+$usage_error = 0;
+
+# Handle input arguments
+#
+$rc = getopts('lsh');
+
+# Usage errors
+#
+if ($rc != 1) {
+   $usage_error = 1;
+}
+
+if ($opt_l && $opt_s) {
+   $usage_error = 1;
+}
+
+if ($ARGV[0]) {
+	$regexp = $ARGV[0];
+}
+
+# Print usage if necessary.
+#
+if ($usage_error == 1 || $opt_h) {
+	print "\n";
+	print "Usage : bonobo-slay [-hls] [regexp]\n";
+	print "\tKill Bonobo processes still running.\n";
+	print "\t -h Print this help message.\n";
+	print "\t -l List processes running, but do not kill them.  Not valid with -s\n";
+	print "\t -s Silent.  Kill processes quietly\n";
+	print "\t [regexp] only kill proccesses matching this\n";
+	print "\n";
+	exit(-1);
+}
+
+# Build ps command.
+#
+$username = $ENV{USER} || $ENV{LOGNAME} || `logname`;
+chomp($username);
+
+ $ps_cmd = "/bin/ps -U $username -opid,args";
+#   $ps_cmd = "/bin/ps -U $username -xww -opid,command";
+
+# get Bonobo files
+#
+@bonobo_dirs = ( "/usr/local/lib/bonobo/servers" );
+foreach $dir (split(':', $ENV{'BONOBO_ACTIVATION_INFO_PATH'})) {
+	if (-d $dir) {
+		push @bonobo_dirs, $dir;
+	}
+}
+foreach $dir (split(':', $ENV{'GNOME2_PATH'})) {
+	if (-d "$dir/lib/bonobo/servers") {
+		push @bonobo_dirs, "$dir/lib/bonobo/servers";
+	}
+}
+
+foreach $dir (@bonobo_dirs) {
+	opendir(DIR, $dir) || die "\nCan not open directory $dir\n\t$!\n\n";
+	push @bonobo_files, map ("$dir/$_", readdir(DIR));
+	closedir DIR;
+}
+
+# Initialize variables
+#
+$process_exists = 0;
+$first_time     = 1;
+
+# Loop until no more processes are found.  This typically loops only once,
+# but if an Bonobo process is launched while this script is running an Bonobo
+# process can be left behind and be caught on the second loop, etc.
+#
+do {
+	# Initialize variables.
+	#
+	@files        = @bonobo_files;
+	@list_array   = ();
+	@process_pids = ();
+	@file_process = ();
+	$index        = 0;
+
+	# Get process list.
+	#
+	@ps_result    = `$ps_cmd`;
+
+	# Loop through files, and see if any Bonobo processes are running.  If
+	# so, then build the @list_array and @process_pids arrays.
+	# @list_array contains the process names
+	# @process_pids contains the process IDs
+	#
+	while ($fname = shift(@files)) {
+
+		if ("$fname" =~ /\.server$/) {
+		
+			open(FILE, $fname);
+			while (<FILE>) {
+
+				$line = $_;
+				if  ($line =~m/location[ \t]*\=/ && 
+				   !($line =~m/type=\"shlib\"/)) {
+	
+					$line =~s/.*location[ \t]*\="//;
+					$line =~s/".*//;
+					chomp($line);
+					$line =~s/\.\///;
+
+					# bonobo-activation-server needs to be last.
+					#
+					if ($line ne "bonobo-activation-server" and
+					    not ($line =~m/^OAFIID:/) and
+					    ($regexp and $line =~m/$regexp/) or (not $regexp)) {
+						push @file_process, $line;
+					}
+				} #end while(<FILE>)
+			}
+			close(FILE);
+		}
+	}
+
+	#   Add bonobo-activation-server so that it is last,
+	# but only if we're killing without a regexp
+	if (not $regexp) {
+	 	push @file_process, "bonobo-activation-server";
+	}
+
+	foreach $filep (@file_process) {
+
+			# Search through @ps_result and look for matches
+			#
+			foreach $el (@ps_result) {
+				chomp $el;
+			@ps_array = split(' ', $el, 3);
+
+			if ($ps_array[1] =~m/(\A|\/)$filep$/ ) {
+					$list_array[$index]=$ps_array[0]."\t".$ps_array[1]."\n";
+					$process_pids[$index]=$ps_array[0]."\n";
+					$index++;
+					}
+				}
+			}
+
+	# Do the killing.
+	#
+	if ($#list_array != -1) {
+
+		# Print output if -s (silent) argument is not specified.
+		#
+		if(!$opt_s) {
+			if ($first_time == 1) {
+				print "\n";
+				print "The following processes are still running on the system.\n";
+
+				if (!$opt_l) {
+					print "These processes will be terminated.\n";
+
+					print "\n";
+					print "NOTE:  Killing these processes may affect other applications\n";
+					print "on the system that use bonobo.\n"; 
+				}
+				print "\n";
+				$first_time = 0;
+			} else {
+				# Just some feedback to indicate it had to loop...
+				#
+				print "...and...\n";
+			}
+
+			# Print list of processes...
+			#
+			print @list_array;
+			print "\n";
+		}
+
+		# Kill if the -l argument is specified.
+		#
+		if(!$opt_l) {
+			$killall = "/bin/kill";
+			$kill_params = ' -9 ';
+			foreach $proc (@process_pids) {
+				chomp $proc;
+				if($proc =~m/\d+/) {
+					$cmd = $killall.$kill_params.$proc." 2>/dev/null";
+					system($cmd);
+				}
+			}	
+		}
+		$process_exists = 1;
+	}
+
+# Only loop once if opt_l is used, otherwise loop until
+# no more processes are killed
+#
+} while ($#list_array != -1 && !opt_l);
+ 
+# Exit
+#
+if ($process_exists == 0) {
+
+	# Show feedback if -l argument is used
+	#
+	if ($opt_l) {
+		print "\n";
+		print "No processes.\n";
+		print "\n";
+	}
+	exit 1;
+} else {
+	exit 0;
+}
+

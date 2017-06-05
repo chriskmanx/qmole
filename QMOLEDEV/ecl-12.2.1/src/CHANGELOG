@@ -1,0 +1,180 @@
+ECL 12.2.1:
+===========
+
+* Bugs fixed:
+
+ - Fixed several dozens of typos.
+
+ - ENSURE-DIRECTORIES-EXIST did not work properly with logical pathnames.
+
+ - EXT:SET-LIMIT with option EXT:FRAME-STACK corrupted the frame stack.
+
+ - The array of boot-time symbols is fixed and independent of the features
+   that are compiled in. This is essential for cross-compilation and also
+   for sharing C code among different builds.
+
+ - Fixed externalization of bytecodes with literals that need MAKE-LOAD-FORM.
+
+ - When parsing a floating point number at least one digit should be
+   present. ECL parsed +.e0 as +0.0e0, instead of as a symbol.
+
+ - For OS X Lion we need a newer version of the garbage collector. Since the
+   maintainers' advise is that we use the unstable tree, we have made a copy
+   and use it _only_ for this port (src/gc-unstable).
+
+* Visible changes:
+
+ - When printing error messages, the condition type is shown (M. Mondor)
+
+ - SI:TOP-LEVEL, when invoked without arguments, does not process the
+   command line.
+
+ - The command line used by EXT:PROCESS-COMMAND-ARGS is now by default
+   the one stored in *COMMAND-ARGS*, and this may be "cleared" by the
+   user.
+
+ - SOCKET-MAKE-STREAM now accepts an :ELEMENT-TYPE argument.
+
+ - When --enable-rpath is used in combination with --with-gmp-prefix, then the
+   path of the GMP library is hardcoded into ECL. If the remaining libraries
+   (GC, libffi) are in a similar location this will make ECL work without
+   further flags, and without modifying LD_LIBRARY_PATH or DYLD_LIBRARY_PATH.
+
+ - All arguments after the '--' command line option are stored in a global
+   variable, ext:*unprocessed-ecl-command-args*.
+
+ - In the rules passed to ext:process-command-args, :stop now implies that all
+   remaining arguments including the current one are collected and passed to
+   the rule code. An example of use of this option
+      ;; Collect all arguments _after_ the command line option --
+      ("--" 1 (setf ext:*unprocessed-ecl-command-args* (rest 1)) :stop)
+      ;; Collect all arguments including the first unknown one
+      ("*DEFAULTS*" 1 (setf ext:*unprocessed-ecl-command-args* 1) :stop)
+
+ - ECL will always build, by default, with support for Unicode strings.
+
+ - EXT:GETENV coerces its input argument to type BASE-STRING.
+
+ - The garbage collector would reset the counters on every call to
+   SI:GC-STATS. This made nested TIME calls not to work, as the statistics of
+   the inner call would spoil those of the outer one. This has been fixed.
+
+ - ECL implements CDR 6 (ext:*inspector-hook*) as described in
+   http://cdr.eurolisp.org/document/6/index.html
+
+ - ECL implements CDR 5 (Sub-interval Numerical Types) as described in
+   http://cdr.eurolisp.org/document/5/index.html
+
+ - ECL ships libffi together with its source tree, much like GMP and GC.
+
+ - On POSIX platforms ECL traps SIGCHLD and uses it to update the status of
+   external processes.
+
+ - DIRECTORY accepts the keyword argument :RESOLVE-SYMLINKS.
+
+ - Compiling files now generates C headers with the extension "eclh". This
+   is done to avoid accidentally generating header files with the same name
+   as those in the C library. Take for instance, float.lsp -> float.h.
+
+ - ECL no longer relies on "git" being installed to gather the git commit id
+   and setting (ext:lisp-implementation-vcs-id).
+
+ - When building shared and statically linked libraries, ECL creates an
+   extra function that performs two tasks: initializing ECL if it wasn't done
+   before, and initializing the library. This can be used to create standalone
+   libraries to be linked with other programs. The name of the function typically
+   begins with main_dll or main_lib but it is output by ECL on screen.
+
+ - Hash tables do no longer have implicit locking. All complex structures in
+   ECL (arrays, hash tables, objects) should be dealt with sufficient care on
+   the user side, just as in other programming languages, making use of
+   WITH-LOCK and similar facilities.
+
+ - In OPEN the default format is :UTF-8 for Unicode builds and :LATIN-1 for
+   others, and the stream element type is always CHARACTER by default.
+
+ - Function read_VV is renamed to ecl_init_module()
+
+ - Initialization of random number generator is done using only 16 bytes from
+   /dev/urandom (Phillip Marek).
+
+ - Each thread keeps a copy of the process sigmask (POSIX) and it is inherited
+   by children thread. The sigmask can be manipulated by the function
+   EXT:CATCH-SIGNAL which has the signature
+	(ext:catch-signal signal-code action &key process)
+   The ACTION is one of :IGNORE, :DEFAULT, :CATCH, determining what ECL does
+   when it receives the signal, or it can be :MASK/:UNMASK to determine whether
+   the process is blocking the signal or not. The optional argument :PROCESS
+   only applies to :MASK/:UNMASK and it can be the current process, some
+   process that has not been activated or any other value (indicating that
+   the function has a global effect, as sigprocmask).
+
+ - Allocate executable memory using libffi instead of using just the
+   Boehm-Weiser garbage collector.
+
+ - In bytecodes.h, deactivate the threaded interpreter when using the LLVM
+   compiler. The problem is that llvm-gcc disguises itself as GCC but it is
+   not capable of properly compiling the jump table.
+
+ - Implemented SEQUENCE-STREAMs, which are input/output streams defined on some
+   specialized array type. The functions to create them are
+     (ext:make-sequence-input-stream vector &key :start :end :external-format)
+     (ext:make-sequence-output-stream vector &key :external-format)
+        * If the array is a string, it is a character stream.
+          - When no external format is supplied, it defaults to the usual encoding
+            and the stream behaves like a string stream.
+          - When an external format is supplied, each character in the string
+            is interpreted as a single byte and used for that external format.
+        * If the array is specialized over integers and EXTERNAL-FORMAT is NIL
+          the stream is a binary stream.
+        * Otherwise, it is a binary string but READ/WRITE-CHAR may be used on it.
+   Reading and writing does not preserve the original word size of the array
+   but rather threads the array as a collection of bytes (octets), writing
+   sequentially over it. Thus, if you use encodings such as UCS2 and UCS4, make
+   sure that you choose the right endianness to match the shape of the array.
+
+ - DELETE-FILE works on empty directories.
+
+ - In DIRECTORY, :RESOLVE-SYMLINKS defaults to T.
+
+ - Added POSIX function (EXT:CHMOD filename mode)
+
+ - ECL's compiler is now less verbose and hides performance notes, as well as
+   invocations of the C compiler. This can be modfied by changing the type
+   specifier in c:*suppress-compiler-messages*.
+
+ - Hash tables can now be printed readably when *READ-EVAL* is true. This is
+   done using two new functions, EXT:HASH-TABLE-CONTENT and
+   EXT:HASH-TABLE-FILL.
+
+ - When a compiler macro fails, ECL simply ignores the errors and
+   continues. This is more to the spirit of the compiler macros, as explained
+   here http://lists.common-lisp.net/pipermail/pro/2011-December/000675.html
+
+ - INLINE declarations now actually cause the function to be inlined. If
+   the function is also proclaimed as INLINE, ECL will store a copy of its
+   definition for later use _in other files_. Otherwise INLINE declarations
+   remain local to the file being processed.
+
+ - ECL now implements weak hash tables. They are built as ordinary hash tables
+   with an extra argument, :WEAKNESS, which may be :KEY, :VALUE,
+   :KEY-AND-VALUE, or NIL, for the default behavior. The status of the hash
+   table is returned by EXT:HASH-TABLE-WEAKNESS. Note that these associations
+   are no substitute for proper management of resources, as the time of
+   collection can not be guaranteed.
+
+ - In pathnames, ".." is translated to :UP, not :BACK.
+
+ - ECL introduces two special forms, EXT:CHECKED-VALUE and EXT:TRULY-THE, which
+   have the same syntax as THE, but in the first case lead to a type assertion
+   at low safety levels and in the second case lead to an unchecked
+   declaration. By default THE maps to EXT:CHECKED-VALUE (as in SBCL), but this
+   may be controlled globally using the declaration/proclamation
+   EXT:THE-IS-CHECKED.
+
+ - Unicode strings were not properly saved in C compiled code.
+
+;;; Local Variables: ***
+;;; mode:text ***
+;;; fill-column:79 ***
+;;; End: ***

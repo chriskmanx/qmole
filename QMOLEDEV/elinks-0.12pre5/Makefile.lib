@@ -1,0 +1,301 @@
+### The build commands and verbosity
+
+# Colorize the build.
+ifdef MAKE_COLOR
+	INFO_COLOR    = $(shell tput setaf 5)
+	CC_COLOR      = $(shell tput setaf 6)
+	LD_COLOR      = $(shell tput setaf 2)
+	PO_COLOR      = $(shell tput setaf 6)
+	LINK_COLOR    = $(shell tput bold;tput setaf 4)
+	INSTALL_COLOR = $(shell tput setaf 3)
+	UNINSTALL_COLOR = $(shell tput setaf 1)
+	END_COLOR     = $(shell tput sgr0)
+endif
+
+# sparse is architecture-neutral, which means that we need to tell it
+# explicitly what architecture to check for. Fix this up for yours..
+SPARSE_FLAGS = -D__BIG_ENDIAN__ -D__powerpc__
+
+
+#############################################################################
+# Build recipies
+
+# If we are verbose, we will show the "real" cmds instead of
+# their quiet versions (which are used in the non-verbose mode).
+# Inspired by the Linux kernel build system.
+#
+# If real cmds are to be shown, then quoteverbose quotes each as
+# a shell word, so that it can be accurately displayed with echo.
+# If the quiet versions are to be shown, then they should already
+# be sufficiently quoted, so quoteverbose does nothing.
+ifdef V
+	quiet =
+	mquiet = masq_
+	quoteverbose = '$(subst ','\'',$(1))'
+	#'# This line fixes syntax highlighting in Emacs' makefile-mode.
+	Q =
+else
+	quiet = quiet_
+	mquiet = quiet_
+	quoteverbose = $(1)
+	Q = @
+endif
+
+# Show the command (quiet or non-quiet version based on the assignment
+# just above) and then execute it.
+#
+# Because $(cmd_$(1)) and related variables may contain references to $(2),
+# they must be expanded right here; that cannot be delegated to quoteverbose.
+ncmd = $(if $($(quiet)cmd_$(1)),echo $(call quoteverbose,$($(quiet)cmd_$(1))) &&) $(cmd_$(1))
+cmd = @$(if $($(quiet)cmd_$(1)),echo $(call quoteverbose,$($(quiet)cmd_$(1))) &&) $(cmd_$(1))
+mcmd = @$(if $($(mquiet)cmd_$(1)),echo $(call quoteverbose,$($(mquiet)cmd_$(1))) &&) $(cmd_$(1))
+ecmd = @$(if $($(mquiet)cmd_$(1)),printf "%-38s " $(call quoteverbose,$($(mquiet)cmd_$(1))) &&) $(cmd_$(1))
+
+quiet_cmd_compile = '      [$(CC_COLOR)CC$(END_COLOR)]   $(RELPATH)$@'
+ masq_cmd_compile = $(COMPILE) -o $(@) -c $< $(2)
+      cmd_compile = $(COMPILE) -o $(@) -Wp,-MD,.deps/$(*F).pp -c $< $(2)
+
+# Rule to compile a set of .o files into one .o file
+quiet_cmd_ld_objs = "      [$(LD_COLOR)LD$(END_COLOR)]   $(RELPATH)$@"
+      cmd_ld_objs = $(LD) -r -o $@ $(filter $(OBJS), $^) \
+      		    $(foreach subdir,$(sort $(filter-out src,$(SUBDIRS))), \
+			    `test -e $(subdir)/$(LIB_O_NAME) && echo $(subdir)/$(LIB_O_NAME)`)
+
+   quiet_cmd_link = '    [$(LINK_COLOR)LINK$(END_COLOR)]   $(RELPATH)$@'
+         cmd_link = $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+ quiet_cmd_sparse = '    [SPARSE]   $(RELPATH)$(2)'
+       cmd_sparse = $(SPARSE) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(CFLAGS) $(SPARSE_FLAGS) $(2)
+
+# Recursive make
+quiet_cmd_recmake = "[$(INFO_COLOR)MAKE $(3)$(END_COLOR)]   $(RELPATH)$(2)"
+      cmd_recmake = $(MAKE) -C $(2) $(3)
+
+quiet_cmd_installdata = "     [$(INSTALL_COLOR)INSTALL$(END_COLOR)]   $(RELPATH)$(patsubst $(srcdir)%,%,$(2)) -> $(3)"
+      cmd_installdata = $(INSTALL_DATA) $(2) $(3)
+
+quiet_cmd_installprog = "     [$(INSTALL_COLOR)INSTALL$(END_COLOR)]   $(RELPATH)$(2) -> $(3)"
+      cmd_installprog = $(INSTALL_PROGRAM) $(2) $(3)
+
+# $(INSTALL_DATA) in cmd_installdata doesn't use the directory part of
+# $(2) when it forms the output file name, so don't use it here either.
+quiet_cmd_uninstall = "     [$(UNINSTALL_COLOR)UNINSTALL$(END_COLOR)]   $(3)/$(notdir $(2))"
+      cmd_uninstall = $(RM) $(3)/$(notdir $(2))
+
+#############################################################################
+# Special handling of conditional variables
+
+SUBDIRS += $(SUBDIRS-yes)
+OBJS	+= $(OBJS-yes)
+
+ALTDIRS  = $(SUBDIRS-no) $(SUBDIRS-)
+ALTOBJS  = $(OBJS-no) $(OBJS-)
+
+ifneq ($(findstring cleanall,$(MAKECMDGOALS)),)
+INCLUDE_ALL=1
+endif
+
+ifneq ($(findstring init,$(MAKECMDGOALS)),)
+INCLUDE_ALL=1
+ifndef SRC
+SRC = $(shell cd $(top_srcdir) && pwd)
+endif
+endif
+
+ifdef INCLUDE_ALL
+SUBDIRS += $(ALTDIRS)
+OBJS	+= $(ALTOBJS)
+endif
+
+
+#############################################################################
+# Internal build rules
+
+# All files in $(OBJS) and any $(subdir)/lib.o are linked into lib.o.
+# Sort them to filter out duplicated and get uniform order.
+LIB_O_DEPS = \
+ $(sort $(filter-out $(LIB_O_NAME),$(OBJS))) \
+ $(foreach subdir,$(sort $(SUBDIRS)),$(wildcard $(subdir)/$(LIB_O_NAME)))
+
+$(LIB_O_NAME): $(LIB_O_DEPS)
+	$(call cmd,ld_objs)
+
+DEP_FILES_1 = $(foreach src,$(OBJS),.deps/$(src))
+DEP_FILES = $(DEP_FILES_1:%.o=%.P)
+DEPS_MAGIC := $(shell mkdir .deps > /dev/null 2>&1 || :)
+
+ifneq ($(strip $(OBJS)),)
+-include $(DEP_FILES)
+ALL_OBJS = $(LIB_O_DEPS) $(LIB_O_NAME)
+endif
+
+%.o: $(srcdir)%.c
+	$(call mcmd,compile)
+	@-if test -e .deps/$(*F).pp; then \
+		cp .deps/$(*F).pp .deps/$(*F).P; \
+		tr ' ' '\012' < .deps/$(*F).pp \
+			| sed -e 's/^\\$$//' -e '/^$$/ d' -e '/:$$/ d' -e 's/$$/ :/' \
+			>> .deps/$(*F).P; \
+		rm .deps/$(*F).pp; \
+	fi
+
+CLEAN += $(PROGS) $(OBJS) $(LIB_O_NAME)
+
+
+#############################################################################
+# The main default rules
+
+all-default: $(ALL_OBJS) $(PROGS) $(MAN1) $(MAN5)
+
+# Ensure that Makefiles in subdirs are created before we recursive into them
+init-recursive: init-default
+
+init-default:
+	@$(foreach subdir,$(sort $(SUBDIRS)), \
+		$(MKINSTALLDIRS) $(subdir) >/dev/null; \
+		test -e "$(subdir)/Makefile" \
+		|| echo 'include $(SRC)/$(RELPATH)/$(subdir)/Makefile' > $(subdir)/Makefile;)
+
+clean-default cleanall-default:
+	$(Q)-test -z "$(CLEAN)" || $(RM) $(CLEAN)
+
+check-default:
+ifneq ($(SPARSE),)
+	@$(foreach file, $(wildcard *.c), \
+		$(call ncmd,sparse,$(file));)
+endif
+
+install-default: all-default
+ifdef PROGS
+	@$(MKINSTALLDIRS) $(DESTDIR)$(bindir)
+	@$(foreach file,$(PROGS), \
+		$(call ncmd,installprog,$(file),$(DESTDIR)$(bindir));)
+endif
+ifdef MAN1
+	@$(MKINSTALLDIRS) $(DESTDIR)$(mandir)/man1
+	@$(foreach file,$(MAN1), \
+		$(call ncmd,installdata,$(file),$(DESTDIR)$(mandir)/man1);)
+endif
+ifdef MAN5
+	@$(MKINSTALLDIRS) $(DESTDIR)$(mandir)/man5
+	@$(foreach file,$(MAN5), \
+		$(call ncmd,installdata,$(file),$(DESTDIR)$(mandir)/man5);)
+endif
+
+uninstall-default:
+ifdef PROGS
+	@$(foreach file,$(PROGS), \
+		$(call ncmd,uninstall,$(file),$(DESTDIR)$(bindir));)
+endif		
+ifdef MAN1
+	@$(foreach file,$(MAN1), \
+		$(call ncmd,uninstall,$(file),$(DESTDIR)$(mandir)/man1);)
+endif
+ifdef MAN5
+	@$(foreach file,$(MAN5), \
+		$(call ncmd,uninstall,$(file),$(DESTDIR)$(mandir)/man5);)
+endif
+##############################################################################
+# Auto-testing infrastructure
+
+test-default:
+
+ifdef TEST_PROGS
+TESTDEPS-$(CONFIG_DEBUG) += $(top_builddir)/src/util/memdebug.o
+TESTDEPS-$(call not,$(CONFIG_SMALL)) += \
+ $(top_builddir)/src/util/fastfind.o \
+
+# Add most of the basic utility library to the test dependencies.
+TESTDEPS += \
+ $(top_builddir)/src/intl/charsets.o \
+ $(top_builddir)/src/osdep/stub.o \
+ $(top_builddir)/src/util/conv.o \
+ $(top_builddir)/src/util/error.o \
+ $(top_builddir)/src/util/file.o \
+ $(top_builddir)/src/util/hash.o \
+ $(top_builddir)/src/util/memory.o \
+ $(top_builddir)/src/util/string.o \
+ $(top_builddir)/src/util/time.o
+
+TESTDEPS += $(TESTDEPS-yes)
+
+TEST_LIB=$(top_srcdir)/test/libtest.sh
+export TEST_LIB
+
+# This is a very general rule but as long as we don't put test programs in src/
+# it should work.
+%: %.o $(TESTDEPS)
+	$(call cmd,link)
+
+TESTS = $(wildcard $(srcdir)test-*)
+
+$(TESTS): $(addsuffix .o,$(TEST_PROGS)) $(TEST_PROGS)
+	@-echo "*** $(notdir $@) ***"; \
+	$(call shellquote,$(SHELL)) $@ $(TEST_OPTS)
+
+test-default: $(TESTS)
+
+clean-test:
+	@rm -fr trash
+
+CLEAN += $(TEST_PROGS) $(addsuffix .o,$(TEST_PROGS))
+clean-default: clean-test
+endif
+
+.PHONY: $(TESTS)
+.NOPARALLEL:
+
+
+#############################################################################
+# Basic recursion and dependencies setup
+
+RULES	 = all install clean cleanall init check test uninstall
+
+RULES_LOCAL = $(addsuffix -local,$(RULES))
+RULES_REC   = $(addsuffix -recursive,$(RULES))
+
+.PHONY: $(RULES) $(RULES_LOCAL) $(RULES_REC) $(addsuffix -default,$(RULES))
+
+# The -recursive rules descend all subdirs.
+# If make -k was used and a sub-Make fails, then keep building the
+# remaining subdirectories, but return an error at the end.
+$(RULES_REC):
+ifneq (,$(findstring k,$(MAKEFLAGS)))
+	@suberr=0; \
+	$(foreach subdir,$(sort $(SUBDIRS)), \
+		$(call ncmd,recmake,$(subdir),$(subst -recursive,,$@)) || suberr=1;) \
+	exit $$suberr
+else
+	@$(foreach subdir,$(sort $(SUBDIRS)), \
+		$(call ncmd,recmake,$(subdir),$(subst -recursive,,$@)) || exit 1;)
+endif
+
+# Dummy -local rules
+$(RULES_LOCAL):
+
+# Default deps
+rule_deps = $(1)-recursive $(1)-default $(1)-local
+all:	  $(call rule_deps,all)
+install:  $(call rule_deps,install)
+clean:	  $(call rule_deps,clean)
+cleanall: $(call rule_deps,cleanall)
+init:	  $(call rule_deps,init)
+check:	  $(call rule_deps,check)
+test:	  $(call rule_deps,test)
+uninstall: $(call rule_deps,uninstall)
+
+#############################################################################
+# Misc
+
+# Tell versions [3.59,3.63) of GNU make to not export all variables.
+# Otherwise a system limit (for SysV at least) may be exceeded.
+.NOEXPORT:
+
+# Shell quote;
+# Result of this needs to be placed inside ''
+# XXX: Placed here because Vim cannot highlight things right afterwards
+shq = $(subst ','\'',$(1))
+# This has surrounding ''
+shellquote = '$(call shq,$(1))'
+
+# vim:syntax=make

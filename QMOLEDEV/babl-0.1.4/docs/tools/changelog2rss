@@ -1,0 +1,117 @@
+#!/usr/bin/env ruby
+
+require 'parsedate'
+
+class ChangeLogEntry
+    attr_accessor :category, :time, :title, :content, :author
+    
+    def initialize category = 'foo',
+                   time     = Time.now,
+                   title    = 'no title',
+                   author   = 'no author set',
+                   content  = ''
+        @category = category
+        @time     = time
+        @title    = title
+        @content  = content
+        @author   = author
+    end
+
+    def to_s
+        @title+@content
+    end
+    
+    def to_rss 
+        str = "<item>\n"
+        str += "<title>#{author}, #{time.strftime '%y%m%d'}</title>\n"
+        str += "<pubDate>#{time.to_s}</pubDate>\n"
+        str += "<author>#{time.to_s}</author>\n"
+        str += "<description>#{content}</description>\n"
+        str += "</item>\n"
+    end
+end
+
+$newest  = Time.now
+
+class ChangeLog
+    attr_accessor :entries
+    attr_reader   :title
+
+    def initialize
+        @entries = Array.new
+    end
+
+    def load file, title=File.basename(file)
+        @title   = title
+       
+        entry = nil
+
+        File.open file do
+            |file|
+            file.each_line do
+                |line|
+                if line =~ /^(\d\d\d\d-\d\d-\d\d.*)  (.*)  (.*)/
+                    @entries.push entry unless entry == nil
+                    date = ParseDate.parsedate $1
+                    time = Time.mktime date[0], date[1], date[2], date[3]
+
+                    entry = ChangeLogEntry.new(title, time, line, $2)
+                else
+                    entry.content += line unless entry == nil
+                end
+            end
+
+            @entries.push entry unless entry == nil
+        end
+    end
+
+    def sort!
+        @entries.reverse!
+        @entries = @entries.sort { |x,y| (x.time <=> y.time)* -1  }
+    end
+
+    def to_s
+        previous_category = 'foo'
+        str = "A combination of ChangeLogs related to the aluminium platform"
+
+        @entries.each do 
+            |entry|
+            if entry.category != previous_category
+                str+="\n\n__"+entry.category + "_"*(78-entry.category.length) + "\n\n"
+                previous_category = entry.category
+            end
+            str += entry.to_s
+        end
+        str
+    end
+
+    def to_rss
+        previous_category = 'foo'
+        str  = "<?xml version='1.0'?>\n"
+        str += "<?xml-stylesheet type='text/xsl' href='rss.xsl'?>\n"
+        str += "<rss version='2.0'>\n"
+
+        str += "<channel>\n"
+
+        str += "<title>bazfoo</title>\n"
+        str += "<link></link>\n"
+
+        @entries.each do 
+            |entry|
+            str += entry.to_rss
+        end
+
+        str += "</channel>\n"
+        str += "</rss>\n"
+
+        str
+    end
+end
+
+changelog = ChangeLog.new
+changelog.load ARGV[0]
+#changelog.load 'path to another changelog', 'name'
+
+changelog.sort!
+
+puts changelog.to_rss

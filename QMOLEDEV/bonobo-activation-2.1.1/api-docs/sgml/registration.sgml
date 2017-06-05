@@ -1,0 +1,237 @@
+<refentry id="bonobo-activation-Registration">
+<refmeta>
+<refentrytitle>Registration</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>BONOBO-ACTIVATION Library</refmiscinfo>
+</refmeta>
+
+<refnamediv>
+<refname>Registration</refname><refpurpose>Registering CORBA objects to Bonobo Activation.</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv><title>Synopsis</title>
+<synopsis>
+
+#include &lt;bonobo-activation/bonobo-activation.h&gt;
+
+
+enum        <link linkend="Bonobo-RegistrationResult">Bonobo_RegistrationResult</link>;
+<link linkend="Bonobo-RegistrationResult">Bonobo_RegistrationResult</link> <link linkend="bonobo-activation-active-server-register">bonobo_activation_active_server_register</link>
+                                            (const char *registration_id,
+                                             <link linkend="CORBA-Object">CORBA_Object</link> obj);
+void        <link linkend="bonobo-activation-active-server-unregister">bonobo_activation_active_server_unregister</link>
+                                            (const char *iid,
+                                             <link linkend="CORBA-Object">CORBA_Object</link> obj);
+typedef     <link linkend="BonoboActivationPlugin">BonoboActivationPlugin</link>;
+typedef     <link linkend="BonoboActivationPluginObject">BonoboActivationPluginObject</link>;
+void        <link linkend="bonobo-activation-plugin-use">bonobo_activation_plugin_use</link>    (<link linkend="PortableServer-Servant">PortableServer_Servant</link> servant,
+                                             <link linkend="gpointer">gpointer</link> impl_ptr);
+void        <link linkend="bonobo-activation-plugin-unuse">bonobo_activation_plugin_unuse</link>  (<link linkend="gpointer">gpointer</link> impl_ptr);
+</synopsis>
+</refsynopsisdiv>
+
+
+
+
+
+<refsect1>
+<title>Description</title>
+<para>
+When writing a component which can be activated through
+Bonobo Activation by clients, you need to be register your component
+to Bonobo Activation once it is created.
+</para>
+</refsect1>
+
+<refsect1>
+<title>Details</title>
+<refsect2>
+<title><anchor id="Bonobo-RegistrationResult">enum Bonobo_RegistrationResult</title>
+<programlisting>   typedef enum
+   {
+      Bonobo_ACTIVATION_REG_SUCCESS,
+      Bonobo_ACTIVATION_REG_NOT_LISTED,
+      Bonobo_ACTIVATION_REG_ALREADY_ACTIVE,
+      Bonobo_ACTIVATION_REG_ERROR
+   }
+   Bonobo_RegistrationResult;
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="bonobo-activation-active-server-register">bonobo_activation_active_server_register ()</title>
+<programlisting><link linkend="Bonobo-RegistrationResult">Bonobo_RegistrationResult</link> bonobo_activation_active_server_register
+                                            (const char *registration_id,
+                                             <link linkend="CORBA-Object">CORBA_Object</link> obj);</programlisting>
+<para>
+Registers <parameter>obj</parameter> with <parameter>iid</parameter> with the local bonobo-activation-server
+daemon.
+</para>
+<para>
+This function is now deprecated and should no longer be
+used. <link linkend="bonobo-activation-register-active-server">bonobo_activation_register_active_server</link>() should now
+be used.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>registration_id</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>obj</parameter>&nbsp;:</entry>
+<entry> CORBA::Object to register.
+</entry></row>
+<row><entry align="right"><emphasis>Returns</emphasis> :</entry><entry> status of the registration.
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-activation-active-server-unregister">bonobo_activation_active_server_unregister ()</title>
+<programlisting>void        bonobo_activation_active_server_unregister
+                                            (const char *iid,
+                                             <link linkend="CORBA-Object">CORBA_Object</link> obj);</programlisting>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>iid</parameter>&nbsp;:</entry>
+<entry>
+</entry></row>
+<row><entry align="right"><parameter>obj</parameter>&nbsp;:</entry>
+<entry>
+
+
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="BonoboActivationPlugin">BonoboActivationPlugin</title>
+<programlisting>typedef struct {
+	const BonoboActivationPluginObject *plugin_object_list;
+	const char *description;
+        gpointer dummy[8];
+} BonoboActivationPlugin;
+</programlisting>
+<para>
+Components which want to be activated as 
+shared libraries must export an BonoboActivationPlugin
+structure of name <structname>BonoboActivation_Plugin_info</structname>.
+An exmaple of how to use it folows:
+<programlisting>
+static CORBA_Object
+hi_shlib_make_object (PortableServer_POA poa,
+                      const char *iid,
+                      gpointer impl_ptr,
+                      CORBA_Environment *ev)
+{
+        CORBA_Object object_ref;
+
+        object_ref = impl_Hi__create (poa, ev);
+        if (object_ref == CORBA_OBJECT_NIL 
+            || ev->_major != CORBA_NO_EXCEPTION) {
+                printf ("Server cannot get objref\n");
+                return CORBA_OBJECT_NIL;
+        }
+
+        bonobo_activation_plugin_use (poa, impl_ptr);
+
+        return object_ref;
+}
+
+static const BonoboActivationPluginObject hi_plugin_list[] = {
+        {
+                "OAFIID:Hi:20000923",
+                hi_shlib_make_object
+        },
+        {
+                NULL
+  	}
+};
+
+const BonoboActivationPlugin BonoboActivation_Plugin_info = {
+        hi_plugin_list,
+        "Hi example"
+};
+</programlisting>
+</para></refsect2>
+<refsect2>
+<title><anchor id="BonoboActivationPluginObject">BonoboActivationPluginObject</title>
+<programlisting>typedef struct {
+	const char *iid;
+
+	/* This routine should call bonobo_activation_plugin_use(servant, impl_ptr), 
+         * as should all routines which activate CORBA objects
+	 * implemented by this shared library. This needs to be done 
+         * before making any CORBA calls on the object, or
+	 * passing that object around. First thing after servant creation 
+         * always works. :) 
+         */
+
+        CORBA_Object (*activate) (PortableServer_POA poa,
+                                  const char *iid, 
+                                  gpointer impl_ptr,	/* This pointer should be stored by the implementation
+                                                         * to be passed to bonobo_activation_plugin_unuse() in the 
+                                                         * implementation's destruction routine. */
+				  CORBA_Environment *ev);
+        gpointer dummy[4];
+} BonoboActivationPluginObject;
+</programlisting>
+<para>
+
+</para></refsect2>
+<refsect2>
+<title><anchor id="bonobo-activation-plugin-use">bonobo_activation_plugin_use ()</title>
+<programlisting>void        bonobo_activation_plugin_use    (<link linkend="PortableServer-Servant">PortableServer_Servant</link> servant,
+                                             <link linkend="gpointer">gpointer</link> impl_ptr);</programlisting>
+<para>
+You should call this routine to activate a shared library-based 
+CORBA Object. It will be called by OAF if the component exports 
+correctly an <literal>BonoboActivationPlugin</literal> structure named "Bonobo_Plugin_info".</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>servant</parameter>&nbsp;:</entry>
+<entry> The servant that was created
+</entry></row>
+<row><entry align="right"><parameter>impl_ptr</parameter>&nbsp;:</entry>
+<entry> The impl_ptr that was passed to the original activation routine
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+<refsect2>
+<title><anchor id="bonobo-activation-plugin-unuse">bonobo_activation_plugin_unuse ()</title>
+<programlisting>void        bonobo_activation_plugin_unuse  (<link linkend="gpointer">gpointer</link> impl_ptr);</programlisting>
+<para>
+Side effects: May arrange for the shared library that the
+implementation is in to be unloaded.
+</para>
+<para>
+When a shlib plugin for a CORBA object is destroying an
+implementation, it should call this function to make sure that the
+shared library is unloaded as needed.</para>
+<para>
+
+</para><informaltable pgwide="1" frame="none" role="params">
+<tgroup cols="2">
+<colspec colwidth="2*">
+<colspec colwidth="8*">
+<tbody>
+<row><entry align="right"><parameter>impl_ptr</parameter>&nbsp;:</entry>
+<entry> The impl_ptr that was passed to the activation routine
+</entry></row>
+</tbody></tgroup></informaltable></refsect2>
+
+</refsect1>
+
+
+
+
+</refentry>

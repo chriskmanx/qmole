@@ -1,0 +1,152 @@
+$Id: HACKING 2836 2013-10-23 08:20:31Z tpgww $
+This file is part of emelFM2. It was ripped off from xchat2.
+
+Just some tips if you're going to help with emelFM2 code (patches etc)..
+
+== Source code style conventions ==
+
+ * Use "//" C++ style comments.
+ * Use tabs, not spaces, to indent code. (Recommended is a tab size of 4.)
+ * Stick to the same consistant coding style:
+
+void routine (void)
+{
+	if (function (gpointer a, gint b, gchar *c))
+	{
+		//do something
+		gint x = b + 1;
+		printf (_("Break lines after 80 characters, in general.\n))
+		rt->set = e2_option_tree_register (option_name, group_name, option_name, NULL,
+			NULL, NULL, E2_OPTION_TREE_UP_DOWN | E2_OPTION_TREE_ADD_DEL);
+		printf (_("or _perhaps_ NOT after 80, if the line is just a string that needs to be internationalised like this.\n"));
+	}
+}
+
+  (vertically aligned braces, a space after if, while, functions, etc.).
+
+== How to make a really nice and clean patch? ==
+
+ * Please provide unified format diffs (run diff -u).
+ * Call your patch something more meaningfull than emelfm2.diff.
+
+Have two directories, unpacked from the original archive:
+emelfm2-0.0.9
+emelfm2-0.0.9p1
+Then edit/compile the emelfm2-0.0.9p1 directory. When you're done, make
+a patch with:
+
+cd emelfm2-0.0.9p1
+make clean
+cd ..
+diff -urN emelfm2-0.0.0 emelfm2-0.0.0p1 > emelfm2-something.diff
+
+== Some UI design rules ==
+
+ * Dialogs should be quitable by pressing ESC and activatable pressing ENTER.
+ * All windows and dialogs should be freely resizable, ie they must not have
+   a minimum size.
+ * Provide context menus where possible.
+ * Have a flat dialog hierarchy, ie don't have a million dialogs on top of
+   each other to achieve something.
+ * Dialogs must not block the main window.
+ * Be configurable and scaleable, ie don't boast of advanced functionality
+   but provide it through context menus and expanders.
+
+NOTE: the emelfm2 plugin api will probably change. Thus the following
+      information is subject to change.
+
+== Plugin Development ==
+
+Here is an outline of the Plugin Writing process. Hopefully I will be able to
+write a more extensive document when I get time.
+
+Step 1) #include "emelfm2.h"  <- You need this to get access to all the
+                                   functions and data structures of emelFM
+
+Step 2) Write the function that does what you want your plugin to do when
+        activated. For example, if you want a plugin that prints "Hello World",
+        then you would write this function.
+
+void hello_world()
+{
+  status_message("Hello World\n");
+}
+
+* The restricions for this function are that it must return void and can take
+  no parameters.
+
+Step 3) Write an init_plugin function something like this:
+
+Plugin *init_plugin (E2PInit mode)
+{
+  Plugin *p = ...;
+  p->name = "Hello World";
+  p->description = "Prints \"Hello World\" on the output window.";
+  p->plugin_cb = hello_world; /* This is whatever you named the function */
+                              /* in Step 2                               */
+  if (mode & E2P_SETUP)
+  {
+    do stuff here to register action(s), initialise plugin data ...
+    if (that stuff succeeds)
+      p->refcount = 1; /* signal success to the caller */
+  }
+  return p;
+}
+
+* This function *must* be called init_plugin, take a E2PInit flags argument, and return a Plugin *.
+
+Step 4) If your plugin needs any cleaning up when it is unloaded you should
+        implement a clean_plugin function as follows:
+
+gboolean clean_plugin (Plugin *p)
+{
+  status_message("I'm being unloaded\n");
+  return TRUE; /* if cleanup completed successfully */
+}
+
+* This function *must* be called clean_plugin, take a Plugin * argument, and
+  return a gboolean indicating successful (or not) completion.
+
+Step 5) Add your plugin to the "OBJS = " line in the Makfile. For example, if
+        the source file for your plugin is hello_world.c, then you would add
+        hello_world.so to the "OBJS = " list in the Makefile.
+
+
+emelFM Internals
+~~~~~~~~~~~~~~~~
+
+There are four major data structures that you will probably need to understand.
+
+ViewInfo:
+The backbone of emelFM is the ViewInfo structure. These structures hold
+everything that makes up the two panels in the interface.
+
+FileInfo:
+This is a simple data structure that corresponds to a single row in the panel
+file list. They contain two fields, the filename and a stat struct that holds
+the information retrieved from calling lstat on the file.
+
+App:
+The App data structure encompasses the entire user interface of emelFM. It
+includes two ViewInfo objects, corresponding to the right and left panels, and
+numerous GtkWidget objects needed for the interface.
+
+Config:
+The Config data structure holds all the configuration information including
+filetypes, bookmarks, plugins, etc.
+
+When emelFM is started it creates a global App object called 'app' and a global
+Config object called 'cfg'. It then creates two pointers to ViewInfo objects
+called 'curr_view' and 'other_view'. At any given time 'curr_view' will point
+to the panel that currently has focus and 'other_view' will point to the other
+panel.
+
+Important functions:
+
+GList *get_selection(ViewInfo *view);
+
+This will return a GList of FileInfo objects coresponding to the files selected
+(or tagged) in the panel corresponding to view. For example if you called
+get_selection(curr_view) it would return the selected files in the active
+panel. There are numerous examples in the source of how to use the GList
+returned by this function.

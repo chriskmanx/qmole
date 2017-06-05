@@ -1,0 +1,196 @@
+<?xml version="1.0"?>
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" [
+]>
+<chapter xml:id="config">
+	<title>PKCS#11 Configuration</title>
+
+	<section id="config-introduction">
+		<title>Consistent configuration</title>
+
+		<para>In order for multiple applications on the user's desktop to use
+			PKCS#11 modules in a consistent manner, there must be a configuration
+			or registry to specify which modules to load and how to use them. The
+			PKCS#11 specification does not specify such a configuration standard.
+		</para>
+
+		<para>Because of the multi-library module initialization problem, use of
+			PKCS#11 modules must be coordinated within an application. p11-kit
+			provides that coordination. Since coordination is required, it follows
+			that p11-kit can also implement a consistent module configuration.
+		</para>
+	</section>
+
+	<section id="config-example">
+		<title>Example</title>
+
+		<para>The following sections describe the config format in detail. But first
+		an example which shows the various features. The configuration below, loads
+		two modules called 'my-module' and 'nss'. The user settings override some
+		aspects of the system settings.</para>
+
+<para>Global configuration file: <literal>/etc/pkcs11/pkcs11.conf</literal></para>
+<programlisting>
+# This setting controls whether to load user configuration from the
+# ~/.pkcs11 directory. Possible values:
+#    none: No user configuration (default)
+#    merge: Merge the user configuration over the system configuration
+#    only: Only user configuration, ignore system configuration
+user-config: merge
+</programlisting>
+
+<para>One module configuration file per module: <literal>/etc/pkcs11/modules/my-module</literal></para>
+<programlisting>
+# This setting controls the actual module library to load. This config file
+# might be installed by the package that installs this module library. This
+# is not an absolute path name. Relative path names are loaded from the
+# $(libdir)/pkcs11 directory by default.
+module: my-pkcs11-module.so
+
+# This controls whether the module is required to successfully initialize. If 'yes', then
+# a failure to load or initialize this module will result in a p11-kit system failure.
+critical: no
+</programlisting>
+
+<para>User configuration file: <literal>~/.pkcs11/pkcs11.conf</literal></para>
+<programlisting>
+# This is an empty file. Files that do not exist are treated as empty.
+</programlisting>
+
+<para>User configuration file: <literal>~/.pkcs11/modules/my-module</literal></para>
+<programlisting>
+# Merge with the settings in the system my-module config file. In this case
+# a developer has overridden to load a different module for my-module instead.
+module: /home/user/src/custom-module/my-module.so
+</programlisting>
+
+<para>User configuration file: <literal>~/.pkcs11/modules/nss</literal></para>
+<programlisting>
+# Load the NSS libsoftokn.so.3 PKCS#11 library as a module. Note that we pass
+# some custom non-standard initialization arguments, as NSS expects.
+module: /usr/lib/libsoftokn3.so
+x-init-reserved: configdir='sql:/home/test/.pki/nssdb' certPrefix='' keyPrefix='' secmod='socmod.db'
+critical: yes
+</programlisting>
+
+
+</section>
+
+	<section id="config-format">
+		<title>File format</title>
+
+		<para>A complete configuration consists of several files. These files are
+		text files. Since <literal>p11-kit</literal> is built to be used in all
+		sorts of environments and at very low levels of the software stack, we
+		cannot make use of high level configuration APIs that you may find on a
+		modern desktop.</para>
+
+		<para>Each setting in the config file is specified consists of a name and
+		a value. The name is a simple string consisting of characters and dashes.
+		The name consists of alpha numeric characters, dot, hyphen and
+		underscore.</para>
+
+		<para>The value is specified after the name on the same line, separated
+		from it by a <literal>:</literal> (colon). White space between the
+		name and value is ignored.</para>
+
+		<para>Blank lines are ignored. White space at the beginning or end of
+		lines is stripped. Lines that begin with a <literal>#</literal> character
+		are ignored as comments. Comments are not recognized when they come after
+		a value on a line.</para>
+
+		<para>A fictitious sample configuration file might look like:</para>
+
+		<programlisting>
+	name:value
+	# Here is a comment
+
+	setting.2: A long value with text.
+	x-custom : text</programlisting>
+
+	</section>
+
+	<section id="config-module">
+		<title>Module Configuration</title>
+
+		<para>Each configured PKCS#11 module has its own config file. These files
+		can be <link linkend="config-locations">placed in various locations</link>.
+		Most importantly each config file specifies the path of the PKCS#11 module to
+		load. A module config file has the following fields:</para>
+
+		<variablelist>
+			<varlistentry>
+				<term>module:</term>
+				<listitem>
+					<para>The filename of the PKCS#11 module to load.
+					This should include an extension like <literal>.so</literal></para>
+					<para>If this value is blank, then the module will be ignored.
+					This can be used in the user configs to override loading of a module
+					specified in the system configuration.</para>
+					<para>If this is a relative path, then the module will be loaded
+					from the <link linkend="notes-paths-modules">default module directory</link>.</para>
+				</listitem>
+			</varlistentry>
+			<varlistentry>
+				<term>critical:</term>
+				<listitem>
+					<para>Set to <literal>yes</literal> if the module is critical and
+					required to load. If a critical module fails to load or initialize,
+					then the loading process for all registered modules will abort and
+					return an error code.</para>
+					<para>This argument is optional and defaults to <literal>no</literal>.</para>
+				</listitem>
+			</varlistentry>
+		</variablelist>
+
+		<para>Other fields may be present, but it is recommended that field names
+		that are not specified in this document start with a <literal>x-</literal>
+		prefix.</para>
+	</section>
+
+	<section id="config-global">
+		<title>Global Configuration</title>
+
+		<para>A global configuration is also present. This file contains settings
+		that are not related to a single PKCS#11 module. The location(s) of the
+		global configuration are described below. The global configuration file
+		can contain the following fields:</para>
+
+		<variablelist>
+			<varlistentry>
+				<term>user-config:</term>
+				<listitem><para>This will be equal to one of the following values:
+				<literal>none</literal>, <literal>merge</literal>,
+				<literal>only</literal>.</para></listitem>
+			</varlistentry>
+		</variablelist>
+
+		<para>Other fields may be present, but it is recommended that field names
+		that are not specified in this document start with a <literal>x-</literal>
+		prefix.</para>
+	</section>
+
+	<section id="config-locations">
+		<title>Configuration Files</title>
+
+		<para>Each configured PKCS#11 module is has its own config file. These
+		files are placed in a directory. In addition a global config file exists.
+		There is a system configuration consisting of the various module config
+		files and a file for global configuration. Optionally each user can provide
+		additional configuration or override the system configuration.</para>
+
+		<para>The system global configuration file is usually in
+		<literal>/etc/pkcs11/pkcs11.conf</literal> and the user global
+		configuration file is in <literal>~/.pkcs11/pkcs11.conf</literal> in the
+		user's home directory.</para>
+
+		<para>The module config files are usually located in the
+		<literal>/etc/pkcs11/modules</literal> directory, with one configuration
+		file per module. In addition the <literal>~/.pkcs11/modules</literal> directory
+		can be used for modules installed by the user.</para>
+
+		<para>The default system config file and module directory can be changed
+		when building p11-kit. Always
+		<link linkend="notes-paths">lookup these paths</link> using
+		<literal>pkg-config</literal>.</para>
+	</section>
+</chapter>

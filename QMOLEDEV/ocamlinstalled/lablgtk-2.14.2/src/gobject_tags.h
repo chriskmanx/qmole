@@ -1,0 +1,31 @@
+/* fundamental_type : tags and macros */
+#define MLTAG_INVALID	((value)(991669975*2+1))
+#define MLTAG_NONE	((value)(868932280*2+1))
+#define MLTAG_INTERFACE	((value)(892510617*2+1))
+#define MLTAG_CHAR	((value)(746596054*2+1))
+#define MLTAG_UCHAR	((value)(495941035*2+1))
+#define MLTAG_BOOLEAN	((value)(-36520312*2+1))
+#define MLTAG_INT	((value)(3647695*2+1))
+#define MLTAG_UINT	((value)(946260890*2+1))
+#define MLTAG_LONG	((value)(846753148*2+1))
+#define MLTAG_ULONG	((value)(596098129*2+1))
+#define MLTAG_INT64	((value)(1007610317*2+1))
+#define MLTAG_UINT64	((value)(946115928*2+1))
+#define MLTAG_ENUM	((value)(769078017*2+1))
+#define MLTAG_FLAGS	((value)(8020775*2+1))
+#define MLTAG_FLOAT	((value)(8715644*2+1))
+#define MLTAG_DOUBLE	((value)(-447883503*2+1))
+#define MLTAG_STRING	((value)(-1011690287*2+1))
+#define MLTAG_POINTER	((value)(-789212003*2+1))
+#define MLTAG_BOXED	((value)(887957258*2+1))
+#define MLTAG_PARAM	((value)(994293869*2+1))
+#define MLTAG_OBJECT	((value)(-943576385*2+1))
+
+extern const lookup_info ml_table_fundamental_type[];
+#define Val_fundamental_type(data) ml_lookup_from_c (ml_table_fundamental_type, data)
+#define Fundamental_type_val(key) ml_lookup_to_c (ml_table_fundamental_type, key)
+
+/* data : tags and macros */
+#define MLTAG_CAML	((value)(746250621*2+1))
+#define MLTAG_BOOL	((value)(735857706*2+1))
+#define MLTAG_INT32	((value)(1007609646*2+1))

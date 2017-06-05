@@ -1,0 +1,342 @@
+.TH "Buffer" 3 2012-04-16 OCamldoc "OCaml library"
+.SH NAME
+Buffer \- Extensible string buffers.
+.SH Module
+Module   Buffer
+.SH Documentation
+.sp
+Module
+.BI "Buffer"
+ : 
+.B sig  end
+
+.sp
+Extensible string buffers\&.
+.sp
+This module implements string buffers that automatically expand
+as necessary\&.  It provides accumulative concatenation of strings
+in quasi\-linear time (instead of quadratic time when strings are
+concatenated pairwise)\&.
+.sp
+
+.sp
+
+.sp
+.sp
+.I type t 
+
+.sp
+The abstract type of buffers\&.
+.sp
+
+.sp
+
+.I val create 
+: 
+.B int -> t
+.sp
+
+.B create n
+returns a fresh buffer, initially empty\&.
+The 
+.B n
+parameter is the initial size of the internal string
+that holds the buffer contents\&. That string is automatically
+reallocated when more than 
+.B n
+characters are stored in the buffer,
+but shrinks back to 
+.B n
+characters when 
+.B reset
+is called\&.
+For best performance, 
+.B n
+should be of the same order of magnitude
+as the number of characters that are expected to be stored in
+the buffer (for instance, 80 for a buffer that holds one output
+line)\&.  Nothing bad will happen if the buffer grows beyond that
+limit, however\&. In doubt, take 
+.B n = 16
+for instance\&.
+If 
+.B n
+is not between 1 and 
+.B Sys\&.max_string_length
+, it will
+be clipped to that interval\&.
+.sp
+
+.sp
+
+.I val contents 
+: 
+.B t -> string
+.sp
+Return a copy of the current contents of the buffer\&.
+The buffer itself is unchanged\&.
+.sp
+
+.sp
+
+.I val sub 
+: 
+.B t -> int -> int -> string
+.sp
+
+.B Buffer\&.sub b off len
+returns (a copy of) the substring of the
+current contents of the buffer 
+.B b
+starting at offset 
+.B off
+of length
+.B len
+bytes\&. May raise 
+.B Invalid_argument
+if out of bounds request\&. The
+buffer itself is unaffected\&.
+.sp
+
+.sp
+
+.I val blit 
+: 
+.B t -> int -> string -> int -> int -> unit
+.sp
+
+.B Buffer\&.blit src srcoff dst dstoff len
+copies 
+.B len
+characters from
+the current contents of the buffer 
+.B src
+, starting at offset 
+.B srcoff
+to string 
+.B dst
+, starting at character 
+.B dstoff
+\&.
+.sp
+Raise 
+.B Invalid_argument
+if 
+.B srcoff
+and 
+.B len
+do not designate a valid
+substring of 
+.B src
+, or if 
+.B dstoff
+and 
+.B len
+do not designate a valid
+substring of 
+.B dst
+\&.
+.sp
+.B "Since"
+3.11.2
+.sp
+
+.sp
+
+.I val nth 
+: 
+.B t -> int -> char
+.sp
+get the n\-th character of the buffer\&. Raise 
+.B Invalid_argument
+if
+index out of bounds
+.sp
+
+.sp
+
+.I val length 
+: 
+.B t -> int
+.sp
+Return the number of characters currently contained in the buffer\&.
+.sp
+
+.sp
+
+.I val clear 
+: 
+.B t -> unit
+.sp
+Empty the buffer\&.
+.sp
+
+.sp
+
+.I val reset 
+: 
+.B t -> unit
+.sp
+Empty the buffer and deallocate the internal string holding the
+buffer contents, replacing it with the initial internal string
+of length 
+.B n
+that was allocated by 
+.B Buffer\&.create
+.B n
+\&.
+For long\-lived buffers that may have grown a lot, 
+.B reset
+allows
+faster reclamation of the space used by the buffer\&.
+.sp
+
+.sp
+
+.I val add_char 
+: 
+.B t -> char -> unit
+.sp
+
+.B add_char b c
+appends the character 
+.B c
+at the end of the buffer 
+.B b
+\&.
+.sp
+
+.sp
+
+.I val add_string 
+: 
+.B t -> string -> unit
+.sp
+
+.B add_string b s
+appends the string 
+.B s
+at the end of the buffer 
+.B b
+\&.
+.sp
+
+.sp
+
+.I val add_substring 
+: 
+.B t -> string -> int -> int -> unit
+.sp
+
+.B add_substring b s ofs len
+takes 
+.B len
+characters from offset
+.B ofs
+in string 
+.B s
+and appends them at the end of the buffer 
+.B b
+\&.
+.sp
+
+.sp
+
+.I val add_substitute 
+: 
+.B t -> (string -> string) -> string -> unit
+.sp
+
+.B add_substitute b f s
+appends the string pattern 
+.B s
+at the end
+of the buffer 
+.B b
+with substitution\&.
+The substitution process looks for variables into
+the pattern and substitutes each variable name by its value, as
+obtained by applying the mapping 
+.B f
+to the variable name\&. Inside the
+string pattern, a variable name immediately follows a non\-escaped
+.B $
+character and is one of the following:
+.sp
+\-a non empty sequence of alphanumeric or 
+.B _
+characters,
+.sp
+\-an arbitrary sequence of characters enclosed by a pair of
+matching parentheses or curly brackets\&.
+An escaped 
+.B $
+character is a 
+.B $
+that immediately follows a backslash
+character; it then stands for a plain 
+.B $
+\&.
+Raise 
+.B Not_found
+if the closing character of a parenthesized variable
+cannot be found\&.
+
+.sp
+
+.sp
+
+.I val add_buffer 
+: 
+.B t -> t -> unit
+.sp
+
+.B add_buffer b1 b2
+appends the current contents of buffer 
+.B b2
+at the end of buffer 
+.B b1
+\&.  
+.B b2
+is not modified\&.
+.sp
+
+.sp
+
+.I val add_channel 
+: 
+.B t -> Pervasives.in_channel -> int -> unit
+.sp
+
+.B add_channel b ic n
+reads exactly 
+.B n
+character from the
+input channel 
+.B ic
+and stores them at the end of buffer 
+.B b
+\&.
+Raise 
+.B End_of_file
+if the channel contains fewer than 
+.B n
+characters\&.
+.sp
+
+.sp
+
+.I val output_buffer 
+: 
+.B Pervasives.out_channel -> t -> unit
+.sp
+
+.B output_buffer oc b
+writes the current contents of buffer 
+.B b
+on the output channel 
+.B oc
+\&.
+.sp
+
+.sp

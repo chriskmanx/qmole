@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>Chapter 8. Performance Tuning</title><meta name="generator" content="DocBook XSL Stylesheets V1.75.2" /><link rel="home" href="index.html" title="The Mutt E-Mail Client" /><link rel="up" href="index.html" title="The Mutt E-Mail Client" /><link rel="prev" href="security.html" title="Chapter 7. Security Considerations" /><link rel="next" href="reference.html" title="Chapter 9. Reference" /><style xmlns="" type="text/css">
+      body { margin-left:2%; margin-right:2%; font-family:serif; }
+.toc, .list-of-tables, .list-of-examples { font-family:sans-serif; }
+h1, h2, h3, h4, h5, h6 { font-family:sans-serif; }
+p { text-align:justify; }
+div.table p.title, div.example p.title { font-size:smaller; font-family:sans-serif; }
+.email, .email a { font-family:monospace; }
+div.table-contents table, div.informaltable table { border-collapse:collapse; border:1px solid #c0c0c0; }
+div.table-contents table td, div.informaltable td, div.table-contents table th, div.informaltable table th { padding:5px; text-align:left; }
+div.table-contents table th, div.informaltable table th {
+    font-family:sans-serif;
+    background:#d0d0d0;
+    font-weight:normal;
+    vertical-align:top;
+}
+div.cmdsynopsis { border-left:1px solid #707070; padding-left:5px; }
+li div.cmdsynopsis { border-left:none; padding-left:0px; }
+pre.screen, div.note { background:#f0f0f0; border:1px solid #c0c0c0; padding:5px; margin-left:2%; margin-right:2%; }
+div.example p.title { margin-left:2%; }
+div.note h3 { font-size:small; font-style:italic; font-variant: small-caps; }
+div.note h3:after { content: ":" }
+div.note { margin-bottom: 5px; }
+.command { font-family: monospace; font-weight: normal; }
+.command strong { font-weight: normal; }
+tr { vertical-align: top; }
+.comment { color:#707070; }
+
+    </style></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 8. Performance Tuning</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="security.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="reference.html">Next</a></td></tr></table><hr /></div><div class="chapter" title="Chapter 8. Performance Tuning"><div class="titlepage"><div><div><h2 class="title"><a id="tuning"></a>Chapter 8. Performance Tuning</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="tuning.html#tuning-mailboxes">1. Reading and Writing Mailboxes</a></span></dt><dt><span class="sect1"><a href="tuning.html#tuning-messages">2. Reading Messages from Remote Folders</a></span></dt><dt><span class="sect1"><a href="tuning.html#tuning-search">3. Searching and Limiting</a></span></dt></dl></div><div class="sect1" title="1. Reading and Writing Mailboxes"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="tuning-mailboxes"></a>1. Reading and Writing Mailboxes</h2></div></div></div><p>
+Mutt's performance when reading mailboxes can be improved in two ways:
+</p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem"><p>
+For remote folders (IMAP and POP) as well as folders using one-file-per
+message storage (Maildir and MH), Mutt's performance can be greatly
+improved using <a class="link" href="optionalfeatures.html#header-caching" title="7.1. Header Caching">header caching</a>.
+using a single database per folder.
+</p></li><li class="listitem"><p>
+Mutt provides the <a class="link" href="reference.html#read-inc" title="3.208. read_inc">$read_inc</a> and <a class="link" href="reference.html#write-inc" title="3.312. write_inc">$write_inc</a> variables to specify at which rate
+to update progress counters. If these values are too low, Mutt may spend
+more time on updating the progress counter than it spends on actually
+reading/writing folders.
+</p><p>
+For example, when opening a maildir folder with a few thousand messages,
+the default value for <a class="link" href="reference.html#read-inc" title="3.208. read_inc">$read_inc</a> may be
+too low. It can be tuned on on a folder-basis using <a class="link" href="configuration.html#folder-hook" title="7. Setting Variables Based Upon Mailbox"><span class="command"><strong>folder-hook</strong></span>s</a>:
+</p><pre class="screen">
+<span class="comment"># use very high $read_inc to speed up reading hcache'd maildirs</span>
+folder-hook . 'set read_inc=1000'
+<span class="comment"># use lower value for reading slower remote IMAP folders</span>
+folder-hook ^imap 'set read_inc=100'
+<span class="comment"># use even lower value for reading even slower remote POP folders</span>
+folder-hook ^pop 'set read_inc=1'</pre></li></ol></div><p>
+These settings work on a per-message basis. However, as messages may
+greatly differ in size and certain operations are much faster than
+others, even per-folder settings of the increment variables may not be
+desirable as they produce either too few or too much progress updates.
+Thus, Mutt allows to limit the number of progress updates per second
+it'll actually send to the terminal using the <a class="link" href="reference.html#time-inc" title="3.291. time_inc">$time_inc</a> variable.
+</p></div><div class="sect1" title="2. Reading Messages from Remote Folders"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="tuning-messages"></a>2. Reading Messages from Remote Folders</h2></div></div></div><p>
+Reading messages from remote folders such as IMAP an POP can be slow
+especially for large mailboxes since Mutt only caches a very limited
+number of recently viewed messages (usually 10) per session (so that it
+will be gone for the next session.)
+</p><p>
+To improve performance and permanently cache whole messages, please
+refer to Mutt's so-called <a class="link" href="optionalfeatures.html#body-caching" title="7.2. Body Caching">body
+caching</a> for details.
+</p></div><div class="sect1" title="3. Searching and Limiting"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="tuning-search"></a>3. Searching and Limiting</h2></div></div></div><p>
+When searching mailboxes either via a search or a limit action, for some
+patterns Mutt distinguishes between regular expression and string
+searches. For regular expressions, patterns are prefixed with
+<span class="quote">“<span class="quote">~</span>”</span> and with <span class="quote">“<span class="quote">=</span>”</span> for string searches.
+</p><p>
+Even though a regular expression search is fast, it's several times
+slower than a pure string search which is noticeable especially on large
+folders. As a consequence, a string search should be used instead of a
+regular expression search if the user already knows enough about the
+search pattern.
+</p><p>
+For example, when limiting a large folder to all messages sent to or by
+an author, it's much faster to search for the initial part of an e-mail
+address via <code class="literal">=Luser@</code> instead of
+<code class="literal">~Luser@</code>. This is especially true for searching
+message bodies since a larger amount of input has to be searched.
+</p><p>
+As for regular expressions, a lower case string search pattern makes
+Mutt perform a case-insensitive search except for IMAP (because for IMAP
+Mutt performs server-side searches which don't support
+case-insensitivity).
+</p></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="security.html">Prev</a> </td><td width="20%" align="center"> </td><td width="40%" align="right"> <a accesskey="n" href="reference.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 7. Security Considerations </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 9. Reference</td></tr></table></div></body></html>

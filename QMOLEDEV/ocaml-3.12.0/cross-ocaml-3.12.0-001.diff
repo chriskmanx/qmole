@@ -1,0 +1,61 @@
+diff -urN ocaml-3.12.0.orig/config/auto-aux/runtest ocaml-3.12.0/config/auto-aux/runtest
+--- ocaml-3.12.0.orig/config/auto-aux/runtest	2001-09-06 17:52:32.000000000 +0900
++++ ocaml-3.12.0/config/auto-aux/runtest	2010-09-11 03:35:03.000000000 +0900
+@@ -1,4 +1,10 @@
+ #!/bin/sh
++
++if test "$cross_compile" = yes; then
++exec sh ./cross_compile_conf.$host_type $* 
++exit 0
++fi
++
+ if test "$verbose" = yes; then
+ echo "runtest: $cc -o tst $* $cclibs" >&2
+ $cc -o tst $* $cclibs || exit 100
+diff -urN ocaml-3.12.0.orig/configure ocaml-3.12.0/configure
+--- ocaml-3.12.0.orig/configure	2010-07-28 22:18:22.000000000 +0900
++++ ocaml-3.12.0/configure	2010-09-11 03:35:07.000000000 +0900
+@@ -42,6 +42,7 @@
+ withsharedlibs=yes
+ gcc_warnings="-Wall"
+ partialld="ld -r"
++cross_compile=no
+ 
+ # Try to turn internationalization off, can cause config.guess to malfunction!
+ unset LANG
+@@ -169,11 +170,22 @@
+ 
+ # Determine the system type
+ 
++if guessed_host_type=`../gnu/config.guess`; then :; else
++  echo "Cannot guess host type"
++  echo "You must specify one with the -host option"
++  exit 2
++fi
++
++echo $host_type
++echo $guessed_host_type
++
+ if test "$host_type" = "unknown"; then
+-  if host_type=`../gnu/config.guess`; then :; else
+-    echo "Cannot guess host type"
+-    echo "You must specify one with the -host option"
+-    exit 2
++  host_type=$guessed_host_type
++else
++  if test "$host_type" = "$guessed_host_type"; then
++    cross_compile=no
++  else
++    cross_compile=yes
+   fi
+ fi
+ if host=`../gnu/config.sub $host_type`; then :; else
+@@ -332,7 +344,7 @@
+ # Configure compiler to use in further tests
+ 
+ cc="$bytecc -O $bytecclinkopts"
+-export cc cclibs verbose
++export cc cclibs verbose cross_compile host_type
+ 
+ # Check C compiler
+ 

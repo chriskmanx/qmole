@@ -1,0 +1,3316 @@
+.TH "Unix" 3 2012-04-16 OCamldoc "OCaml library"
+.SH NAME
+Unix \- Interface to the Unix system
+.SH Module
+Module   Unix
+.SH Documentation
+.sp
+Module
+.BI "Unix"
+ : 
+.B sig  end
+
+.sp
+Interface to the Unix system
+.sp
+
+.sp
+
+.sp
+.sp
+
+.PP
+
+.B === 
+.B Error report
+.B  ===
+
+.PP
+.I type error 
+=
+ | E2BIG  (* Argument list too long *)
+ | EACCES  (* Permission denied *)
+ | EAGAIN  (* Resource temporarily unavailable; try again *)
+ | EBADF  (* Bad file descriptor *)
+ | EBUSY  (* Resource unavailable *)
+ | ECHILD  (* No child process *)
+ | EDEADLK  (* Resource deadlock would occur *)
+ | EDOM  (* Domain error for math functions, etc\&. *)
+ | EEXIST  (* File exists *)
+ | EFAULT  (* Bad address *)
+ | EFBIG  (* File too large *)
+ | EINTR  (* Function interrupted by signal *)
+ | EINVAL  (* Invalid argument *)
+ | EIO  (* Hardware I/O error *)
+ | EISDIR  (* Is a directory *)
+ | EMFILE  (* Too many open files by the process *)
+ | EMLINK  (* Too many links *)
+ | ENAMETOOLONG  (* Filename too long *)
+ | ENFILE  (* Too many open files in the system *)
+ | ENODEV  (* No such device *)
+ | ENOENT  (* No such file or directory *)
+ | ENOEXEC  (* Not an executable file *)
+ | ENOLCK  (* No locks available *)
+ | ENOMEM  (* Not enough memory *)
+ | ENOSPC  (* No space left on device *)
+ | ENOSYS  (* Function not supported *)
+ | ENOTDIR  (* Not a directory *)
+ | ENOTEMPTY  (* Directory not empty *)
+ | ENOTTY  (* Inappropriate I/O control operation *)
+ | ENXIO  (* No such device or address *)
+ | EPERM  (* Operation not permitted *)
+ | EPIPE  (* Broken pipe *)
+ | ERANGE  (* Result too large *)
+ | EROFS  (* Read\-only file system *)
+ | ESPIPE  (* Invalid seek e\&.g\&. on a pipe *)
+ | ESRCH  (* No such process *)
+ | EXDEV  (* Invalid link *)
+ | EWOULDBLOCK  (* Operation would block *)
+ | EINPROGRESS  (* Operation now in progress *)
+ | EALREADY  (* Operation already in progress *)
+ | ENOTSOCK  (* Socket operation on non\-socket *)
+ | EDESTADDRREQ  (* Destination address required *)
+ | EMSGSIZE  (* Message too long *)
+ | EPROTOTYPE  (* Protocol wrong type for socket *)
+ | ENOPROTOOPT  (* Protocol not available *)
+ | EPROTONOSUPPORT  (* Protocol not supported *)
+ | ESOCKTNOSUPPORT  (* Socket type not supported *)
+ | EOPNOTSUPP  (* Operation not supported on socket *)
+ | EPFNOSUPPORT  (* Protocol family not supported *)
+ | EAFNOSUPPORT  (* Address family not supported by protocol family *)
+ | EADDRINUSE  (* Address already in use *)
+ | EADDRNOTAVAIL  (* Can\&'t assign requested address *)
+ | ENETDOWN  (* Network is down *)
+ | ENETUNREACH  (* Network is unreachable *)
+ | ENETRESET  (* Network dropped connection on reset *)
+ | ECONNABORTED  (* Software caused connection abort *)
+ | ECONNRESET  (* Connection reset by peer *)
+ | ENOBUFS  (* No buffer space available *)
+ | EISCONN  (* Socket is already connected *)
+ | ENOTCONN  (* Socket is not connected *)
+ | ESHUTDOWN  (* Can\&'t send after socket shutdown *)
+ | ETOOMANYREFS  (* Too many references: can\&'t splice *)
+ | ETIMEDOUT  (* Connection timed out *)
+ | ECONNREFUSED  (* Connection refused *)
+ | EHOSTDOWN  (* Host is down *)
+ | EHOSTUNREACH  (* No route to host *)
+ | ELOOP  (* Too many levels of symbolic links *)
+ | EOVERFLOW  (* File size or position not representable *)
+ | EUNKNOWNERR
+.B of 
+.B int
+.I "  "
+(* Unknown error *)
+ 
+.sp
+The type of error codes\&.
+Errors defined in the POSIX standard
+and additional errors from UNIX98 and BSD\&.
+All other errors are mapped to EUNKNOWNERR\&.
+.sp
+
+.sp
+
+.I exception Unix_error 
+.B of 
+.B error * string * string
+
+.sp
+Raised by the system calls below when an error is encountered\&.
+The first component is the error code; the second component
+is the function name; the third component is the string parameter
+to the function, if it has one, or the empty string otherwise\&.
+.sp
+
+.sp
+
+.I val error_message 
+: 
+.B error -> string
+.sp
+Return a string describing the given error code\&.
+.sp
+
+.sp
+
+.I val handle_unix_error 
+: 
+.B ('a -> 'b) -> 'a -> 'b
+.sp
+
+.B handle_unix_error f x
+applies 
+.B f
+to 
+.B x
+and returns the result\&.
+If the exception 
+.B Unix_error
+is raised, it prints a message
+describing the error and exits with code 2\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Access to the process environment
+.B  ===
+
+.PP
+
+.I val environment 
+: 
+.B unit -> string array
+.sp
+Return the process environment, as an array of strings
+with the format ``variable=value\&'\&'\&.
+.sp
+
+.sp
+
+.I val getenv 
+: 
+.B string -> string
+.sp
+Return the value associated to a variable in the process
+environment\&. Raise 
+.B Not_found
+if the variable is unbound\&.
+(This function is identical to 
+.B Sys\&.getenv
+\&.)
+.sp
+
+.sp
+
+.I val putenv 
+: 
+.B string -> string -> unit
+.sp
+
+.B Unix\&.putenv name value
+sets the value associated to a
+variable in the process environment\&.
+.B name
+is the name of the environment variable,
+and 
+.B value
+its new associated value\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Process handling
+.B  ===
+
+.PP
+.I type process_status 
+=
+ | WEXITED
+.B of 
+.B int
+.I "  "
+(* The process terminated normally by 
+.B exit
+;
+the argument is the return code\&. *)
+ | WSIGNALED
+.B of 
+.B int
+.I "  "
+(* The process was killed by a signal;
+the argument is the signal number\&. *)
+ | WSTOPPED
+.B of 
+.B int
+.I "  "
+(* The process was stopped by a signal; the argument is the
+signal number\&. *)
+ 
+.sp
+The termination status of a process\&.  See module 
+.B Sys
+for the
+definitions of the standard signal numbers\&.  Note that they are
+not the numbers used by the OS\&.
+.sp
+
+.sp
+.I type wait_flag 
+=
+ | WNOHANG  (* do not block if no child has
+died yet, but immediately return with a pid equal to 0\&. *)
+ | WUNTRACED  (* report also the children that receive stop signals\&. *)
+ 
+.sp
+Flags for 
+.B Unix\&.waitpid
+\&.
+.sp
+
+.sp
+
+.I val execv 
+: 
+.B string -> string array -> 'a
+.sp
+
+.B execv prog args
+execute the program in file 
+.B prog
+, with
+the arguments 
+.B args
+, and the current process environment\&.
+These 
+.B execv*
+functions never return: on success, the current
+program is replaced by the new one;
+on failure, a 
+.B Unix\&.Unix_error
+exception is raised\&.
+.sp
+
+.sp
+
+.I val execve 
+: 
+.B string -> string array -> string array -> 'a
+.sp
+Same as 
+.B Unix\&.execv
+, except that the third argument provides the
+environment to the program executed\&.
+.sp
+
+.sp
+
+.I val execvp 
+: 
+.B string -> string array -> 'a
+.sp
+Same as 
+.B Unix\&.execv
+, except that
+the program is searched in the path\&.
+.sp
+
+.sp
+
+.I val execvpe 
+: 
+.B string -> string array -> string array -> 'a
+.sp
+Same as 
+.B Unix\&.execve
+, except that
+the program is searched in the path\&.
+.sp
+
+.sp
+
+.I val fork 
+: 
+.B unit -> int
+.sp
+Fork a new process\&. The returned integer is 0 for the child
+process, the pid of the child process for the parent process\&.
+.sp
+
+.sp
+
+.I val wait 
+: 
+.B unit -> int * process_status
+.sp
+Wait until one of the children processes die, and return its pid
+and termination status\&.
+.sp
+
+.sp
+
+.I val waitpid 
+: 
+.B wait_flag list -> int -> int * process_status
+.sp
+Same as 
+.B Unix\&.wait
+, but waits for the child process whose pid is given\&.
+A pid of 
+.B \-1
+means wait for any child\&.
+A pid of 
+.B 0
+means wait for any child in the same process group
+as the current process\&.
+Negative pid arguments represent process groups\&.
+The list of options indicates whether 
+.B waitpid
+should return
+immediately without waiting, or also report stopped children\&.
+.sp
+
+.sp
+
+.I val system 
+: 
+.B string -> process_status
+.sp
+Execute the given command, wait until it terminates, and return
+its termination status\&. The string is interpreted by the shell
+.B /bin/sh
+and therefore can contain redirections, quotes, variables,
+etc\&. The result 
+.B WEXITED 127
+indicates that the shell couldn\&'t
+be executed\&.
+.sp
+
+.sp
+
+.I val getpid 
+: 
+.B unit -> int
+.sp
+Return the pid of the process\&.
+.sp
+
+.sp
+
+.I val getppid 
+: 
+.B unit -> int
+.sp
+Return the pid of the parent process\&.
+.sp
+
+.sp
+
+.I val nice 
+: 
+.B int -> int
+.sp
+Change the process priority\&. The integer argument is added to the
+``nice\&'\&' value\&. (Higher values of the ``nice\&'\&' value mean
+lower priorities\&.) Return the new nice value\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Basic file input/output
+.B  ===
+
+.PP
+.I type file_descr 
+
+.sp
+The abstract type of file descriptors\&.
+.sp
+
+.sp
+
+.I val stdin 
+: 
+.B file_descr
+.sp
+File descriptor for standard input\&.
+.sp
+
+.sp
+
+.I val stdout 
+: 
+.B file_descr
+.sp
+File descriptor for standard output\&.
+.sp
+
+.sp
+
+.I val stderr 
+: 
+.B file_descr
+.sp
+File descriptor for standard error\&.
+.sp
+
+.sp
+.I type open_flag 
+=
+ | O_RDONLY  (* Open for reading *)
+ | O_WRONLY  (* Open for writing *)
+ | O_RDWR  (* Open for reading and writing *)
+ | O_NONBLOCK  (* Open in non\-blocking mode *)
+ | O_APPEND  (* Open for append *)
+ | O_CREAT  (* Create if nonexistent *)
+ | O_TRUNC  (* Truncate to 0 length if existing *)
+ | O_EXCL  (* Fail if existing *)
+ | O_NOCTTY  (* Don\&'t make this dev a controlling tty *)
+ | O_DSYNC  (* Writes complete as `Synchronised I/O data integrity completion\&' *)
+ | O_SYNC  (* Writes complete as `Synchronised I/O file integrity completion\&' *)
+ | O_RSYNC  (* Reads complete as writes (depending on O_SYNC/O_DSYNC) *)
+ 
+.sp
+The flags to 
+.B Unix\&.openfile
+\&.
+.sp
+
+.sp
+.I type file_perm 
+= 
+.B int
+
+.sp
+The type of file access rights, e\&.g\&. 
+.B 0o640
+is read and write for user,
+read for group, none for others
+.sp
+
+.sp
+
+.I val openfile 
+: 
+.B string -> open_flag list -> file_perm -> file_descr
+.sp
+Open the named file with the given flags\&. Third argument is
+the permissions to give to the file if it is created\&. Return
+a file descriptor on the named file\&.
+.sp
+
+.sp
+
+.I val close 
+: 
+.B file_descr -> unit
+.sp
+Close a file descriptor\&.
+.sp
+
+.sp
+
+.I val read 
+: 
+.B file_descr -> string -> int -> int -> int
+.sp
+
+.B read fd buff ofs len
+reads 
+.B len
+characters from descriptor
+.B fd
+, storing them in string 
+.B buff
+, starting at position 
+.B ofs
+in string 
+.B buff
+\&. Return the number of characters actually read\&.
+.sp
+
+.sp
+
+.I val write 
+: 
+.B file_descr -> string -> int -> int -> int
+.sp
+
+.B write fd buff ofs len
+writes 
+.B len
+characters to descriptor
+.B fd
+, taking them from string 
+.B buff
+, starting at position 
+.B ofs
+in string 
+.B buff
+\&. Return the number of characters actually
+written\&.  
+.B write
+repeats the writing operation until all characters
+have been written or an error occurs\&.
+.sp
+
+.sp
+
+.I val single_write 
+: 
+.B file_descr -> string -> int -> int -> int
+.sp
+Same as 
+.B write
+, but attempts to write only once\&.
+Thus, if an error occurs, 
+.B single_write
+guarantees that no data
+has been written\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Interfacing with the standard input/output library
+.B  ===
+
+.PP
+
+.I val in_channel_of_descr 
+: 
+.B file_descr -> Pervasives.in_channel
+.sp
+Create an input channel reading from the given descriptor\&.
+The channel is initially in binary mode; use
+.B set_binary_mode_in ic false
+if text mode is desired\&.
+.sp
+
+.sp
+
+.I val out_channel_of_descr 
+: 
+.B file_descr -> Pervasives.out_channel
+.sp
+Create an output channel writing on the given descriptor\&.
+The channel is initially in binary mode; use
+.B set_binary_mode_out oc false
+if text mode is desired\&.
+.sp
+
+.sp
+
+.I val descr_of_in_channel 
+: 
+.B Pervasives.in_channel -> file_descr
+.sp
+Return the descriptor corresponding to an input channel\&.
+.sp
+
+.sp
+
+.I val descr_of_out_channel 
+: 
+.B Pervasives.out_channel -> file_descr
+.sp
+Return the descriptor corresponding to an output channel\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Seeking and truncating
+.B  ===
+
+.PP
+.I type seek_command 
+=
+ | SEEK_SET  (* indicates positions relative to the beginning of the file *)
+ | SEEK_CUR  (* indicates positions relative to the current position *)
+ | SEEK_END  (* indicates positions relative to the end of the file *)
+ 
+.sp
+Positioning modes for 
+.B Unix\&.lseek
+\&.
+.sp
+
+.sp
+
+.I val lseek 
+: 
+.B file_descr -> int -> seek_command -> int
+.sp
+Set the current position for a file descriptor
+.sp
+
+.sp
+
+.I val truncate 
+: 
+.B string -> int -> unit
+.sp
+Truncates the named file to the given size\&.
+.sp
+
+.sp
+
+.I val ftruncate 
+: 
+.B file_descr -> int -> unit
+.sp
+Truncates the file corresponding to the given descriptor
+to the given size\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B File status
+.B  ===
+
+.PP
+.I type file_kind 
+=
+ | S_REG  (* Regular file *)
+ | S_DIR  (* Directory *)
+ | S_CHR  (* Character device *)
+ | S_BLK  (* Block device *)
+ | S_LNK  (* Symbolic link *)
+ | S_FIFO  (* Named pipe *)
+ | S_SOCK  (* Socket *)
+ 
+.sp
+
+.sp
+.I type stats 
+= {
+ st_dev : 
+.B int
+;  (* Device number *) 
+ st_ino : 
+.B int
+;  (* Inode number *) 
+ st_kind : 
+.B file_kind
+;  (* Kind of the file *) 
+ st_perm : 
+.B file_perm
+;  (* Access rights *) 
+ st_nlink : 
+.B int
+;  (* Number of links *) 
+ st_uid : 
+.B int
+;  (* User id of the owner *) 
+ st_gid : 
+.B int
+;  (* Group ID of the file\&'s group *) 
+ st_rdev : 
+.B int
+;  (* Device minor number *) 
+ st_size : 
+.B int
+;  (* Size in bytes *) 
+ st_atime : 
+.B float
+;  (* Last access time *) 
+ st_mtime : 
+.B float
+;  (* Last modification time *) 
+ st_ctime : 
+.B float
+;  (* Last status change time *) 
+ }
+
+.sp
+The information returned by the 
+.B Unix\&.stat
+calls\&.
+.sp
+
+.sp
+
+.I val stat 
+: 
+.B string -> stats
+.sp
+Return the information for the named file\&.
+.sp
+
+.sp
+
+.I val lstat 
+: 
+.B string -> stats
+.sp
+Same as 
+.B Unix\&.stat
+, but in case the file is a symbolic link,
+return the information for the link itself\&.
+.sp
+
+.sp
+
+.I val fstat 
+: 
+.B file_descr -> stats
+.sp
+Return the information for the file associated with the given
+descriptor\&.
+.sp
+
+.sp
+
+.I val isatty 
+: 
+.B file_descr -> bool
+.sp
+Return 
+.B true
+if the given file descriptor refers to a terminal or
+console window, 
+.B false
+otherwise\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B File operations on large files
+.B  ===
+
+.PP
+.I module LargeFile : 
+.B sig  end
+
+.sp
+File operations on large files\&.
+This sub\-module provides 64\-bit variants of the functions
+.B Unix\&.lseek
+(for positioning a file descriptor),
+.B Unix\&.truncate
+and 
+.B Unix\&.ftruncate
+(for changing the size of a file),
+and 
+.B Unix\&.stat
+, 
+.B Unix\&.lstat
+and 
+.B Unix\&.fstat
+(for obtaining
+information on files)\&.  These alternate functions represent
+positions and sizes by 64\-bit integers (type 
+.B int64
+) instead of
+regular integers (type 
+.B int
+), thus allowing operating on files
+whose sizes are greater than 
+.B max_int
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Operations on file names
+.B  ===
+
+.PP
+
+.I val unlink 
+: 
+.B string -> unit
+.sp
+Removes the named file
+.sp
+
+.sp
+
+.I val rename 
+: 
+.B string -> string -> unit
+.sp
+
+.B rename old new
+changes the name of a file from 
+.B old
+to 
+.B new
+\&.
+.sp
+
+.sp
+
+.I val link 
+: 
+.B string -> string -> unit
+.sp
+
+.B link source dest
+creates a hard link named 
+.B dest
+to the file
+named 
+.B source
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B File permissions and ownership
+.B  ===
+
+.PP
+.I type access_permission 
+=
+ | R_OK  (* Read permission *)
+ | W_OK  (* Write permission *)
+ | X_OK  (* Execution permission *)
+ | F_OK  (* File exists *)
+ 
+.sp
+Flags for the 
+.B Unix\&.access
+call\&.
+.sp
+
+.sp
+
+.I val chmod 
+: 
+.B string -> file_perm -> unit
+.sp
+Change the permissions of the named file\&.
+.sp
+
+.sp
+
+.I val fchmod 
+: 
+.B file_descr -> file_perm -> unit
+.sp
+Change the permissions of an opened file\&.
+.sp
+
+.sp
+
+.I val chown 
+: 
+.B string -> int -> int -> unit
+.sp
+Change the owner uid and owner gid of the named file\&.
+.sp
+
+.sp
+
+.I val fchown 
+: 
+.B file_descr -> int -> int -> unit
+.sp
+Change the owner uid and owner gid of an opened file\&.
+.sp
+
+.sp
+
+.I val umask 
+: 
+.B int -> int
+.sp
+Set the process\&'s file mode creation mask, and return the previous
+mask\&.
+.sp
+
+.sp
+
+.I val access 
+: 
+.B string -> access_permission list -> unit
+.sp
+Check that the process has the given permissions over the named
+file\&. Raise 
+.B Unix_error
+otherwise\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Operations on file descriptors
+.B  ===
+
+.PP
+
+.I val dup 
+: 
+.B file_descr -> file_descr
+.sp
+Return a new file descriptor referencing the same file as
+the given descriptor\&.
+.sp
+
+.sp
+
+.I val dup2 
+: 
+.B file_descr -> file_descr -> unit
+.sp
+
+.B dup2 fd1 fd2
+duplicates 
+.B fd1
+to 
+.B fd2
+, closing 
+.B fd2
+if already
+opened\&.
+.sp
+
+.sp
+
+.I val set_nonblock 
+: 
+.B file_descr -> unit
+.sp
+Set the ``non\-blocking\&'\&' flag on the given descriptor\&.
+When the non\-blocking flag is set, reading on a descriptor
+on which there is temporarily no data available raises the
+.B EAGAIN
+or 
+.B EWOULDBLOCK
+error instead of blocking;
+writing on a descriptor on which there is temporarily no room
+for writing also raises 
+.B EAGAIN
+or 
+.B EWOULDBLOCK
+\&.
+.sp
+
+.sp
+
+.I val clear_nonblock 
+: 
+.B file_descr -> unit
+.sp
+Clear the ``non\-blocking\&'\&' flag on the given descriptor\&.
+See 
+.B Unix\&.set_nonblock
+\&.
+.sp
+
+.sp
+
+.I val set_close_on_exec 
+: 
+.B file_descr -> unit
+.sp
+Set the ``close\-on\-exec\&'\&' flag on the given descriptor\&.
+A descriptor with the close\-on\-exec flag is automatically
+closed when the current process starts another program with
+one of the 
+.B exec
+functions\&.
+.sp
+
+.sp
+
+.I val clear_close_on_exec 
+: 
+.B file_descr -> unit
+.sp
+Clear the ``close\-on\-exec\&'\&' flag on the given descriptor\&.
+See 
+.B Unix\&.set_close_on_exec
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Directories
+.B  ===
+
+.PP
+
+.I val mkdir 
+: 
+.B string -> file_perm -> unit
+.sp
+Create a directory with the given permissions\&.
+.sp
+
+.sp
+
+.I val rmdir 
+: 
+.B string -> unit
+.sp
+Remove an empty directory\&.
+.sp
+
+.sp
+
+.I val chdir 
+: 
+.B string -> unit
+.sp
+Change the process working directory\&.
+.sp
+
+.sp
+
+.I val getcwd 
+: 
+.B unit -> string
+.sp
+Return the name of the current working directory\&.
+.sp
+
+.sp
+
+.I val chroot 
+: 
+.B string -> unit
+.sp
+Change the process root directory\&.
+.sp
+
+.sp
+.I type dir_handle 
+
+.sp
+The type of descriptors over opened directories\&.
+.sp
+
+.sp
+
+.I val opendir 
+: 
+.B string -> dir_handle
+.sp
+Open a descriptor on a directory
+.sp
+
+.sp
+
+.I val readdir 
+: 
+.B dir_handle -> string
+.sp
+Return the next entry in a directory\&.
+.sp
+.B "Raises End_of_file"
+when the end of the directory has been reached\&.
+.sp
+
+.sp
+
+.I val rewinddir 
+: 
+.B dir_handle -> unit
+.sp
+Reposition the descriptor to the beginning of the directory
+.sp
+
+.sp
+
+.I val closedir 
+: 
+.B dir_handle -> unit
+.sp
+Close a directory descriptor\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Pipes and redirections
+.B  ===
+
+.PP
+
+.I val pipe 
+: 
+.B unit -> file_descr * file_descr
+.sp
+Create a pipe\&. The first component of the result is opened
+for reading, that\&'s the exit to the pipe\&. The second component is
+opened for writing, that\&'s the entrance to the pipe\&.
+.sp
+
+.sp
+
+.I val mkfifo 
+: 
+.B string -> file_perm -> unit
+.sp
+Create a named pipe with the given permissions\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B High\-level process and redirection management
+.B  ===
+
+.PP
+
+.I val create_process 
+: 
+.B string ->
+.B   string array -> file_descr -> file_descr -> file_descr -> int
+.sp
+
+.B create_process prog args new_stdin new_stdout new_stderr
+forks a new process that executes the program
+in file 
+.B prog
+, with arguments 
+.B args
+\&. The pid of the new
+process is returned immediately; the new process executes
+concurrently with the current process\&.
+The standard input and outputs of the new process are connected
+to the descriptors 
+.B new_stdin
+, 
+.B new_stdout
+and 
+.B new_stderr
+\&.
+Passing e\&.g\&. 
+.B stdout
+for 
+.B new_stdout
+prevents the redirection
+and causes the new process to have the same standard output
+as the current process\&.
+The executable file 
+.B prog
+is searched in the path\&.
+The new process has the same environment as the current process\&.
+.sp
+
+.sp
+
+.I val create_process_env 
+: 
+.B string ->
+.B   string array ->
+.B   string array -> file_descr -> file_descr -> file_descr -> int
+.sp
+
+.B create_process_env prog args env new_stdin new_stdout new_stderr
+works as 
+.B Unix\&.create_process
+, except that the extra argument
+.B env
+specifies the environment passed to the program\&.
+.sp
+
+.sp
+
+.I val open_process_in 
+: 
+.B string -> Pervasives.in_channel
+.sp
+High\-level pipe and process management\&. This function
+runs the given command in parallel with the program\&.
+The standard output of the command is redirected to a pipe,
+which can be read via the returned input channel\&.
+The command is interpreted by the shell 
+.B /bin/sh
+(cf\&. 
+.B system
+)\&.
+.sp
+
+.sp
+
+.I val open_process_out 
+: 
+.B string -> Pervasives.out_channel
+.sp
+Same as 
+.B Unix\&.open_process_in
+, but redirect the standard input of
+the command to a pipe\&.  Data written to the returned output channel
+is sent to the standard input of the command\&.
+Warning: writes on output channels are buffered, hence be careful
+to call 
+.B Pervasives\&.flush
+at the right times to ensure
+correct synchronization\&.
+.sp
+
+.sp
+
+.I val open_process 
+: 
+.B string -> Pervasives.in_channel * Pervasives.out_channel
+.sp
+Same as 
+.B Unix\&.open_process_out
+, but redirects both the standard input
+and standard output of the command to pipes connected to the two
+returned channels\&.  The input channel is connected to the output
+of the command, and the output channel to the input of the command\&.
+.sp
+
+.sp
+
+.I val open_process_full 
+: 
+.B string ->
+.B   string array ->
+.B   Pervasives.in_channel * Pervasives.out_channel * Pervasives.in_channel
+.sp
+Similar to 
+.B Unix\&.open_process
+, but the second argument specifies
+the environment passed to the command\&.  The result is a triple
+of channels connected respectively to the standard output, standard input,
+and standard error of the command\&.
+.sp
+
+.sp
+
+.I val close_process_in 
+: 
+.B Pervasives.in_channel -> process_status
+.sp
+Close channels opened by 
+.B Unix\&.open_process_in
+,
+wait for the associated command to terminate,
+and return its termination status\&.
+.sp
+
+.sp
+
+.I val close_process_out 
+: 
+.B Pervasives.out_channel -> process_status
+.sp
+Close channels opened by 
+.B Unix\&.open_process_out
+,
+wait for the associated command to terminate,
+and return its termination status\&.
+.sp
+
+.sp
+
+.I val close_process 
+: 
+.B Pervasives.in_channel * Pervasives.out_channel -> process_status
+.sp
+Close channels opened by 
+.B Unix\&.open_process
+,
+wait for the associated command to terminate,
+and return its termination status\&.
+.sp
+
+.sp
+
+.I val close_process_full 
+: 
+.B Pervasives.in_channel * Pervasives.out_channel * Pervasives.in_channel ->
+.B   process_status
+.sp
+Close channels opened by 
+.B Unix\&.open_process_full
+,
+wait for the associated command to terminate,
+and return its termination status\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Symbolic links
+.B  ===
+
+.PP
+
+.I val symlink 
+: 
+.B string -> string -> unit
+.sp
+
+.B symlink source dest
+creates the file 
+.B dest
+as a symbolic link
+to the file 
+.B source
+\&.
+.sp
+
+.sp
+
+.I val readlink 
+: 
+.B string -> string
+.sp
+Read the contents of a link\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Polling
+.B  ===
+
+.PP
+
+.I val select 
+: 
+.B file_descr list ->
+.B   file_descr list ->
+.B   file_descr list ->
+.B   float -> file_descr list * file_descr list * file_descr list
+.sp
+Wait until some input/output operations become possible on
+some channels\&. The three list arguments are, respectively, a set
+of descriptors to check for reading (first argument), for writing
+(second argument), or for exceptional conditions (third argument)\&.
+The fourth argument is the maximal timeout, in seconds; a
+negative fourth argument means no timeout (unbounded wait)\&.
+The result is composed of three sets of descriptors: those ready
+for reading (first component), ready for writing (second component),
+and over which an exceptional condition is pending (third
+component)\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Locking
+.B  ===
+
+.PP
+.I type lock_command 
+=
+ | F_ULOCK  (* Unlock a region *)
+ | F_LOCK  (* Lock a region for writing, and block if already locked *)
+ | F_TLOCK  (* Lock a region for writing, or fail if already locked *)
+ | F_TEST  (* Test a region for other process locks *)
+ | F_RLOCK  (* Lock a region for reading, and block if already locked *)
+ | F_TRLOCK  (* Lock a region for reading, or fail if already locked *)
+ 
+.sp
+Commands for 
+.B Unix\&.lockf
+\&.
+.sp
+
+.sp
+
+.I val lockf 
+: 
+.B file_descr -> lock_command -> int -> unit
+.sp
+
+.B lockf fd cmd size
+puts a lock on a region of the file opened
+as 
+.B fd
+\&. The region starts at the current read/write position for
+.B fd
+(as set by 
+.B Unix\&.lseek
+), and extends 
+.B size
+bytes forward if
+.B size
+is positive, 
+.B size
+bytes backwards if 
+.B size
+is negative,
+or to the end of the file if 
+.B size
+is zero\&.
+A write lock prevents any other
+process from acquiring a read or write lock on the region\&.
+A read lock prevents any other
+process from acquiring a write lock on the region, but lets
+other processes acquire read locks on it\&.
+.sp
+The 
+.B F_LOCK
+and 
+.B F_TLOCK
+commands attempts to put a write lock
+on the specified region\&.
+The 
+.B F_RLOCK
+and 
+.B F_TRLOCK
+commands attempts to put a read lock
+on the specified region\&.
+If one or several locks put by another process prevent the current process
+from acquiring the lock, 
+.B F_LOCK
+and 
+.B F_RLOCK
+block until these locks
+are removed, while 
+.B F_TLOCK
+and 
+.B F_TRLOCK
+fail immediately with an
+exception\&.
+The 
+.B F_ULOCK
+removes whatever locks the current process has on
+the specified region\&.
+Finally, the 
+.B F_TEST
+command tests whether a write lock can be
+acquired on the specified region, without actually putting a lock\&.
+It returns immediately if successful, or fails otherwise\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Signals
+.B 
+.B    Note: installation of signal handlers is performed via
+.B    the functions Sys\&.signal and Sys\&.set_signal\&. ===
+
+.PP
+
+.I val kill 
+: 
+.B int -> int -> unit
+.sp
+
+.B kill pid sig
+sends signal number 
+.B sig
+to the process
+with id 
+.B pid
+\&.
+.sp
+
+.sp
+.I type sigprocmask_command 
+=
+ | SIG_SETMASK
+ | SIG_BLOCK
+ | SIG_UNBLOCK
+ 
+.sp
+
+.sp
+
+.I val sigprocmask 
+: 
+.B sigprocmask_command -> int list -> int list
+.sp
+
+.B sigprocmask cmd sigs
+changes the set of blocked signals\&.
+If 
+.B cmd
+is 
+.B SIG_SETMASK
+, blocked signals are set to those in
+the list 
+.B sigs
+\&.
+If 
+.B cmd
+is 
+.B SIG_BLOCK
+, the signals in 
+.B sigs
+are added to
+the set of blocked signals\&.
+If 
+.B cmd
+is 
+.B SIG_UNBLOCK
+, the signals in 
+.B sigs
+are removed
+from the set of blocked signals\&.
+.B sigprocmask
+returns the set of previously blocked signals\&.
+.sp
+
+.sp
+
+.I val sigpending 
+: 
+.B unit -> int list
+.sp
+Return the set of blocked signals that are currently pending\&.
+.sp
+
+.sp
+
+.I val sigsuspend 
+: 
+.B int list -> unit
+.sp
+
+.B sigsuspend sigs
+atomically sets the blocked signals to 
+.B sigs
+and waits for a non\-ignored, non\-blocked signal to be delivered\&.
+On return, the blocked signals are reset to their initial value\&.
+.sp
+
+.sp
+
+.I val pause 
+: 
+.B unit -> unit
+.sp
+Wait until a non\-ignored, non\-blocked signal is delivered\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Time functions
+.B  ===
+
+.PP
+.I type process_times 
+= {
+ tms_utime : 
+.B float
+;  (* User time for the process *) 
+ tms_stime : 
+.B float
+;  (* System time for the process *) 
+ tms_cutime : 
+.B float
+;  (* User time for the children processes *) 
+ tms_cstime : 
+.B float
+;  (* System time for the children processes *) 
+ }
+
+.sp
+The execution times (CPU times) of a process\&.
+.sp
+
+.sp
+.I type tm 
+= {
+ tm_sec : 
+.B int
+;  (* Seconds 0\&.\&.60 *) 
+ tm_min : 
+.B int
+;  (* Minutes 0\&.\&.59 *) 
+ tm_hour : 
+.B int
+;  (* Hours 0\&.\&.23 *) 
+ tm_mday : 
+.B int
+;  (* Day of month 1\&.\&.31 *) 
+ tm_mon : 
+.B int
+;  (* Month of year 0\&.\&.11 *) 
+ tm_year : 
+.B int
+;  (* Year \- 1900 *) 
+ tm_wday : 
+.B int
+;  (* Day of week (Sunday is 0) *) 
+ tm_yday : 
+.B int
+;  (* Day of year 0\&.\&.365 *) 
+ tm_isdst : 
+.B bool
+;  (* Daylight time savings in effect *) 
+ }
+
+.sp
+The type representing wallclock time and calendar date\&.
+.sp
+
+.sp
+
+.I val time 
+: 
+.B unit -> float
+.sp
+Return the current time since 00:00:00 GMT, Jan\&. 1, 1970,
+in seconds\&.
+.sp
+
+.sp
+
+.I val gettimeofday 
+: 
+.B unit -> float
+.sp
+Same as 
+.B Unix\&.time
+, but with resolution better than 1 second\&.
+.sp
+
+.sp
+
+.I val gmtime 
+: 
+.B float -> tm
+.sp
+Convert a time in seconds, as returned by 
+.B Unix\&.time
+, into a date and
+a time\&. Assumes UTC (Coordinated Universal Time), also known as GMT\&.
+.sp
+
+.sp
+
+.I val localtime 
+: 
+.B float -> tm
+.sp
+Convert a time in seconds, as returned by 
+.B Unix\&.time
+, into a date and
+a time\&. Assumes the local time zone\&.
+.sp
+
+.sp
+
+.I val mktime 
+: 
+.B tm -> float * tm
+.sp
+Convert a date and time, specified by the 
+.B tm
+argument, into
+a time in seconds, as returned by 
+.B Unix\&.time
+\&.  The 
+.B tm_isdst
+,
+.B tm_wday
+and 
+.B tm_yday
+fields of 
+.B tm
+are ignored\&.  Also return a
+normalized copy of the given 
+.B tm
+record, with the 
+.B tm_wday
+,
+.B tm_yday
+, and 
+.B tm_isdst
+fields recomputed from the other fields,
+and the other fields normalized (so that, e\&.g\&., 40 October is
+changed into 9 November)\&.  The 
+.B tm
+argument is interpreted in the
+local time zone\&.
+.sp
+
+.sp
+
+.I val alarm 
+: 
+.B int -> int
+.sp
+Schedule a 
+.B SIGALRM
+signal after the given number of seconds\&.
+.sp
+
+.sp
+
+.I val sleep 
+: 
+.B int -> unit
+.sp
+Stop execution for the given number of seconds\&.
+.sp
+
+.sp
+
+.I val times 
+: 
+.B unit -> process_times
+.sp
+Return the execution times of the process\&.
+.sp
+
+.sp
+
+.I val utimes 
+: 
+.B string -> float -> float -> unit
+.sp
+Set the last access time (second arg) and last modification time
+(third arg) for a file\&. Times are expressed in seconds from
+00:00:00 GMT, Jan\&. 1, 1970\&.  A time of 
+.B 0\&.0
+is interpreted as the
+current time\&.
+.sp
+
+.sp
+.I type interval_timer 
+=
+ | ITIMER_REAL  (* decrements in real time, and sends the signal 
+.B SIGALRM
+when expired\&. *)
+ | ITIMER_VIRTUAL  (* decrements in process virtual time, and sends 
+.B SIGVTALRM
+when expired\&. *)
+ | ITIMER_PROF  (* (for profiling) decrements both when the process
+is running and when the system is running on behalf of the
+process; it sends 
+.B SIGPROF
+when expired\&. *)
+ 
+.sp
+The three kinds of interval timers\&.
+.sp
+
+.sp
+.I type interval_timer_status 
+= {
+ it_interval : 
+.B float
+;  (* Period *) 
+ it_value : 
+.B float
+;  (* Current value of the timer *) 
+ }
+
+.sp
+The type describing the status of an interval timer
+.sp
+
+.sp
+
+.I val getitimer 
+: 
+.B interval_timer -> interval_timer_status
+.sp
+Return the current status of the given interval timer\&.
+.sp
+
+.sp
+
+.I val setitimer 
+: 
+.B interval_timer ->
+.B   interval_timer_status -> interval_timer_status
+.sp
+
+.B setitimer t s
+sets the interval timer 
+.B t
+and returns
+its previous status\&. The 
+.B s
+argument is interpreted as follows:
+.B s\&.it_value
+, if nonzero, is the time to the next timer expiration;
+.B s\&.it_interval
+, if nonzero, specifies a value to
+be used in reloading it_value when the timer expires\&.
+Setting 
+.B s\&.it_value
+to zero disable the timer\&.
+Setting 
+.B s\&.it_interval
+to zero causes the timer to be disabled
+after its next expiration\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B User id, group id
+.B  ===
+
+.PP
+
+.I val getuid 
+: 
+.B unit -> int
+.sp
+Return the user id of the user executing the process\&.
+.sp
+
+.sp
+
+.I val geteuid 
+: 
+.B unit -> int
+.sp
+Return the effective user id under which the process runs\&.
+.sp
+
+.sp
+
+.I val setuid 
+: 
+.B int -> unit
+.sp
+Set the real user id and effective user id for the process\&.
+.sp
+
+.sp
+
+.I val getgid 
+: 
+.B unit -> int
+.sp
+Return the group id of the user executing the process\&.
+.sp
+
+.sp
+
+.I val getegid 
+: 
+.B unit -> int
+.sp
+Return the effective group id under which the process runs\&.
+.sp
+
+.sp
+
+.I val setgid 
+: 
+.B int -> unit
+.sp
+Set the real group id and effective group id for the process\&.
+.sp
+
+.sp
+
+.I val getgroups 
+: 
+.B unit -> int array
+.sp
+Return the list of groups to which the user executing the process
+belongs\&.
+.sp
+
+.sp
+
+.I val setgroups 
+: 
+.B int array -> unit
+.sp
+
+.B setgroups groups
+sets the supplementary group IDs for the
+calling process\&. Appropriate privileges are required\&.
+.sp
+
+.sp
+
+.I val initgroups 
+: 
+.B string -> int -> unit
+.sp
+
+.B initgroups user group
+initializes the group access list by
+reading the group database /etc/group and using all groups of
+which 
+.B user
+is a member\&. The additional group 
+.B group
+is also
+added to the list\&.
+.sp
+
+.sp
+.I type passwd_entry 
+= {
+ pw_name : 
+.B string
+;
+ pw_passwd : 
+.B string
+;
+ pw_uid : 
+.B int
+;
+ pw_gid : 
+.B int
+;
+ pw_gecos : 
+.B string
+;
+ pw_dir : 
+.B string
+;
+ pw_shell : 
+.B string
+;
+ }
+
+.sp
+Structure of entries in the 
+.B passwd
+database\&.
+.sp
+
+.sp
+.I type group_entry 
+= {
+ gr_name : 
+.B string
+;
+ gr_passwd : 
+.B string
+;
+ gr_gid : 
+.B int
+;
+ gr_mem : 
+.B string array
+;
+ }
+
+.sp
+Structure of entries in the 
+.B groups
+database\&.
+.sp
+
+.sp
+
+.I val getlogin 
+: 
+.B unit -> string
+.sp
+Return the login name of the user executing the process\&.
+.sp
+
+.sp
+
+.I val getpwnam 
+: 
+.B string -> passwd_entry
+.sp
+Find an entry in 
+.B passwd
+with the given name, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val getgrnam 
+: 
+.B string -> group_entry
+.sp
+Find an entry in 
+.B group
+with the given name, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val getpwuid 
+: 
+.B int -> passwd_entry
+.sp
+Find an entry in 
+.B passwd
+with the given user id, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val getgrgid 
+: 
+.B int -> group_entry
+.sp
+Find an entry in 
+.B group
+with the given group id, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Internet addresses
+.B  ===
+
+.PP
+.I type inet_addr 
+
+.sp
+The abstract type of Internet addresses\&.
+.sp
+
+.sp
+
+.I val inet_addr_of_string 
+: 
+.B string -> inet_addr
+.sp
+Conversion from the printable representation of an Internet
+address to its internal representation\&.  The argument string
+consists of 4 numbers separated by periods (
+.B XXX\&.YYY\&.ZZZ\&.TTT
+)
+for IPv4 addresses, and up to 8 numbers separated by colons
+for IPv6 addresses\&.  Raise 
+.B Failure
+when given a string that
+does not match these formats\&.
+.sp
+
+.sp
+
+.I val string_of_inet_addr 
+: 
+.B inet_addr -> string
+.sp
+Return the printable representation of the given Internet address\&.
+See 
+.B Unix\&.inet_addr_of_string
+for a description of the
+printable representation\&.
+.sp
+
+.sp
+
+.I val inet_addr_any 
+: 
+.B inet_addr
+.sp
+A special IPv4 address, for use only with 
+.B bind
+, representing
+all the Internet addresses that the host machine possesses\&.
+.sp
+
+.sp
+
+.I val inet_addr_loopback 
+: 
+.B inet_addr
+.sp
+A special IPv4 address representing the host machine (
+.B 127\&.0\&.0\&.1
+)\&.
+.sp
+
+.sp
+
+.I val inet6_addr_any 
+: 
+.B inet_addr
+.sp
+A special IPv6 address, for use only with 
+.B bind
+, representing
+all the Internet addresses that the host machine possesses\&.
+.sp
+
+.sp
+
+.I val inet6_addr_loopback 
+: 
+.B inet_addr
+.sp
+A special IPv6 address representing the host machine (
+.B ::1
+)\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Sockets
+.B  ===
+
+.PP
+.I type socket_domain 
+=
+ | PF_UNIX  (* Unix domain *)
+ | PF_INET  (* Internet domain (IPv4) *)
+ | PF_INET6  (* Internet domain (IPv6) *)
+ 
+.sp
+The type of socket domains\&.  Not all platforms support
+IPv6 sockets (type 
+.B PF_INET6
+)\&.
+.sp
+
+.sp
+.I type socket_type 
+=
+ | SOCK_STREAM  (* Stream socket *)
+ | SOCK_DGRAM  (* Datagram socket *)
+ | SOCK_RAW  (* Raw socket *)
+ | SOCK_SEQPACKET  (* Sequenced packets socket *)
+ 
+.sp
+The type of socket kinds, specifying the semantics of
+communications\&.
+.sp
+
+.sp
+.I type sockaddr 
+=
+ | ADDR_UNIX
+.B of 
+.B string
+ | ADDR_INET
+.B of 
+.B inet_addr * int
+.I "  "
+(* The type of socket addresses\&. 
+.B ADDR_UNIX name
+is a socket
+address in the Unix domain; 
+.B name
+is a file name in the file
+system\&. 
+.B ADDR_INET(addr,port)
+is a socket address in the Internet
+domain; 
+.B addr
+is the Internet address of the machine, and
+.B port
+is the port number\&. *)
+ 
+.sp
+
+.sp
+
+.I val socket 
+: 
+.B socket_domain -> socket_type -> int -> file_descr
+.sp
+Create a new socket in the given domain, and with the
+given kind\&. The third argument is the protocol type; 0 selects
+the default protocol for that kind of sockets\&.
+.sp
+
+.sp
+
+.I val domain_of_sockaddr 
+: 
+.B sockaddr -> socket_domain
+.sp
+Return the socket domain adequate for the given socket address\&.
+.sp
+
+.sp
+
+.I val socketpair 
+: 
+.B socket_domain ->
+.B   socket_type -> int -> file_descr * file_descr
+.sp
+Create a pair of unnamed sockets, connected together\&.
+.sp
+
+.sp
+
+.I val accept 
+: 
+.B file_descr -> file_descr * sockaddr
+.sp
+Accept connections on the given socket\&. The returned descriptor
+is a socket connected to the client; the returned address is
+the address of the connecting client\&.
+.sp
+
+.sp
+
+.I val bind 
+: 
+.B file_descr -> sockaddr -> unit
+.sp
+Bind a socket to an address\&.
+.sp
+
+.sp
+
+.I val connect 
+: 
+.B file_descr -> sockaddr -> unit
+.sp
+Connect a socket to an address\&.
+.sp
+
+.sp
+
+.I val listen 
+: 
+.B file_descr -> int -> unit
+.sp
+Set up a socket for receiving connection requests\&. The integer
+argument is the maximal number of pending requests\&.
+.sp
+
+.sp
+.I type shutdown_command 
+=
+ | SHUTDOWN_RECEIVE  (* Close for receiving *)
+ | SHUTDOWN_SEND  (* Close for sending *)
+ | SHUTDOWN_ALL  (* Close both *)
+ 
+.sp
+The type of commands for 
+.B shutdown
+\&.
+.sp
+
+.sp
+
+.I val shutdown 
+: 
+.B file_descr -> shutdown_command -> unit
+.sp
+Shutdown a socket connection\&. 
+.B SHUTDOWN_SEND
+as second argument
+causes reads on the other end of the connection to return
+an end\-of\-file condition\&.
+.B SHUTDOWN_RECEIVE
+causes writes on the other end of the connection
+to return a closed pipe condition (
+.B SIGPIPE
+signal)\&.
+.sp
+
+.sp
+
+.I val getsockname 
+: 
+.B file_descr -> sockaddr
+.sp
+Return the address of the given socket\&.
+.sp
+
+.sp
+
+.I val getpeername 
+: 
+.B file_descr -> sockaddr
+.sp
+Return the address of the host connected to the given socket\&.
+.sp
+
+.sp
+.I type msg_flag 
+=
+ | MSG_OOB
+ | MSG_DONTROUTE
+ | MSG_PEEK  (* The flags for 
+.B Unix\&.recv
+,  
+.B Unix\&.recvfrom
+,
+.B Unix\&.send
+and 
+.B Unix\&.sendto
+\&. *)
+ 
+.sp
+
+.sp
+
+.I val recv 
+: 
+.B file_descr -> string -> int -> int -> msg_flag list -> int
+.sp
+Receive data from a connected socket\&.
+.sp
+
+.sp
+
+.I val recvfrom 
+: 
+.B file_descr ->
+.B   string -> int -> int -> msg_flag list -> int * sockaddr
+.sp
+Receive data from an unconnected socket\&.
+.sp
+
+.sp
+
+.I val send 
+: 
+.B file_descr -> string -> int -> int -> msg_flag list -> int
+.sp
+Send data over a connected socket\&.
+.sp
+
+.sp
+
+.I val sendto 
+: 
+.B file_descr ->
+.B   string -> int -> int -> msg_flag list -> sockaddr -> int
+.sp
+Send data over an unconnected socket\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Socket options
+.B  ===
+
+.PP
+.I type socket_bool_option 
+=
+ | SO_DEBUG  (* Record debugging information *)
+ | SO_BROADCAST  (* Permit sending of broadcast messages *)
+ | SO_REUSEADDR  (* Allow reuse of local addresses for bind *)
+ | SO_KEEPALIVE  (* Keep connection active *)
+ | SO_DONTROUTE  (* Bypass the standard routing algorithms *)
+ | SO_OOBINLINE  (* Leave out\-of\-band data in line *)
+ | SO_ACCEPTCONN  (* Report whether socket listening is enabled *)
+ | TCP_NODELAY  (* Control the Nagle algorithm for TCP sockets *)
+ | IPV6_ONLY  (* Forbid binding an IPv6 socket to an IPv4 address *)
+ 
+.sp
+The socket options that can be consulted with 
+.B Unix\&.getsockopt
+and modified with 
+.B Unix\&.setsockopt
+\&.  These options have a boolean
+(
+.B true
+/
+.B false
+) value\&.
+.sp
+
+.sp
+.I type socket_int_option 
+=
+ | SO_SNDBUF  (* Size of send buffer *)
+ | SO_RCVBUF  (* Size of received buffer *)
+ | SO_ERROR  (* Deprecated\&.  Use 
+.B Unix\&.getsockopt_error
+instead\&. *)
+ | SO_TYPE  (* Report the socket type *)
+ | SO_RCVLOWAT  (* Minimum number of bytes to process for input operations *)
+ | SO_SNDLOWAT  (* Minimum number of bytes to process for output operations *)
+ 
+.sp
+The socket options that can be consulted with 
+.B Unix\&.getsockopt_int
+and modified with 
+.B Unix\&.setsockopt_int
+\&.  These options have an
+integer value\&.
+.sp
+
+.sp
+.I type socket_optint_option 
+=
+ | SO_LINGER  (* Whether to linger on closed connections
+that have data present, and for how long
+(in seconds) *)
+ 
+.sp
+The socket options that can be consulted with 
+.B Unix\&.getsockopt_optint
+and modified with 
+.B Unix\&.setsockopt_optint
+\&.  These options have a
+value of type 
+.B int option
+, with 
+.B None
+meaning ``disabled\&'\&'\&.
+.sp
+
+.sp
+.I type socket_float_option 
+=
+ | SO_RCVTIMEO  (* Timeout for input operations *)
+ | SO_SNDTIMEO  (* Timeout for output operations *)
+ 
+.sp
+The socket options that can be consulted with 
+.B Unix\&.getsockopt_float
+and modified with 
+.B Unix\&.setsockopt_float
+\&.  These options have a
+floating\-point value representing a time in seconds\&.
+The value 0 means infinite timeout\&.
+.sp
+
+.sp
+
+.I val getsockopt 
+: 
+.B file_descr -> socket_bool_option -> bool
+.sp
+Return the current status of a boolean\-valued option
+in the given socket\&.
+.sp
+
+.sp
+
+.I val setsockopt 
+: 
+.B file_descr -> socket_bool_option -> bool -> unit
+.sp
+Set or clear a boolean\-valued option in the given socket\&.
+.sp
+
+.sp
+
+.I val getsockopt_int 
+: 
+.B file_descr -> socket_int_option -> int
+.sp
+Same as 
+.B Unix\&.getsockopt
+for an integer\-valued socket option\&.
+.sp
+
+.sp
+
+.I val setsockopt_int 
+: 
+.B file_descr -> socket_int_option -> int -> unit
+.sp
+Same as 
+.B Unix\&.setsockopt
+for an integer\-valued socket option\&.
+.sp
+
+.sp
+
+.I val getsockopt_optint 
+: 
+.B file_descr -> socket_optint_option -> int option
+.sp
+Same as 
+.B Unix\&.getsockopt
+for a socket option whose value is an 
+.B int option
+\&.
+.sp
+
+.sp
+
+.I val setsockopt_optint 
+: 
+.B file_descr -> socket_optint_option -> int option -> unit
+.sp
+Same as 
+.B Unix\&.setsockopt
+for a socket option whose value is an 
+.B int option
+\&.
+.sp
+
+.sp
+
+.I val getsockopt_float 
+: 
+.B file_descr -> socket_float_option -> float
+.sp
+Same as 
+.B Unix\&.getsockopt
+for a socket option whose value is a floating\-point number\&.
+.sp
+
+.sp
+
+.I val setsockopt_float 
+: 
+.B file_descr -> socket_float_option -> float -> unit
+.sp
+Same as 
+.B Unix\&.setsockopt
+for a socket option whose value is a floating\-point number\&.
+.sp
+
+.sp
+
+.I val getsockopt_error 
+: 
+.B file_descr -> error option
+.sp
+Return the error condition associated with the given socket,
+and clear it\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B High\-level network connection functions
+.B  ===
+
+.PP
+
+.I val open_connection 
+: 
+.B sockaddr -> Pervasives.in_channel * Pervasives.out_channel
+.sp
+Connect to a server at the given address\&.
+Return a pair of buffered channels connected to the server\&.
+Remember to call 
+.B Pervasives\&.flush
+on the output channel at the right
+times to ensure correct synchronization\&.
+.sp
+
+.sp
+
+.I val shutdown_connection 
+: 
+.B Pervasives.in_channel -> unit
+.sp
+``Shut down\&'\&' a connection established with 
+.B Unix\&.open_connection
+;
+that is, transmit an end\-of\-file condition to the server reading
+on the other side of the connection\&.
+.sp
+
+.sp
+
+.I val establish_server 
+: 
+.B (Pervasives.in_channel -> Pervasives.out_channel -> unit) ->
+.B   sockaddr -> unit
+.sp
+Establish a server on the given address\&.
+The function given as first argument is called for each connection
+with two buffered channels connected to the client\&. A new process
+is created for each connection\&. The function 
+.B Unix\&.establish_server
+never returns normally\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Host and protocol databases
+.B  ===
+
+.PP
+.I type host_entry 
+= {
+ h_name : 
+.B string
+;
+ h_aliases : 
+.B string array
+;
+ h_addrtype : 
+.B socket_domain
+;
+ h_addr_list : 
+.B inet_addr array
+;
+ }
+
+.sp
+Structure of entries in the 
+.B hosts
+database\&.
+.sp
+
+.sp
+.I type protocol_entry 
+= {
+ p_name : 
+.B string
+;
+ p_aliases : 
+.B string array
+;
+ p_proto : 
+.B int
+;
+ }
+
+.sp
+Structure of entries in the 
+.B protocols
+database\&.
+.sp
+
+.sp
+.I type service_entry 
+= {
+ s_name : 
+.B string
+;
+ s_aliases : 
+.B string array
+;
+ s_port : 
+.B int
+;
+ s_proto : 
+.B string
+;
+ }
+
+.sp
+Structure of entries in the 
+.B services
+database\&.
+.sp
+
+.sp
+
+.I val gethostname 
+: 
+.B unit -> string
+.sp
+Return the name of the local host\&.
+.sp
+
+.sp
+
+.I val gethostbyname 
+: 
+.B string -> host_entry
+.sp
+Find an entry in 
+.B hosts
+with the given name, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val gethostbyaddr 
+: 
+.B inet_addr -> host_entry
+.sp
+Find an entry in 
+.B hosts
+with the given address, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val getprotobyname 
+: 
+.B string -> protocol_entry
+.sp
+Find an entry in 
+.B protocols
+with the given name, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val getprotobynumber 
+: 
+.B int -> protocol_entry
+.sp
+Find an entry in 
+.B protocols
+with the given protocol number,
+or raise 
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val getservbyname 
+: 
+.B string -> string -> service_entry
+.sp
+Find an entry in 
+.B services
+with the given name, or raise
+.B Not_found
+\&.
+.sp
+
+.sp
+
+.I val getservbyport 
+: 
+.B int -> string -> service_entry
+.sp
+Find an entry in 
+.B services
+with the given service number,
+or raise 
+.B Not_found
+\&.
+.sp
+
+.sp
+.I type addr_info 
+= {
+ ai_family : 
+.B socket_domain
+;  (* Socket domain *) 
+ ai_socktype : 
+.B socket_type
+;  (* Socket type *) 
+ ai_protocol : 
+.B int
+;  (* Socket protocol number *) 
+ ai_addr : 
+.B sockaddr
+;  (* Address *) 
+ ai_canonname : 
+.B string
+;  (* Canonical host name *) 
+ }
+
+.sp
+Address information returned by 
+.B Unix\&.getaddrinfo
+\&.
+.sp
+
+.sp
+.I type getaddrinfo_option 
+=
+ | AI_FAMILY
+.B of 
+.B socket_domain
+.I "  "
+(* Impose the given socket domain *)
+ | AI_SOCKTYPE
+.B of 
+.B socket_type
+.I "  "
+(* Impose the given socket type *)
+ | AI_PROTOCOL
+.B of 
+.B int
+.I "  "
+(* Impose the given protocol *)
+ | AI_NUMERICHOST  (* Do not call name resolver,
+expect numeric IP address *)
+ | AI_CANONNAME  (* Fill the 
+.B ai_canonname
+field
+of the result *)
+ | AI_PASSIVE  (* Set address to ``any\&'\&' address
+for use with 
+.B Unix\&.bind
+ *)
+ 
+.sp
+Options to 
+.B Unix\&.getaddrinfo
+\&.
+.sp
+
+.sp
+
+.I val getaddrinfo 
+: 
+.B string -> string -> getaddrinfo_option list -> addr_info list
+.sp
+
+.B getaddrinfo host service opts
+returns a list of 
+.B Unix\&.addr_info
+records describing socket parameters and addresses suitable for
+communicating with the given host and service\&.  The empty list is
+returned if the host or service names are unknown, or the constraints
+expressed in 
+.B opts
+cannot be satisfied\&.
+.sp
+
+.B host
+is either a host name or the string representation of an IP
+address\&.  
+.B host
+can be given as the empty string; in this case,
+the ``any\&'\&' address or the ``loopback\&'\&' address are used,
+depending whether 
+.B opts
+contains 
+.B AI_PASSIVE
+\&.
+.B service
+is either a service name or the string representation of
+a port number\&.  
+.B service
+can be given as the empty string;
+in this case, the port field of the returned addresses is set to 0\&.
+.B opts
+is a possibly empty list of options that allows the caller
+to force a particular socket domain (e\&.g\&. IPv6 only or IPv4 only)
+or a particular socket type (e\&.g\&. TCP only or UDP only)\&.
+.sp
+
+.sp
+.I type name_info 
+= {
+ ni_hostname : 
+.B string
+;  (* Name or IP address of host *) 
+ ni_service : 
+.B string
+;
+ }
+
+.sp
+Name of service or port number
+.sp
+
+.sp
+
+.PP
+
+.B === Host and service information returned by Unix\&.getnameinfo\&. ===
+
+.PP
+.I type getnameinfo_option 
+=
+ | NI_NOFQDN  (* Do not qualify local host names *)
+ | NI_NUMERICHOST  (* Always return host as IP address *)
+ | NI_NAMEREQD  (* Fail if host name cannot be determined *)
+ | NI_NUMERICSERV  (* Always return service as port number *)
+ | NI_DGRAM  (* Consider the service as UDP\-based
+instead of the default TCP *)
+ 
+.sp
+Options to 
+.B Unix\&.getnameinfo
+\&.
+.sp
+
+.sp
+
+.I val getnameinfo 
+: 
+.B sockaddr -> getnameinfo_option list -> name_info
+.sp
+
+.B getnameinfo addr opts
+returns the host name and service name
+corresponding to the socket address 
+.B addr
+\&.  
+.B opts
+is a possibly
+empty list of options that governs how these names are obtained\&.
+Raise 
+.B Not_found
+if an error occurs\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Terminal interface
+.B  ===
+
+.PP
+
+.PP
+
+.B === The following functions implement the POSIX standard terminal
+.B    interface\&. They provide control over asynchronous communication ports
+.B    and pseudo\-terminals\&. Refer to the termios man page for a
+.B    complete description\&. ===
+
+.PP
+.I type terminal_io 
+= {
+
+.B mutable 
+c_ignbrk : 
+.B bool
+;  (* Ignore the break condition\&. *) 
+
+.B mutable 
+c_brkint : 
+.B bool
+;  (* Signal interrupt on break condition\&. *) 
+
+.B mutable 
+c_ignpar : 
+.B bool
+;  (* Ignore characters with parity errors\&. *) 
+
+.B mutable 
+c_parmrk : 
+.B bool
+;  (* Mark parity errors\&. *) 
+
+.B mutable 
+c_inpck : 
+.B bool
+;  (* Enable parity check on input\&. *) 
+
+.B mutable 
+c_istrip : 
+.B bool
+;  (* Strip 8th bit on input characters\&. *) 
+
+.B mutable 
+c_inlcr : 
+.B bool
+;  (* Map NL to CR on input\&. *) 
+
+.B mutable 
+c_igncr : 
+.B bool
+;  (* Ignore CR on input\&. *) 
+
+.B mutable 
+c_icrnl : 
+.B bool
+;  (* Map CR to NL on input\&. *) 
+
+.B mutable 
+c_ixon : 
+.B bool
+;  (* Recognize XON/XOFF characters on input\&. *) 
+
+.B mutable 
+c_ixoff : 
+.B bool
+;  (* Emit XON/XOFF chars to control input flow\&. *) 
+
+.B mutable 
+c_opost : 
+.B bool
+;  (* Enable output processing\&. *) 
+
+.B mutable 
+c_obaud : 
+.B int
+;  (* Output baud rate (0 means close connection)\&. *) 
+
+.B mutable 
+c_ibaud : 
+.B int
+;  (* Input baud rate\&. *) 
+
+.B mutable 
+c_csize : 
+.B int
+;  (* Number of bits per character (5\-8)\&. *) 
+
+.B mutable 
+c_cstopb : 
+.B int
+;  (* Number of stop bits (1\-2)\&. *) 
+
+.B mutable 
+c_cread : 
+.B bool
+;  (* Reception is enabled\&. *) 
+
+.B mutable 
+c_parenb : 
+.B bool
+;  (* Enable parity generation and detection\&. *) 
+
+.B mutable 
+c_parodd : 
+.B bool
+;  (* Specify odd parity instead of even\&. *) 
+
+.B mutable 
+c_hupcl : 
+.B bool
+;  (* Hang up on last close\&. *) 
+
+.B mutable 
+c_clocal : 
+.B bool
+;  (* Ignore modem status lines\&. *) 
+
+.B mutable 
+c_isig : 
+.B bool
+;  (* Generate signal on INTR, QUIT, SUSP\&. *) 
+
+.B mutable 
+c_icanon : 
+.B bool
+;  (* Enable canonical processing
+(line buffering and editing) *) 
+
+.B mutable 
+c_noflsh : 
+.B bool
+;  (* Disable flush after INTR, QUIT, SUSP\&. *) 
+
+.B mutable 
+c_echo : 
+.B bool
+;  (* Echo input characters\&. *) 
+
+.B mutable 
+c_echoe : 
+.B bool
+;  (* Echo ERASE (to erase previous character)\&. *) 
+
+.B mutable 
+c_echok : 
+.B bool
+;  (* Echo KILL (to erase the current line)\&. *) 
+
+.B mutable 
+c_echonl : 
+.B bool
+;  (* Echo NL even if c_echo is not set\&. *) 
+
+.B mutable 
+c_vintr : 
+.B char
+;  (* Interrupt character (usually ctrl\-C)\&. *) 
+
+.B mutable 
+c_vquit : 
+.B char
+;  (* Quit character (usually ctrl\-\(rs)\&. *) 
+
+.B mutable 
+c_verase : 
+.B char
+;  (* Erase character (usually DEL or ctrl\-H)\&. *) 
+
+.B mutable 
+c_vkill : 
+.B char
+;  (* Kill line character (usually ctrl\-U)\&. *) 
+
+.B mutable 
+c_veof : 
+.B char
+;  (* End\-of\-file character (usually ctrl\-D)\&. *) 
+
+.B mutable 
+c_veol : 
+.B char
+;  (* Alternate end\-of\-line char\&. (usually none)\&. *) 
+
+.B mutable 
+c_vmin : 
+.B int
+;  (* Minimum number of characters to read
+before the read request is satisfied\&. *) 
+
+.B mutable 
+c_vtime : 
+.B int
+;  (* Maximum read wait (in 0\&.1s units)\&. *) 
+
+.B mutable 
+c_vstart : 
+.B char
+;  (* Start character (usually ctrl\-Q)\&. *) 
+
+.B mutable 
+c_vstop : 
+.B char
+;  (* Stop character (usually ctrl\-S)\&. *) 
+ }
+
+.sp
+
+.sp
+
+.I val tcgetattr 
+: 
+.B file_descr -> terminal_io
+.sp
+Return the status of the terminal referred to by the given
+file descriptor\&.
+.sp
+
+.sp
+.I type setattr_when 
+=
+ | TCSANOW
+ | TCSADRAIN
+ | TCSAFLUSH
+ 
+.sp
+
+.sp
+
+.I val tcsetattr 
+: 
+.B file_descr -> setattr_when -> terminal_io -> unit
+.sp
+Set the status of the terminal referred to by the given
+file descriptor\&. The second argument indicates when the
+status change takes place: immediately (
+.B TCSANOW
+),
+when all pending output has been transmitted (
+.B TCSADRAIN
+),
+or after flushing all input that has been received but not
+read (
+.B TCSAFLUSH
+)\&. 
+.B TCSADRAIN
+is recommended when changing
+the output parameters; 
+.B TCSAFLUSH
+, when changing the input
+parameters\&.
+.sp
+
+.sp
+
+.I val tcsendbreak 
+: 
+.B file_descr -> int -> unit
+.sp
+Send a break condition on the given file descriptor\&.
+The second argument is the duration of the break, in 0\&.1s units;
+0 means standard duration (0\&.25s)\&.
+.sp
+
+.sp
+
+.I val tcdrain 
+: 
+.B file_descr -> unit
+.sp
+Waits until all output written on the given file descriptor
+has been transmitted\&.
+.sp
+
+.sp
+.I type flush_queue 
+=
+ | TCIFLUSH
+ | TCOFLUSH
+ | TCIOFLUSH
+ 
+.sp
+
+.sp
+
+.I val tcflush 
+: 
+.B file_descr -> flush_queue -> unit
+.sp
+Discard data written on the given file descriptor but not yet
+transmitted, or data received but not yet read, depending on the
+second argument: 
+.B TCIFLUSH
+flushes data received but not read,
+.B TCOFLUSH
+flushes data written but not transmitted, and
+.B TCIOFLUSH
+flushes both\&.
+.sp
+
+.sp
+.I type flow_action 
+=
+ | TCOOFF
+ | TCOON
+ | TCIOFF
+ | TCION
+ 
+.sp
+
+.sp
+
+.I val tcflow 
+: 
+.B file_descr -> flow_action -> unit
+.sp
+Suspend or restart reception or transmission of data on
+the given file descriptor, depending on the second argument:
+.B TCOOFF
+suspends output, 
+.B TCOON
+restarts output,
+.B TCIOFF
+transmits a STOP character to suspend input,
+and 
+.B TCION
+transmits a START character to restart input\&.
+.sp
+
+.sp
+
+.I val setsid 
+: 
+.B unit -> int
+.sp
+Put the calling process in a new session and detach it from
+its controlling terminal\&.
+.sp
+
+.sp

@@ -1,0 +1,333 @@
+.TH "Weak" 3 2012-04-16 OCamldoc "OCaml library"
+.SH NAME
+Weak \- Arrays of weak pointers and hash tables of weak pointers.
+.SH Module
+Module   Weak
+.SH Documentation
+.sp
+Module
+.BI "Weak"
+ : 
+.B sig  end
+
+.sp
+Arrays of weak pointers and hash tables of weak pointers\&.
+.sp
+
+.sp
+
+.sp
+.sp
+
+.PP
+
+.B === 
+.B Low\-level functions
+.B  ===
+
+.PP
+.I type 
+.B 'a
+.I t 
+
+.sp
+The type of arrays of weak pointers (weak arrays)\&.  A weak
+pointer is a value that the garbage collector may erase whenever
+the value is not used any more (through normal pointers) by the
+program\&.  Note that finalisation functions are run after the
+weak pointers are erased\&.
+.sp
+A weak pointer is said to be full if it points to a value,
+empty if the value was erased by the GC\&.
+.sp
+Notes:
+.sp
+\-Integers are not allocated and cannot be stored in weak arrays\&.
+.sp
+\-Weak arrays cannot be marshaled using 
+.B Pervasives\&.output_value
+nor the functions of the 
+.B Marshal
+module\&.
+
+.sp
+
+.sp
+
+.I val create 
+: 
+.B int -> 'a t
+.sp
+
+.B Weak\&.create n
+returns a new weak array of length 
+.B n
+\&.
+All the pointers are initially empty\&.  Raise 
+.B Invalid_argument
+if 
+.B n
+is negative or greater than 
+.B Sys\&.max_array_length
+.B \-1
+\&.
+.sp
+
+.sp
+
+.I val length 
+: 
+.B 'a t -> int
+.sp
+
+.B Weak\&.length ar
+returns the length (number of elements) of
+.B ar
+\&.
+.sp
+
+.sp
+
+.I val set 
+: 
+.B 'a t -> int -> 'a option -> unit
+.sp
+
+.B Weak\&.set ar n (Some el)
+sets the 
+.B n
+th cell of 
+.B ar
+to be a
+(full) pointer to 
+.B el
+; 
+.B Weak\&.set ar n None
+sets the 
+.B n
+th
+cell of 
+.B ar
+to empty\&.
+Raise 
+.B Invalid_argument "Weak\&.set"
+if 
+.B n
+is not in the range
+0 to 
+.B Weak\&.length
+.B  a \- 1
+\&.
+.sp
+
+.sp
+
+.I val get 
+: 
+.B 'a t -> int -> 'a option
+.sp
+
+.B Weak\&.get ar n
+returns None if the 
+.B n
+th cell of 
+.B ar
+is
+empty, 
+.B Some x
+(where 
+.B x
+is the value) if it is full\&.
+Raise 
+.B Invalid_argument "Weak\&.get"
+if 
+.B n
+is not in the range
+0 to 
+.B Weak\&.length
+.B  a \- 1
+\&.
+.sp
+
+.sp
+
+.I val get_copy 
+: 
+.B 'a t -> int -> 'a option
+.sp
+
+.B Weak\&.get_copy ar n
+returns None if the 
+.B n
+th cell of 
+.B ar
+is
+empty, 
+.B Some x
+(where 
+.B x
+is a (shallow) copy of the value) if
+it is full\&.
+In addition to pitfalls with mutable values, the interesting
+difference with 
+.B get
+is that 
+.B get_copy
+does not prevent
+the incremental GC from erasing the value in its current cycle
+(
+.B get
+may delay the erasure to the next GC cycle)\&.
+Raise 
+.B Invalid_argument "Weak\&.get"
+if 
+.B n
+is not in the range
+0 to 
+.B Weak\&.length
+.B  a \- 1
+\&.
+.sp
+
+.sp
+
+.I val check 
+: 
+.B 'a t -> int -> bool
+.sp
+
+.B Weak\&.check ar n
+returns 
+.B true
+if the 
+.B n
+th cell of 
+.B ar
+is
+full, 
+.B false
+if it is empty\&.  Note that even if 
+.B Weak\&.check ar n
+returns 
+.B true
+, a subsequent 
+.B Weak\&.get
+.B  ar n
+can return 
+.B None
+\&.
+.sp
+
+.sp
+
+.I val fill 
+: 
+.B 'a t -> int -> int -> 'a option -> unit
+.sp
+
+.B Weak\&.fill ar ofs len el
+sets to 
+.B el
+all pointers of 
+.B ar
+from
+.B ofs
+to 
+.B ofs + len \- 1
+\&.  Raise 
+.B Invalid_argument "Weak\&.fill"
+if 
+.B ofs
+and 
+.B len
+do not designate a valid subarray of 
+.B a
+\&.
+.sp
+
+.sp
+
+.I val blit 
+: 
+.B 'a t -> int -> 'a t -> int -> int -> unit
+.sp
+
+.B Weak\&.blit ar1 off1 ar2 off2 len
+copies 
+.B len
+weak pointers
+from 
+.B ar1
+(starting at 
+.B off1
+) to 
+.B ar2
+(starting at 
+.B off2
+)\&.
+It works correctly even if 
+.B ar1
+and 
+.B ar2
+are the same\&.
+Raise 
+.B Invalid_argument "Weak\&.blit"
+if 
+.B off1
+and 
+.B len
+do
+not designate a valid subarray of 
+.B ar1
+, or if 
+.B off2
+and 
+.B len
+do not designate a valid subarray of 
+.B ar2
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Weak hash tables
+.B  ===
+
+.PP
+
+.PP
+
+.B === A weak hash table is a hashed set of values\&.  Each value may
+.B     magically disappear from the set when it is not used by the
+.B     rest of the program any more\&.  This is normally used to share
+.B     data structures without inducing memory leaks\&.
+.B     Weak hash tables are defined on values from a Hashtbl\&.HashedType
+.B     module; the equal relation and hash function are taken from that
+.B     module\&.  We will say that v is an instance of x if equal x v
+.B     is true\&.
+.B 
+.B     The equal relation must be able to work on a shallow copy of
+.B     the values and give the same result as with the values themselves\&. ===
+
+.PP
+.I module type S = 
+.B sig  end
+
+.sp
+The output signature of the functor 
+.B Weak\&.Make
+\&.
+.sp
+
+.sp
+.I module Make : 
+.B functor (H : Hashtbl.HashedType) -> sig  end
+
+.sp
+Functor building an implementation of the weak hash table structure\&.
+.sp
+
+.sp

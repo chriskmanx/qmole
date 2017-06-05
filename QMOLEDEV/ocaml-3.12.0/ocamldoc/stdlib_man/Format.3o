@@ -1,0 +1,1775 @@
+.TH "Format" 3 2012-04-16 OCamldoc "OCaml library"
+.SH NAME
+Format \- Pretty printing.
+.SH Module
+Module   Format
+.SH Documentation
+.sp
+Module
+.BI "Format"
+ : 
+.B sig  end
+
+.sp
+Pretty printing\&.
+.sp
+This module implements a pretty\-printing facility to format text
+within ``pretty\-printing boxes\&'\&'\&. The pretty\-printer breaks lines
+at specified break hints, and indents lines according to the box
+structure\&.
+.sp
+For a gentle introduction to the basics of pretty\-printing using
+.B Format
+, read
+http://caml\&.inria\&.fr/resources/doc/guides/format\&.html\&.
+.sp
+You may consider this module as providing an extension to the
+.B printf
+facility to provide automatic line breaking\&. The addition of
+pretty\-printing annotations to your regular 
+.B printf
+formats gives you
+fancy indentation and line breaks\&.
+Pretty\-printing annotations are described below in the documentation of
+the function 
+.B Format\&.fprintf
+\&.
+.sp
+You may also use the explicit box management and printing functions
+provided by this module\&. This style is more basic but more verbose
+than the 
+.B fprintf
+concise formats\&.
+.sp
+For instance, the sequence
+.B open_box 0; print_string "x ="; print_space ();
+.B     print_int 1; close_box (); print_newline ()
+that prints 
+.B x = 1
+within a pretty\-printing box, can be
+abbreviated as 
+.B printf "@[%s@ %i@]@\&." "x =" 1
+, or even shorter
+.B printf "@[x =@ %i@]@\&." 1
+\&.
+.sp
+Rule of thumb for casual users of this library:
+.sp
+\-use simple boxes (as obtained by 
+.B open_box 0
+);
+.sp
+\-use simple break hints (as obtained by 
+.B print_cut ()
+that outputs a
+simple break hint, or by 
+.B print_space ()
+that outputs a space
+indicating a break hint);
+.sp
+\-once a box is opened, display its material with basic printing
+functions (e\&. g\&. 
+.B print_int
+and 
+.B print_string
+);
+.sp
+\-when the material for a box has been printed, call 
+.B close_box ()
+to
+close the box;
+.sp
+\-at the end of your routine, flush the pretty\-printer to display all the
+remaining material, e\&.g\&. evaluate 
+.B print_newline ()
+\&.
+
+The behaviour of pretty\-printing commands is unspecified
+if there is no opened pretty\-printing box\&. Each box opened via
+one of the 
+.B open_
+functions below must be closed using 
+.B close_box
+for proper formatting\&. Otherwise, some of the material printed in the
+boxes may not be output, or may be formatted incorrectly\&.
+.sp
+In case of interactive use, the system closes all opened boxes and
+flushes all pending text (as with the 
+.B print_newline
+function)
+after each phrase\&. Each phrase is therefore executed in the initial
+state of the pretty\-printer\&.
+.sp
+Warning: the material output by the following functions is delayed
+in the pretty\-printer queue in order to compute the proper line
+breaking\&. Hence, you should not mix calls to the printing functions
+of the basic I/O system with calls to the functions of this module:
+this could result in some strange output seemingly unrelated with
+the evaluation order of printing commands\&.
+.sp
+
+.sp
+
+.sp
+.sp
+
+.PP
+
+.B === 
+.B Boxes
+.B  ===
+
+.PP
+
+.I val open_box 
+: 
+.B int -> unit
+.sp
+
+.B open_box d
+opens a new pretty\-printing box
+with offset 
+.B d
+\&.
+This box is the general purpose pretty\-printing box\&.
+Material in this box is displayed ``horizontal or vertical\&'\&':
+break hints inside the box may lead to a new line, if there
+is no more room on the line to print the remainder of the box,
+or if a new line may lead to a new indentation
+(demonstrating the indentation of the box)\&.
+When a new line is printed in the box, 
+.B d
+is added to the
+current indentation\&.
+.sp
+
+.sp
+
+.I val close_box 
+: 
+.B unit -> unit
+.sp
+Closes the most recently opened pretty\-printing box\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Formatting functions
+.B  ===
+
+.PP
+
+.I val print_string 
+: 
+.B string -> unit
+.sp
+
+.B print_string str
+prints 
+.B str
+in the current box\&.
+.sp
+
+.sp
+
+.I val print_as 
+: 
+.B int -> string -> unit
+.sp
+
+.B print_as len str
+prints 
+.B str
+in the
+current box\&. The pretty\-printer formats 
+.B str
+as if
+it were of length 
+.B len
+\&.
+.sp
+
+.sp
+
+.I val print_int 
+: 
+.B int -> unit
+.sp
+Prints an integer in the current box\&.
+.sp
+
+.sp
+
+.I val print_float 
+: 
+.B float -> unit
+.sp
+Prints a floating point number in the current box\&.
+.sp
+
+.sp
+
+.I val print_char 
+: 
+.B char -> unit
+.sp
+Prints a character in the current box\&.
+.sp
+
+.sp
+
+.I val print_bool 
+: 
+.B bool -> unit
+.sp
+Prints a boolean in the current box\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Break hints
+.B  ===
+
+.PP
+
+.I val print_space 
+: 
+.B unit -> unit
+.sp
+
+.B print_space ()
+is used to separate items (typically to print
+a space between two words)\&.
+It indicates that the line may be split at this
+point\&. It either prints one space or splits the line\&.
+It is equivalent to 
+.B print_break 1 0
+\&.
+.sp
+
+.sp
+
+.I val print_cut 
+: 
+.B unit -> unit
+.sp
+
+.B print_cut ()
+is used to mark a good break position\&.
+It indicates that the line may be split at this
+point\&. It either prints nothing or splits the line\&.
+This allows line splitting at the current
+point, without printing spaces or adding indentation\&.
+It is equivalent to 
+.B print_break 0 0
+\&.
+.sp
+
+.sp
+
+.I val print_break 
+: 
+.B int -> int -> unit
+.sp
+Inserts a break hint in a pretty\-printing box\&.
+.B print_break nspaces offset
+indicates that the line may
+be split (a newline character is printed) at this point,
+if the contents of the current box does not fit on the
+current line\&.
+If the line is split at that point, 
+.B offset
+is added to
+the current indentation\&. If the line is not split,
+.B nspaces
+spaces are printed\&.
+.sp
+
+.sp
+
+.I val print_flush 
+: 
+.B unit -> unit
+.sp
+Flushes the pretty printer: all opened boxes are closed,
+and all pending text is displayed\&.
+.sp
+
+.sp
+
+.I val print_newline 
+: 
+.B unit -> unit
+.sp
+Equivalent to 
+.B print_flush
+followed by a new line\&.
+.sp
+
+.sp
+
+.I val force_newline 
+: 
+.B unit -> unit
+.sp
+Forces a newline in the current box\&. Not the normal way of
+pretty\-printing, you should prefer break hints\&.
+.sp
+
+.sp
+
+.I val print_if_newline 
+: 
+.B unit -> unit
+.sp
+Executes the next formatting command if the preceding line
+has just been split\&. Otherwise, ignore the next formatting
+command\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Margin
+.B  ===
+
+.PP
+
+.I val set_margin 
+: 
+.B int -> unit
+.sp
+
+.B set_margin d
+sets the value of the right margin
+to 
+.B d
+(in characters): this value is used to detect line
+overflows that leads to split lines\&.
+Nothing happens if 
+.B d
+is smaller than 2\&.
+If 
+.B d
+is too large, the right margin is set to the maximum
+admissible value (which is greater than 
+.B 10^10
+)\&.
+.sp
+
+.sp
+
+.I val get_margin 
+: 
+.B unit -> int
+.sp
+Returns the position of the right margin\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Maximum indentation limit
+.B  ===
+
+.PP
+
+.I val set_max_indent 
+: 
+.B int -> unit
+.sp
+
+.B set_max_indent d
+sets the value of the maximum
+indentation limit to 
+.B d
+(in characters):
+once this limit is reached, boxes are rejected to the left,
+if they do not fit on the current line\&.
+Nothing happens if 
+.B d
+is smaller than 2\&.
+If 
+.B d
+is too large, the limit is set to the maximum
+admissible value (which is greater than 
+.B 10^10
+)\&.
+.sp
+
+.sp
+
+.I val get_max_indent 
+: 
+.B unit -> int
+.sp
+Return the value of the maximum indentation limit (in characters)\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Formatting depth: maximum number of boxes allowed before ellipsis
+.B  ===
+
+.PP
+
+.I val set_max_boxes 
+: 
+.B int -> unit
+.sp
+
+.B set_max_boxes max
+sets the maximum number
+of boxes simultaneously opened\&.
+Material inside boxes nested deeper is printed as an
+ellipsis (more precisely as the text returned by
+.B get_ellipsis_text ()
+)\&.
+Nothing happens if 
+.B max
+is smaller than 2\&.
+.sp
+
+.sp
+
+.I val get_max_boxes 
+: 
+.B unit -> int
+.sp
+Returns the maximum number of boxes allowed before ellipsis\&.
+.sp
+
+.sp
+
+.I val over_max_boxes 
+: 
+.B unit -> bool
+.sp
+Tests if the maximum number of boxes allowed have already been opened\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Advanced formatting
+.B  ===
+
+.PP
+
+.I val open_hbox 
+: 
+.B unit -> unit
+.sp
+
+.B open_hbox ()
+opens a new pretty\-printing box\&.
+This box is ``horizontal\&'\&': the line is not split in this box
+(new lines may still occur inside boxes nested deeper)\&.
+.sp
+
+.sp
+
+.I val open_vbox 
+: 
+.B int -> unit
+.sp
+
+.B open_vbox d
+opens a new pretty\-printing box
+with offset 
+.B d
+\&.
+This box is ``vertical\&'\&': every break hint inside this
+box leads to a new line\&.
+When a new line is printed in the box, 
+.B d
+is added to the
+current indentation\&.
+.sp
+
+.sp
+
+.I val open_hvbox 
+: 
+.B int -> unit
+.sp
+
+.B open_hvbox d
+opens a new pretty\-printing box
+with offset 
+.B d
+\&.
+This box is ``horizontal\-vertical\&'\&': it behaves as an
+``horizontal\&'\&' box if it fits on a single line,
+otherwise it behaves as a ``vertical\&'\&' box\&.
+When a new line is printed in the box, 
+.B d
+is added to the
+current indentation\&.
+.sp
+
+.sp
+
+.I val open_hovbox 
+: 
+.B int -> unit
+.sp
+
+.B open_hovbox d
+opens a new pretty\-printing box
+with offset 
+.B d
+\&.
+This box is ``horizontal or vertical\&'\&': break hints
+inside this box may lead to a new line, if there is no more room
+on the line to print the remainder of the box\&.
+When a new line is printed in the box, 
+.B d
+is added to the
+current indentation\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Tabulations
+.B  ===
+
+.PP
+
+.I val open_tbox 
+: 
+.B unit -> unit
+.sp
+Opens a tabulation box\&.
+.sp
+
+.sp
+
+.I val close_tbox 
+: 
+.B unit -> unit
+.sp
+Closes the most recently opened tabulation box\&.
+.sp
+
+.sp
+
+.I val print_tbreak 
+: 
+.B int -> int -> unit
+.sp
+Break hint in a tabulation box\&.
+.B print_tbreak spaces offset
+moves the insertion point to
+the next tabulation (
+.B spaces
+being added to this position)\&.
+Nothing occurs if insertion point is already on a
+tabulation mark\&.
+If there is no next tabulation on the line, then a newline
+is printed and the insertion point moves to the first
+tabulation of the box\&.
+If a new line is printed, 
+.B offset
+is added to the current
+indentation\&.
+.sp
+
+.sp
+
+.I val set_tab 
+: 
+.B unit -> unit
+.sp
+Sets a tabulation mark at the current insertion point\&.
+.sp
+
+.sp
+
+.I val print_tab 
+: 
+.B unit -> unit
+.sp
+
+.B print_tab ()
+is equivalent to 
+.B print_tbreak 0 0
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Ellipsis
+.B  ===
+
+.PP
+
+.I val set_ellipsis_text 
+: 
+.B string -> unit
+.sp
+Set the text of the ellipsis printed when too many boxes
+are opened (a single dot, 
+.B \&.
+, by default)\&.
+.sp
+
+.sp
+
+.I val get_ellipsis_text 
+: 
+.B unit -> string
+.sp
+Return the text of the ellipsis\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Semantics Tags
+.B  ===
+
+.PP
+.I type tag 
+= 
+.B string
+
+.sp
+
+.sp
+
+.PP
+
+.B === Semantics tags (or simply tags) are used to decorate printed
+.B    entities for user\&'s defined purposes, e\&.g\&. setting font and giving size
+.B    indications for a display device, or marking delimitation of semantics
+.B    entities (e\&.g\&. HTML or TeX elements or terminal escape sequences)\&.
+.B 
+.B    By default, those tags do not influence line breaking calculation:
+.B    the tag ``markers\&'\&' are not considered as part of the printing
+.B    material that drives line breaking (in other words, the length of
+.B    those strings is considered as zero for line breaking)\&.
+.B 
+.B    Thus, tag handling is in some sense transparent to pretty\-printing
+.B    and does not interfere with usual pretty\-printing\&. Hence, a single
+.B    pretty printing routine can output both simple ``verbatim\&'\&'
+.B    material or richer decorated output depending on the treatment of
+.B    tags\&. By default, tags are not active, hence the output is not
+.B    decorated with tag information\&. Once set_tags is set to true,
+.B    the pretty printer engine honours tags and decorates the output
+.B    accordingly\&.
+.B 
+.B    When a tag has been opened (or closed), it is both and successively
+.B    ``printed\&'\&' and ``marked\&'\&'\&. Printing a tag means calling a
+.B    formatter specific function with the name of the tag as argument:
+.B    that ``tag printing\&'\&' function can then print any regular material
+.B    to the formatter (so that this material is enqueued as usual in the
+.B    formatter queue for further line\-breaking computation)\&. Marking a
+.B    tag means to output an arbitrary string (the ``tag marker\&'\&'),
+.B    directly into the output device of the formatter\&. Hence, the
+.B    formatter specific ``tag marking\&'\&' function must return the tag
+.B    marker string associated to its tag argument\&. Being flushed
+.B    directly into the output device of the formatter, tag marker
+.B    strings are not considered as part of the printing material that
+.B    drives line breaking (in other words, the length of the strings
+.B    corresponding to tag markers is considered as zero for line
+.B    breaking)\&. In addition, advanced users may take advantage of
+.B    the specificity of tag markers to be precisely output when the
+.B    pretty printer has already decided where to break the lines, and
+.B    precisely when the queue is flushed into the output device\&.
+.B 
+.B    In the spirit of HTML tags, the default tag marking functions
+.B    output tags enclosed in "<" and ">": hence, the opening marker of
+.B    tag t is "<t>" and the closing marker "</t>"\&.
+.B 
+.B    Default tag printing functions just do nothing\&.
+.B 
+.B    Tag marking and tag printing functions are user definable and can
+.B    be set by calling set_formatter_tag_functions\&. ===
+
+.PP
+
+.I val open_tag 
+: 
+.B tag -> unit
+.sp
+
+.B open_tag t
+opens the tag named 
+.B t
+; the 
+.B print_open_tag
+function of the formatter is called with 
+.B t
+as argument;
+the tag marker 
+.B mark_open_tag t
+will be flushed into the output
+device of the formatter\&.
+.sp
+
+.sp
+
+.I val close_tag 
+: 
+.B unit -> unit
+.sp
+
+.B close_tag ()
+closes the most recently opened tag 
+.B t
+\&.
+In addition, the 
+.B print_close_tag
+function of the formatter is called
+with 
+.B t
+as argument\&. The marker 
+.B mark_close_tag t
+will be flushed
+into the output device of the formatter\&.
+.sp
+
+.sp
+
+.I val set_tags 
+: 
+.B bool -> unit
+.sp
+
+.B set_tags b
+turns on or off the treatment of tags (default is off)\&.
+.sp
+
+.sp
+
+.I val set_print_tags 
+: 
+.B bool -> unit
+.sp
+
+.sp
+
+.I val set_mark_tags 
+: 
+.B bool -> unit
+.sp
+
+.B set_print_tags b
+turns on or off the printing of tags, while
+.B set_mark_tags b
+turns on or off the output of tag markers\&.
+.sp
+
+.sp
+
+.I val get_print_tags 
+: 
+.B unit -> bool
+.sp
+
+.sp
+
+.I val get_mark_tags 
+: 
+.B unit -> bool
+.sp
+Return the current status of tags printing and tags marking\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Redirecting the standard formatter output
+.B  ===
+
+.PP
+
+.I val set_formatter_out_channel 
+: 
+.B Pervasives.out_channel -> unit
+.sp
+Redirect the pretty\-printer output to the given channel\&.
+(All the output functions of the standard formatter are set to the
+default output functions printing to the given channel\&.)
+.sp
+
+.sp
+
+.I val set_formatter_output_functions 
+: 
+.B (string -> int -> int -> unit) -> (unit -> unit) -> unit
+.sp
+
+.B set_formatter_output_functions out flush
+redirects the
+relevant pretty\-printer output functions to the functions 
+.B out
+and
+.B flush
+\&.
+.sp
+The 
+.B out
+function performs the pretty\-printer string output\&. It is called
+with a string 
+.B s
+, a start position 
+.B p
+, and a number of characters
+.B n
+; it is supposed to output characters 
+.B p
+to 
+.B p + n \- 1
+of
+.B s
+\&. The 
+.B flush
+function is called whenever the pretty\-printer is
+flushed (via conversion 
+.B %!
+, pretty\-printing indications 
+.B @?
+or 
+.B @\&.
+,
+or using low level function 
+.B print_flush
+or 
+.B print_newline
+)\&.
+.sp
+
+.sp
+
+.I val get_formatter_output_functions 
+: 
+.B unit -> (string -> int -> int -> unit) * (unit -> unit)
+.sp
+Return the current output functions of the pretty\-printer\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Changing the meaning of standard formatter pretty printing
+.B  ===
+
+.PP
+
+.PP
+
+.B === The Format module is versatile enough to let you completely redefine
+.B  the meaning of pretty printing: you may provide your own functions to define
+.B  how to handle indentation, line breaking, and even printing of all the
+.B  characters that have to be printed! ===
+
+.PP
+
+.I val set_all_formatter_output_functions 
+: 
+.B out:(string -> int -> int -> unit) ->
+.B   flush:(unit -> unit) ->
+.B   newline:(unit -> unit) -> spaces:(int -> unit) -> unit
+.sp
+
+.B set_all_formatter_output_functions out flush outnewline outspace
+redirects the pretty\-printer output to the functions 
+.B out
+and
+.B flush
+as described in 
+.B set_formatter_output_functions
+\&. In
+addition, the pretty\-printer function that outputs a newline is set
+to the function 
+.B outnewline
+and the function that outputs
+indentation spaces is set to the function 
+.B outspace
+\&.
+.sp
+This way, you can change the meaning of indentation (which can be
+something else than just printing space characters) and the
+meaning of new lines opening (which can be connected to any other
+action needed by the application at hand)\&. The two functions
+.B outspace
+and 
+.B outnewline
+are normally connected to 
+.B out
+and
+.B flush
+: respective default values for 
+.B outspace
+and 
+.B outnewline
+are 
+.B out (String\&.make n \&' \&') 0 n
+and 
+.B out "\(rsn" 0 1
+\&.
+.sp
+
+.sp
+
+.I val get_all_formatter_output_functions 
+: 
+.B unit ->
+.B   (string -> int -> int -> unit) * (unit -> unit) * (unit -> unit) *
+.B   (int -> unit)
+.sp
+Return the current output functions of the pretty\-printer,
+including line breaking and indentation functions\&. Useful to record the
+current setting and restore it afterwards\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Changing the meaning of printing semantics tags
+.B  ===
+
+.PP
+.I type formatter_tag_functions 
+= {
+ mark_open_tag : 
+.B tag -> string
+;
+ mark_close_tag : 
+.B tag -> string
+;
+ print_open_tag : 
+.B tag -> unit
+;
+ print_close_tag : 
+.B tag -> unit
+;
+ }
+
+.sp
+The tag handling functions specific to a formatter:
+.B mark
+versions are the ``tag marking\&'\&' functions that associate a string
+marker to a tag in order for the pretty\-printing engine to flush
+those markers as 0 length tokens in the output device of the formatter\&.
+.B print
+versions are the ``tag printing\&'\&' functions that can perform
+regular printing when a tag is closed or opened\&.
+.sp
+
+.sp
+
+.I val set_formatter_tag_functions 
+: 
+.B formatter_tag_functions -> unit
+.sp
+
+.sp
+
+.PP
+
+.B === set_formatter_tag_functions tag_funs changes the meaning of
+.B    opening and closing tags to use the functions in tag_funs\&.
+.B 
+.B    When opening a tag name t, the string t is passed to the
+.B    opening tag marking function (the mark_open_tag field of the
+.B    record tag_funs), that must return the opening tag marker for
+.B    that name\&. When the next call to close_tag () happens, the tag
+.B    name t is sent back to the closing tag marking function (the
+.B    mark_close_tag field of record tag_funs), that must return a
+.B    closing tag marker for that name\&.
+.B 
+.B    The print_ field of the record contains the functions that are
+.B    called at tag opening and tag closing time, to output regular
+.B    material in the pretty\-printer queue\&. ===
+
+.PP
+
+.I val get_formatter_tag_functions 
+: 
+.B unit -> formatter_tag_functions
+.sp
+Return the current tag functions of the pretty\-printer\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Multiple formatted output
+.B  ===
+
+.PP
+.I type formatter 
+
+.sp
+Abstract data corresponding to a pretty\-printer (also called a
+formatter) and all its machinery\&.
+.sp
+Defining new pretty\-printers permits unrelated output of material in
+parallel on several output channels\&.
+All the parameters of a pretty\-printer are local to this pretty\-printer:
+margin, maximum indentation limit, maximum number of boxes
+simultaneously opened, ellipsis, and so on, are specific to
+each pretty\-printer and may be fixed independently\&.
+Given a 
+.B Pervasives\&.out_channel
+output channel 
+.B oc
+, a new formatter
+writing to that channel is simply obtained by calling
+.B formatter_of_out_channel oc
+\&.
+Alternatively, the 
+.B make_formatter
+function allocates a new
+formatter with explicit output and flushing functions
+(convenient to output material to strings for instance)\&.
+.sp
+
+.sp
+
+.I val formatter_of_out_channel 
+: 
+.B Pervasives.out_channel -> formatter
+.sp
+
+.B formatter_of_out_channel oc
+returns a new formatter that
+writes to the corresponding channel 
+.B oc
+\&.
+.sp
+
+.sp
+
+.I val std_formatter 
+: 
+.B formatter
+.sp
+The standard formatter used by the formatting functions
+above\&. It is defined as 
+.B formatter_of_out_channel stdout
+\&.
+.sp
+
+.sp
+
+.I val err_formatter 
+: 
+.B formatter
+.sp
+A formatter to use with formatting functions below for
+output to standard error\&. It is defined as
+.B formatter_of_out_channel stderr
+\&.
+.sp
+
+.sp
+
+.I val formatter_of_buffer 
+: 
+.B Buffer.t -> formatter
+.sp
+
+.B formatter_of_buffer b
+returns a new formatter writing to
+buffer 
+.B b
+\&. As usual, the formatter has to be flushed at
+the end of pretty printing, using 
+.B pp_print_flush
+or
+.B pp_print_newline
+, to display all the pending material\&.
+.sp
+
+.sp
+
+.I val stdbuf 
+: 
+.B Buffer.t
+.sp
+The string buffer in which 
+.B str_formatter
+writes\&.
+.sp
+
+.sp
+
+.I val str_formatter 
+: 
+.B formatter
+.sp
+A formatter to use with formatting functions below for
+output to the 
+.B stdbuf
+string buffer\&.
+.B str_formatter
+is defined as 
+.B formatter_of_buffer stdbuf
+\&.
+.sp
+
+.sp
+
+.I val flush_str_formatter 
+: 
+.B unit -> string
+.sp
+Returns the material printed with 
+.B str_formatter
+, flushes
+the formatter and resets the corresponding buffer\&.
+.sp
+
+.sp
+
+.I val make_formatter 
+: 
+.B (string -> int -> int -> unit) -> (unit -> unit) -> formatter
+.sp
+
+.B make_formatter out flush
+returns a new formatter that writes according
+to the output function 
+.B out
+, and the flushing function 
+.B flush
+\&. For
+instance, a formatter to the 
+.B Pervasives\&.out_channel
+.B oc
+is returned by
+.B make_formatter (Pervasives\&.output oc) (fun () \-> Pervasives\&.flush oc)
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Basic functions to use with formatters
+.B  ===
+
+.PP
+
+.I val pp_open_hbox 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_open_vbox 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_open_hvbox 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_open_hovbox 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_open_box 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_close_box 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_open_tag 
+: 
+.B formatter -> string -> unit
+.sp
+
+.sp
+
+.I val pp_close_tag 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_print_string 
+: 
+.B formatter -> string -> unit
+.sp
+
+.sp
+
+.I val pp_print_as 
+: 
+.B formatter -> int -> string -> unit
+.sp
+
+.sp
+
+.I val pp_print_int 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_print_float 
+: 
+.B formatter -> float -> unit
+.sp
+
+.sp
+
+.I val pp_print_char 
+: 
+.B formatter -> char -> unit
+.sp
+
+.sp
+
+.I val pp_print_bool 
+: 
+.B formatter -> bool -> unit
+.sp
+
+.sp
+
+.I val pp_print_break 
+: 
+.B formatter -> int -> int -> unit
+.sp
+
+.sp
+
+.I val pp_print_cut 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_print_space 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_force_newline 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_print_flush 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_print_newline 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_print_if_newline 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_open_tbox 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_close_tbox 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_print_tbreak 
+: 
+.B formatter -> int -> int -> unit
+.sp
+
+.sp
+
+.I val pp_set_tab 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_print_tab 
+: 
+.B formatter -> unit -> unit
+.sp
+
+.sp
+
+.I val pp_set_tags 
+: 
+.B formatter -> bool -> unit
+.sp
+
+.sp
+
+.I val pp_set_print_tags 
+: 
+.B formatter -> bool -> unit
+.sp
+
+.sp
+
+.I val pp_set_mark_tags 
+: 
+.B formatter -> bool -> unit
+.sp
+
+.sp
+
+.I val pp_get_print_tags 
+: 
+.B formatter -> unit -> bool
+.sp
+
+.sp
+
+.I val pp_get_mark_tags 
+: 
+.B formatter -> unit -> bool
+.sp
+
+.sp
+
+.I val pp_set_margin 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_get_margin 
+: 
+.B formatter -> unit -> int
+.sp
+
+.sp
+
+.I val pp_set_max_indent 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_get_max_indent 
+: 
+.B formatter -> unit -> int
+.sp
+
+.sp
+
+.I val pp_set_max_boxes 
+: 
+.B formatter -> int -> unit
+.sp
+
+.sp
+
+.I val pp_get_max_boxes 
+: 
+.B formatter -> unit -> int
+.sp
+
+.sp
+
+.I val pp_over_max_boxes 
+: 
+.B formatter -> unit -> bool
+.sp
+
+.sp
+
+.I val pp_set_ellipsis_text 
+: 
+.B formatter -> string -> unit
+.sp
+
+.sp
+
+.I val pp_get_ellipsis_text 
+: 
+.B formatter -> unit -> string
+.sp
+
+.sp
+
+.I val pp_set_formatter_out_channel 
+: 
+.B formatter -> Pervasives.out_channel -> unit
+.sp
+
+.sp
+
+.I val pp_set_formatter_output_functions 
+: 
+.B formatter -> (string -> int -> int -> unit) -> (unit -> unit) -> unit
+.sp
+
+.sp
+
+.I val pp_get_formatter_output_functions 
+: 
+.B formatter -> unit -> (string -> int -> int -> unit) * (unit -> unit)
+.sp
+
+.sp
+
+.I val pp_set_all_formatter_output_functions 
+: 
+.B formatter ->
+.B   out:(string -> int -> int -> unit) ->
+.B   flush:(unit -> unit) ->
+.B   newline:(unit -> unit) -> spaces:(int -> unit) -> unit
+.sp
+
+.sp
+
+.I val pp_get_all_formatter_output_functions 
+: 
+.B formatter ->
+.B   unit ->
+.B   (string -> int -> int -> unit) * (unit -> unit) * (unit -> unit) *
+.B   (int -> unit)
+.sp
+
+.sp
+
+.I val pp_set_formatter_tag_functions 
+: 
+.B formatter -> formatter_tag_functions -> unit
+.sp
+
+.sp
+
+.I val pp_get_formatter_tag_functions 
+: 
+.B formatter -> unit -> formatter_tag_functions
+.sp
+These functions are the basic ones: usual functions
+operating on the standard formatter are defined via partial
+evaluation of these primitives\&. For instance,
+.B print_string
+is equal to 
+.B pp_print_string std_formatter
+\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B printf like functions for pretty\-printing\&.
+.B  ===
+
+.PP
+
+.I val fprintf 
+: 
+.B formatter -> ('a, formatter, unit) Pervasives.format -> 'a
+.sp
+
+.sp
+
+.PP
+
+.B === fprintf ff fmt arg1 \&.\&.\&. argN formats the arguments arg1 to argN
+.B    according to the format string fmt, and outputs the resulting string on
+.B    the formatter ff\&.
+.B 
+.B    The format fmt is a character string which contains three types of
+.B    objects: plain characters and conversion specifications as specified in
+.B    the Printf module, and pretty\-printing indications specific to the
+.B    Format module\&.
+.B 
+.B    The pretty\-printing indication characters are introduced by
+.B    a @ character, and their meanings are:
+.B \- @[: open a pretty\-printing box\&. The type and offset of the
+.B      box may be optionally specified with the following syntax:
+.B      the < character, followed by an optional box type indication,
+.B      then an optional integer offset, and the closing > character\&.
+.B      Box type is one of h, v, hv, b, or hov,
+.B      which stand respectively for an horizontal box, a vertical box,
+.B      an ``horizontal\-vertical\&'\&' box, or an ``horizontal or
+.B      vertical\&'\&' box (b standing for an ``horizontal or
+.B      vertical\&'\&' box demonstrating indentation and hov standing
+.B      for a regular``horizontal or vertical\&'\&' box)\&.
+.B      For instance, @[<hov 2> opens an ``horizontal or vertical\&'\&'
+.B      box with indentation 2 as obtained with open_hovbox 2\&.
+.B      For more details about boxes, see the various box opening
+.B      functions open_*box\&.
+.B \- @]: close the most recently opened pretty\-printing box\&.
+.B \- @,: output a good break as with print_cut ()\&.
+.B \- @ : output a space, as with print_space ()\&.
+.B \- @\(rsn: force a newline, as with force_newline ()\&.
+.B \- @;: output a good break as with print_break\&. The
+.B      nspaces and offset parameters of the break may be
+.B      optionally specified with the following syntax:
+.B      the < character, followed by an integer nspaces value,
+.B      then an integer offset, and a closing > character\&.
+.B      If no parameters are provided, the good break defaults to a
+.B      space\&.
+.B \- @?: flush the pretty printer as with print_flush ()\&.
+.B      This is equivalent to the conversion %!\&.
+.B \- @\&.: flush the pretty printer and output a new line, as with
+.B      print_newline ()\&.
+.B \- @<n>: print the following item as if it were of length n\&.
+.B      Hence, printf "@<0>%s" arg is equivalent to print_as 0 arg\&.
+.B      If @<n> is not followed by a conversion specification,
+.B      then the following character of the format is printed as if
+.B      it were of length n\&.
+.B \- @{: open a tag\&. The name of the tag may be optionally
+.B      specified with the following syntax:
+.B      the < character, followed by an optional string
+.B      specification, and the closing > character\&. The string
+.B      specification is any character string that does not contain the
+.B      closing character \&'>\&'\&. If omitted, the tag name defaults to the
+.B      empty string\&.
+.B      For more details about tags, see the functions open_tag and
+.B      close_tag\&.
+.B \- @}: close the most recently opened tag\&.
+.B \- @@: print a plain @ character\&.
+.B 
+.B    Example: printf "@[%s@ %d@]@\&." "x =" 1 is equivalent to
+.B    open_box (); print_string "x ="; print_space ();
+.B     print_int 1; close_box (); print_newline ()\&.
+.B    It prints x = 1 within a pretty\-printing box\&. ===
+
+.PP
+
+.I val printf 
+: 
+.B ('a, formatter, unit) Pervasives.format -> 'a
+.sp
+Same as 
+.B fprintf
+above, but output on 
+.B std_formatter
+\&.
+.sp
+
+.sp
+
+.I val eprintf 
+: 
+.B ('a, formatter, unit) Pervasives.format -> 'a
+.sp
+Same as 
+.B fprintf
+above, but output on 
+.B err_formatter
+\&.
+.sp
+
+.sp
+
+.I val sprintf 
+: 
+.B ('a, unit, string) Pervasives.format -> 'a
+.sp
+Same as 
+.B printf
+above, but instead of printing on a formatter,
+returns a string containing the result of formatting the arguments\&.
+Note that the pretty\-printer queue is flushed at the end of each
+call to 
+.B sprintf
+\&.
+.sp
+In case of multiple and related calls to 
+.B sprintf
+to output
+material on a single string, you should consider using 
+.B fprintf
+with the predefined formatter 
+.B str_formatter
+and call
+.B flush_str_formatter ()
+to get the final result\&.
+.sp
+Alternatively, you can use 
+.B Format\&.fprintf
+with a formatter writing to a
+buffer of your own: flushing the formatter and the buffer at the end of
+pretty\-printing returns the desired string\&.
+.sp
+
+.sp
+
+.I val ifprintf 
+: 
+.B formatter -> ('a, formatter, unit) Pervasives.format -> 'a
+.sp
+Same as 
+.B fprintf
+above, but does not print anything\&.
+Useful to ignore some material when conditionally printing\&.
+.sp
+.B "Since"
+3.10.0
+.sp
+
+.sp
+
+.PP
+
+.B === Formatted output functions with continuations\&. ===
+
+.PP
+
+.I val kfprintf 
+: 
+.B (formatter -> 'a) ->
+.B   formatter -> ('b, formatter, unit, 'a) Pervasives.format4 -> 'b
+.sp
+Same as 
+.B fprintf
+above, but instead of returning immediately,
+passes the formatter to its first argument at the end of printing\&.
+.sp
+
+.sp
+
+.I val ikfprintf 
+: 
+.B (formatter -> 'a) ->
+.B   formatter -> ('b, formatter, unit, 'a) Pervasives.format4 -> 'b
+.sp
+Same as 
+.B kfprintf
+above, but does not print anything\&.
+Useful to ignore some material when conditionally printing\&.
+.sp
+.B "Since"
+3.12.0
+.sp
+
+.sp
+
+.I val ksprintf 
+: 
+.B (string -> 'a) -> ('b, unit, string, 'a) Pervasives.format4 -> 'b
+.sp
+Same as 
+.B sprintf
+above, but instead of returning the string,
+passes it to the first argument\&.
+.sp
+
+.sp
+
+.PP
+
+.B === 
+.B Deprecated
+.B  ===
+
+.PP
+
+.I val bprintf 
+: 
+.B Buffer.t -> ('a, formatter, unit) Pervasives.format -> 'a
+.sp
+Deprecated and error prone function\&. Do not use it\&.
+.sp
+If you need to print to some buffer 
+.B b
+, you must first define a
+formatter writing to 
+.B b
+, using 
+.B let to_b = formatter_of_buffer b
+; then
+use regular calls to 
+.B Format\&.fprintf
+on formatter 
+.B to_b
+\&.
+.sp
+
+.sp
+
+.I val kprintf 
+: 
+.B (string -> 'a) -> ('b, unit, string, 'a) Pervasives.format4 -> 'b
+.sp
+Deprecated name\&. A synonym for 
+.B ksprintf
+\&.
+.sp
+
+.sp

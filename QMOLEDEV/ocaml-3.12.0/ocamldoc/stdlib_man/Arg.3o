@@ -1,0 +1,417 @@
+.TH "Arg" 3 2012-04-16 OCamldoc "OCaml library"
+.SH NAME
+Arg \- Parsing of command line arguments.
+.SH Module
+Module   Arg
+.SH Documentation
+.sp
+Module
+.BI "Arg"
+ : 
+.B sig  end
+
+.sp
+Parsing of command line arguments\&.
+.sp
+This module provides a general mechanism for extracting options and
+arguments from the command line to the program\&.
+.sp
+Syntax of command lines:
+A keyword is a character string starting with a 
+.B \-
+\&.
+An option is a keyword alone or followed by an argument\&.
+The types of keywords are: 
+.B Unit
+, 
+.B Bool
+, 
+.B Set
+, 
+.B Clear
+,
+.B String
+, 
+.B Set_string
+, 
+.B Int
+, 
+.B Set_int
+, 
+.B Float
+, 
+.B Set_float
+,
+.B Tuple
+, 
+.B Symbol
+, and 
+.B Rest
+\&.
+.B Unit
+, 
+.B Set
+and 
+.B Clear
+keywords take no argument\&. A 
+.B Rest
+keyword takes the remaining of the command line as arguments\&.
+Every other keyword takes the following word on the command line
+as argument\&.
+Arguments not preceded by a keyword are called anonymous arguments\&.
+.sp
+Examples (
+.B cmd
+is assumed to be the command name):
+.sp
+\-  
+.B cmd \-flag           
+(a unit option)
+.sp
+\-  
+.B cmd \-int 1          
+(an int option with argument 
+.B 1
+)
+.sp
+\-  
+.B cmd \-string foobar  
+(a string option with argument 
+.B "foobar"
+)
+.sp
+\-  
+.B cmd \-float 12\&.34    
+(a float option with argument 
+.B 12\&.34
+)
+.sp
+\-  
+.B cmd a b c           
+(three anonymous arguments: 
+.B "a"
+, 
+.B "b"
+, and 
+.B "c"
+)
+.sp
+\-  
+.B cmd a b \-\- c d      
+(two anonymous arguments and a rest option with
+two arguments)
+
+.sp
+
+.sp
+
+.sp
+.sp
+.I type spec 
+=
+ | Unit
+.B of 
+.B (unit -> unit)
+.I "  "
+(* Call the function with unit argument *)
+ | Bool
+.B of 
+.B (bool -> unit)
+.I "  "
+(* Call the function with a bool argument *)
+ | Set
+.B of 
+.B bool Pervasives.ref
+.I "  "
+(* Set the reference to true *)
+ | Clear
+.B of 
+.B bool Pervasives.ref
+.I "  "
+(* Set the reference to false *)
+ | String
+.B of 
+.B (string -> unit)
+.I "  "
+(* Call the function with a string argument *)
+ | Set_string
+.B of 
+.B string Pervasives.ref
+.I "  "
+(* Set the reference to the string argument *)
+ | Int
+.B of 
+.B (int -> unit)
+.I "  "
+(* Call the function with an int argument *)
+ | Set_int
+.B of 
+.B int Pervasives.ref
+.I "  "
+(* Set the reference to the int argument *)
+ | Float
+.B of 
+.B (float -> unit)
+.I "  "
+(* Call the function with a float argument *)
+ | Set_float
+.B of 
+.B float Pervasives.ref
+.I "  "
+(* Set the reference to the float argument *)
+ | Tuple
+.B of 
+.B spec list
+.I "  "
+(* Take several arguments according to the
+spec list *)
+ | Symbol
+.B of 
+.B string list * (string -> unit)
+.I "  "
+(* Take one of the symbols as argument and
+call the function with the symbol *)
+ | Rest
+.B of 
+.B (string -> unit)
+.I "  "
+(* Stop interpreting keywords and call the
+function with each remaining argument *)
+ 
+.sp
+The concrete type describing the behavior associated
+with a keyword\&.
+.sp
+
+.sp
+.I type key 
+= 
+.B string
+
+.sp
+
+.sp
+.I type doc 
+= 
+.B string
+
+.sp
+
+.sp
+.I type usage_msg 
+= 
+.B string
+
+.sp
+
+.sp
+.I type anon_fun 
+= 
+.B string -> unit
+
+.sp
+
+.sp
+
+.I val parse 
+: 
+.B (key * spec * doc) list -> anon_fun -> usage_msg -> unit
+.sp
+
+.B Arg\&.parse speclist anon_fun usage_msg
+parses the command line\&.
+.B speclist
+is a list of triples 
+.B (key, spec, doc)
+\&.
+.B key
+is the option keyword, it must start with a 
+.B \&'\-\&'
+character\&.
+.B spec
+gives the option type and the function to call when this option
+is found on the command line\&.
+.B doc
+is a one\-line description of this option\&.
+.B anon_fun
+is called on anonymous arguments\&.
+The functions in 
+.B spec
+and 
+.B anon_fun
+are called in the same order
+as their arguments appear on the command line\&.
+.sp
+If an error occurs, 
+.B Arg\&.parse
+exits the program, after printing
+an error message as follows:
+.sp
+\-  The reason for the error: unknown option, invalid or missing argument, etc\&.
+.sp
+\-  
+.B usage_msg
+
+.sp
+\-  The list of options, each followed by the corresponding 
+.B doc
+string\&.
+
+For the user to be able to specify anonymous arguments starting with a
+.B \-
+, include for example 
+.B ("\-", String anon_fun, doc)
+in 
+.B speclist
+\&.
+.sp
+By default, 
+.B parse
+recognizes two unit options, 
+.B \-help
+and 
+.B \-\-help
+,
+which will display 
+.B usage_msg
+and the list of options, and exit
+the program\&.  You can override this behaviour by specifying your
+own 
+.B \-help
+and 
+.B \-\-help
+options in 
+.B speclist
+\&.
+.sp
+
+.sp
+
+.I val parse_argv 
+: 
+.B ?current:int Pervasives.ref ->
+.B   string array ->
+.B   (key * spec * doc) list -> anon_fun -> usage_msg -> unit
+.sp
+
+.B Arg\&.parse_argv ~current args speclist anon_fun usage_msg
+parses
+the array 
+.B args
+as if it were the command line\&.  It uses and updates
+the value of 
+.B ~current
+(if given), or 
+.B Arg\&.current
+\&.  You must set
+it before calling 
+.B parse_argv
+\&.  The initial value of 
+.B current
+is the index of the program name (argument 0) in the array\&.
+If an error occurs, 
+.B Arg\&.parse_argv
+raises 
+.B Arg\&.Bad
+with
+the error message as argument\&.  If option 
+.B \-help
+or 
+.B \-\-help
+is
+given, 
+.B Arg\&.parse_argv
+raises 
+.B Arg\&.Help
+with the help message
+as argument\&.
+.sp
+
+.sp
+
+.I exception Help 
+.B of 
+.B string
+
+.sp
+Raised by 
+.B Arg\&.parse_argv
+when the user asks for help\&.
+.sp
+
+.sp
+
+.I exception Bad 
+.B of 
+.B string
+
+.sp
+Functions in 
+.B spec
+or 
+.B anon_fun
+can raise 
+.B Arg\&.Bad
+with an error
+message to reject invalid arguments\&.
+.B Arg\&.Bad
+is also raised by 
+.B Arg\&.parse_argv
+in case of an error\&.
+.sp
+
+.sp
+
+.I val usage 
+: 
+.B (key * spec * doc) list -> usage_msg -> unit
+.sp
+
+.B Arg\&.usage speclist usage_msg
+prints an error message including
+the list of valid options\&.  This is the same message that
+.B Arg\&.parse
+prints in case of error\&.
+.B speclist
+and 
+.B usage_msg
+are the same as for 
+.B Arg\&.parse
+\&.
+.sp
+
+.sp
+
+.I val align 
+: 
+.B (key * spec * doc) list -> (key * spec * doc) list
+.sp
+Align the documentation strings by inserting spaces at the first
+space, according to the length of the keyword\&.  Use a
+space as the first character in a doc string if you want to
+align the whole string\&.  The doc strings corresponding to
+.B Symbol
+arguments are aligned on the next line\&.
+.sp
+
+.sp
+
+.I val current 
+: 
+.B int Pervasives.ref
+.sp
+Position (in 
+.B Sys\&.argv
+) of the argument being processed\&.  You can
+change this value, e\&.g\&. to force 
+.B Arg\&.parse
+to skip some arguments\&.
+.B Arg\&.parse
+uses the initial value of 
+.B Arg\&.current
+as the index of
+argument 0 (the program name) and starts parsing arguments
+at the next element\&.
+.sp
+
+.sp

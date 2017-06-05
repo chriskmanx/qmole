@@ -1,0 +1,105 @@
+The following is the e-mail communication between me and David,
+talking about adding a new feature into mrxvt. This is the basic
+description on how to hack mrxvt. And as you can see, it is not
+difficult to hack mrxvt. I hope it is useful if some users get
+some great ideas and would like to hack mrxvt by themselves. I
+have made some minor changes to make my explanation more clear.
+
+
+
+--------------------- start of the e-mail -----------------------
+
+Hi, David,
+
+I am the maintainer of mrxvt. But my knowledge to mrxvt is also
+limited... ;-)  So don't be afraid to break the code as far as it
+is not merged into mrxvt...
+
+>Hi, I'm using experimenting with adding a quick and
+>dirty hack to mrxvt and it'd be really helpful if
+>someone who understands the big picture how mrxvt
+>works could help me out. I've tried to understand the
+>global structure of the code, but I think my
+>understanding is lacking. (My modification will break
+>the xterm-style mouse button api, so I doubt it'll be
+>suitable as a mainline patch, although if anyone wants
+>it...)
+>
+>I want the "double click word select" action to,
+>rather than copy the selected word to the clipboard,
+>write the selected word to a FIFO. I've got this
+>behaviour to work by creating a modified copy of
+>rxvt_selection_make and calling it at the appropriate
+>point in double-click handling in
+>rxvt_selection_extend_colrow. If I add to the end of
+>my hacked function the lines
+>
+>    int
+>fifofd=open("/home/dtweed/dispatchFIFO",O_WRONLY/*|O_CREAT*/);
+>   char buffer[64];
+>   sprintf(buffer,"%s\n",new_selection_text);
+>   int w1=write(fifofd,buffer,bl);
+>   fsync(fifofd);
+>   close(fifofd);
+>
+>then I get the appropriate write to the FIFO. What I
+>don't understand is that something goes wrong if I try
+>and open the fifo somewhere like rxvt_init and store
+>the fd in a global variable, rather than reopening the
+>file for each write. The behaviour if I try to write
+>to the global variable file descriptor is that the
+>mrxvt seems to block at around about the write (no
+>more screen redraws, etc, although some printf's to
+>stderr which immediately follow the write appear on
+>the console). This behaviour remains if instead of a
+>fifo I open for writing a standard file.
+>
+>Is there some obvious reason why trying to use a
+>global variable file descriptor for this won't work?
+>Is there an obvious place to open a global variable
+>file descriptor such that writes to the will work
+>rather than mess up the mrxvt?
+>
+>Many thanks for any help,
+>
+>cheers, dave tweed
+
+
+If I was you, I would do the following:
+
+  . modify rxvtlib.h, add fifo file descriptor in TermWin_t structure
+so that the descriptor is global when mrxvt is running.
+
+  . modify xdefaults.c, add a resource/command-line option (STRG) to
+specify the FIFO file name
+
+  . modify rxvt.h, add the resource name of FIFO file name into the
+resource list. (if the resource is a boolean option, like pseudo-
+transparency, you need also add an option to the option list in
+rxvtlib.h. since all 30 available boolean option bit flags were used
+up, I added another 30 boolean option bit flags. in this case, the
+resource name should be Rs2_blahblah and is larger than Rs_options2,
+and the option should be Opt2_blahblah, and use an unused bit flag.)
+
+  . add two convenient functions to init.c, one rxvt_fifo_open and
+one rxvt_fifo_close. rxvt_fifo_open checks the existance of FIFO
+filename resource. If true, it opens the file name, assigns the file
+descriptor to fifo descriptor in TermWin_t. otherwise, either the
+resource is not set, or file opening fails, it sets file descriptor
+in TermWin_t to -1. rxvt_fifo_close checks the file descriptor, if
+it is not -1, closes it.
+
+  . call rxvt_fifo_open in rxvt_init_resources (init.c)
+
+  . call rxvt_fifo_close in rxvt_clean_exit (main.c)
+
+  . add a convenient function to screen.c: rxvt_write_fifo. call it
+at the place you want to output to fifo. be sure to check the
+existance of fifo resource name and validility of file descriptor
+(!=-1).
+
+Hope it's helpful.
+
+Have fun,
+
+Jimmy

@@ -1,0 +1,50 @@
+AC_INIT([gnome-pty-helper],[1.95.0],[http://bugzilla.gnome.org/enter_bug.cgi?product=vte])
+
+AM_INIT_AUTOMAKE([1.9 foreign no-dist-gzip dist-bzip2])
+
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_SRCDIR([gnome-pty.h])
+
+AC_ISC_POSIX
+AC_PROG_CC
+AC_STDC_HEADERS
+AM_PROG_CC_STDC
+
+if test -z "$enable_maintainer_mode"; then
+  enable_maintainer_mode=yes
+fi
+AM_MAINTAINER_MODE([enable])
+
+AC_CHECK_HEADERS(sys/syslimits.h sys/time.h sys/types.h sys/un.h alloca.h lastlog.h libutil.h paths.h pty.h stropts.h termios.h ttyent.h util.h utmp.h utmpx.h pty.h util.h libutil.h ttyent.h)
+have_openpty=0
+AC_CHECK_LIB(c,grantpt,true,[AC_CHECK_LIB(pt,grantpt)])
+AC_CHECK_LIB(c,openpty,true,[AC_CHECK_LIB(util,openpty)])
+AC_CHECK_LIB(c,sendmsg,true,[AC_CHECK_LIB(socket,sendmsg,LIBS="$LIBS -lsocket -lnsl",,-lnsl)])
+AC_CHECK_FUNCS(endutent fcntl forkpty getttyent getutent getutmpx grantpt flock login_tty openpty revoke sendmsg seteuid setreuid setutent strrchr updwtmp updwtmpx utmpname utmpxname)
+GPH_CHECK_UTMP
+
+AC_CHECK_HEADERS(stropts.h)
+
+# Use all available features under glibc, and disable accidental use of
+# deprecated functionality.
+AC_EGREP_CPP(glibc,
+		[
+		 #include <stdio.h>
+		 #ifdef __GLIBC__
+		 glibc
+		 #endif
+		],
+		AC_DEFINE(_GNU_SOURCE,1,[Use all glibc features.]))
+
+AC_CANONICAL_HOST
+case $host in
+*-*-solaris*)
+	AC_DEFINE(_XOPEN_SOURCE_EXTENDED,1,[Needed to get declarations for msg_control and msg_controllen on Solaris])
+	AC_DEFINE(_XOPEN_SOURCE,1,[Needed to get declarations for msg_control and msg_controllen on Solaris])
+	AC_DEFINE(__EXTENSIONS__,1,[Needed to get declarations for msg_control and msg_controllen on Solaris])
+	;;
+esac
+
+AC_CONFIG_FILES([Makefile])
+
+AC_OUTPUT

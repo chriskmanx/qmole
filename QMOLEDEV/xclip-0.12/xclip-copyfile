@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+if [ "x$1" = "x" ]; then
+    echo "Usage: [options] $0 file..." >&2
+    echo "-p Copy path information; preserve tree structure"
+    exit 1
+fi
+archive=`mktemp` || exit 1
+trap 'rm -f "${archive}"' 1 2 3 15
+if [ "x$1" = "x-p" ]; then
+    tar cf "${archive}" "$@"
+else
+    flags="cf"
+    for file in "$@"; do
+        filedir=`dirname "${file}"`
+        filename=`basename "${file}"`
+        tar "${flags}" "${archive}" -C "${filedir}" "${filename}"
+        flags="rf"
+    done
+fi
+gzip -c "${archive}" | xclip -selection secondary -loops 1 -i
+rm "${archive}"

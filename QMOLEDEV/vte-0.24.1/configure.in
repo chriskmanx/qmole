@@ -1,0 +1,528 @@
+m4_define([vte_version_major],[0])
+m4_define([vte_version_minor],[24])
+m4_define([vte_version_micro],[1])
+m4_define([vte_version],[vte_version_major.vte_version_minor.vte_version_micro])
+
+m4_define([vte_api_version],[0])
+
+AC_PREREQ([2.59])
+AC_INIT(vte, [vte_version],
+        [http://bugzilla.gnome.org/enter_bug.cgi?product=vte])
+AC_CONFIG_SRCDIR([src/vte.c])
+AC_CONFIG_HEADERS([config.h])
+
+AM_INIT_AUTOMAKE([1.9 foreign no-dist-gzip dist-bzip2])
+
+m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
+
+if test -z "$enable_maintainer_mode"; then
+  enable_maintainer_mode=yes
+fi
+AM_MAINTAINER_MODE([enable])
+
+################################################################################
+# Libtool shared library versioning stuffs.
+# REVISION gets incremented whenever the source code changes without adding
+# an API or ABI change.
+LTVERSION_REVISION=1
+# CURRENT must be incremented when an API or ABI change (addition or removal)
+# is made, and REVISION must be reset to 0 when this happens.
+LTVERSION_CURRENT=22
+# AGE must be incremented when an API or ABI addition is made, and REVISION
+# must be reset to 0 when this happens.
+LTVERSION_AGE=13
+
+LIBVTE_LTVERSION=${LTVERSION_CURRENT}:${LTVERSION_REVISION}:${LTVERSION_AGE}
+AC_SUBST([LIBVTE_LTVERSION])
+
+################################################################################
+
+AC_ISC_POSIX
+AC_PROG_CC
+AC_STDC_HEADERS
+AM_PROG_CC_STDC
+
+AM_PROG_CC_C_O
+
+AM_PROG_LIBTOOL
+
+AC_PROG_SED
+
+################################################################################
+# i18n
+################################################################################
+
+IT_PROG_INTLTOOL([0.35.0])
+
+GETTEXT_PACKAGE=vte
+AC_SUBST(GETTEXT_PACKAGE)
+AC_DEFINE_UNQUOTED(GETTEXT_PACKAGE,"$GETTEXT_PACKAGE",
+                   [Package translatable messages domain name.])
+AM_GLIB_GNU_GETTEXT
+AC_CHECK_DECLS(bind_textdomain_codeset,,,[#include "libintl.h"])
+
+
+################################################################################
+# Platform checks
+################################################################################
+
+AC_MSG_CHECKING([for a win32 platform])
+platform_win32=no
+case "$host" in
+	*-*-mingw*|*-*-cygwin*)
+		platform_win32=yes
+		;;
+esac
+AC_MSG_RESULT([$platform_win32])
+AM_CONDITIONAL(PLATFORM_WIN32, test "$platform_win32" = "yes")
+
+os_win32=no
+if test "x$platform_win32" = "xyes"; then
+	AC_MSG_CHECKING([for native win32])
+	case "$host" in
+		*-*-mingw*)
+			os_win32=yes
+			;;
+	esac
+	AC_MSG_RESULT([$os_win32])
+fi
+AM_CONDITIONAL(OS_WIN32, test "x$os_win32" = "xyes")
+
+
+if test "x$platform_win32" != "xyes"; then
+	LIBTOOL_EXPORT_OPTIONS=
+else
+	LIBTOOL_EXPORT_OPTIONS='-no-undefined'
+fi
+AC_SUBST([LIBTOOL_EXPORT_OPTIONS])
+LIBTOOL_FLAGS='-as-needed'
+AC_SUBST([LIBTOOL_FLAGS])
+
+
+################################################################################
+# Compilation
+################################################################################
+
+dnl Use lots of warning flags with with gcc and compatible compilers
+dnl Copied from cairo
+AC_DEFUN([VTE_CC_TRY_FLAG], [
+  AC_MSG_CHECKING([whether $CC supports $1])
+
+  vte_save_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS $1"
+
+  AC_COMPILE_IFELSE([ ], [vte_cc_flag=yes], [vte_cc_flag=no])
+  CFLAGS="$vte_save_CFLAGS"
+
+  if test "x$vte_cc_flag" = "xyes"; then
+    ifelse([$2], , :, [$2])
+  else
+    ifelse([$3], , :, [$3])
+  fi
+  AC_MSG_RESULT([$vte_cc_flag])
+])
+AC_DEFUN([VTE_LD_TRY_FLAG], [
+  AC_MSG_CHECKING([whether $CC supports $1 when linking])
+
+  vte_save_LDFLAGS="$LDFLAGS"
+  LDFLAGS="$LDFLAGS $1"
+
+  AC_LINK_IFELSE([int main(void) {return 0;}],
+		[vte_ld_flag=yes], [vte_ld_flag=no])
+  LDFLAGS="$vte_save_LDFLAGS"
+
+  if test "x$vte_ld_flag" = "xyes"; then
+    ifelse([$2], , :, [$2])
+  else
+    ifelse([$3], , :, [$3])
+  fi
+  AC_MSG_RESULT([$vte_ld_flag])
+])
+
+
+dnl Note: if you change the following variable, the cache is automatically
+dnl skipped and all flags rechecked.  So there's no need to do anything
+dnl else.  If for any reason you need to force a recheck, just change
+dnl MAYBE_WARN in an ignorable way (like adding whitespace)
+
+MAYBE_WARN="-Wall -Wextra \
+-Wsign-compare -Werror-implicit-function-declaration \
+-Wpointer-arith -Wwrite-strings -Wstrict-prototypes \
+-Waggregate-return -Wcast-align -Wimplicit -Wuninitialised \
+-Wmissing-prototypes -Wmissing-declarations -Wnested-externs \
+-Wpacked -Wmissing-format-attribute -Wshadow \
+-Wstrict-aliasing=2 -Winit-self -Wunsafe-loop-optimizations \
+-Wdeclaration-after-statement -Wold-style-definition \
+-Wno-missing-field-initializers -Wno-unused-parameter \
+-fno-common -Wno-switch-enum"
+
+# invalidate cached value if MAYBE_WARN has changed
+if test "x$vte_cv_warn_maybe" != "x$MAYBE_WARN"; then
+	unset vte_cv_warn_cflags
+fi
+AC_CACHE_CHECK([for supported warning flags], vte_cv_warn_cflags, [
+	echo
+	WARN_CFLAGS=""
+
+	# Some warning options are not supported by all versions of
+	# gcc, so test all desired options against the current
+	# compiler.
+	#
+	# Note that there are some order dependencies
+	# here. Specifically, an option that disables a warning will
+	# have no net effect if a later option then enables that
+	# warnings, (perhaps implicitly). So we put some grouped
+	# options (-Wall and -Wextra) up front and the -Wno options
+	# last.
+
+	for W in $MAYBE_WARN; do
+		VTE_CC_TRY_FLAG([$W], [WARN_CFLAGS="$WARN_CFLAGS $W"])
+	done
+
+	vte_cv_warn_cflags=$WARN_CFLAGS
+	vte_cv_warn_maybe=$MAYBE_WARN
+
+	AC_MSG_CHECKING([which warning flags were supported])])
+WARN_CFLAGS=$vte_cv_warn_cflags
+AC_SUBST(WARN_CFLAGS)
+CFLAGS="$CFLAGS $WARN_CFLAGS"
+
+PYTHON_LDFLAGS=""
+for W in "-Wl,--warn-unresolved-symbols"; do
+	VTE_LD_TRY_FLAG([$W], [PYTHON_LDFLAGS="$PYTHON_LDFLAGS $W"])
+done
+AC_SUBST(PYTHON_LDFLAGS)
+
+# Enable debugging messages and additional run-time checks.
+AC_ARG_ENABLE(debug,
+	      [AS_HELP_STRING([--enable-debug],
+			      [enable extra debugging checks and logging messages]
+			      )],
+	      DEBUG=$enableval, DEBUG=no)
+if test "x$DEBUG" != "xno" ; then
+	AC_MSG_RESULT([enabling debug checks and messages])
+	AC_DEFINE(VTE_DEBUG,1,[Enable debugging messages.])
+fi
+
+################################################################################
+
+GNOME_COMMON_INIT
+
+# Disable deprecations and single includes
+# We don't use GNOME_MAINTAINER_MODE_DEFINES here since it's too much and
+# it also defines VTE's own defines.
+dnl AC_ARG_ENABLE([deprecation],
+dnl   [AS_HELP_STRING([--disable-deprecation],
+dnl                   [prohibit VTE from using deprecated GLib/Pango/ATK/GDK/GTK+ features])],
+dnl   [],[enable_deprecation=$enable_maintainer_mode])
+dnl if test "x$enable_deprecation" = xyes; then
+dnl   AC_MSG_NOTICE([disabling deprecated GLIB/PANGO/GDK/ATK/GTK+ features])
+dnl 
+dnl   AC_DEFINE([ATK_DISABLE_DEPRECATED],[1],[Disable deprecated features])
+dnl   AC_DEFINE([ATK_DISABLE_SINGLE_INCLUDES],[1],[Disable single includes])
+dnl   AC_DEFINE([G_DISABLE_DEPRECATED],[1],[Disable deprecated features])
+dnl   AC_DEFINE([G_DISABLE_SINGLE_INCLUDES],[1],[Disable single includes])
+dnl   AC_DEFINE([GDK_DISABLE_DEPRECATED],[1],[Disable deprecated features])
+dnl   AC_DEFINE([GDK_DISABLE_SINGLE_INCLUDES],[1],[Disable single includes])
+dnl   AC_DEFINE([GDK_PIXBUF_DISABLE_DEPRECATED],[1],[Disable deprecated features])
+dnl   AC_DEFINE([GDK_PIXBUF_DISABLE_SINGLE_INCLUDES],[1],[Disable single includes])
+dnl   AC_DEFINE([GTK_DISABLE_DEPRECATED],[1],[Disable deprecated features])
+dnl   AC_DEFINE([GTK_DISABLE_SINGLE_INCLUDES],[1],[Disable single includes])
+dnl   AC_DEFINE([PANGO_DISABLE_DEPRECATED],[1],[Disable deprecated features])
+dnl   AC_DEFINE([PANGO_DISABLE_SINGLE_INCLUDES],[1],[Disable single includes])
+dnl fi
+
+################################################################################
+# Core
+################################################################################
+
+# Use all available features under glibc, and disable accidental use of
+# deprecated functionality.
+AC_EGREP_CPP(glibc,
+		[
+		 #include <stdio.h>
+		 #ifdef __GLIBC__
+		 glibc
+		 #endif
+		],
+		AC_DEFINE(_GNU_SOURCE,1,[Use all glibc features.]))
+
+case $host in
+*-*-solaris*)
+	AC_DEFINE(_XOPEN_SOURCE_EXTENDED,1,[Needed to get declarations for msg_control and msg_controllen on Solaris])
+	AC_DEFINE(_XOPEN_SOURCE,1,[Needed to get declarations for msg_control and msg_controllen on Solaris])
+	AC_DEFINE(__EXTENSIONS__,1,[Needed to get declarations for msg_control and msg_controllen on Solaris])
+	;;
+esac
+
+GLIB_REQUIRED=2.22.0
+PANGO_REQUIRED=1.22.0
+GTK_REQUIRED=2.14.0
+AC_DEFINE(GDK_MULTIHEAD_SAFE,1,[Force use of GDK's multihead-safe APIs.])
+PKG_CHECK_MODULES(GLIB,[glib-2.0 > $GLIB_REQUIRED gobject-2.0])
+PKG_CHECK_MODULES(GTK,[glib-2.0 >= $GLIB_REQUIRED gobject-2.0 gtk+-2.0 >= $GTK_REQUIRED])
+
+# Let the user specify the default terminal emulation.
+AC_ARG_WITH(default-emulation,
+AS_HELP_STRING(--with-default-emulation=xterm,default terminal type to be emulated),
+emulation=$withval,emulation=xterm)
+AC_DEFINE_UNQUOTED(VTE_DEFAULT_EMULATION,"$emulation",[The default terminal type to be emulated.])
+VTE_DEFAULT_EMULATION=$emulation
+AC_SUBST(VTE_DEFAULT_EMULATION)
+AM_CONDITIONAL(VTE_DEFAULT_EMULATION, [test "$emulation" != xterm])
+
+# Check for headers.
+AC_CHECK_HEADERS(sys/select.h sys/syslimits.h sys/termios.h sys/un.h sys/wait.h stropts.h termios.h wchar.h)
+AC_HEADER_TIOCGWINSZ
+
+# Check for PTY handling functions.
+AC_CHECK_FUNCS([cfmakeraw fork setsid setpgid getpgid getpt grantpt unlockpt ptsname ptsname_r tcgetattr tcsetattr])
+
+# Pull in the right libraries for various functions which might not be
+# bundled into an exploded libc.
+AC_CHECK_FUNC(socket,[have_socket=1],AC_CHECK_LIB(socket,socket,[have_socket=1; LIBS="$LIBS -lsocket"]))
+AC_CHECK_FUNC(socketpair,[have_socketpair=1],AC_CHECK_LIB(socket,socketpair,[have_socketpair=1; LIBS="$LIBS -lsocket"]))
+AC_CHECK_FUNC(recvmsg,[have_recvmsg=1],AC_CHECK_LIB(socket,recvmsg,[have_recvmsg=1; LIBS="$LIBS -lsocket -lnsl"]))
+if test x$have_socket = x1 ; then
+	AC_DEFINE(HAVE_SOCKET,1,[Define if you have the socket function.])
+fi
+if test x$have_socketpair = x1 ; then
+	AC_DEFINE(HAVE_SOCKETPAIR,1,[Define if you have the socketpair function.])
+fi
+if test x$have_recvmsg = x1 ; then
+	AC_DEFINE(HAVE_RECVMSG,1,[Define if you have the recvmsg function.])
+fi
+AC_CHECK_FUNC(floor,,AC_CHECK_LIB(m,floor,LIBS=["$LIBS -lm"]))
+AC_CHECK_FUNCS([ceil floor])
+
+# Look for tgetent
+
+AC_CHECK_FUNC([tgetent],[vte_cv_termcap_lib=libc],
+  [AC_CHECK_LIB([ncurses],[tgetent],[vte_cv_termcap_lib=libncurses],
+    [AC_CHECK_LIB([tinfo],[tgetent],[vte_cv_termcap_lib=libtinfo],
+      [AC_CHECK_LIB([curses],[tgetent],[vte_cv_termcap_lib=libcurses],
+        [AC_CHECK_LIB([termcap],[tgetent],[vte_cv_termcap_lib=libtermcap],
+          [vte_cv_termcap_lib=])])])])])
+
+case "$vte_cv_termcap_lib" in
+  libc)       # FIXME: which headers to include here?
+              ;;
+  libncurses) # We need ncurses.h and term.h, or ncurses/curses.h and ncurses/term.h
+              AC_CHECK_HEADERS([ncurses.h term.h],[],
+                [AC_CHECK_HEADERS([ncurses/curses.h ncurses/term.h],[],
+                  [AC_MSG_ERROR([ncurses headers not found])])])
+              LIBS="-lncurses $LIBS"
+              ;;
+  libtinfo)   # Need ncurses/curses.h and ncurses/term.h
+              AC_CHECK_HEADERS([ncurses.h term.h],[],
+                [AC_CHECK_HEADERS([ncurses/curses.h ncurses/term.h],[],
+                  [AC_MSG_ERROR([ncurses headers not found])])])
+              LIBS="-ltinfo $LIBS"
+              ;;
+  libcurses)  # Need curses.h and term.h
+              AC_CHECK_HEADERS([curses.h term.h],[],
+                [AC_MSG_ERROR([curses headers not found])],
+                [[#ifdef HAVE_CURSES_H
+                  #include <curses.h>
+                  #endif]])
+              LIBS="-lcurses $LIBS"
+              ;;
+  libtermcap) # Need termcap.h
+              AC_CHECK_HEADERS([termcap.h],[],
+                [AC_MSG_ERROR([termcap headers not found])])
+              LIBS="-ltermcap $LIBS"
+              ;;
+  *)          AC_MSG_ERROR([tgetent not found in any library]) ;;
+esac
+
+# Search for the required modules.
+
+# We have a direct dependency on X11 on gdk-x11, see bug #613525
+AC_MSG_CHECKING([for GDK target])
+GDK_TARGET="$($PKG_CONFIG --variable target gdk-2.0)"
+AC_MSG_RESULT([$GDK_TARGET])
+case "$GDK_TARGET" in
+  x11) PLATFORM_PKGS="x11 cairo-xlib" ;;
+  *) PLATFORM_PKGS="" ;;
+esac
+
+VTE_PKGS="glib-2.0 >= $GLIB_REQUIRED gobject-2.0 pango >= $PANGO_REQUIRED gtk+-2.0 >= $GTK_REQUIRED gobject-2.0 gio-2.0 gio-unix-2.0 $PLATFORM_PKGS"
+PKG_CHECK_MODULES([VTE],[$VTE_PKGS])
+AC_SUBST([VTE_PKGS])
+
+wcs_funcs_includes="
+#ifdef HAVE_STRING_H
+# if !STDC_HEADERS && HAVE_MEMORY_H
+#  include <memory.h>
+# endif
+# include <string.h>
+#else
+# ifdef HAVE_STRINGS_H
+#  include <strings.h>
+# endif
+#endif
+#ifdef HAVE_WCHAR_H
+# include <wchar.h>
+#endif
+"
+
+AC_CHECK_TYPES(wint_t, AC_DEFINE(HAVE_WINT_T, , [Defined when the wint_t type is supported]), ,$wcs_funcs_includes)
+
+
+################################################################################
+# Auxillary modules
+################################################################################
+
+# Search for Python.
+BUILD_PYTHON=true
+AC_ARG_ENABLE(python, [AS_HELP_STRING(--enable-python,Build python bindings [default=yes])],[
+if test x"$enableval" != xno ; then
+	BUILD_PYTHON=true
+else
+	BUILD_PYTHON=false
+fi],BUILD_PYTHON=true)
+
+if $BUILD_PYTHON ; then
+	AM_PATH_PYTHON
+	if test -z "$PYTHON" ; then
+		BUILD_PYTHON=false
+	fi
+fi
+
+if $BUILD_PYTHON ; then
+	AC_MSG_CHECKING(for python >= 2.2)
+	prog="
+import sys, string
+minver = (2,2,0,'final',0)
+if sys.version_info < minver:
+	sys.exit(1)
+sys.exit(0)
+"
+	if $PYTHON -c "$prog" 1>&AC_FD_CC 2>&AC_FD_CC
+	then
+		AC_MSG_RESULT([okay])
+	else
+		BUILD_PYTHON=false
+		AC_MSG_RESULT([too old])
+	fi
+fi
+
+if $BUILD_PYTHON ; then
+	AM_CHECK_PYTHON_HEADERS(,BUILD_PYTHON=false)
+fi
+
+if $BUILD_PYTHON ; then
+	AC_MSG_CHECKING([for pygtk-2.0])
+	if pkg-config --exists pygtk-2.0 ; then
+		AC_MSG_RESULT([found])
+		PKG_CHECK_MODULES(PYGTK,[pygtk-2.0])
+
+		AC_PATH_PROG(PYGTK_CODEGEN, pygtk-codegen-2.0, no)
+		if test "x$PYGTK_CODEGEN" = xno; then
+		  AC_MSG_ERROR(could not find pygtk-codegen-2.0 script)
+		fi
+
+		AC_MSG_CHECKING(for pygtk defs)
+		PYGTK_DEFSDIR=`$PKG_CONFIG --variable=defsdir pygtk-2.0`
+		AC_SUBST(PYGTK_DEFSDIR)
+		AC_MSG_RESULT($PYGTK_DEFSDIR)
+	else
+		AC_MSG_RESULT([not found])
+		BUILD_PYTHON=false
+	fi
+fi
+
+if ! $BUILD_PYTHON ; then
+	AC_MSG_RESULT([Python bindings disabled.])
+fi
+
+AC_SUBST(PYTHONREV)
+AC_SUBST(PYTHONMODULES)
+AM_CONDITIONAL(BUILD_PYTHON_MODULES, $BUILD_PYTHON)
+
+AC_ARG_ENABLE(gnome-pty-helper, [AS_HELP_STRING(--enable-gnome-pty-helper,Build a setuid helper for opening ptys [default=yes])], enable_gnome_pty_helper="$enableval", enable_gnome_pty_helper=yes)
+if test "$enable_gnome_pty_helper" != no; then
+	AC_DEFINE(VTE_USE_GNOME_PTY_HELPER,1,[Define if you intend to use gnome-pty-helper.])
+	AC_CONFIG_SUBDIRS(gnome-pty-helper)
+fi
+AM_CONDITIONAL(BUILD_GNOME_PTY_HELPER,[test "$enable_gnome_pty_helper" != no])
+
+AC_PATH_PROG([GLIB_GENMARSHAL],[glib-genmarshal])
+AC_PATH_PROG([GLIB_MKENUMS],[glib-mkenums])
+
+################################################################################
+# Glade catalogue
+################################################################################
+
+AC_MSG_CHECKING([whether to install the glade catalogue])
+AC_ARG_ENABLE([glade-catalogue],
+  [AS_HELP_STRING([--disable-glade],[Disable installing the glade catalogue])],
+  [],[enable_glade_catalogue=no])
+AC_MSG_RESULT([$enable_glade_catalogue])
+
+if test "$enable_glade_catalogue" = "yes"; then
+  GLADE_CATALOGUE_DIR="$($PKG_CONFIG --variable=catalogdir gladeui-1.0)"
+  GLADE_ICON_DIR="$($PKG_CONFIG --variable=pixmapdir gladeui-1.0)"
+  GLADE_MODULE_DIR="$($PKG_CONFIG --variable=moduledir gladeui-1.0)"
+
+  if test -z "$GLADE_CATALOGUE_DIR" -o -z "$GLADE_MODULE_DIR"; then
+    AC_MSG_ERROR([gladeui-1.0 not found])
+  fi
+
+  AC_SUBST([GLADE_CATALOGUE_DIR])
+  AC_SUBST([GLADE_ICON_DIR])
+  AC_SUBST([GLADE_MODULE_DIR])
+fi
+  
+AM_CONDITIONAL([ENABLE_GLADE_CATALOGUE],[test "$enable_glade_catalogue" = "yes"])
+
+################################################################################
+
+GTK_DOC_CHECK([1.13],[--flavour no-tmpl])
+
+AC_SUBST([GLIB_PREFIX],[$($PKG_CONFIG --variable=prefix glib-2.0)])
+AC_SUBST([GTK_PREFIX],[$($PKG_CONFIG --variable=prefix gtk+-2.0)])
+
+################################################################################
+
+AC_SUBST([VTE_MAJOR_VERSION],[vte_version_major])
+AC_SUBST([VTE_MINOR_VERSION],[vte_version_minor])
+AC_SUBST([VTE_MICRO_VERSION],[vte_version_micro])
+AC_SUBST([VTE_API_VERSION],[vte_api_version])
+
+################################################################################
+
+AC_CONFIG_FILES([
+Makefile
+src/Makefile
+src/vteversion.h
+termcaps/Makefile
+perf/Makefile
+python/Makefile
+python/pyvte.pc
+po/Makefile.in
+doc/Makefile
+doc/openi18n/Makefile
+doc/reference/Makefile
+doc/reference/version.xml
+glade/Makefile
+vte.pc
+vte-uninstalled.pc
+])
+AC_OUTPUT
+
+
+#####################
+# Print configuration
+#####################
+cat <<EOF | tee -a config.log
+
+## -------------- ##
+## Configuration. ##
+## -------------- ##
+
+Configuration for libvte $VERSION
+	Installing Glade catalogue: $enable_glade_catalogue
+	Debugging: $DEBUG
+	Disallow deprecated features: $enable_deprecation
+EOF

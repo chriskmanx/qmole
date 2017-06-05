@@ -1,0 +1,82 @@
+#!/bin/sh
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+datadir=@datadir@
+tmpdir=${TMPDIR:-/tmp}
+
+# argument checking
+if [ ${#} -ne "2" ]; then
+	echo "Usage: ${0} <word document> <text output file>"
+	exit 1
+fi
+
+USE_DUMP=0
+which elinks >/dev/null 2>&1
+if [ ${?} -eq "0" ]; then
+    USE_DUMP=3
+else
+    which links >/dev/null 2>&1
+    if [ ${?} -eq "0" ]; then
+	USE_DUMP=2
+    else
+	which lynx >/dev/null 2>&1
+	if [ ${?} -eq "0" ]; then
+	    USE_DUMP=1
+	fi
+    fi    
+fi
+
+if [ $USE_DUMP -eq "1" ]; then
+	echo "Could not find required program 'elinks' or 'links'"
+	echo "Using lynx. Output will be pretty ugly."
+elif [ $USE_DUMP -eq "0" ]; then
+	echo "Could not find required program 'elinks', 'links', or even 'lynx'"
+	echo "Using wvWare -x wvText.xml. Output will be pretty bad."
+fi
+
+if [ $USE_DUMP -gt "0" ]; then
+
+    # first, test for wvHtml
+    which wvHtml >/dev/null 2>&1
+    if [ ${?} -ne "0" ]; then
+       	echo "Could not find required program 'wvHtml'"
+	exit 1
+    fi
+
+    # intermediate file
+    TMP_FILE=`mktemp "$tmpdir/wv-XXXXXX"`
+    TMP_FILE=`basename "$TMP_FILE"`
+
+    wvHtml -1 "${1}" --targetdir="${tmpdir}" "${TMP_FILE}" >/dev/null 2>&1
+    if [ ${?} -ne "0" ]; then
+	echo "Could not convert into HTML"
+	exit 1
+    fi
+
+    if [ $USE_DUMP -eq "3" ]; then
+	# elinks does the best
+	elinks -dump -force-html "${tmpdir}/${TMP_FILE}" > "${2}"
+    elif [ $USE_DUMP -eq "2" ]; then
+	# links does a pretty good job
+	links -dump "${tmpdir}/${TMP_FILE}" > "${2}"
+    else
+	# lynx sucks, but does better than wvText.xml
+	TERM=vt100 lynx -dump -force_html "${tmpdir}/${TMP_FILE}" > "${2}"
+    fi;
+
+    if [ ${?} -ne "0" ]; then
+	    echo "Could not convert into Text"
+	    rm -f "${tmpdir}/${TMP_FILE}"
+	    exit 1
+    fi
+
+    # clean up
+    rm -f "${tmpdir}/${TMP_FILE}"
+
+else
+    # fall back onto our cruddy output
+    # this is, admittedly, better than running
+    # 'strings' on the word document though :)
+    wvWare -x ${datadir}/wv/wvText.xml "${1}" > "${2}"
+fi

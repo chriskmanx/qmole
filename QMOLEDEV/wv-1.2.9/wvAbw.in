@@ -1,0 +1,143 @@
+#!/bin/sh
+
+wv_script_name="$0"
+
+prefix=@prefix@
+exec_prefix=
+datadir=
+t_dir=.
+
+wv_opts=
+i_file=
+o_file=
+print_help=no
+
+while test $# -gt 0; do
+  case "$1" in
+  -*=*) optarg=`echo "$1" | sed 's/[-_a-zA-Z0-9]*=//'` ;;
+  *) optarg= ;;
+  esac
+
+  case $1 in
+    --prefix=*)
+      prefix=$optarg
+      ;;
+    --exec-prefix=*)
+      exec_prefix=$optarg
+      ;;
+    --datadir=*)
+      datadir=$optarg
+      ;;
+    --targetdir=*)
+      t_dir=$optarg
+      ;;
+    --charset=* | --password=*)
+      wv_opts="$wv_opts $1"
+      ;;
+    -v | --version)
+      echo @VERSION@
+      exit 0
+      ;;
+    -\? | -h | --help)
+      cat << EOF
+Usage: $wv_script_name [OPTIONS] <input-file> <output-file>
+Options:
+      --prefix=<DIR>        Set prefix (default is @prefix@)
+      --exec-prefix=<DIR>   Set exec_prefix (default is @exec_prefix@)
+      --datadir=<DIR>       Set datadir (default is @datadir@)
+      --targetdir=<DIR>     Target directory (target is <DIR>/<output-file>)
+      --charset=<charset>   Specify an iconv charset encoding
+      --password=<password> Specify password for encrypted
+  -v, --version             Print version info and exit
+
+Authors:
+  Dom Lachowicz (dominicl@seas.upenn.edu)
+  Caolan McNamara (original author)
+Visit http://www.wvware.com/
+EOF
+      exit 0
+      ;;
+    -?*)
+      echo "Option '$1' not recognized."
+      exit 1
+      ;;
+    *)
+      if test "x$i_file" = "x"; then
+        i_file=$1
+      elif test "x$o_file" = "x"; then
+        o_file=$1
+      else
+        echo "Option '$1' not recognized."
+        exit 1
+      fi
+      ;;
+  esac
+  shift
+done
+
+if test "x$i_file" = "x-"; then
+  echo "error: cannot specify '-' as input"
+  exit 1
+fi
+if test -r "$i_file"; then
+  okay=yes
+else
+  echo "error: '$i_file' unreadable"
+  exit 1
+fi
+
+if test "x$o_file" = "x"; then
+  echo "Usage: $1 [OPTIONS] <input-file> <output-file>"
+  exit 1
+fi
+name=`basename "$o_file"`
+if test "x$o_file" != "x$name"; then
+  echo "* * * Better to use '--targetdir' for writing in another directory * * *"
+  exit 1
+fi
+name=`echo $name | sed 's/\.[^\.]*$//'`
+
+if test "x$exec_prefix" = "x"; then
+  exec_prefix=@exec_prefix@
+fi
+wv_exec="$exec_prefix/bin/wvWare"
+if test -x "$wv_exec"; then
+  okay=yes
+else
+  wv_version=`wvWare -v 2>&1 | cut -f 2 -d " "`
+  if test "x$wv_version" = "x@VERSION@"; then
+    wv_exec="wvWare"
+  else
+    echo "error: no executable at '$wv_exec' or in path"
+    exit 1
+  fi
+fi
+
+if test "x$datadir" = "x"; then
+  datadir=@datadir@
+fi
+xmlcfg="$datadir/wv/wvAbw.xml"
+if test -r "$xmlcfg"; then
+  okay=yes
+else
+  echo "error: '$xmlcfg' unreadable"
+  exit 1
+fi
+
+if test -d "$t_dir"; then
+  if test -w "$t_dir"; then
+    okay=yes
+  else
+    echo "error: '$t_dir' is not writable"
+    exit 1
+  fi
+else
+  echo "error: '$t_dir' is not a directory"
+  exit 1
+fi
+
+if test "x$o_file" = "x-"; then
+  "$wv_exec" $wv_opts -x "$xmlcfg" -d "$t_dir" -b "$name" "$i_file"
+else
+  "$wv_exec" $wv_opts -x "$xmlcfg" -d "$t_dir" -b "$name" "$i_file" > "$t_dir"/"$o_file"
+fi

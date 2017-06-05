@@ -1,0 +1,104 @@
+#!/bin/sh
+#
+# $Xorg: mergelib.cpp,v 1.4 2001/02/09 02:03:17 xorgcvs Exp $
+#
+# Copyright (c) 1989, 1998 The Open Group
+#
+# Permission to use, copy, modify, distribute, and sell this software and
+# its documentation for any purpose is hereby granted without fee, provided
+# that the above copyright notice appear in all copies and that both that
+# copyright notice and this permission notice appear in supporting
+# documentation.
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# OPEN GROUP BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+# AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# Except as contained in this notice, the name of The Open Group shall not be
+# used in advertising or otherwise to promote the sale, use or other dealings
+# in this Software without prior written authorization from The Open Group.
+#
+# Author: Jim Fulton, MIT X Consortium
+#
+# mergelib - merge one library into another; this is commonly used by X
+# to add the extension library into the base Xlib.
+#
+
+usage="usage:  $0  to-library from-library [object-filename-prefix]"
+objprefix=_
+
+case $# in
+    2) ;;
+    3) objprefix=$3 ;;
+    *) echo "$usage" 1>&2; exit 1 ;;
+esac
+
+tolib=$1
+fromlib=$2
+
+if [ ! -f $fromlib ]; then
+    echo "$0:  no such from-library $fromlib" 1>&2
+    exit 1
+fi
+
+if [ ! -f $tolib ]; then
+    echo "$0:  no such to-library $tolib" 1>&2
+    exit 1
+fi
+
+
+#
+# Create a temp directory, and figure out how to reference the
+# object files from it (i.e. relative vs. absolute path names).
+#
+
+tmpdir=tmp.$$
+origdir=..
+
+# Remove directory if we fail
+trap "rm -rf $tmpdir; exit 1" 1 2 15
+trap "rm -rf $tmpdir; exit 0" 1 2 13
+
+mkdir $tmpdir
+
+# Security: if $tmpdir exists before mkdir exit immediately
+if [ $? -gt 0 -o ! -d $tmpdir ]; then
+    echo "$0:  unable to create temporary directory $tmpdir" 1>&2
+    exit 1
+fi
+
+case "$fromlib" in
+    /?*) upfrom= ;;
+    *) upfrom=../ ;;
+esac
+
+case "$tolib" in
+    /?*) upto= ;;
+    *) upto=../ ;;
+esac
+
+
+#
+# In the temp directory, extract all of the object files and prefix
+# them with some symbol to avoid name clashes with the base library.
+#
+cd $tmpdir || exit 1
+ar x ${upfrom}$fromlib
+for i in *.o; do
+    mv $i ${objprefix}$i
+done
+
+
+#
+# Merge in the object modules, ranlib (if appropriate) and cleanup
+#
+ar clq ${upto}$tolib *.o
+ranlib ${upto}$tolib
+cd $origdir
+rm -rf $tmpdir

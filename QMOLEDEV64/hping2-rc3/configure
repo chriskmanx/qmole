@@ -1,0 +1,117 @@
+#!/bin/sh
+
+show_help()
+{
+	echo configure help:
+	echo "--help                  show this help"
+	echo "--force-libpcap         build a libpcap based binary under linux"
+	echo "                        even if uid != euid"
+}
+
+if [ "$1" = "--help" ]; then
+	show_help
+	exit 0
+fi
+
+CC=${CC:=cc}
+
+echo build byteorder.c...
+$CC byteorder.c -o byteorder || exit 1
+
+INSTALL_MANPATH=`echo $MANPATH|cut -f1 -d:`
+if [ "$INSTALL_MANPATH" = "" ]; then
+	INSTALL_MANPATH="/usr/local/man"
+fi
+BYTEORDER=`./byteorder -m`
+
+echo create byteorder.h...
+cat > byteorder.h <<EOF
+#ifndef __BYTEORDER_H
+#define __BYTEORDER_H
+
+EOF
+echo \#ifndef $BYTEORDER >> byteorder.h
+echo \#define $BYTEORDER >> byteorder.h
+echo \#endif /\* $BYTEORDER \*/ >> byteorder.h
+cat >> byteorder.h <<EOF
+
+#endif /* __BYTEORDER_H */
+EOF
+
+CONFIGOSTYPE=`uname -s | tr [a-z] [A-Z]`
+if [ ! "$CONFIGOSTYPE" ]; then
+	CONFIGOSTYPE=UNKNOWN
+fi
+
+# for BSD/OS use the historical name as it doesn't include '/'
+if [  $CONFIGOSTYPE = "BSD/OS" ]; then
+	CONFIGOSTYPE=BSDI
+fi
+
+case $CONFIGOSTYPE in
+  SUNOS)
+    SOLARISLIB="-lsocket -lresolv -lnsl"
+    BUG='/* #define STUPID_SOLARIS_CHECKSUM_BUG */'
+    case `uname -r` in
+      2.0*|5.0*|2.1*|5.1*|2.2*|5.2*|2.3*|5.3*|2.4*|5.4*|5.5.1)
+               BUG='#define STUPID_SOLARIS_CHECKSUM_BUG' ;;
+    esac
+esac
+
+#
+# configurable stuff
+#
+FORCE_LIBPCAP=""
+if [ "$CONFIGOSTYPE" = "LINUX" ]; then
+	PCAP=""
+	PCAP_INCLUDE=""
+else
+	PCAP="PCAP=-lpcap"
+	PCAP_INCLUDE=""
+fi
+
+for ARG in $*; do
+	case "$ARG" in
+		*"--force-libpcap")
+			FORCE_LIBPCAP="-DFORCE_LIBPCAP"
+			PCAP="PCAP=-lpcap"
+			PCAP_INCLUDE=""
+			;;
+	esac
+done
+
+echo --------------------------------------
+echo system type: $CONFIGOSTYPE
+echo
+echo "FORCE_LIBPCAP: $FORCE_LIBPCAP"
+echo "LIBPCAP      : $PCAP"
+echo "PCAP_INCLUDE : $PCAP_INCLUDE"
+echo "MANPATH      : $INSTALL_MANPATH"
+echo
+echo "(to modify try configure --help)"
+echo --------------------------------------
+
+echo creating Makefile...
+sed	-e "s/@FORCE_LIBPCAP@/$FORCE_LIBPCAP/g" \
+	-e "s^@PCAP@^$PCAP^g" \
+	-e "s^@PCAP_INCLUDE@^$PCAP_INCLUDE^g" \
+	-e "s^@MANPATH@^$INSTALL_MANPATH^g" \
+	-e "s^@SOLARISLIB@^$SOLARISLIB^g" \
+	<Makefile.in > Makefile
+
+#
+#
+#
+
+cat > systype.h <<EOF
+#ifndef __SYSTYPE_H
+#define __SYSTYPE_H
+
+EOF
+echo \#define OSTYPE_${CONFIGOSTYPE} >> systype.h
+cat >> systype.h <<EOF
+
+#endif /* SYSTYPE_H */
+EOF
+
+echo now you can try \`make\'

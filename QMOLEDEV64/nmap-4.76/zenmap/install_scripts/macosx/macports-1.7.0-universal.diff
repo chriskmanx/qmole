@@ -1,0 +1,86 @@
+diff --unidirectional-new-file -ru -x PortIndex ports.orig/devel/openssl/Portfile ports/devel/openssl/Portfile
+--- ports.orig/devel/openssl/Portfile	2008-05-29 04:34:32.000000000 -0600
++++ ports/devel/openssl/Portfile	2008-09-05 11:54:34.000000000 -0600
+@@ -58,9 +58,21 @@
+ 	}
+ 
+ 	configure {
++		# Save configure.universal_archs because we modify it before
++		# each invocation of Configure.
++		set tmp_universal_archs ${configure.universal_archs}
+ 		foreach arch {i386 ppc} {
++			# We configure for one arch at a time.
++			configure.universal_archs ${arch}
+ 			system "cd ${workpath}/${arch} && ./Configure darwin-${arch}-cc ${configure.pre_args} ${configure.args}"
++			reinplace "s|^\\(CFLAG=.*\\)|\\1 ${configure.cflags} ${configure.universal_cflags}|" \
++				${workpath}/${arch}/Makefile
++			reinplace "s|^\\(SHARED_LDFLAGS=.*\\)|\\1 ${configure.ldflags} ${configure.universal_ldflags}|" \
++				${workpath}/${arch}/Makefile \
++				${workpath}/${arch}/Makefile.shared
+ 		}
++		# Restore configure.universal_archs.
++		configure.universal_archs $tmp_universal_archs
+ #		system "cd ${workpath}/x86_64 && ./Configure darwin64-x86_64-cc ${configure.pre_args} ${configure.args}"
+ #		system "cd ${workpath}/ppc64 && ./Configure darwin64-ppc-cc ${configure.pre_args} ${configure.args}"
+ 	}
+diff --unidirectional-new-file -ru -x PortIndex ports.orig/graphics/cairo/Portfile ports/graphics/cairo/Portfile
+--- ports.orig/graphics/cairo/Portfile	2008-08-27 02:17:47.000000000 -0600
++++ ports/graphics/cairo/Portfile	2008-09-05 11:54:34.000000000 -0600
+@@ -147,12 +147,16 @@
+     }
+     
+     configure {
++        # Save configure.universal_archs because we modify it before each
++        # invocation of Configure.
++        set tmp_universal_archs ${configure.universal_archs}
+         foreach arch ${universal_archs} {
+-            set my_arch_flag "-arch ${arch}"
+-            set my_cflags "${configure.cflags} -isysroot ${sysroot} ${my_arch_flag}"
+-            set my_ldflags "${configure.ldflags} ${my_arch_flag}"
+-            system "cd ${workpath}/${arch} && CFLAGS=\"${my_cflags}\" CXXFLAGS=\"${my_cflags}\" LDFLAGS=\"${my_ldflags}\" ${configure.cmd} ${configure.pre_args} ${configure.args}"
++            # We configure for one arch at a time.
++            configure.universal_archs ${arch}
++            system "cd ${workpath}/${arch} && CPPFLAGS=\"${configure.cppflags} ${configure.universal_cppflags}\" CFLAGS=\"${configure.cflags} ${configure.universal_cflags}\" CXXFLAGS=\"${configure.cflags} ${configure.universal_cxxflags}\" LDFLAGS=\"${configure.ldflags} ${configure.universal_ldflags}\" ${configure.cmd} ${configure.pre_args} ${configure.args} ${configure.universal_args}"
+         }
++        # Restore configure.universal_archs.
++        configure.universal_archs $tmp_universal_archs
+     }
+     
+     build {
+diff --unidirectional-new-file -ru -x PortIndex ports.orig/lang/python25/files/patch-Makefile.pre.in.diff ports/lang/python25/files/patch-Makefile.pre.in.diff
+--- ports.orig/lang/python25/files/patch-Makefile.pre.in.diff	2008-02-22 16:26:05.000000000 -0700
++++ ports/lang/python25/files/patch-Makefile.pre.in.diff	2008-09-05 11:54:34.000000000 -0600
+@@ -9,7 +9,7 @@
+ +		-all_load $(LIBRARY) -single_module \
+ +		-install_name $(LIBDIR)/$@ \
+ +		-compatibility_version $(VERSION) \
+-+		-current_version $(VERSION) -lSystem -lSystemStubs $(LDFLAGS)
+++		-current_version $(VERSION) -lSystem -lSystemStubs
+ +
+  # This rule is here for OPENSTEP/Rhapsody/MacOSX. It builds a temporary
+  # minimal framework (not including the Lib directory and such) in the current
+diff --unidirectional-new-file -ru -x PortIndex ports.orig/python/py25-py2app-devel/Portfile ports/python/py25-py2app-devel/Portfile
+--- ports.orig/python/py25-py2app-devel/Portfile	2008-08-22 18:17:16.000000000 -0600
++++ ports/python/py25-py2app-devel/Portfile	2008-09-05 11:56:01.000000000 -0600
+@@ -26,7 +26,7 @@
+ 
+ depends_lib-append  port:py25-setuptools \
+                     port:py25-altgraph \
+-                    path:${prefix}${apymacholibfile}:py25-macholib \
++                    port:py25-macholib-devel \
+                     port:py25-modulegraph-devel \
+                     port:py25-bdist_mpkg
+ 
+diff --unidirectional-new-file -ru -x PortIndex ports.orig/x11/pango/Portfile ports/x11/pango/Portfile
+--- ports.orig/x11/pango/Portfile	2008-07-05 23:19:46.000000000 -0600
++++ ports/x11/pango/Portfile	2008-09-05 11:54:34.000000000 -0600
+@@ -41,7 +41,8 @@
+ 
+ configure.ldflags-append \
+     -no-undefined \
+-    -bind_at_load
++    -bind_at_load \
++    "-Wl,-dylib_file,/System/Library/Frameworks/OpenGL.framework/Versions/A/Libraries/libGL.dylib:/System/Library/Frameworks/OpenGL.framework/Versions/A/Libraries/libGL.dylib"
+ 
+ configure.args \
+     --x-includes=${x11prefix}/include \

@@ -1,0 +1,106 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2005 Insecure.Com LLC.
+#
+# Authors: Adriano Monteiro Marques <py.adriano@gmail.com>
+#          Cleber Rodrigues <cleber.gnu@gmail.com>
+#          Frederico Silva Ribeiro <ribeiro.fsilva@gmail.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+import os
+import sys
+from os.path import split
+
+from zenmapCore.Name import APP_NAME, APP_DISPLAY_NAME
+from zenmapCore.UmitOptionParser import option_parser
+from zenmapCore.UmitLogging import log
+
+DEVELOPMENT = os.environ.get(APP_NAME.upper() + "_DEVELOPMENT", False)
+
+if not DEVELOPMENT:
+    # This will catch exceptions and send them to bugzilla
+    def excepthook(type, value, tb):
+        import traceback
+
+        traceback.print_tb(tb)
+
+        # Cause an exception if PyGTK can't open a display. Normally this just
+        # produces a warning, but the lack of a display eventually causes a
+        # segmentation fault. See http://live.gnome.org/PyGTK/WhatsNew210.
+        import warnings
+        warnings.filterwarnings("error", module = "gtk")
+        import gtk
+        warnings.resetwarnings()
+
+        gtk.gdk.threads_enter()
+
+        from zenmapCore.I18N import _
+        from zenmapCore.Version import VERSION
+        from zenmapGUI.higwidgets.higdialogs import HIGAlertDialog
+        from zenmapGUI.CrashReport import CrashReport
+
+        if type == ImportError:
+            d = HIGAlertDialog(type=gtk.MESSAGE_ERROR,
+                message_format=_("Import error"),
+                secondary_text=_("""\
+A required module was not found.
+
+""" + value.message))
+            d.run()
+            d.destroy()
+        else:
+            hook = "Type: %s\nValue: %s\n" % (type, value)
+            outputs = "CRASH REPORTED:\n\
+SYS.PLATFORM: %s\n\
+OS.NAME: %s\n\
+%s Version: %s\n\
+TRACEBACK:\n%s" % \
+            (sys.platform, os.name,
+             APP_DISPLAY_NAME,
+             VERSION,
+             "".join(traceback.format_exception(type, value, tb)))
+
+            try:
+                c = CrashReport("%s Crash - '%s'" % (APP_DISPLAY_NAME, value), outputs)
+                c.show_all()
+                gtk.main()
+            except:
+                d = HIGAlertDialog(type=gtk.MESSAGE_ERROR,
+                                   message_format=_("Bug not reported"),
+                                   secondary_text=_("""A critical error \
+occurred during %s execution,
+and it was not properly reported to our bug tracker. Please,
+copy the error message bellow and report it on our bug tracker.
+
+The following error message was NOT reported:
+%s""") % (APP_DISPLAY_NAME, outputs))
+                d.run()
+                d.destroy()
+
+        gtk.gdk.threads_leave()
+
+        gtk.main_quit()
+
+    sys.excepthook = excepthook
+
+if __name__ == '__main__':
+    import zenmapGUI.App
+
+    try:
+        zenmapGUI.App.run()
+    except KeyboardInterrupt:
+        sys.exit(1)

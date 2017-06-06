@@ -1,0 +1,262 @@
+# Extract the version string from nmap.h.
+export NMAP_VERSION := $(shell grep '^\#[ \t]*define[ \t]\+NMAP_VERSION' nmap.h | sed -e 's/.*"\(.*\)".*/\1/' -e 'q')
+NMAP_NAME= Nmap
+NMAP_URL= http://nmap.org
+NMAP_PLATFORM=arm64-apple-darwin14.0.0
+prefix = /usr/local
+exec_prefix = ${prefix}
+bindir = ${exec_prefix}/bin
+sbindir = ${exec_prefix}/sbin
+mandir = ${prefix}/share/man
+srcdir = .
+nmaplibexecdir = ${exec_prefix}/libexec/nmap
+nmapdatadir = ${prefix}/share/nmap
+deskdir = $(prefix)/share/applications
+NMAPDEVDIR=~/nmap-dev
+
+export NBASEDIR=nbase
+export NSOCKDIR=nsock
+export LIBLUADIR = liblua
+export NDIR=$(shell pwd)
+export LIBLUA_LIBS = 
+CC = /usr/bin/gcc
+CXX = /usr/bin/g++
+CCOPT = 
+DBGFLAGS = 
+STRIP = /usr/bin/strip
+LIBPCAPDIR = libpcap
+LIBPCREDIR = libpcre
+export LIBDNETDIR = libdnet-stripped
+ZENMAPDIR = zenmap
+PYTHON = /usr/bin/python
+DEFS = -DHAVE_CONFIG_H -DNMAP_NAME=\"$(NMAP_NAME)\" -DNMAP_URL=\"$(NMAP_URL)\" -DNMAP_PLATFORM=\"$(NMAP_PLATFORM)\" -DNMAPDATADIR=\"$(nmapdatadir)\" -DNMAPLIBEXECDIR=\"$(nmaplibexecdir)\"
+# For mtrace debugging -- see MTRACE define in main.cc for instructions
+# Should only be enabled during debugging and not in any real release.
+# DEFS += -DMTRACE=1
+CXXFLAGS = -DNOLUA -no-cpp-precomp -g -O2 -Wall  -fno-strict-aliasing $(DBGFLAGS) $(CCOPT) $(DEFS)
+CPPFLAGS = -Ilibdnet-stripped/include  -Inbase -Insock/include
+export CFLAGS = $(CXXFLAGS)
+# CFLAGS = $(DEFS) $(INCLS)
+STATIC =
+LDFLAGS =  -Lnbase -Lnsock/src/ $(DBGFLAGS) $(STATIC)
+LIBS =  -lnbase -lnsock -lpcre -lpcap -lssl -lcrypto libdnet-stripped/src/.libs/libdnet.a  -lm  
+# LIBS =  -lefence -lm 
+# LIBS =  -lrmalloc -lm 
+INSTALL = /usr/bin/install -c
+# MAKEDEPEND = @MAKEDEPEND@
+export RPMTDIR=$(HOME)/rpm
+
+
+# DESTDIR is used by some package maintainers to install Nmap under
+# its usual directory structure into a different tree.  See the 
+# CHANGELOG for more info.
+DESTDIR =
+
+TARGET = nmap
+INSTALLNSE=
+BUILDZENMAP=build-zenmap
+INSTALLZENMAP=install-zenmap
+UNINSTALLZENMAP=uninstall-zenmap
+
+ifneq (,)
+NSE_SRC=nse_main.cc nse_nsock.cc nse_init.cc nse_fs.cc nse_nmaplib.cc nse_debug.cc nse_pcrelib.cc nse_binlib.cc nse_hash.cc nse_bit.cc
+NSE_HDRS=nse_main.h nse_nsock.h nse_init.h nse_fs.h nse_nmaplib.h nse_debug.h nse_macros.h nse_pcrelib.h nse_binlib.h nse_hash.h nse_bit.h
+NSE_OBJS=nse_main.o nse_nsock.o nse_init.o nse_fs.o nse_nmaplib.o nse_debug.o nse_pcrelib.o nse_binlib.o nse_hash.o nse_bit.o
+endif
+
+export SRCS = main.cc nmap.cc targets.cc tcpip.cc nmap_error.cc utils.cc idle_scan.cc osscan.cc osscan2.cc output.cc scan_engine.cc timing.cc charpool.cc services.cc protocols.cc nmap_rpc.cc portlist.cc NmapOps.cc TargetGroup.cc Target.cc FingerPrintResults.cc service_scan.cc NmapOutputTable.cc MACLookup.cc nmap_tty.cc nmap_dns.cc traceroute.cc portreasons.cc $(NSE_SRC) 
+
+export HDRS = charpool.h FingerPrintResults.h global_structures.h idle_scan.h MACLookup.h nmap_amigaos.h nmap_dns.h nmap_error.h nmap.h NmapOps.h NmapOutputTable.h nmap_rpc.h nmap_tty.h nmap_winconfig.h osscan.h osscan2.h output.h portlist.h protocols.h scan_engine.h service_scan.h services.h TargetGroup.h Target.h targets.h tcpip.h timing.h utils.h traceroute.h portreasons.h $(NSE_HDRS)
+
+OBJS = main.o nmap.o targets.o tcpip.o nmap_error.o utils.o idle_scan.o osscan.o osscan2.o output.o scan_engine.o timing.o charpool.o services.o protocols.o nmap_rpc.o portlist.o NmapOps.o TargetGroup.o Target.o FingerPrintResults.o service_scan.o NmapOutputTable.o MACLookup.o nmap_tty.o nmap_dns.o  traceroute.o portreasons.o $(NSE_OBJS) 
+
+# %.o : %.cc -- nope this is a GNU extension
+.cc.o:
+	$(CXX) -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
+
+all:    dnet_build nbase_build nsock_build
+	$(MAKE) $(TARGET) $(BUILDZENMAP)
+
+$(TARGET):    libdnet-stripped/src/.libs/libdnet.a $(NBASEDIR)/libnbase.a $(NSOCKDIR)/src/libnsock.a $(OBJS)
+	echo Compiling nmap
+	rm -f $@
+	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+
+pcre_build: $(LIBPCREDIR)/Makefile
+	@echo Compiling libpcre; cd $(LIBPCREDIR) && $(MAKE)
+
+dnet_build: $(LIBDNETDIR)/Makefile
+	@echo Compiling libdnet; cd $(LIBDNETDIR) && $(MAKE)
+
+pcap_build: $(LIBPCAPDIR)/Makefile
+	@echo Compiling libpcap; cd $(LIBPCAPDIR) && $(MAKE)
+
+nbase_build: $(NBASEDIR)/Makefile
+	@echo Compiling libnbase;
+	cd $(NBASEDIR) && $(MAKE)
+
+nsock_build: $(NSOCKDIR)/src/Makefile nbase_build
+	@echo Compiling libnsock;
+	cd $(NSOCKDIR)/src && $(MAKE)
+
+lua_build: $(LIBLUADIR)/Makefile
+	@echo Compiling liblua; cd $(LIBLUADIR) && $(MAKE) liblua.a CC="$(CC)" MYCFLAGS="$(CFLAGS) -DLUA_USE_MACOSX"
+
+#$(LIBPCAPDIR)/Makefile:
+#	@echo Configuring libpcap; cd $(LIBPCAPDIR); ./configure
+
+
+# Make a statically compiled binary for portability between distributions
+static:
+	$(MAKE) STATIC=-static
+
+debug:
+	$(MAKE) DBGFLAGS="-O0 -g -pg -ftest-coverage -fprofile-arcs"
+
+# Make the Nmap tarball
+distro:
+	cd $(NMAPDEVDIR) && $(MAKE) distro
+
+# Update the web site
+web:
+	cd $(NMAPDEVDIR) && $(MAKE) web
+
+clean:    dnet_clean nsock_clean nbase_clean my_clean zenmap_clean
+
+my_clean:
+	rm -f dependencies.mk makefile.dep
+	rm -f $(OBJS) $(TARGET) config.cache
+pcap_clean:
+	-cd $(LIBPCAPDIR) && $(MAKE) clean
+pcre_clean:
+	-cd $(LIBPCREDIR) && $(MAKE) clean
+dnet_clean:
+	-cd $(LIBDNETDIR) && $(MAKE) clean
+nbase_clean:
+	-cd $(NBASEDIR) && $(MAKE) clean
+nsock_clean:
+	-cd $(NSOCKDIR)/src && $(MAKE) clean
+lua_clean:
+	-cd $(LIBLUADIR) && $(MAKE) clean
+zenmap_clean:
+	-cd $(ZENMAPDIR) && $(PYTHON) setup.py clean --all
+pcap_dist_clean:
+	-cd $(LIBPCAPDIR) && $(MAKE) distclean
+pcre_dist_clean:
+	-cd $(LIBPCREDIR) && $(MAKE) distclean
+dnet_dist_clean:
+	-cd $(LIBDNETDIR) && $(MAKE) distclean
+lua_dist_clean:
+	-cd $(LIBLUADIR) && $(MAKE) clean
+nbase_dist_clean:
+	-cd $(NBASEDIR) && $(MAKE) distclean
+nsock_dist_clean:
+	-cd $(NSOCKDIR)/src && $(MAKE) distclean
+zenmap_dist_clean: zenmap_clean
+	-cd $(ZENMAPDIR) && rm -rf MANIFEST build/ dist/
+debugclean:
+	rm -f *.gcov *.gcda *.gcno gmon.out
+
+distclean: my_clean my_distclean    dnet_dist_clean nbase_dist_clean nsock_dist_clean zenmap_dist_clean
+
+my_distclean:
+	rm -f Makefile Makefile.bak makefile.dep nmap_config.h stamp-h stamp-h.in \
+	         config.cache config.log config.status
+
+install-nmap: $(TARGET)
+	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(mandir)/man1 $(DESTDIR)$(nmapdatadir)
+	$(INSTALL) -c -m 755 nmap $(DESTDIR)$(bindir)/nmap
+# Use strip -x to avoid stripping dynamically loaded NSE functions. See
+# http://seclists.org/nmap-dev/2007/q4/0272.html.
+	$(STRIP) -x $(DESTDIR)$(bindir)/nmap
+	$(INSTALL) -c -m 644 docs/$(TARGET).1 $(DESTDIR)$(mandir)/man1/
+	$(INSTALL) -c -m 644 docs/nmap.xsl $(DESTDIR)$(nmapdatadir)/
+	$(INSTALL) -c -m 644 docs/nmap.dtd $(DESTDIR)$(nmapdatadir)/
+	$(INSTALL) -c -m 644 nmap-services $(DESTDIR)$(nmapdatadir)/
+	$(INSTALL) -c -m 644 nmap-rpc $(DESTDIR)$(nmapdatadir)/
+	$(INSTALL) -c -m 644 nmap-os-db $(DESTDIR)$(nmapdatadir)/
+	$(INSTALL) -c -m 644 nmap-service-probes $(DESTDIR)$(nmapdatadir)/
+	$(INSTALL) -c -m 644 nmap-protocols $(DESTDIR)$(nmapdatadir)/
+	$(INSTALL) -c -m 644 nmap-mac-prefixes $(DESTDIR)$(nmapdatadir)/
+
+# Update the version number used by Zenmap.
+$(ZENMAPDIR)/zenmapCore/Version.py $(ZENMAPDIR)/share/zenmap/config/zenmap_version: nmap.h
+	cd $(ZENMAPDIR) && $(PYTHON) install_scripts/utils/version_update.py "$(NMAP_VERSION)"
+
+# By default distutils rewrites installed scripts to hardcode the
+# location of the Python interpreter they were built with (something
+# like #!/usr/bin/python2.4). This is the wrong thing to do when
+# installing on a machine other than the one used to do the build. Use
+# this as the location of the interpreter whenever we're not doing a
+# local installation.
+DEFAULT_PYTHON_PATH = /usr/bin/env python
+
+build-zenmap: $(ZENMAPDIR)/setup.py $(ZENMAPDIR)/zenmapCore/Version.py
+# When DESTDIR is defined, assume we're building an executable
+# distribution rather than a local installation and force a generic
+# Python interpreter location.
+	cd $(ZENMAPDIR) && $(PYTHON) setup.py build $(if $(DESTDIR),--executable "$(DEFAULT_PYTHON_PATH)")
+
+install-zenmap: $(ZENMAPDIR)/setup.py
+	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(mandir)/man1
+	cd $(ZENMAPDIR) && $(PYTHON) setup.py install --prefix "$(prefix)" $(if $(DESTDIR),--root "$(DESTDIR)")
+	$(INSTALL) -c -m 644 docs/zenmap.1 $(DESTDIR)$(mandir)/man1/
+# Create a symlink from nmapfe to zenmap if nmapfe doesn't exist or is
+# already a link.
+	if [ ! -e $(DESTDIR)$(bindir)/nmapfe -o -L $(DESTDIR)$(bindir)/nmapfe ]; then \
+		ln -sf zenmap $(DESTDIR)$(bindir)/nmapfe; \
+	fi
+# Create a symlink from xnmap to zenmap unconditionally.
+	ln -sf zenmap $(DESTDIR)$(bindir)/xnmap
+
+NSE_FILES = scripts/script.db scripts/*.nse
+NSE_LIB_LUA_FILES = nselib/*.lua
+
+install-nse: $(TARGET)
+	$(INSTALL) -d $(DESTDIR)$(nmapdatadir)/scripts
+	cp -f $(NSE_FILES) $(DESTDIR)$(nmapdatadir)/scripts
+	$(INSTALL) -d $(DESTDIR)$(nmapdatadir)/nselib
+	cp -f $(NSE_LIB_LUA_FILES) $(DESTDIR)$(nmapdatadir)/nselib
+
+install: install-nmap $(INSTALLNSE) $(INSTALLZENMAP)
+	@echo "NMAP SUCCESSFULLY INSTALLED"
+
+uninstall: uninstall-nmap $(UNINSTALLZENMAP)
+
+uninstall-nmap:
+	rm -f $(DESTDIR)$(bindir)/$(TARGET)
+	rm -f $(DESTDIR)$(mandir)/man1/$(TARGET).1
+	rm -rf $(DESTDIR)$(nmapdatadir) $(DESTDIR)$(nmaplibexecdir)
+
+uninstall-zenmap:
+	cd $(ZENMAPDIR) && $(PYTHON) setup.py uninstall
+	rm -f $(DESTDIR)$(mandir)/man1/zenmap.1
+# Uninstall nmapfe only if it's a symlink.
+	if [ -L $(DESTDIR)$(bindir)/nmapfe ]; then \
+		rm -f $(DESTDIR)$(bindir)/nmapfe; \
+	fi
+	rm -f $(DESTDIR)$(bindir)/xnmap
+
+${srcdir}/configure: configure.ac 
+	cd ${srcdir} && autoconf
+
+## autoheader might not change config.h.in, so touch a stamp file.
+#${srcdir}/config.h.in: stamp-h.in
+#${srcdir}/stamp-h.in: configure.ac acconfig.h \
+#	config.h.top config.h.bot
+#	cd ${srcdir} && autoheader
+#	echo timestamp > ${srcdir}/stamp-h.in
+#
+#config.h: stamp-h
+#stamp-h: config.h.in config.status
+#	./config.status
+
+Makefile: Makefile.in config.status
+	./config.status
+
+config.status: configure
+	./config.status --recheck
+
+makefile.dep:
+	$(CXX) -MM $(CPPFLAGS) $(SRCS) > $@
+include makefile.dep

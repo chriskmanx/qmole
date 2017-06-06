@@ -1,0 +1,150 @@
+This directory contains a version of LibPCRE 7.6 that has been stripped
+down to less than a third of its original uncompressed size.  So if you
+want docs, tests and such, you should go to the PCRE website at
+http://www.pcre.org .  Here are the changes for the Nmap version:
+
+o Started this NMAP_MODIFICATIONS file
+
+o Removed these directories:
+cmake
+doc
+testdata
+
+o Removed these files:
+pcretest.c
+pcregrep.c
+pcredemo.c
+RunGrepTest
+RunTest
+RunTest.bat
+perltest.pl
+Detrail
+PrepareRelease
+libpcre.pc.in
+libpcrecpp.pc.in
+pcre_printint.src
+CMakeLists.txt
+config-cmake.h.in
+132html
+makevp.bat
+makevp_c.txt
+makevp_l.txt
+pcregexp.pas
+ltmain.sh
+CleanTxt
+ChangeLog
+NEWS
+HACKING
+COPYING [Look at LICENCE]
+
+o Got rid of the C++ wrapper, which included this step:
+  rm -f *.cc pcrecpparg.h.in pcrecpp.h pcrecpp_internal.h pcre_scanner.h pcre_stringpiece.h.in
+
+o Copied pcre.h.generic to pcre.h and pcre_chartables.c.dist to, you
+  guessed it, pcre_chartables.c (for Windows).  Running ./configure in
+  UNIX just overwrites them with other ones. Made the rule that makes
+  pcre_chartables.c copy pcre_chartables.c.dist instead of making a
+  symbolic link to it. Remove pcre_chartables.c from CLEANFILES.
+
+o Stripped down Makefile.am and configure.ac substantially to remove
+  libtool dependency (was having trouble on Mac OS X), remove Windows
+  stuff (Nmap uses a custom MS VC project for this), and insure it only
+  worries about building libpcre.a (which is now build in the libpcre
+  directory rather than in libpcre/.libs ).  Removed quite a bit of
+  unneeded things from these files, as well as adding -fno-thread-jumps
+  when compiling on Mac OS X on Intel (original patch: Kurt Grutzmacher
+  grutz(a)jingojango.net).  [The diff is FAR too large to included here]
+
+o Removed config.sub, config.guess, depcomp, install-sh, and missing.
+  These files are found in the parent (i.e., Nmap's) directory.
+
+o Comment out some build configuration lines from pcre_internal.h because Nmap
+  builds a static library:
+
+--- pcre-7.6/pcre_internal.h	2008-01-20 13:59:21.000000000 -0600
++++ libpcre/pcre_internal.h	2008-02-15 18:12:28.000000000 -0600
+@@ -108,15 +108,19 @@ PCRE_EXP_DATA_DEFN only if they are not 
+ 
+ #ifndef PCRE_EXP_DECL
+ #  ifdef _WIN32
++/* COMMENTED OUT AS IT'S COMPILED STATICALLY
+ #    ifndef PCRE_STATIC
+ #      define PCRE_EXP_DECL       extern __declspec(dllexport)
+ #      define PCRE_EXP_DEFN       __declspec(dllexport)
+ #      define PCRE_EXP_DATA_DEFN  __declspec(dllexport)
+ #    else
++*/
+ #      define PCRE_EXP_DECL       extern
+ #      define PCRE_EXP_DEFN
+ #      define PCRE_EXP_DATA_DEFN
++/*
+ #    endif
++*/
+ #  else
+ #    ifdef __cplusplus
+ #      define PCRE_EXP_DECL       extern "C"
+
+
+...and pcre.h.in/pcre.h.generic/pcre.h:
+
+
+--- pcre-7.6/pcre.h.in	2008-01-20 14:01:08.000000000 -0600
++++ libpcre/pcre.h.in	2008-02-15 18:12:54.000000000 -0600
+@@ -51,6 +51,7 @@ imported have to be identified as such. 
+ export setting is defined in pcre_internal.h, which includes this file. So we
+ don't change existing definitions of PCRE_EXP_DECL and PCRECPP_EXP_DECL. */
+ 
++/*
+ #if defined(_WIN32) && !defined(PCRE_STATIC)
+ #  ifndef PCRE_EXP_DECL
+ #    define PCRE_EXP_DECL  extern __declspec(dllimport)
+@@ -64,6 +65,7 @@ don't change existing definitions of PCR
+ #    endif
+ #  endif
+ #endif
++*/
+ 
+ /* By default, we use the standard "extern" declarations. */
+ 
+
+..and pcreposix.h:
+
+
+--- pcre-7.6/pcreposix.h	2008-01-20 13:56:29.000000000 -0600
++++ libpcre/pcreposix.h	2008-02-15 18:13:29.000000000 -0600
+@@ -110,10 +110,12 @@ imported have to be identified as such. 
+ export settings are needed, and are set in pcreposix.c before including this
+ file. */
+ 
++/*
+ #if defined(_WIN32) && !defined(PCRE_STATIC) && !defined(PCREPOSIX_EXP_DECL)
+ #  define PCREPOSIX_EXP_DECL  extern __declspec(dllimport)
+ #  define PCREPOSIX_EXP_DEFN  __declspec(dllimport)
+ #endif
++*/
+ 
+ /* By default, we use the standard "extern" declarations. */
+ 
+
+o Added pcre_winconfig.h for Windows.  LibPCRE used to include config.h in
+  pcre_internal.h, and we'd include this winconfig there instead of config.h
+  if WIN32 is defined.  Now, however, they've moved config.h includes to a
+  bunch of different files, so we have to change them.  We could remove the
+  other includes and move it back to pcre_internal.h, but they must've moved
+  them for a reason, so we'll follow them.  Occurrences of
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+  get changed to
+
+#ifdef WIN32
+#include "pcre_winconfig.h"
+#else
+#include "config.h"
+#endif
+
+
+o Regenerated everything with 'automake; aclocal; autoconf'
+

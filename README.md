@@ -32,7 +32,7 @@ QMole Architecture""
 
 QMole is a hybrid. It is not a virtualization solution like VMWare or VirtualBox. Neither is it an operating system. It requires no new API of application developers, as does iOS. QMole sandwiches applications in standard Linux abstraction on one side and provides touch screen abstractions and window management on the other side. This provides re-usability of Linux applications. In architectural terms, QMole occupies a space somewhere between BSD and Linux, but based on the Darwin kernel. 
 
-QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) [LinkedIn]() and licensed open source under the GNU GENERAL PUBLIC LICENSE.
+QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) [LinkedIn](https://www.linkedin.com/in/chriskohlhepp/) and licensed open source under the GNU GENERAL PUBLIC LICENSE.
 
 ![Flying Mole Banner](qmolefly.png)
 

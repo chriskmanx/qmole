@@ -11,10 +11,10 @@ GNU Linux Desktop System for IPhone &amp; IPad
 
 What is Qmole?
 
-[Linux Applications on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/)
 
 1) It’s a smart routing tiling window manager for tablets.
 
+[Linux Applications on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/)
 
 That’s kind of a world’s first !
 
@@ -56,16 +56,9 @@ It is expected that QMole would function on Android devices after appropriate re
 
 ## A Complex System
 
-QMole comprises some 35 million lines of ported and original code. Most of the core components are written in either Objective-C or OCaml, with OCaml solutions rarely beyond a few hundred lines of code. Most of the ported Unix code is C and C++. QMole has been built "on device," either on iPhone or iPad.
+QMole comprises some *35 million* lines of ported and original code. Most of the core components are written in either Objective-C or OCaml, with OCaml solutions rarely beyond a few hundred lines of code. Most of the ported Unix code is C and C++. QMole has been built "on device," either on iPhone or iPad.
 
-http://cloc.sourceforge.net v 1.64  T=1792.19 s (62.0 files/s, 26823.6 lines/s)
----------------------------------------------------------------------------------------
-Language                             files          blank        comment           code
----------------------------------------------------------------------------------------
-...
----------------------------------------------------------------------------------------
-SUM:                                111049        5577721        7019876       35475306
----------------------------------------------------------------------------------------
+
 
 ## Happy Hacking!
 

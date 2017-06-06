@@ -11,6 +11,8 @@ GNU Linux Desktop System for IPhone &amp; IPad
 
 What is Qmole?
 
+[Linux Applications on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/)
+
 1) It’s a smart routing tiling window manager for tablets.
 
 

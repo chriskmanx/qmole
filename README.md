@@ -52,7 +52,7 @@ The last version of iOS for which I maintained QMole was iOS 8. Apple has change
 
 It is expected that QMole would function on Android devices after appropriate recompilation of the sources. Packages like [Termux](https://termux.com) and [GNURoot](https://play.google.com/store/apps/details?id=champion.gnuroot&hl=en) are expected to be usable with QMole - even without rooting or "jail-breaking" the device.
 
-##Happy Hacking!
+## Happy Hacking!
 
 
 

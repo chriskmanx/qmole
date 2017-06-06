@@ -32,7 +32,7 @@ QMole Architecture""
 
 QMole is a hybrid. It is not a virtualization solution like VMWare or VirtualBox. Neither is it an operating system. It requires no new API of application developers, as does iOS. QMole sandwiches applications in standard Linux abstraction on one side and provides touch screen abstractions and window management on the other side. This provides re-usability of Linux applications. In architectural terms, QMole occupies a space somewhere between BSD and Linux, but based on the Darwin kernel. 
 
-QMole is designed and authored by Chris Kohlhepp and licensed open source under the GNU GENERAL PUBLIC LICENSE.
+QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) [LinkedIn]() and licensed open source under the GNU GENERAL PUBLIC LICENSE.
 
 ![Flying Mole Banner](qmolefly.png)
 
@@ -53,6 +53,19 @@ The last version of iOS for which I maintained QMole was iOS 8. Apple has change
 ## Android Compatibility Notes
 
 It is expected that QMole would function on Android devices after appropriate recompilation of the sources. Packages like [Termux](https://termux.com) and [GNURoot](https://play.google.com/store/apps/details?id=champion.gnuroot&hl=en) are expected to be usable with QMole - even without rooting or "jail-breaking" the device.
+
+## A Complex System
+
+QMole comprises some 35 million lines of ported and original code. Most of the core components are written in either Objective-C or OCaml, with OCaml solutions rarely beyond a few hundred lines of code. Most of the ported Unix code is C and C++. QMole has been built "on device," either on iPhone or iPad.
+
+http://cloc.sourceforge.net v 1.64  T=1792.19 s (62.0 files/s, 26823.6 lines/s)
+---------------------------------------------------------------------------------------
+Language                             files          blank        comment           code
+---------------------------------------------------------------------------------------
+...
+---------------------------------------------------------------------------------------
+SUM:                                111049        5577721        7019876       35475306
+---------------------------------------------------------------------------------------
 
 ## Happy Hacking!
 

@@ -1,0 +1,333 @@
+Overview
+========
+The Stream preprocessor is a target-based TCP reassembly module
+for Snort.  It replaces both the Stream5 and the earlier Stream4
+and flow preprocessors, and it is capable of tracking sessions 
+for both TCP and UDP.
+
+Since Stream replaces Stream5, both cannot be used simultaneously.
+Stream registers for the same configuration keywords as Stream5 
+with the exception of 'stream5_global', which is now  processed
+by the Session preprocessor.  Existing configuration files should
+continure to work with the Stream as long as there is only one
+'stream5_global' and it is included with the global options of
+the base policy.
+
+Transport Protocols
+-------------------
+TCP sessions are identified via the classic TCP "connection".  UDP
+sessions are established as the result of a series of UDP packets
+from two end points via the same set of ports.  ICMP messages are
+tracked for the purposes of checking for unreachable and service
+unavailable messages, which effectively terminate a TCP or UDP
+session.
+
+Target-Based
+------------
+Stream, like Frag3, introduces target-based actions for handling
+of overlapping data and other TCP anomalies.  The methods for handling
+overlapping data, TCP Timestamps, Data on SYN, FIN and Reset sequence
+numbers, etc. and the policies supported by Stream are the results of
+extensive research with many target operating systems.
+
+Stream API
+----------
+Stream supports the modified Stream API that is now focused on
+functions specific to reassembly and protocol aware flushing
+operations.  Session management functions have been moved to the
+Session API.  The remaining API functions enable other protocol 
+normalizers/preprocessors to dynamically configure reassembly 
+behavior as required by the application layer protocol.
+
+Anomaly Detection
+-----------------
+TCP protocol anomalies, such as data on SYN packets, data received
+outside the TCP window, etc are configured via the detect_anomalies
+option to the TCP configuration.  Some of these anomalies are
+detected on a per-target basis.  For example, a few operating systems
+allow data in TCP SYN packets, while others do not.
+
+Protocol Aware Flushing (PAF)
+-----------------------------
+Protocol aware flushing of HTTP, SMB and DCE/RPC can be enabled with this option:
+
+config paf_max: <max pdu>
+
+where <max-pdu> is between zero (off) and 63780.  This allows Snort to
+statefully scan a stream and reassemble a complete PDU regardless of 
+segmentation.  For example, multiple PDUs within a single TCP segment,
+as well as one PDU spanning multiple TCP segments will be reassembled 
+into one PDU per packet for each PDU.  PDUs larger than the configured
+maximum will be split into multiple packets.
+
+Rule Options
+============
+Stream adds support for a few rule options described below.
+
+stream_size
+-----------
+The 'stream_size' rule option allows a rule to match traffic according to
+the number of bytes observed, as determined by the TCP sequence numbers.
+
+stream_size takes a number of comma-separated arguments in the following 
+format:
+
+    stream_size:<direction>,<operator>,<size>
+
+Where direction is one of:
+
+    client  -   Client side traffic only
+    server  -   Sever side traffic only
+    both    -   Traffic from both sides
+    either  -   Traffic from either side
+
+Valid operators are:
+
+    =
+    <
+    >
+    !=
+    <=
+    >=
+
+For example:
+
+    stream_size:client,<,6;
+
+stream_reassemble
+-----------------
+The 'stream_reassemble' rule option allows a rule to enable or disable TCP
+stream reassembly on matching traffic.
+
+stream_reassemble takes a number of comma-separated arguments in the following
+format:
+
+    stream_reassemble:<enable|disable>,<server|client|both> [,noalert] [,fastpath]
+
+- The optional noalert parameter causes the rule to not generate an alert when it matches.
+- The optional fastpath parameter causes Snort to ignore the rest of the connection.
+
+For example:
+
+To disable TCP reassembly for client traffic when we see a HTTP 200 Ok Response message:
+
+    alert tcp any 80 -> any any (flow:to_client,established;  content:"200 OK";
+        stream_reassemble:disable,client,noalert;)
+
+Configuration
+=============
+Global Configuration
+--------------------
+Global settings prevousily processed by Stream5 are now handled by Session.  Stream calls
+as Session API method to get a copy of these settings for its use.  Refer to README.session
+for details on the global configuration options.
+
+TCP Configuration
+-----------------
+Provides a means on a per IP address target to configure a TCP policy.
+This can have multiple occurrences, per policy that is bound to an IP
+address or network.  One default policy must be specified, and that policy
+is not bound to an IP address or network.
+
+- Preprocessor name: stream5_tcp
+- Options:
+    bind_to <ip_addr>       - IP address for this policy.  The default is set
+                              to any.
+    timeout <number (secs)> - Session timeout.  The default is "30", the
+                              minimum is "1", and the maximum is "86400"
+                              (approximately 1 day).
+    policy <policy_id>      - The Operating System policy for the target OS.
+                              The policy_id can be one the following:
+                                   first     - Favor first overlapped segment.
+                                   last      - Favor last overlapped segment.
+                                   bsd       - FreeBSD 4.x and newer
+                                               NetBSD 2.x and newer
+                                               OpenBSD 3.x and newer
+                                               AIX
+                                   linux     - Linux 2.4 and 2.6
+                                   old-linux - Linux 2.2 and earlier
+                                   windows   - Windows 98, NT, 2000, XP (and
+                                               others not specifically listed
+                                               below)
+                                   win2003   - Windows 2003 Server
+                                   vista     - Windows Vista
+                                   solaris   - Solaris 9.x and newer
+                                   hpux10    - HPUX 10
+                                   hpux      - HPUX 11 and newer
+                                   irix      - IRIX 6 and newer
+                                   macos     - MacOS 10.3 and newer
+                              The default is "bsd".
+
+    overlap_limit <number>  - Limits number of overlapping packets. 
+                              The default is "0" (unlimited), the minimum is
+                              "0", and the maximum is "255".
+    max_window <number>     - Maximum allowed TCP window.  The default is "0"
+                              (unlimited), the minimum is "0", and the maximum
+                              is "1073725440" (65535 left shift 14).  That is
+                              the highest possible TCP window per RFCs.  This
+                              option is intended to prevent a DoS against
+                              Stream by an attacker using an abnormally large
+                              window, so using a value near the maximum is
+                              discouraged.
+    detect_anomalies        - Detect TCP protocol anomalies.  The default is set
+                              to off.
+    require_3whs [<number secs>]
+                            - Establish sessions only on completion
+                              of a SYN/SYN-ACK/ACK handshake.  The default is
+                              set to off.  The optional number of seconds
+                              specifies a startup timeout.  This allows a grace
+                              period for existing sessions to be considered
+                              established during that interval immediately
+                              after Snort is started.  The default is "0"
+                              (don't consider existing sessions established),
+                              the minimum is "0", and the maximum is "86400"
+                              (approximately 1 day).
+    use_static_footprint_sizes
+                            - Emulate Stream4 behavior for flushing
+                              reassembled packets.  The default is set to off.
+    dont_store_large_packets
+                            - A performance improvement which does not queue
+                              large packets in reassembly buffer if set.
+                              Setting this option could result in missed
+                              packets.  The default is set to off.
+    check_session_hijacking - Check for TCP session hijacking.  This check
+                              validates the hardware (MAC) address from both
+                              sides of the connect -- as established on the
+                              3-way handshake against subsequent packets
+                              received on the session.  If an ethernet layer
+                              is not part of the protocol stack received by
+                              Snort, there are no checks performed.  Alerts 
+                              are generated (per 'detect_anomalies' option)
+                              for either the client or server when the MAC
+                              address for one side or the other does not match.
+                              The default is set to off.
+    dont_reassemble_async   - Don't queue packets for reassembly if traffic
+                              has not been seen in both directions.  The
+                              default is set to queue packets.
+    max_queued_bytes <bytes> - Limit the number of bytes queued for reassembly
+                              on a given TCP session to bytes.  Default is
+                              "1048576" (1MB).  A value of "0" means unlimited,
+                              with a non-zero minimum of "1024", and a maximum
+                              of "1073741824" (1GB).  A message is written to
+                              console/syslog when this limit is enforced.
+    max_queued_segs <num>   - Limit the number of segments queued for reassembly
+                              on a given TCP session.  The default is "2621",
+                              derived based on an average size of 400 bytes.
+                              A value of "0" means unlimited, with a non-zero
+                              minimum of "2", and a maximum of "1073741824"
+                              (1GB).  A message is written to console/syslog
+                              when this limit is enforced.
+    small_segments <num1> bytes <num2> [ignore_ports port list]
+                            - Configure the maximum small segments queued.  
+                              This feature requires that detect_anomalies be enabled. 
+                              num1 is the number of consecutive segments that will
+                              trigger the detection rule. The default value is 
+                              "0" (disabled),with a maximum of "2048".  
+                              num2 is the minimum bytes for a segment to be 
+                              considered "small". The default value is "0" (disabled),
+                              with a maximum of "2048".  
+                              ignore_ports is optional, defines the list of
+                              ports in which will be ignored for this rule.
+                              The number of ports can be up to "65535".
+                              Example:
+                                small_segments 3 bytes 15 ignore_ports 33 44 55
+                              A message is written to console/syslog when this 
+                              limit is enforced. The generated alert is 129:12
+    ports <client|server|both> [all|space separated port list] 
+                            - Specify the client, server, or both and list of
+                              ports in which to perform reassembly.  This can
+                              appear more than once in a given config.
+                              For example:
+                                ports both 80 23
+                                ports server 37
+                                ports client 21 25
+                              The default settings are:
+                                ports client 21 23 25 42 53 80 110 111 135 136 \
+                                             137 139 143 445 513 514 1433 1521 2401 3306
+                              The minimum port allowed is "1" and the maximum
+                              allowed is "65535".
+    ignore_any_rules        - Don't process any -> any (ports) rules for
+                              TCP that attempt to match payload if there are
+                              no port specific rules for the src or destination
+                              port.  Rules that have flow or flowbits will
+                              never be ignored.  This is a performance
+                              improvement, but may result in missed attacks. 
+                              Using this does not affect rules that look at
+                              protocol headers, only those with content, PCRE,
+                              or byte test options.  The default is "off". This
+                              option can be present only in default policy.
+
+If no options are specified for a given TCP policy, that is the default
+TCP policy.  If only a bind_to option is used with no other options that
+TCP policy uses all of the default values.
+
+UDP Configuration
+-----------------
+Configuration for UDP session tracking.  Since there is no target based
+binding, there should be only one occurrence of the UDP configuration.
+- Preprocessor name: stream5_udp
+- Options:
+    timeout <number (secs)> - Session timeout.  The default is "30", the
+                              minimum is "1", and the maximum is "86400"
+                              (approximately 1 day).
+    ignore_any_rules        - Don't process any -> any (ports) rules for
+                              UDP that attempt to match payload if there are
+                              no port specific rules for the src or destination
+                              port.  Rules that have flow or flowbits will
+                              never be ignored.  This is a performance
+                              improvement, but may result in missed attacks. 
+                              Using this does not affect rules that look at
+                              protocol headers, only those with content, PCRE,
+                              or byte test options.  The default is "off".
+
+NOTE: with the ignore_any_rules option, a UDP rule will be ignored except when
+there is another port specific rule that may be applied to the traffic.  For
+example, if a UDP rule specifies destination port 53, the 'ignored' any -> any
+rule will be applied to traffic to/from port 53, but NOT to any other
+source or destination port.  A list of rule SIDs affected by this option are
+printed at Snort's startup.
+
+NOTE: with the ignore_any_rules option, if a UDP rule that uses any -> any
+ports includes either flow or flowbits, the ignore_any_rules option is
+effectively pointless.  Because of the potential impact of disabling a flowbits
+rule, the ignore_any_rules option will be disabled in this case.
+
+ICMP Configuration
+------------------
+NOTE: ICMP is currently untested, in minimal code form and is NOT ready
+for use in production networks.  It is not turned on by default.
+
+Configuration for ICMP session tracking.  Since there is no target based
+binding, there should be only one occurrence of the ICMP configuration.
+- Preprocessor name: stream5_icmp
+- Options:
+    timeout <number (secs)> - Session timeout.  The default is "30", the
+                              minimum is "1", and the maximum is "86400"
+                              (approximately 1 day).
+
+Example Configurations
+======================
+1) This example configuration emulates the behavior of Stream4 (with
+   UDP support enabled).
+
+preprocessor stream5_global: max_tcp 8192, track_tcp yes, \
+                            track_udp yes, track_icmp no
+preprocessor stream5_tcp: policy first, use_static_footprint_sizes
+preprocessor stream5_udp: ignore_any_rules
+
+2) This configuration maps two network segments to different reassembly
+   policies, one for Windows, one for Linux, with all other traffic falling
+   to the default policy Solaris.
+
+preprocessor stream5_global: track_tcp yes
+preprocessor stream5_tcp: bind_to 192.168.1.0/24, policy windows
+preprocessor stream5_tcp: bind_to 10.1.1.0/24, policy linux
+preprocessor stream5_tcp: policy solaris
+
+Alerts
+======
+Stream uses generator ID 129.  It is capable of alerting on 10
+anomalies, all of which relate to TCP anomalies.  There are no
+anomaly detection capabilities for UDP or ICMP.  Check etc/gen-msg.map
+for the current list of GID 129 alerts.
+

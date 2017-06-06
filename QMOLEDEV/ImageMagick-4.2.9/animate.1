@@ -1,0 +1,610 @@
+.ad l
+.nh
+.TH animate 1 "1 May 1994" "ImageMagick"
+.SH NAME
+animate - display a sequence of images on any workstation running X
+.SH SYNOPSIS
+.B "animate" [ \fIoptions\fP ...] \fIfile\fP
+[ [ \fIoptions\fP ...] \fIfile\fP ...]
+.SH DESCRIPTION
+\fBanimate\fP displays a sequence of images on any workstation display
+running an X server.  \fBanimate\fP first determines the hardware
+capabilities of the workstation.  If the number of unique colors in an
+image is less than or equal to the number the workstation can support,
+the image is displayed in an X window.  Otherwise the number of colors
+in the image is first reduced to match the color resolution of the
+workstation before it is displayed.
+
+This means that a continuous-tone 24 bits-per-pixel image can display on a
+8 bit pseudo-color device or monochrome device.  In most instances the
+reduced color image closely resembles the original.  Alternatively, a
+monochrome or pseudo-color image sequence can display on a continuous-tone
+24 bits-per-pixel device.
+
+To help prevent color flashing on X server visuals that have colormaps,
+\fBanimate\fP creates a single colormap from the image sequence.  This can
+be rather time consuming.  You can speed this operation up by reducing
+the colors in the image before you `animate' them.  Use \fBmogrify\fP
+to color reduce the images to a single colormap.  See \fBmogrify(1)\fP for
+details.  Alternatively, you can use a \fIStandard Colormap\fP; or a static,
+direct, or true color visual.  You can define a \fIStandard Colormap\fP with
+\fIxstdcmap\fP.  See \fBXSTDCMAP(1)\fP for details.  This method is recommended
+for colormapped X server because it eliminates the need to compute a global
+colormap.
+.SH EXAMPLES
+To animate a set of images of a cockatoo, use:
+
+.nf
+     animate cockatoo.*
+.fi
+
+To animate a cockatoo image sequence while using the \fIStandard Colormap\fP
+"best", use:
+
+.nf
+     xstdcmap -best
+     animate -map best cockatoo.*
+.fi
+
+To animate an image of a cockatoo without a border centered on a
+backdrop, use:
+
+.nf
+     animate +borderwidth -backdrop cockatoo.*
+.fi
+.SH OPTIONS
+.TP
+.B "-backdrop"
+display the image centered on a backdrop.
+
+This backdrop covers the entire workstation screen and is useful for
+hiding other X window activity while viewing the image sequence.   The color
+of the backdrop is specified as the background color.  Refer to \fBX
+RESOURCES\fP for details.
+.TP
+.B "-colormap \fItype\fP"
+the type of colormap: \fBShared\fP or \fBPrivate\fP.
+
+This option only applies when the default X server visual is
+\fIPseudoColor\fP or \fIGrayScale\fP.  Refer to \fB-visual\fP for more
+details.  By default, a shared colormap is allocated.  The image shares
+colors with other X clients.  Some image colors could be approximated,
+therefore your image may look very different than intended.  Choose
+\fBPrivate\fP and the image colors appear exactly as they are
+defined.  However, other clients may go "technicolor" when the image
+colormap is installed.
+.TP
+.B "-colors \fIvalue\fP"
+preferred number of colors in the image.
+
+The actual number of colors in the image may be less than your request,
+but never more.  Note, this is a color reduction option.  Images with
+less unique colors than specified with this option will have any duplicate
+or unused colors removed.
+Refer to \fBquantize(9)\fP for more details.
+
+Note, options \fB-dither\fP, \fB-colorspace\fP, and \fB-treedepth\fP affect
+the color reduction algorithm.
+.TP
+.B "-colorspace \fIvalue\fP"
+the type of colorspace: \fBGRAY\fP, \fBOHTA\fP, \fBRGB\fP,
+\fBTransparent\fP, \fBXYZ\fP, \fBYCbCr\fP, \fBYIQ\fP, \fBYPbPr\fP,
+\fBYUV\fP, or \fBCMYK\fP.
+
+Color reduction, by default, takes place in the RGB color space.
+Empirical evidence suggests that distances in color spaces such as YUV
+or YIQ correspond to perceptual color differences more closely
+than do distances in RGB space.  These color spaces may give better
+results when color reducing an image.  Refer to \fBquantize(9)\fP for
+more details.
+
+The \fBTransparent\fP color space behaves uniquely in that it preserves
+the matte channel of the image if it exists.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+.TP
+.B "-crop \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}\fP"
+preferred size and location of the cropped image.  See \fBX(1)\fP for details
+about the geometry specification.
+
+To specify a percentage width or height instead, append \fB%\fP.  For example
+to crop the image by ten percent on all sides of the image, use \fB-crop 10%\fP.
+
+Use cropping to apply image processing options, or display, only a
+particular area of an image.  
+
+Use cropping to crop a particular area of an image.   Use \fB-crop
+0x0\fP to trim edges that are the background color.  Add an x and y offset
+to leave a portion of the trimmed edges with the image.
+
+The equivalent X resource for this option is \fBcropGeometry\fP
+(class \fBCropGeometry\fP).  See \fBX RESOURCES\fP for details.
+.TP
+.B "-delay \fI<1/100ths of a second>x<seconds>\fP"
+display the next image after pausing.
+
+This option is useful for regulating the display of the sequence of
+images.  \fI1/100ths of a second\fP must expire before the display of
+the next image.  The default is 6/100 of a second between each frame
+of the image sequence.  The second value is optional.  It specifies the
+number of \fIseconds\fP to pause before repeating your animation
+sequence.
+.TP
+.B "-density \fI<width>x<height>\fP
+vertical and horizontal resolution in pixels of the image.
+
+This option specifies an image density when decoding a Postscript or Portable
+Document page.  The default is 72 pixels per inch in the horizontal and
+vertical direction.
+.TP
+.B "-display \fIhost:display[.screen]\fP"
+specifies the X server to contact; see \fBX(1)\fP.
+.TP
+.B "-dither"
+apply Floyd/Steinberg error diffusion to the image.
+
+The basic strategy of dithering is to trade intensity resolution for
+spatial resolution by averaging the intensities of several neighboring
+pixels.  Images which suffer from severe contouring when reducing colors
+can be improved with this option.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+
+Use \fB+dither\fP to render Postscript without text or graphic aliasing.
+.TP
+.B "-gamma \fIvalue\fP"
+level of gamma correction.
+
+The same color image displayed on two different workstations may look
+different due to differences in the display monitor.  Use gamma
+correction to adjust for this color difference.  Reasonable values
+extend from 0.8 to 2.3.
+
+You can apply separate gamma values to the red, green, and blue
+channels of the image with a gamma value list delineated with slashes
+(i.e. 1.7/2.3/1.2).
+
+Use \fB+gamma\fP to set the image gamma level without actually adjusting
+the image pixels.  This option is useful if the image is of a known
+gamma but not set as an image attribute (e.g. PNG images).
+.TP
+.B "-geometry \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}{!}{<}{>}\fP"
+preferred size and location of the Image window.  See \fBX(1)\fP for details
+about the geometry specification.  By default, the window size is the image
+size and the location is chosen by you when it is mapped.
+
+By default, the width and height are maximum values.  That is, the
+image is expanded or contracted to fit the width and height value while
+maintaining the aspect ratio of the image.  Append an exclamation point
+to the geometry to force the image size to exactly the size you
+specify.  For example, if you specify \fB640x480!\fP the image width is
+set to 640 pixels and height to 480.  If only one factor is
+specified, both the width and height assume the value.
+
+To specify a percentage width or height instead, append \fB%\fP.  The
+image size is multiplied by the width and height percentages to obtain
+the final image dimensions.  To increase the size of an image, use a
+value greater than 100 (e.g. 125%).  To decrease an image's size, use a
+percentage less than 100.
+
+Use \fB>\fP to change the dimensions of the image \fIonly\fP
+if its size exceeds the geometry specification.  \fB<>\fP resizes
+the image \fIonly\fP if its dimensions is less than the geometry
+specification.  For example, if you specify \fB640x480>\fP and the
+image size is 512x512, the image size does not change.  However, if
+the image is 1024x1024, it is resized to 640x480.
+
+When displaying an image on an X server, \fI<x offset>\fP and
+\fI<y offset>\fP is relative to the root window.
+
+The equivalent X resource for this option is \fBgeometry\fP
+(class \fBGeometry\fP).  See \fBX RESOURCES\fP for details.
+.TP
+.B "-interlace \fItype\fP"
+the type of interlacing scheme: \fBNone\fP, \fBLine\fP, \fBPlane\fP, or
+\fBPartition\fP.  The default is \fBNone\fP.
+
+This option is used to specify the type of interlacing scheme for raw
+image formats such as \fBRGB\fP or \fBYUV\fP.  \fBNone\fP means do not
+interlace (RGBRGBRGBRGBRGBRGB...), \fBLine\fP uses scanline
+interlacing (RRR...GGG...BBB...RRR...GGG...BBB...), and \fBPlane\fP uses
+plane interlacing (RRRRRR...GGGGGG...BBBBBB...).  \fBPartition\fP is like
+plane except the different planes are saved to individual files (e.g.
+image.R, image.G, and image.B).
+
+Use \fBLine\fP, or \fBPlane\fP to create an interlaced GIF or progressive
+JPEG image.
+.TP
+.B "-map \fItype\fP"
+display image using this \fIStandard Colormap\fP type.
+
+Choose from these \fIStandard Colormap\fP types:
+
+    best
+    default
+    gray
+    red
+    green
+    blue
+
+The \fIX server\fP must support the \fIStandard Colormap\fP you choose,
+otherwise an error occurs.  Use \fBlist\fP as the type and \fBanimate(1)\fP
+searches the list of colormap types in top-to-bottom order until one is
+located. See \fBxstdcmap(1)\fP for one way of creating \fIStandard Colormaps\fP.
+.TP
+.B "-monochrome"
+transform the image to black and white.
+.TP
+.B "-remote \fIstring\fP"
+execute a command in an remote display process.
+
+The only command recognized at this time is the name of an image file to
+load.
+.TP
+.B "-rotate \fIdegrees{<}{>}\fP"
+apply Paeth image rotation to the image.
+
+Use \fB>\fP to rotate the image \fIonly\fP if its width exceeds the
+height.  \fB<\fP rotates the image \fIonly\fP if its width is less than
+the height.  For example, if you specify \fB-90>\fP and the image size
+is 480x640, the image is not rotated by the specified angle.  However,
+if the image is 640x480, it is rotated by -90 degrees.
+
+Empty triangles left over from rotating the image are filled with
+the color defined as \fBbordercolor\fP (class \fBborderColor\fP).
+.TP
+.B "-scene \fIvalue{-value}\fP"
+image scene number.
+
+Use this option to specify an image sequence with a single filename. See
+the discussion of \fIfile\fP below for details.
+.TP
+.B "-size \fI<width>x<height>{+offset}"
+width and height of the image.
+
+Use this option to specify the width and height of raw images whose
+dimensions are unknown such as \fBGRAY\fP, \fBRGB\fP, or \fBCMYK\fP.
+In addition to width and height, use \fB-size\fP to skip any header
+information in the image or tell the number of colors in a \fBMAP\fP
+image file, (e.g. -size 640x512+256).
+.TP
+.B "-title \fIstring\fP"
+assign a title to the displayed image.
+
+Use this option to assign a specific title to the image.  This is
+assigned to the image window and is typically displayed in the window
+title bar.  Optionally you can include the image filename, type, width,
+height, or other image attributes by embedding special format characters:
+
+.nf
+    %b   file size
+    %d   directory
+    %e   filename extension
+    %f   filename
+    %h   height
+    %m   magick
+    %p   page number
+    %s   scene number
+    %t   top of filename
+    %w   width
+    %x   x resolution
+    %y   y resolution
+    \\n   newline
+    \\r   carriage return
+.fi
+
+For example,
+
+.nf
+     -title "%m:%f %wx%h"
+.fi
+
+produces an image title of \fBMIFF:bird.miff 512x480\fP for an image
+titled \fBbird.miff\fP and whose width is 512 and height is 480.
+
+If the first character of \fIstring\fP is \fB@\fP, the image title is read
+from a file titled by the remaining characters in the string.
+.TP
+.B "-treedepth \fIvalue\fP"
+Normally, this integer value is zero or one.  A zero or one tells
+\fBanimate\fP to choose a optimal tree depth for the color reduction
+algorithm.
+
+An optimal depth generally allows the best representation of the source
+image with the fastest computational speed and the least amount of
+memory.  However, the default depth is inappropriate for some images.
+To assure the best representation, try values between 2 and 8 for this
+parameter.  Refer to \fBquantize(9)\fP for more details.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+.TP
+.B -verbose
+print detailed information about the image.
+
+This information is printed: image scene number;  image name;  image
+size; the image class (\fIDirectClass\fP or \fIPseudoClass\fP);  the total
+number of unique colors;  and the number of seconds to read and
+transform the image.  Refer to \fBmiff(5)\fP for a description of
+the image class.
+
+If \fB-colors\fP is also specified, the total unique colors in the image
+and color reduction error values are printed.  Refer to \fBquantize(9)\fP
+for a description of these values.
+.TP
+.B "-visual \fItype\fP"
+animate images using this visual type.
+
+Choose from these visual classes:
+
+.nf
+    StaticGray
+    GrayScale
+    StaticColor
+    PseudoColor
+    TrueColor
+    DirectColor
+    default
+    \fIvisual id\fP
+.fi
+
+The X server must support the visual you choose, otherwise an error occurs.
+If a visual is not specified, the visual class that can display the most
+simultaneous colors on the default screen is chosen.
+.TP
+.B "-window \fIid\fP"
+set the background pixmap of this window to the image.
+
+\fIid\fP can be a window id or name.  Specify \fBroot\fP to select X's root
+window as the target window.
+
+By default the image is tiled onto the background of the target
+window.   If \fB-backdrop\fP or \fB-geometry\fP are specified, the
+image is surrounded by the background color.  Refer to \fBX
+RESOURCES\fP for details.
+
+The image will not display on the root window if the image has more
+unique colors than the target window colormap allows.  Use
+\fB-colors\fP to reduce the number of colors.
+.PP
+In addition to those listed above, you can specify these standard X
+resources as command line options:  \fB-background\fP,
+\fB-bordercolor\fP, \fB-borderwidth\fP,  \fB-font\fP,
+\fB-foreground\fP, \fB-iconGeometry\fP, \fB-iconic\fP, \fB-mattecolor\fP,
+\fB-name\fP, or \fB-title\fP.  See \fBX RESOURCES\fP for details.
+
+Any option you specify on the command line remains in effect until it is
+explicitly changed by specifying the option again with a different effect.
+For example, to animate two images, the first with 32 colors and the
+second with only 16 colors, use:
+
+.nf
+     animate -colors 32 cockatoo.1 -colors 16 cockatoo.2
+.fi
+
+Options are processed in command line order.
+Any option you specify on the command line remains in effect until it is
+explicitly changed by specifying the option again with a different effect.
+
+By default, the image format is determined by its magic number. To
+specify a particular image format, precede the filename with an image
+format name and a colon (i.e. ps:image) or specify the image type as
+the filename suffix (i.e. image.ps).  See \fBconvert(1)\fP for a list
+of valid image formats.
+
+When you specify \fBX\fP as your image type, the filename has special
+meaning.  It specifies an X window by id, name, or \fBroot\fP.  If no
+filename is specified, the window is selected by clicking the mouse in
+the desired window.
+
+Specify \fIfile\fP as \fI-\fP for standard input, If \fIfile\fP has the
+extension \fB.Z\fP or \fB.gz\fP, the file is uncompressed with
+\fBuncompress\fP or \fBgunzip\fP respectively. Precede the image file
+name with \fI|\fP to pipe from a system command.
+
+Use an optional index enclosed in brackets after a file name to specify
+a desired subimage of a multi-resolution image format like Photo CD
+(e.g. img0001.pcd[4]) or a range for MPEG images (e.g. video.mpg[50-75]).
+A subimage specification can be disjoint (e.g. image.tiff[2,7,4]).
+For raw images, specify a subimage with a geometry (e.g.  -size 640x512
+image.rgb[320x256+50+50]).
+
+Single images are read with the filename you specify.  Alternatively,
+you can animate an image sequence with a single filename.  Define the
+range of the image sequence with \fI-scene\fP.  Each image in the
+range is read with the filename followed by a period (\fB.\fP)
+and the scene number.  You can change this behavior by embedding a
+\fBprintf\fP format specification in the file name.  For example,
+
+.nf
+     -scene 0-9 image%02d.miff
+.fi
+
+animates files image00.miff, image01.miff, through image09.miff.
+
+Image filenames may appear in any order on the command line if the image
+format is \fIMIFF\fP (refer to \fBmiff(5)\fP and the \fBscene\fP keyword is
+specified in the image.  Otherwise the images will display in the order
+they appear on the command line.
+.SH BUTTONS
+Press any button to map or unmap the Command widget.  See
+the next section for more information about the Command widget.
+.SH COMMAND WIDGET
+The Command widget lists a number of sub-menus and commands.  They are
+
+.nf
+    Animate
+      Open
+      Play
+      Step
+      Repeat
+      Auto Reverse
+    Speed
+      Faster
+      Slower
+    Direction
+      Forward
+      Reverse
+    Help
+      Help
+      Browse Documentation
+      About Display
+    Image Info
+    Quit
+.fi
+
+Menu items with a indented triangle have a sub-menu.  They are
+represented above as the indented items.  To access a sub-menu item,
+move the pointer to the appropriate menu and press a button and drag.
+When you find the desired sub-menu item, release the button and the
+command is executed.  Move the pointer away from the sub-menu if you
+decide not to execute a particular command.
+.SH KEYBOARD ACCELERATORS
+Accelerators are one or two key presses that effect a particular command.
+The keyboard accelerators that \fBanimate(1)\fP understands is:
+.TP
+.B "Ctl+O"
+Press to load an image from a file.
+.TP
+.B "space"
+Press to display the next image in the sequence.
+.TP
+.B "<"
+Press to speed-up the display of the images.  Refer to \fB-delay\fP for more
+information.
+.TP
+.B ">"
+Press to slow the display of the images.  Refer to \fB-delay\fP for more
+information.
+.TP
+.B "F1"
+Press to display helpful information about \fBanimate(1)\fP.
+.TP
+.B "Find"
+Press to browse documentation about \fBImageMagick\fP.
+.TP
+.B "?"
+Press to display information about the image.  Press any key or button
+to erase the information.
+
+This information is printed: image name;  image size; and the total
+number of unique colors in the image.
+.TP
+.B "Ctl-q"
+Press to discard all images and exit program.
+.SH "X RESOURCES"
+\fBanimate\fP options can appear on the command line or in your X
+resource file.  Options on the command line supersede values specified
+in your X resource file.  See \fBX(1)\fP for more information on X
+resources.
+
+All \fBanimate\fP options have a corresponding X resource.  In addition,
+the \fBanimate\fP program uses the following X resources:
+.TP
+.B background (\fIclass\fP Background)
+Specifies the preferred color to use for the Image window background.  The
+default is #ccc.
+.TP
+.B borderColor (\fIclass\fP BorderColor)
+Specifies the preferred color to use for the Image window border.  The
+default is #ccc.
+.TP
+.B borderWidth (\fIclass\fP BorderWidth)
+Specifies the width in pixels of the Image window border.  The default is 2.
+.TP
+.B font (\fIclass\fP Font or FontList)
+Specifies the name of the preferred font to use in normal formatted
+text.  The default is 14 point \fIHelvetica\fP.
+.TP
+.B foreground (\fIclass\fP Foreground)
+Specifies the preferred color to use for text within the Image window.  The
+default is black.
+.TP
+.B geometry (\fIclass\fP geometry)
+Specifies the preferred size and position of the image window.
+It is not necessarily obeyed by all window managers.
+.TP
+.B iconGeometry (\fIclass\fP IconGeometry)
+Specifies the preferred size and position of the application when
+iconified.  It is not necessarily obeyed by all window managers.
+.TP
+.B iconic (\fIclass\fP Iconic)
+This resource indicates that you would prefer that the application's
+windows initially not be visible as if the windows had be immediately
+iconified by you.  Window managers may choose not to honor the
+application's request.
+.TP
+.B matteColor (\fIclass\fP MatteColor)
+Specify the color of windows.  It is used for the backgrounds of
+windows, menus, and notices.  A  3D  effect  is achieved  by
+using highlight and shadow colors derived from this color.  Default
+value: #ddd.
+.TP
+.B name (\fIclass\fP Name)
+This resource specifies the name under which resources for the
+application should be found.  This resource is useful in shell aliases to
+distinguish between invocations of an application, without resorting to
+creating links to alter the executable file name.  The default is the
+application name.
+.TP
+.B sharedMemory (\fIclass\fP SharedMemory)
+This resource specifies whether animate should attempt use shared memory
+for pixmaps.  ImageMagick must be compiled with shared memory support,
+and the display must support the MIT-SHM extension.  Otherwise, this
+resource is ignored.  The default is True.
+.TP
+.B text_font (\fIclass\fP textFont)
+Specifies the name of the preferred font to use in fixed (typewriter style)
+formatted text.  The default is 14 point \fICourier\fP.
+.TP
+.B title (\fIclass\fP Title)
+This resource specifies the title to be used for the Image window.  This
+information is sometimes used by a window manager to provide some sort
+of header identifying the window.  The default is the image file name.
+.SH ENVIRONMENT
+.TP
+.B display
+To get the default host, display number, and screen.
+.SH SEE ALSO
+.B
+display(1), import(1), montage(1), mogrify(1), convert(1), combine(1), xtp(1)
+.SH COPYRIGHT
+1998 1998 E. I. du Pont de Nemours and Company
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files ("ImageMagick"),
+to deal in ImageMagick without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of ImageMagick, and to permit persons to whom the
+ImageMagick is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of ImageMagick.
+
+The software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement.  In no event shall
+E. I. du Pont de Nemours and Company be liable for any claim, damages or
+other liability, whether in an action of contract, tort or otherwise,
+arising from, out of or in connection with ImageMagick or the use or other
+dealings in ImageMagick.
+
+Except as contained in this notice, the name of the E. I. du Pont de
+Nemours and Company shall not be used in advertising or otherwise to
+promote the sale, use or other dealings in ImageMagick without prior
+written authorization from the E. I. du Pont de Nemours and Company.
+.SH ACKNOWLEDGEMENTS
+The MIT X Consortium for making network transparent graphics a reality.
+
+Michael Halle, Spatial Imaging Group at MIT, for the initial
+implementation of Alan Paeth's image rotation algorithm.
+
+David Pensak, E. I. du Pont de Nemours and Company, for providing a
+computing environment that made this program possible.
+
+Paul Raveling, USC Information Sciences Institute, for the original
+idea of using space subdivision for the color reduction algorithm.
+.SH AUTHORS
+John Cristy, E.I. du Pont de Nemours and Company Incorporated

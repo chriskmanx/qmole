@@ -1,0 +1,889 @@
+.ad l
+.nh
+.TH montage 1 "1 May 1994" "ImageMagick"
+.SH NAME
+montage - creates a composite image by combining several separate images
+.SH SYNOPSIS
+.B "montage" [ \fIoptions\fP ...] \fIfile\fP
+[ [ \fIoptions\fP ...] \fIfile\fP ...] \fIoutput_file\fP
+.SH DESCRIPTION
+\fBmontage\fP creates a composite image by combining several separate images.
+The images are tiled on the composite image with the name of the image
+optionally appearing just below the individual tile.
+
+The composite image is constructed in the following manner.  First,
+each image specified on the command line, except for the last, is
+scaled to fit the maximum tile size.  The maximum tile size by default
+is 120x120.  It can be modified with the \fB-geometry\fP command line
+argument or X resource.  See \fBOPTIONS\fP for more information on
+command line arguments. See \fBX(1)\fP for more information on X
+resources.  Note that the maximum tile size need not be a square.  To
+respect the aspect ratio of each image append \fB~\fP to the geometry
+specification.
+
+Next the composite image is initialized with the color specified by the
+\fB-background\fP command line argument or X resource.  The width and
+height of the composite image is determined by the title specified,
+the maximum tile size, the number of tiles per row, the tile border
+width and height, the image border width, and the label height.  The
+number of tiles per row specifies how many images are to appear in each
+row of the composite image.  The default is to have 5 tiles in each row
+and 4 tiles in each column of the composite.  A specific value is
+specified with \fB-tile\fP.  The tile border width and height,
+and the image border width defaults to the value of the X resource
+\fB-borderwidth\fP.  It can be changed with the \fB-borderwidth\fP or
+\fB-geometry\fP command line argument or X resource.  The label height
+is determined by the font you specify with the \fB-font\fP command line
+argument or X resource.  If you do not specify a font, a font is
+chosen that allows the name of the image to fit the maximum width of a
+tiled area.  The label colors is determined by the \fB-background\fP
+and \fB-foreground\fP command line argument or X resource.  Note, that
+if the background and foreground colors are the same, labels will not
+appear.
+
+Initially, the composite image title is placed at the top if one is
+specified (refer to \fB-foreground\fP X resource).  Next, each image is
+set onto the composite image, surrounded by its border color, with its
+name centered just below it.  The individual images are left-justified
+within the width of the tiled area.  The order of the images is the
+same as they appear on the command line unless the images have a scene
+keyword.  If a scene number is specified in each image, then the images
+are tiled onto the composite in the order of their scene number.  Finally,
+the last argument on the command line is the name assigned to the
+composite image.  By default, the image is written in the \fBMIFF\fP format
+and can be viewed or printed with \fBdisplay(1)\fP.
+
+Note, that if the number of tiles exceeds the default number of 20
+(5 per row, 4 per column), more than one composite image is
+created. To ensure a single image is produced, use \fB-tile\fP to
+increase the number of tiles to meet or exceed the number of input images.
+
+Finally, Finally, to create one or more empty spaces in the sequence of tiles,
+use the \fBNULL\fP image format.
+.SH EXAMPLES
+To create a montage of a cockatoo, a parrot, and a hummingbird and write
+it to a file called birds, use:
+
+.nf
+     montage cockatoo.miff parrot.miff hummingbird.miff birds.miff
+.fi
+
+To tile several bird images so that they are at most 256 pixels in width and
+192 pixels in height, surrounded by a red border, and separated by
+10 pixels of background color, use:
+
+.nf
+     montage -geometry 256x192+10+10 -bordercolor red birds.* montage.miff
+.fi
+
+To create an unlabeled parrot image, 640 by 480 pixels, and surrounded
+by a border of black, use:
+
+.nf
+     montage -geometry 640x480 -bordercolor black -label "" parrot.miff bird.miff
+.fi
+
+To create an image of an eagle with a textured background, use:
+
+.nf
+     montage -texture bumps.jpg eagle.jpg eagle.png
+.fi
+
+
+To join several GIF images together without any extraneous graphics
+(e.g. no label, no shadowing, no surrounding tile frame), use:
+
+.nf
+  montage +frame +shadow +label -geometry 50x50+0+0 -tile 5x1 *.gif joined.gif
+.fi
+.SH OPTIONS
+.TP
+.B "-adjoin
+join images into a single multi-image file.
+.TP
+.B "-blur \fIfactor\fP"
+blur an image.  Specify \fIfactor\fP as the percent enhancement
+(0.0 - 99.9%).
+.TP
+.B "-colors \fIvalue\fP"
+preferred number of colors in the image 
+
+The actual number of colors in the image may be less than your request,
+but never more.  Note, this is a color reduction option.  Images with
+less unique colors than specified with this option will have any duplicate
+or unused colors removed.
+Refer to \fBquantize(9)\fP for more details.
+
+Note, options \fB-dither\fP, \fB-colorspace\fP, and \fB-treedepth\fP affect
+the color reduction algorithm.
+.TP
+.B "-colorspace \fIvalue\fP"
+the type of colorspace: \fBGRAY\fP, \fBOHTA\fP, \fBRGB\fP,
+\fBTransparent\fP, \fBXYZ\fP, \fBYCbCr\fP, \fBYIQ\fP, \fBYPbPr\fP,
+\fBYUV\fP, or \fBCMYK\fP.
+
+Color reduction, by default, takes place in the RGB color space.
+Empirical evidence suggests that distances in color spaces such as YUV
+or YIQ correspond to perceptual color differences more closely
+than do distances in RGB space.  These color spaces may give better
+results when color reducing an image.  Refer to \fBquantize(9)\fP for
+more details.
+
+The \fBTransparent\fP color space behaves uniquely in that it preserves
+the matte channel of the image if it exists.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+.TP
+.B "-comment \fIstring\fP"
+annotate an image with a comment.
+
+By default, each image is commented with its file name.  Use this
+option to assign a specific comment to the image.  Optionally you can
+include the image filename, type, width, height, or other image
+attributes by embedding special format characters:
+
+.nf
+    %b   file size
+    %d   directory
+    %e   filename extension
+    %f   filename
+    %h   height
+    %m   magick
+    %p   page number
+    %s   scene number
+    %t   top of filename
+    %w   width
+    %x   x resolution
+    %y   y resolution
+    \\n   newline
+    \\r   carriage return
+.fi
+
+For example,
+
+.nf
+     -comment "%m:%f %wx%h"
+.fi
+
+produces an image comment of \fBMIFF:bird.miff 512x480\fP for an image
+titled \fBbird.miff\fP and whose width is 512 and height is 480.
+
+If the first character of \fIstring\fP is \fB@\fP, the image comment is read
+from a file titled by the remaining characters in the string.
+.TP
+.B "-compose \fIoperator\fP"
+the type of image composition.
+
+By default, each of the composite image pixels are replaced by the
+corresponding image tile pixel. You can choose an alternate composite
+operation:
+
+    Over
+    In
+    Out
+    Atop
+    Xor
+    Plus
+    Minus
+    Add
+    Subtract
+    Difference
+    Bumpmap
+    Replace
+    ReplaceRed
+    ReplaceGreen
+    ReplaceBlue
+    ReplaceMatte
+
+The operations behaves as follows:
+
+.TP
+.B Over
+The result will be the union of the two image shapes, with \fIcomposite image\fP
+obscuring \fIimage\fP in the region of overlap.
+.TP
+.B In
+The result is simply \fIcomposite image\fP cut by the shape of
+\fIcomposite image window\fP.  None of the image data of \fIimage\fP will be
+in the result.
+.TP
+.B Out
+The resulting image is \fIcomposite image\fP with the shape of \fIimage\fP
+cut out.
+.TP
+.B Atop
+The result is the same shape as image \fIimage\fP, with
+\fIcomposite image\fP obscuring \fIimage\fP where the image shapes
+overlap.  Note this differs from \fBover\fP because the portion of
+\fIcomposite image\fP outside \fIimage\fP's shape does not appear in the
+result.
+.TP
+.B Xor
+The result is the image data from both \fIcomposite image\fP and \fIimage\fP
+that is outside the overlap region.  The overlap region will be blank.
+.TP
+.B Plus
+The result is just the sum of the image data.  Output values are
+cropped to 255 (no overflow).  This operation is independent
+of the matte channels.
+.TP
+.B Minus
+The result of \fIcomposite image\fP \- \fIimage\fP, with underflow cropped
+to zero.  The matte channel is ignored (set to 255, full coverage).
+.TP
+.B Add
+The result of \fIcomposite image\fP + \fIimage\fP, with overflow wrapping
+around (\fImod\fP 256).
+.TP
+.B Subtract
+The result of \fIcomposite image\fP - \fIimage\fP, with underflow wrapping
+around (\fImod\fP 256).  The \fBadd\fP and \fBsubtract\fP operators can
+be used to perform reversible transformations.
+.TP
+.B Difference
+The result of abs(\fIcomposite image\fP \- \fIimage\fP).  This is useful
+for comparing two very similar images.
+.TP
+.B Bumpmap
+The result of \fIimage\fP shaded by \fIcomposite image\fP.
+.TP
+.B Replace
+The resulting image is \fIimage\fP replaced with \fIcomposite image\fP.
+Here the matte information is ignored.
+.TP
+.B ReplaceRed
+The resulting image is the red layer in \fIimage\fP replaced with the red
+layer in \fIcomposite image\fP.  The other layers are copied untouched.
+.TP
+.B ReplaceGreen
+The resulting image is the green layer in \fIimage\fP replaced with the green
+layer in \fIcomposite image\fP.  The other layers are copied untouched.
+.TP
+.B ReplaceBlue
+The resulting image is the blue layer in \fIimage\fP replaced with the blue
+layer in \fIcomposite image\fP.  The other layers are copied untouched.
+.TP
+.B ReplaceMatte
+The resulting image is the matte layer in \fIimage\fP replaced with the matte
+layer in \fIcomposite image\fP.  The other layers are copied untouched.
+
+The image compositor requires a matte, or alpha channel in the image
+for some operations.  This extra channel usually defines a mask which
+represents a sort of a cookie-cutter for the image.  This is the case
+when matte is 255 (full coverage) for pixels inside the shape, zero
+outside, and between zero and 255 on the boundary.  If \fIimage\fP does
+not have a matte channel, it is initialized with 0 for any pixel
+matching in color to pixel location (0,0), otherwise 255 (to work
+properly \fBborderwidth\fP must be 0).
+.TP
+.B "-compress \fItype\fP"
+the type of image compression: \fINone\fP, \fIBZip\fP, \fIFax\fP, \fIGroup4\fP,
+\fIJPEG\fP, \fILZW\fP, \fIRunlengthEncoded\fP, or \fIZip\fP.
+
+Specify \fB\+compress\fP to store the binary image in an uncompressed format.
+The default is the compression type of the specified image file.
+.TP
+.B "-crop \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}\fP"
+preferred size and location of the cropped image.  See \fBX(1)\fP for details
+about the geometry specification.
+
+To specify a percentage width or height instead, append \fB%\fP.  For example
+to crop the image by ten percent on all sides of the image, use \fB-crop 10%\fP.
+
+Omit the x and y offset to generate one or more subimages of a uniform size.
+
+Use cropping to crop a particular area of an image.   Use \fB-crop
+0x0\fP to trim edges that are the background color.  Add an x and y offset
+to leave a portion of the trimmed edges with the image.
+The equivalent X resource for this option is \fBcropGeometry\fP
+(class \fBCropGeometry\fP).  See \fBX RESOURCES\fP for details.
+.TP
+.B "-density \fI<width>x<height>\fP
+vertical and horizontal resolution in pixels of the image.
+
+This option specifies an image density when decoding a Postscript or Portable
+Document page.  The default is 72 pixels per inch in the horizontal and
+vertical direction.  This option is used in concert with \fB-page\fP.
+.TP
+.B "-display \fIhost:display[.screen]\fP"
+specifies the X server to contact; see \fBX(1)\fP.
+
+Specify \fB+display\fP if an X server is not available.  The label font
+is obtained from the X server.  If none is available, the composite image
+will not have labels. Since the X server is necessary to read X resources,
+all options must be set via the command line when +display is specified.
+.TP
+.B "-dispose \fImethod\fP"
+GIF disposal method.
+
+Here are the valid methods:
+
+.nf
+     0     No disposal specified.
+     1     Do not dispose between frames.
+     2     Overwrite frame with background color from header.
+     3     Overwrite with previous frame.
+.fi
+.TP
+.B "-dither"
+apply Floyd/Steinberg error diffusion to the image.
+
+The basic strategy of dithering is to trade intensity resolution for
+spatial resolution by averaging the intensities of several neighboring
+pixels.  Images which suffer from severe contouring when reducing colors
+can be improved with this option.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+
+Use \fB+dither\fP to render Postscript without text or graphic aliasing.
+.TP
+.B "-draw \fIstring\fP"
+annotate an image with one or more graphic primitives.
+
+Use this option to annotate an image with one or more graphic primitives.
+The primitives include
+
+.nf
+     rectangle
+     circle
+     ellipse
+     polygon
+     color
+     matte
+     text
+     image
+.fi
+
+\fBRectangle\fP, \fBcolor\fP, \fBmatte\fP, \fBtext\fP, and \fBimage\fP require
+an upper left and lower right coordinate.  \fBCircle\fP requires the center
+coordinate and a coordinate on the outer edge.  Use \fBEllipse\fP to draw a
+partial ellipse centered at the given point, specified width and height, and
+start and end of arc in degrees (e.g. 100,100 100,150 0,360). Finally,
+\fBpolygon\fP requires three or more coordinates defining its boundaries.
+Coordinates are integers separated by an optional comma.  For example, to
+define a circle centered at 100,100 that extends to 150,150 use:
+
+.nf
+     -draw 'circle 100,100 150,150'
+.fi
+
+Use \fBcolor\fP to change the color of a pixel.  Follow the
+pixel coordinate with a method:
+
+.nf
+     point
+     replace
+     floodfill
+     filltoborder
+     reset
+.fi
+
+Consider the target pixel as that specified by your coordinate.  The
+\fBpoint\fP method recolors the target pixel.  The \fBreplace\fP method
+recolors any pixel that matches the color of the target pixel.
+\fBFloodfill\fP recolors any pixel that matches the color of the target
+pixel and is a neighbor.  Whereas \fBfilltoborder\fP recolors any neighbor
+pixel that is not the border color. Finally, \fBreset\fP recolors all pixels.
+
+Use \fBmatte\fP to the change the pixel matte value to transparent.
+Follow the pixel coordinate with a method (see the \fBcolor\fP
+primitive for a description of methods).  The \fBpoint\fP method
+changes the matte value of the target pixel.  The \fBreplace\fP method
+changes the matte value of any pixel that matches the color of the
+target pixel.  \fBFloodfill\fP changes the matte value of any pixel
+that matches the color of the target pixel and is a neighbor. Whereas
+\fBfilltoborder\fP changes the matte value of any neighbor pixel that is not the
+border color. Finally \fBreset\fP changes the matte value of all pixels.
+
+Use \fBtext\fP to annotate an image with text.  Follow the
+text coordinates with a string.  If the string has embedded spaces,
+enclose it in double quotes.   Optionally you can
+include the image filename, type, width, height, or other image
+attributes by embedding special format characters.  See \fB-comment\fP
+for details.
+
+For example,
+
+.nf
+     -draw 'text 100,100 "%m:%f %wx%h"'
+.fi
+
+annotates the image with \fBMIFF:bird.miff 512x480\fP for an image
+titled \fBbird.miff\fP and whose width is 512 and height is 480.
+To generate a Unicode character (TrueType fonts only), embed the
+code as an escaped hex string (e.g. \\0x30a3).
+
+If the first character of the string is \fB@\fP, the text is read
+from a file titled by the remaining characters in the string.
+
+Use \fBimage\fP to composite an image with another image.  Follow the
+image coordinates with the filename of an image.
+
+If the first character of \fIstring\fP is \fB@\fP, the text is read
+from a file titled by the remaining characters in the string.
+
+You can set the primitive color, font color, and font bounding box color with
+\fB-pen\fP, \fB-font\fP, and \fB-box\fP respectively.  Options are
+processed in command line order so be sure to use \fB-pen\fP
+\fIbefore\fP the \fB-draw\fP option.
+.TP
+.B "-filter \fItype\fP"
+use this type of filter when resizing an image.
+
+Use this option to affect the resizing operation of an image (see
+\fB-geometry\fP).  Choose from these filters:
+
+.nf
+     Point
+     Box
+     Triangle
+     Hermite
+     Hanning
+     Hamming
+     Blackman
+     Gaussian
+     Quadratic
+     Cubic
+     Catrom
+     Mitchell
+     Lanczos
+     Bessel
+     Sinc
+.fi
+
+The default filter is \fBLanczos\fP.
+
+.TP
+.B "-frame"
+surround the image with an ornamental border.
+
+The color of the border is specified with the \fB-mattecolor\fP command line
+option.  If no frame is desired, use \fB+frame\fP.
+.TP
+.B "-font \fIname\fP"
+use this font when annotating the image with text.
+
+If the font is a fully qualified X server font name, the font is obtained
+from an X server (e.g. -*-helvetica-medium-r-*-*-12-*-*-*-*-*-iso8859-*).  To
+use a TrueType font, precede the TrueType filename with a \fB@\fP (e.g.
+@times.ttf).  Otherwise, specify a Postscript font (e.g. helvetica).
+.TP
+.B "-gamma \fIvalue\fP"
+level of gamma correction.
+
+The same color image displayed on two different workstations may look
+different due to differences in the display monitor.  Use gamma
+correction to adjust for this color difference.  Reasonable values
+extend from 0.8 to 2.3.
+
+You can apply separate gamma values to the red, green, and blue
+channels of the image with a gamma value list delineated with slashes
+(i.e. 1.7/2.3/1.2).
+
+Use \fB+gamma\fP to set the image gamma level without actually adjusting
+the image pixels.  This option is useful if the image is of a known
+gamma but not set as an image attribute (e.g. PNG images).
+.TP
+.B "-geometry \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}{!}{<}{>}\fP"
+preferred tile and border size of each tile of the composite image.
+
+By default, the width and height are maximum values.  That is, the
+image is expanded or contracted to fit the width and height value while
+maintaining the aspect ratio of the image.  Append an exclamation point
+to the geometry to force the image size to exactly the size you
+specify.  For example, if you specify \fB640x480!\fP the image width is
+set to 640 pixels and height to 480.  If only one factor is
+specified, both the width and height assume the value.
+
+Use \fB>\fP to change the dimensions of the image \fIonly\fP
+if its size exceeds the geometry specification.  \fB<\fP resizes
+the image \fIonly\fP if its dimensions is less than the geometry
+specification.  For example, if you specify \fB640x480>\fP and the
+image size is 512x512, the image size does not change.  However, if
+the image is 1024x1024, it is resized to 640x480.
+
+Each image is surrounded by a border whose size in pixels is specified
+as \fI<border width>\fP and \fI<border height>\fP and whose color is
+the background color.  By default, the tile size is 256x256 and there is no
+border.
+
+The equivalent X resource for this option is \fBimageGeometry\fP
+(class \fBImageGeometry\fP).  See \fBX RESOURCES\fP for details.
+.TP
+.B "-gravity \fIdirection\fP"
+direction image gravitates to within a tile.  See \fBX(1)\fP for details
+about the gravity specification.
+
+A tile of the composite image is a fixed width and height.  However,
+the image within the tile may not fill it completely (see
+\fB-geometry\fP).  The direction you choose specifies where to
+position the image within the tile.  For example \fICenter\fP gravity
+forces the image to be centered within the tile.  By default, the image
+gravity is \fICenter\fP.
+.TP
+.B "-interlace \fItype\fP"
+the type of interlacing scheme: \fBNone\fP, \fBLine\fP, \fBPlane\fP, or
+\fBPartition\fP.  The default is \fBNone\fP.
+
+This option is used to specify the type of interlacing scheme for raw
+image formats such as \fBRGB\fP or \fBYUV\fP.  \fBNo\fP means do not
+interlace (RGBRGBRGBRGBRGBRGB...), \fBLine\fP uses scanline
+interlacing (RRR...GGG...BBB...RRR...GGG...BBB...), and \fBPlane\fP uses
+plane interlacing (RRRRRR...GGGGGG...BBBBBB...).  \fBPartition\fP is like
+plane except the different planes are saved to individual files (e.g.
+image.R, image.G, and image.B).
+
+Use \fBLine\fP, or \fBPlane\fP to create an interlaced GIF or progressive
+JPEG image.
+.TP
+.B "-label \fIname\fP"
+assign a label to an image.
+
+By default, each image is labeled with its file name.  Use this option
+to assign a specific label to the image.   Optionally you can
+include the image filename, type, width, height, or other image
+attributes by embedding special format characters.  See \fB-comment\fP
+for details.
+
+For example,
+
+.nf
+     -label "%m:%f %wx%h"
+.fi
+
+produces an image label of \fBMIFF:bird.miff 512x480\fP for an image
+titled \fBbird.miff\fP and whose width is 512 and height is 480.
+
+If the first character of \fIstring\fP is \fB@\fP, the image label is read
+from a file titled by the remaining characters in the string.
+.TP
+.B "-matte"
+store matte channel if the image has one otherwise create an opaque one.
+.TP
+.B "-mode \fItype\fP"
+the type of montage: \fBFrame\fP, \fBUnframe\fP, \fBConcatentate\fP.
+The default is \fBUnframe\fP.
+
+This option is for convenience.  You can obtain the desired result by
+setting individual options (e.g. \fBUnframe\fP is equivalent to
+\fB+frame\fP \fB+shadow\fP \fB+borderwidth\fP).
+.TP
+.B "-monochrome"
+transform the image to black and white.
+.TP
+.B "-page \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}{!}{<}{>}\fP"
+preferred size and location of an image canvas.
+
+Use this option to specify the dimensions of the Postscript page in
+dots per inch or a TEXT page in pixels.  The choices for a Postscript page are:
+
+.nf
+       11x17         792  1224 
+       Ledger       1224   792    
+       Legal         612  1008
+       Letter        612   792
+       LetterSmall   612   792
+       ArchE        2592  3456
+       ArchD        1728  2592
+       ArchC        1296  1728
+       ArchB         864  1296
+       ArchA         648   864
+       A0           2380  3368
+       A1           1684  2380
+       A2           1190  1684
+       A3            842  1190
+       A4            595   842
+       A4Small       595   842
+       A5            421   595
+       A6            297   421
+       A7            210   297
+       A8            148   210
+       A9            105   148
+       A10            74   105
+       B0           2836  4008
+       B1           2004  2836
+       B2           1418  2004
+       B3           1002  1418
+       B4            709  1002
+       B5            501   709
+       C0           2600  3677
+       C1           1837  2600
+       C2           1298  1837
+       C3            918  1298
+       C4            649   918
+       C5            459   649
+       C6            323   459
+       Flsa          612   936 
+       Flse          612   936
+       HalfLetter    396   612
+.fi
+
+For convenience you can specify the page size by media (e.g.
+A4, Ledger, etc.).  Otherwise, \fB-page\fP behaves much like \fB-geometry\fP
+(e.g. -page letter+43+43>).
+
+To position a GIF image, use -page \fI{\+-}<x offset>{\+-}<y offset>\fP
+(e.g. -page +100+200).  
+
+For a Postscript page, the image is sized as in \fB-geometry\fP and
+positioned relative to the lower left hand corner of the page by
+\fI{\+-}<x offset>{\+-}<y offset>\fP.  Use -page 612x792>, for example,
+to center the image within the page.  If the image size exceeds the
+Postscript page, it is reduced to fit the page.
+
+The default page dimensions for a TEXT image is 612x792.
+
+This option is used in concert with \fB-density\fP.
+.TP
+.B "-pen \fIcolor\fP"
+set the color of the font.
+
+See \fBX(1)\fP for details about the color specification.
+.TP
+.B "-pointsize \fIvalue\fP"
+pointsize of the Postscript font.
+.TP
+.B "-quality \fIvalue\fP"
+JPEG/MIFF/PNG compression level.
+
+For the JPEG image format, quality is 0 (worst) to 100 (best).  The default
+quality is 75.
+
+Quality for the MIFF and PNG image format sets the amount of image compression
+(quality / 10) and filter-type (quality % 10).  Compression quality
+values range from 0 (worst) to 100 (best).  If filter-type is 4
+or less, the specified filter-type is used for all scanlines:
+
+.nf
+    0: none
+    1: sub
+    2: up
+    3: average
+    4: Paeth
+.fi
+
+If filter-type is 5, adaptive filtering is used when quality
+is greater than 50 and the image does not have a color map,
+otherwise no filtering is used.
+
+If filter-type is 6 or more, adaptive filtering with
+\fIminimum-sum-of-absolute-values\fP is used.
+
+The default is quality is 75.  Which means nearly the best compression
+with adaptive filtering.
+
+For further information, see the PNG specification (RFC 2083),
+<http://www.w3.org/pub/WWW/TR>.
+.TP
+.B "-rotate \fIdegrees{<}{>}\fP"
+apply Paeth image rotation to the image.
+
+Use \fB>\fP to rotate the image \fIonly\fP if its width exceeds the
+height.  \fB<\fP rotates the image \fIonly\fP if its width is less than
+the height.  For example, if you specify \fB-90>\fP and the image size
+is 480x640, the image is not rotated by the specified angle.  However,
+if the image is 640x480, it is rotated by -90 degrees.
+
+Empty triangles left over from rotating the image are filled with
+the color defined as \fBbordercolor\fP (class \fBborderColor\fP).
+.TP
+.B "-scene \fIvalue\fP"
+image scene number.
+.TP
+.B "-shadow
+add a shadow beneath a tile to simulate depth.
+.TP
+.B "-sharpen \fIfactor\fP"
+sharpen an image.  Specify \fIfactor\fP as the percent
+enhancement (0.0 - 99.9%).
+.TP
+.B "-size \fI<width>x<height>{+offset}"
+width and height of the image.
+
+Use this option to specify the width and height of raw images whose
+dimensions are unknown such as \fBGRAY\fP, \fBRGB\fP, or \fBCMYK\fP.
+In addition to width and height, use \fB-size\fP to skip any header
+information in the image or tell the number of colors in a \fBMAP\fP
+image file, (e.g. -size 640x512+256).
+.TP
+.B "-texture \fIfilename\fP"
+name of texture to tile onto the image background.
+.TP
+.B "-tile \fI<width>x<height>\fP"
+specifies how many tiles are to appear in each row and column of the
+composite image.
+
+Specify the number of tiles per row with width and tiles per column
+with height.  For example if you want 1 tile in each row and a maximum
+of 10 tiles in the composite image, use -tile 1x10.  The default is to
+have 5 tiles in each row and 4 tiles in each column of the composite.
+.TP
+.B "-transparency \fIcolor\fP"
+make this color transparent within the image.
+.TP
+.B "-treedepth \fIvalue\fP"
+Normally, this integer value is zero or one.  A zero or one tells
+\fBmontage\fP to choose a optimal tree depth for the color reduction
+algorithm.
+
+An optimal depth generally allows the best representation of the source
+image with the fastest computational speed and the least amount of
+memory.  However, the default depth is inappropriate for some images.
+To assure the best representation, try values between 2 and 8 for this
+parameter.  Refer to \fBquantize(9)\fP for more details.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+.TP
+.B -verbose
+print detailed information about the image.
+
+This information is printed: image scene number;  image name;  image size;
+the image class (\fIDirectClass\fP or \fIPseudoClass\fP);  the total
+number of unique colors;  and the number of seconds to read and write the
+image.
+.PP
+In addition to those listed above, you can specify these standard X
+resources as command line options:  -background, -bordercolor, -borderwidth,
+-font, -foreground, -mattecolor, or -title.
+See \fBX RESOURCES\fP for details.
+
+Options are processed in command line order.
+Any option you specify on the command line remains in effect until it is
+explicitly changed by specifying the option again with a different effect.
+For example, to montage two images, the first with 32 colors and the
+second with only 16 colors, use:
+
+     montage -colors 32 cockatoo.1 -colors 16 cockatoo.2 cockatoo.miff
+
+By default, the image format is determined by its magic number. To
+specify a particular image format, precede the filename with an image
+format name and a colon (i.e. ps:image) or specify the image type as
+the filename suffix (i.e. image.ps).  See \fBconvert(1)\fP for a list
+of valid image formats.
+
+When you specify \fBX\fP as your image type, the filename has special
+meaning.  It specifies an X window by id, name, or \fBroot\fP.  If no
+filename is specified, the window is selected by clicking the mouse in
+the desired window.
+
+Specify \fIinput_file\fP as \fI-\fP for standard input,
+\fIoutput_file\fP as \fI-\fP for standard output.  If \fIinput_file\fP
+has the extension \fB.Z\fP or \fB.gz\fP, the file is uncompressed with
+\fBuncompress\fP or \fBgunzip\fP respectively.  If \fIoutput_file\fP
+has the extension \fB.Z\fP or \fB.gz\fP, the file size is compressed
+using with \fBcompress\fP or \fBgzip\fP respectively.  Finally, precede
+the image file name with \fI|\fP to pipe to or from a system command.
+
+Use an optional index enclosed in brackets after a file name to specify
+a desired subimage of a multi-resolution image format like Photo CD
+(e.g. img0001.pcd[4]) or a range for MPEG images (e.g. video.mpg[50-75]).
+A subimage specification can be disjoint (e.g. image.tiff[2,7,4]).
+For raw images, specify a subimage with a geometry (e.g.  -size 640x512
+image.rgb[320x256+50+50]).
+
+Single images are written with the filename you specify.  However,
+multi-part images (e.g. a multi-page Postscript document with \fB+adjoin\fP
+specified) are written with the filename followed by a period (\fB.\fP) and
+the scene number.  You can change this behavior by embedding a \fBprintf\fP
+format specification in the file name.  For example,
+
+.nf
+     image%02d.miff
+.fi
+
+montages files image00.miff, image01.miff, etc.
+
+Prepend an at sign (\fB@\fP) to a filename to read a list of image
+filenames from that file.  This is convenient in the event you have too
+many image filenames to fit on the command line.
+
+Note, a composite MIFF image displayed to an X server with
+\fBdisplay\fP behaves differently than other images.  You can think of
+the composite as a visual image directory.  Choose a particular tile of
+the composite and press a button to display it.  See \fBdisplay(1)\fP
+and \fBmiff(5)\fP for details.
+.SH "X RESOURCES"
+\fBmontage\fP options can appear on the command line or in your X
+resource file.  Options on the command line supersede values specified
+in your X resource file.  See \fBX(1)\fP for more information on X
+resources.
+
+All \fBmontage\fP options have a corresponding X resource.  In addition,
+\fBmontage\fP uses the following X resources:
+.TP
+.B background (\fPclass\fB Background)
+Specifies the preferred color to use for the composite image background.  The
+default is #ccc.
+.TP
+.B borderColor (\fPclass\fB BorderColor)
+Specifies the preferred color to use for the composite image border.  The
+default is #ccc.
+.TP
+.B borderWidth (\fPclass\fB BorderWidth)
+Specifies the width in pixels of the composite image border.  The default is 2.
+.TP
+.B font (\fPclass\fB Font)
+Specifies the name of the preferred font to use when displaying text
+within the composite image.  The default is 9x15, fixed, or 5x8 determined by
+the composite image size.
+.TP
+.B foreground (\fPclass\fB Foreground)
+Specifies the preferred color to use for text within the composite image.  The
+default is black.
+.TP
+.B matteColor (\fPclass\fB MatteColor)
+Specify the color of an image frame.  A 3D  effect  is achieved  by
+using highlight and shadow colors derived from this color.  The default
+value is #ccc.
+.TP
+.B title (\fPclass\fB Title)
+This resource specifies the title to be placed at the top of the composite
+image.  The default is not to place a title at the top of the composite image.
+.SH ENVIRONMENT
+.TP
+.B display
+To get the default host, display number, and screen.
+.SH SEE ALSO
+.B
+display(1), animate(1), import(1), mogrify(1), convert(1), combine(1), xtp(1)
+.SH COPYRIGHT
+1998 1998 E. I. du Pont de Nemours and Company
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files ("ImageMagick"),
+to deal in ImageMagick without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of ImageMagick, and to permit persons to whom the
+ImageMagick is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of ImageMagick.
+
+The software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement.  In no event shall
+E. I. du Pont de Nemours and Company be liable for any claim, damages or
+other liability, whether in an action of contract, tort or otherwise,
+arising from, out of or in connection with ImageMagick or the use or other
+dealings in ImageMagick.
+
+Except as contained in this notice, the name of the E. I. du Pont de
+Nemours and Company shall not be used in advertising or otherwise to
+promote the sale, use or other dealings in ImageMagick without prior
+written authorization from the E. I. du Pont de Nemours and Company.
+.SH ACKNOWLEDGEMENTS
+The MIT X Consortium for making network transparent graphics a reality.
+
+Michael Halle, Spatial Imaging Group at MIT, for the initial
+implementation of Alan Paeth's image rotation algorithm.
+
+David Pensak, E. I. du Pont de Nemours and Company, for providing a
+computing environment that made this program possible.
+
+Paul Raveling, USC Information Sciences Institute, for the original
+idea of using space subdivision for the color reduction algorithm.
+.SH AUTHORS
+John Cristy, E.I. du Pont de Nemours and Company Incorporated

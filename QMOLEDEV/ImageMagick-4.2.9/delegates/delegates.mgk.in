@@ -1,0 +1,234 @@
+# ImageMagick delegates for Unix.  The format is as follows.  Each
+# delegate begins with a tag and/or format separated by a operator tag
+# (<=, <=>, =>).  This line must be followed by one or more commands
+# preceded with a tab (\t) character.  If a command exceeds the length of
+# a line, use the backslash continuation character.  End the command with
+# an ampersand (&) to execute the command in the background.
+# 
+# Optionally you can include the image filename, type, width, height, or
+# other image attributes by embedding special format characters:
+# 
+#   %b   file size
+#   %d   directory
+#   %e   filename extention
+#   %f   filename
+#   %h   height
+#   %i   input filename
+#   %l   label
+#   %m   magick
+#   %n   number of scenes
+#   %o   output filename
+#   %p   page number
+#   %q   quantum depth
+#   %s   scene number
+#   %t   top of filename
+#   %u   unique temporary filename
+#   %w   width
+#   %x   x resolution
+#   %y   y resolution
+#   %z   data written to this file is discarded
+# 
+# There are three types of delegates: decode, encode, and bypass.  Decode
+# delegates begin with a image format (tag) specified (e.g. mpeg) followed
+# with a equal-greater sign (=>).  The delegate is invoked whenever ImageMagick
+# attempts to read an image whose format specifier or filename extension
+# matches the tag (e.g.  image.mpg for tag mpg=>).  The delegate must
+# write an image to the file designated by %o in an image format that
+# ImageMagick understands (e.g. pnm).
+# 
+# An encode delegate begins with an image format, a less-equal sign (<=),
+# and a tag.  The delegate is invoked whenever ImageMagick attempts to
+# write an image whose format specifier or filename extension matches the
+# tag (e.g. image.mpg for tag <=mpg).  ImageMagick writes to a temporary
+# file in the format you specify.  The delegate can then read this file
+# and convert it to a format it supports and presumably ImageMagick does
+# not.
+# 
+# If you use a less-equal-greater sign (<=>) the delegate bypasses
+# ImageMagick and directly converts the image file if it is untainted
+# (no image manipulations such as resize or rotation).
+# 
+# Lines that begin with a pound sign (#) are comments and are ignored.
+# 
+# There are a number of delegates used by ImageMagick for special
+# circumstances.  For example, the print or Ghostscript delegate.  Don't
+# remove these or ImageMagick may behave strangely.
+# 
+# ImageMagick looks for the delegate configurarion file in this order:
+# 
+#     /usr/local/share/ImageMagick/delegates.mgk
+#     DELEGATE_PATH/delegates.mgk
+#     HOME/.magick/delegates.mgk
+#     ./delegates.mgk
+# 
+# where DELEGATE_PATH and HOME are environment variables.
+# 
+# Like entries in the later two directory overrides the specification in
+# the system-wide delegates file.
+#
+#
+
+<=bzip
+	|@BZIPDelegate@ -f > %o
+
+<=compress
+	|@LZWEncodeDelegate@ -c > %o
+
+<=show
+	@ShowImageDelegate@ -immutable -window_group %g -title "%l of %f" tmp:%o &
+
+<=zip
+	|@ZipDelegate@ -cf > %o
+
+browse=>
+	@BrowseDelegate@ http://www.wizards.dupont.com/cristy/ImageMagick.html &
+
+bzip=>
+	|@BZIPDelegate@ -cd %i
+
+cgm=>
+	@CGMDecodeDelegate@ -d ps %i %o %u
+	@ConvertDelegate@ -concatenate %o*.ps %o
+
+compress=>
+	|@LZWDecodeDelegate@ -c %i
+
+dot=>
+	@DOTDecodeDelegate@ -Tps %i -o %o 
+
+dvi=>
+	@DVIDecodeDelegate@ -q -o %o %i
+
+edit=>
+	@EditorDelegate@ -title "Edit Image Comment" -e vi %o
+
+emf=>
+	@WMFDecodeDelegate@ %i %o
+
+eps<=>pdf
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSPDFDevice@ -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+eps<=>ps
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSPSDevice@ -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+file=>
+	@WWWDecodeDelegate@ %m:%i > %o 2>&1
+
+fig=>
+	@FIGDecodeDelegate@ -L ps %i %o
+
+ftp=>
+	@WWWDecodeDelegate@ %m:%i > %o 2>&1
+
+# Gnuplot format (rendered as Postscript)
+# Add additional gnuplot commands to the input file to adjust output.
+gplt=>
+	@EchoDelegate@ "set size 1.25,0.62; set terminal postscript portrait color solid; set output '%o'; load '%i'" > %u
+	@GnuplotDecodeDelegate@ %u
+
+gs-color=>
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSColorDevice@ -q -dNOPAUSE -dSAFER \
+	  -dTextAlphaBits=%u -dGraphicsAlphaBits=%u -g%s -r%s %s \
+	  -sOutputFile="%s" -- "%s" -c quit
+
+gs-mono=>
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSMonoDevice@ -q -dNOPAUSE -dSAFER \
+	  -dTextAlphaBits=%u -dGraphicsAlphaBits=%u -g%s -r%s %s \
+	  -sOutputFile="%s" -- "%s" -c quit
+
+hpgl=>
+	@HPGLDecodeDelegate@ -q -m eps -f `basename %o` %i
+	mv `basename %o` %o
+
+htm=>
+	@HTMLDecodeDelegate@ -U -o %o %i
+
+html=>
+	@HTMLDecodeDelegate@ -U -o %o %i
+
+http=>
+	@WWWDecodeDelegate@ %m:%i > %o 2>&1
+
+ilbm=>
+	@ILBMDecodeDelegate@ %i > %o 
+
+man=>
+	@MANDelegate@ -man -Tps %i > %o
+
+mpg=>
+	@MPEGDecodeDelegate@ -q -b %i -f -r -o3 %o%%05d
+	@ConvertDelegate@ -concatenate %o*.ppm %o
+
+m2v=>
+	@MPEGDecodeDelegate@ -q -b %i -f -r -o3 %o%%05d
+	@ConvertDelegate@ -concatenate %o*.ppm %o
+
+pdf<=>eps
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSEPSDevice@ -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+pdf<=>ps
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSPSDevice@ -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+pgp=>
+	@PGPDecodeDelegate@ -fq %i
+
+pnm<=ilbm
+	@ILBMEncodeDelegate@ -24if %i > %o
+
+pnm<=launch
+	@LaunchDelegate@ %i
+
+pnm<=win
+	@ShowImageDelegate@ -immutable %i
+
+pov=>
+	@POVDelegate@ +i%i +o%o +fn%q +w%w +h%h +a -q9 -kfi%s -kff%n
+	@ConvertDelegate@ -concatenate %o*.png %o
+
+ps<=>eps
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSEPSDevice@ -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+ps<=>pdf
+	@PSDelegate@ -dMaxBitmap=300000000 -sDEVICE=@GSPDFDevice@ -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+ps<=print
+	@LPDelegate@ -c -s %i
+
+rad=>
+	@RADDecodeDelegate@ -g 1.0 %i %o
+
+rgba<=rle
+	@MogrifyDelegate@ -flip -size %wx%h rgba:%i
+	@RLEEncodeDelegate@ -w %w -h %h -n 4 -o %o %i
+
+scan=>
+	@SCANDecodeDelegate@ -d %i > %o
+
+shtml=>
+	@HTMLDecodeDelegate@ -U -o %o %i
+
+txt<=>ps
+	@TXTDelegate@ -o %o %i
+
+wmf=>
+	@WMFDecodeDelegate@ %i %o
+
+xcf=>
+	@XCFDecodeDelegate@ %i > %o 
+
+yuv<=m2v
+	@MPEGEncodeDelegate@ %u %o
+	@ConvertDelegate@ -concatenate %i*.yuv %u
+
+yuv<=mpg
+	@MPEGEncodeDelegate@ %u %o
+	@ConvertDelegate@ -concatenate %i*.yuv %u
+
+zip=>
+	|@ZipDelegate@ -cdfq %i

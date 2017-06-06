@@ -1,0 +1,214 @@
+# ImageMagick delegates for Windows 95/98.  The format is as follows.  Each
+# delegate begins with a tag and/or format separated by a operator tag
+# (<=, <=>, =>).  This line must be followed by one or more commands
+# preceded with a tab (\t) character.  If a command exceeds the length of
+# a line, use the backslash continuation character.  End the command with
+# an ampersand (&) to execute the command in the background.
+# 
+# Optionally you can include the image filename, type, width, height, or
+# other image attributes by embedding special format characters:
+# 
+#   %b   file size
+#   %d   directory
+#   %e   filename extention
+#   %f   filename
+#   %h   height
+#   %i   input filename
+#   %l   label
+#   %m   magick
+#   %n   number of scenes
+#   %o   output filename
+#   %p   page number
+#   %q   quantum depth
+#   %s   scene number
+#   %t   top of filename
+#   %u   unique temporary filename
+#   %w   width
+#   %x   x resolution
+#   %y   y resolution
+#   %z   data written to this file is discarded
+# 
+# There are three types of delegates: decode, encode, and bypass.  Decode
+# delegates begin with a image format (tag) specified (e.g. mpeg) followed
+# with a equal-greater sign (=>).  The delegate is invoked whenever ImageMagick
+# attempts to read an image whose format specifier or filename extension
+# matches the tag (e.g.  image.mpg for tag mpg=>).  The delegate must
+# write an image to the file designated by %o in an image format that
+# ImageMagick understands (e.g. pnm).
+# 
+# An encode delegate begins with an image format, a less-equal sign (<=),
+# and a tag.  The delegate is invoked whenever ImageMagick attempts to
+# write an image whose format specifier or filename extension matches the
+# tag (e.g. image.mpg for tag <=mpg).  ImageMagick writes to a temporary
+# file in the format you specify.  The delegate can then read this file
+# and convert it to a format it supports and presumably ImageMagick does
+# not.
+# 
+# If you use a less-equal-greater sign (<=>) the delegate bypasses
+# ImageMagick and directly converts the image file (this assumes you do not
+# apply any image transforms such as sizing or rotation).
+# 
+# Lines that begin with a pound sign (#) are comments and are ignored.
+# 
+# There are a number of delegates used by ImageMagick for special
+# circumstances.  For example, the print or Ghostscript delegate.  Don't
+# remove these or ImageMagick may behave strangely.
+# 
+# ImageMagick looks for the delegate configurarion file in this order:
+# 
+#     c:\ImageMagick\delegates.mgk
+#     DELEGATE_PATH\delegates.mgk
+#     delegates.mgk
+# 
+# where DELEGATE_PATH is an environment variable.
+# 
+# Like entries in the later two directory overrides the specification in
+# the system-wide delegates file.
+#
+#
+
+<=bzip
+	|bzip2 -f > %o
+
+<=compress
+	|compress -c > %o
+
+<=show
+	display -immutable -window_group %g -title "%l of %f" tmp:%o &
+
+<=zip
+	|gzip -cf > %o
+
+bmp<=launch
+	c:\Program Files\Accessories\mspaint %i.
+
+bmp<=win
+	c:\Program Files\Accessories\mspaint %i.
+
+browse=>
+	start http://www.wizards.dupont.com/magick/ImageMagick.html &
+
+bzip=>
+	|bzip2 -cd %i
+
+cgm=>
+	ralcgm -d ps %i %o %u
+	convert -concatenate %o*.ps %o
+
+compress=>
+	|uncompress -c %i
+
+dvi=>
+	dvips -q -o %o %i
+
+edit=>
+	notepad %o
+
+eps<=>pdf
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=pdfwrite -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+eps<=>ps
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=pswrite -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+file=>
+	GET %m:%i > %o 2>&1
+
+fig=>
+	fig2dev -L ps %i %o
+
+ftp=>
+	GET %m:%i > %o 2>&1
+
+# Gnuplot format (rendered as Postscript)
+# Add additional gnuplot commands to the input file to adjust output.
+gplt=>
+	echo "set size 1.25,0.62; set terminal postscript portrait color solid; set output '%o'; load '%i'" > %u
+	gnuplot %u
+
+gs-color=>
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=pnmraw -q -dNOPAUSE -dSAFER \
+	  -dTextAlphaBits=%u -dGraphicsAlphaBits=%u -g%s -r%s %s \
+	  -sOutputFile="%s" -- "%s" -c quit
+
+gs-mono=>
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=pbmraw -q -dNOPAUSE -dSAFER \
+	  -dTextAlphaBits=%u -dGraphicsAlphaBits=%u -g%s -r%s %s \
+	  -sOutputFile="%s" -- "%s" -c quit
+
+hpgl=>
+	hp2xx -q -m eps -f %i %o
+
+htm=>
+	html2ps -o %o %i
+
+html=>
+	html2ps -o %o %i
+
+http=>
+	GET %m:%i > %o 2>&1
+
+mpg=>
+	mpeg2decode -q -b %i -f -r -o3 %o%%05d
+	convert -concatenate %o*.ppm %o
+
+m2v=>
+	mpeg2decode -q -b %i -f -r -o3 %o%%05d
+	convert -concatenate %o*.ppm %o
+
+pdf<=>eps
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=epswrite -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+pdf<=>ps
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=pswrite -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+pgp=>
+	pgpv -fq %i
+
+pov=>
+	povray +i%i +o%o +fn%q +w%w +h%h +a -q9 -kfi%s -kff%n
+	convert -concatenate %o*.png %o
+
+pcl<=print
+	print %i
+
+ps<=>eps
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=epswrite -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+ps<=>pdf
+	gswin32 -dMaxBitmap=300000000 -sDEVICE=pdfwrite -q -dNOPAUSE -dSAFER \
+	  -sOutputFile="%o" -- "%i" -c quit
+
+rad=>
+	ra_ppm -g 1.0 %i %o
+
+rgba<=rle
+	mogrify -flip -size %wx%h rgba:%i
+	rawtorle -w %w -h %h -n 4 -o %o %i
+
+scan=>
+	scanimage  -d %i > %o
+
+shtml=>
+	html2ps -o %o %i
+
+txt<=>ps
+	enscript -o %o %i
+
+wmf=>
+	wmftogif %i %o
+
+yuv<=m2v
+	mpeg2encode %u %o
+	convert -concatenate %i*.yuv %u
+
+yuv<=mpg
+	mpeg2encode %u %o
+	convert -concatenate %i*.yuv %u
+
+zip=>
+	|gzip -cdfq %i

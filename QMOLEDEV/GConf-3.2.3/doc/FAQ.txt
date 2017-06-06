@@ -1,0 +1,142 @@
+FAQ/Troubleshooting
+
+This section assumes the background information in the Introduction to GConf
+section above.
+
+
+How do I use GConf 1 and 2 at the same time?
+
+Things should just work - GConf 1 apps can talk to the GConf 2 daemon, and vice
+versa.
+
+The tricky part is if you install GConf 1 and 2 to different prefixes. This
+means that by default they will use different sources to find schemas. You can
+fix this in several ways; one is to install the schemas for each application to
+both source locations, another is to edit prefix/etc/gconf/2/path to point at
+the same sources as prefix/etc/gconf/1/path and then create a file prefix/etc/
+gconf/schema-install-source containing the address of the source where you want
+newly-installed applications to install their schemas.
+
+
+How do I log in from two machines at once?
+
+You can only have one gconfd accessing a given configuration source at the same
+time. This means you need to share the same gconfd between the two machines.
+
+However, the default configuration uses locks on the local machine (in /tmp)
+instead of inside the home directory (which is obviously going to be remotely
+mounted in this case).  This is to make life easier for the simple case of a
+single machine, but then gconfd on the second machine can't find out where the
+first gconfd is running.  To switch to GConf to using locks in the home
+directory, set GCONF_GLOBAL_LOCKS in the environment before gconfd starts.
+
+This Just Works, with two common catches:
+
+ ・ You have a firewall between the machines.
+ ・ For security reasons, remote CORBA connections are normally disabled by
+    default.
+
+To enable remote CORBA connections, add the line "ORBIIOPIPv4=1" to /etc/
+orbitrc and then restart gconfd using gconftool-2 --shutdown.
+
+Note that switching to locks in the home directory should only be done if you
+are going to turn on remote CORBA connections, having the lock files on the
+local machine solves several locking problems in the common single-login case.
+
+
+I'm having a lock file problem. What do I do?
+
+Usually a problem here involves either NFS, or a kernel bug.
+
+The per-user daemon locks two files when using locks in the home directory:
+   ~/.gconfd/lock/ior
+   ~/.gconf/%gconf-xml-backend.lock/ior
+The first lock is to ensure that only one gconfd is running. The second lock is
+to ensure only one program accesses the XML config source at a time.
+
+If you have an NFS-mounted home directory, you must be running an rpc.statd/
+rpc.lockd setup on both NFS client and NFS server, so that file locking works.
+On Red Hat Linux, this means the "nfslock" service must be running. Enable it
+permanently with the chkconfig tool - see its manual page. Turn it on or off at
+any given time with service nfslock start or service nfslock stop. You must be
+root to do this.
+
+If the kernel crashes (or the power cord gets pulled) on an NFS client machine,
+theoretically when you reboot the client machine it will notify the NFS server
+that it has rebooted and all previously-held locks should be released. However,
+many operating systems including Red Hat Linux 7.2 do not properly do this; so
+you will have stale locks after a crash. If no gconfd is running, these locks
+may safely be removed. If gconfd is running though, DO NOT remove them; if you
+have two gconfd processes for a single user, very bad things will happen to
+that user's preferences.
+
+
+How can I see log messages from gconfd?
+
+If you're having gconf problems, the first step is to see if gconfd is printing
+error messages. To do this, you need to look at the user.* level of syslog. Red
+Hat Linux has this level of logging turned off by default, other systems have
+it enabled. If you don't have it by default, add a line like this to /etc/
+syslog.conf:
+ user.* /var/log/user
+Then run a command such as service syslog restart to reload the config file. At
+that point /var/log/user will begin to log gconfd messages.
+
+To put gconfd in hugely verbose mode, you can send it the USR1 signal with kill
+-USR1 <process-id> or killall -USR1 gconfd-2. Send USR1 a second time to toggle
+huge verbosity back off. Note that GConf will get really, really slow when in
+verbose mode; syslog is not efficient.
+
+
+How can I turn off log messages from gconfd?
+
+Change where user.* messages end up. Syslog unfortunately does not let you
+redirect messages according to which daemon sends them, but very little other
+than gconfd uses user.*.
+
+
+gconfd keeps me from unmounting my home directory, how can I get it to exit?
+
+It should exit a couple of minutes after the last application using GConf has
+exited. You could put a "gconftool --shutdown" in your .logout script or the
+like, if you want it to exit sooner.
+
+GConf should really be enhanced in the future to exit immediately when all apps
+using it have exited. This can only be done in GConf 2 since ORBit 2 has the
+required features. Patches are welcome, otherwise I'll get to it eventually.
+
+
+What are some tools for debugging/profiling gconf or apps that use it?
+
+One handy trick is to set the GCONF_DEBUG_TRACE_CLIENT environment variable
+when running a GConf client application. This will give copious debug output
+about what that client is doing.
+
+
+Some other weird thing is wrong with my gconf!!!
+
+Try shutting down gconfd (gconftool-2 --shutdown) and running the
+gconf-sanity-check-1 or gconf-sanity-check-2 applications - these will tell you
+about common problems. Also, be sure you have the latest GConf version.
+
+If you can't figure out what's going on, mail gconf-list@gnome.org with the
+following information:
+
+ ・ Exact error messages from any applications.
+ ・ Exact version of GConf 1 and GConf 2 that you have installed.
+ ・ Output of ps jaxwww | grep gconf.
+ ・ Output of gconf-sanity-check-1 or gconf-sanity-check-2 if any.
+ ・ What operating system are you using, and what version of it.
+ ・ What appears in the user.* syslog (see above for how to turn on user.*
+    syslog).
+
+Before you mail, please read this whole web page.
+
+
+Where do I report bugs or make suggestions?
+
+Go to http://bugzilla.gnome.org and enter a new bug, or run the GNOME
+"bug-buddy" application.
+
+DO NOT put support requests in bugzilla; mail gconf-list as noted in the
+previous question.

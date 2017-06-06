@@ -1,0 +1,424 @@
+<!-- ##### SECTION Title ##### -->
+gconf-backend
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION Stability_Level ##### -->
+
+
+<!-- ##### SECTION Image ##### -->
+
+
+<!-- ##### STRUCT GConfBackendVTable ##### -->
+<para>
+The #GConfBackendVTable is a table of methods that any GConf backend must
+implement.  The dynamically loaded library module should export a function
+called gconf_backend_get_vtable() that returns a pointer to a
+#GConfBackendVTable.
+</para>
+
+<para>
+Here is the specification of the vtable members:
+
+<informaltable pgwide="1" frame="none">
+<tgroup cols="2"><colspec colwidth="2*"/><colspec colwidth="8*"/>
+<tbody>
+
+<row>
+<entry>@vtable_size</entry> 
+<entry>
+The size of the vtable structure. This is used by the daemon to ensure that
+a mismatch between the version of GConf the backend was compiled against and
+the version the daemon was compiled against can be handled gracefully. Set
+this field to sizeof (GConfBackendVtable).
+</entry>
+</row>
+ 
+<row>
+<entry>@shutdown</entry> 
+<entry>Called prior to unloading the dynamic
+module. Should ensure that no functions or static/global variables from the
+module will ever be accessed again. Should free any memory that the backend
+no longer needs.
+</entry>
+</row>
+ 
+<row>
+<entry>@resolve_address</entry> 
+
+<entry>
+Should create a #GConfSource for accessing the supplied address. Should set the
+%GCONF_SOURCE_ALL_READABLE and %GCONF_SOURCE_ALL_WRITEABLE flags if
+appropriate. If these are not set, the backend must implement the @writable and
+@readable methods. If <symbol>NULL</symbol> is returned, then the error should
+be set.
+</entry>
+
+</row>
+ 
+<row>
+<entry>@lock</entry> 
+
+<entry>If the backend is thread safe (does its own locking or whatever), then
+@lock and @unlock can be <symbol>NULL</symbol>.  If the backend requires a lock
+for each source, then @lock and @unlock should lock/unlock that lock. If the
+backend has a global lock for all uses of the backend, then @lock and @unlock
+should ignore their arguments and lock the entire backend.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@unlock</entry>
+<entry>See description of @lock.</entry>
+</row>
+ 
+
+<row>
+<entry>@readable</entry> 
+
+<entry>
+If the %GCONF_SOURCE_ALL_READABLE flag is set, this method is never called and
+may be <symbol>NULL</symbol>. If %GCONF_SOURCE_ALL_READABLE is unset, and this
+method is <symbol>NULL</symbol>, then the source is write-only. If this method
+is implemented, it should return <symbol>TRUE</symbol> if the given key could be
+read from the given source. <symbol>TRUE</symbol> should be returned even if the
+key is unset; this function returns something similar to permissions, it is not
+asking whether the key exists. <emphasis>If an error is set, then
+<symbol>FALSE</symbol> must be returned.</emphasis>
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@writable</entry>
+<entry>Analagous to @readable, but for writing.</entry>
+</row>
+ 
+
+<row>
+<entry>@query_value</entry>
+
+<entry>This method must be implemented if the source is readable. It returns the
+value of a key.  The "locales" argument is a <symbol>NULL</symbol>-terminated
+vector of locale names, where the first locale in the vector is the preferred
+locale, the next is the second choice, etc. if the "schema_name" argument is
+non-<symbol>NULL</symbol>, then it should be filled with an allocated string
+giving the name of the schema attached to the key, if and only if
+<symbol>NULL</symbol> is returned. This is an optimization to avoid looking up
+the same key again in the database if it's unset and we need to ask for its
+default value from the schema. If <symbol>NULL</symbol> is returned, indicating
+that the key is unset, then schema_name should not be filled in. If this method
+sets an error, <symbol>NULL</symbol> must be returned. It may not set an error
+while also returning a value. The returned value will be destroyed by the
+caller, so should be a copy of the backend's internal data.
+</entry>
+</row>
+
+<row>
+<entry>@query_metainfo</entry>
+
+<entry>This method must be implemented. If any metainfo is
+available about a key, it returns a #GConfMetaInfo with that metainfo set.  If
+none is available, <symbol>NULL</symbol> is returned. <symbol>NULL</symbol>
+should also be returned if an error is set.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@set_value</entry>
+
+<entry>This method must be implemented if the source is
+writable. It sets the value of a key. If the key is already set, its value
+should be replaced. Setting a value should update the modification time of the
+key.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@all_entries</entry>
+
+<entry>This method must be implemented. It returns a list of all keys in the
+given directory for which some information is available (metainfo or
+values). The returned list should contain #GConfEntry objects. On error,
+<symbol>NULL</symbol> should be returned and the error set. Subdirectories
+should not be included in the returned list. The list and the #GConfEntry
+objects will be freed by the caller.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@all_subdirs</entry>
+
+<entry>This method must be implemented. It returns a list of all the subdirectories in a given
+directory.  It should return the subdirectories as relative paths, i.e. there
+should not be any slashes in the subdirectory name. Each subdirectory in the list
+should be an allocated string; the list and the strings will be freed by the caller.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@unset_value</entry>
+
+<entry>If the given key has a value, then this method should unset the value.
+If a value is unset, subsequent calls to @query_value should return
+<symbol>NULL</symbol>. If the locale string passed in to @unset_value is
+non-<symbol>NULL</symbol>, then only the value for that locale should be
+unset. If <symbol>NULL</symbol>, the value should be globally unset for all
+locales.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@dir_exists</entry>
+
+<entry>
+Determines whether a directory exists. Should return
+<symbol>TRUE</symbol> if there is a directory with the given name.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@remove_dir</entry>
+
+<entry>
+Should remove a directory, recursively: including all its subdirectories and 
+all the values and keys inside the directory.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@set_schema</entry>
+
+<entry>Should associate a schema name with a key.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@sync_all</entry>
+
+<entry>
+Should ensure that all data is stored on permanent media, or whatever makes
+sense for the backend. Called periodically by the GConf daemon.
+</entry>
+
+</row>
+ 
+
+<row>
+<entry>@destroy_source</entry>
+
+<entry>
+Should destroy a source obtained with @resolve_address.
+</entry>
+
+</row>
+ 
+<row>
+<entry>@clear_cache</entry>
+
+<entry>
+Discard any cached data after saving the data to permanent storage.
+</entry>
+
+</row>
+ 
+<row>
+<entry>@blow_away_locks</entry>
+
+<entry>
+Unconditionally discard any locks whether they are stale or otherwise in
+order to force the backend to be able to obtain access to its data store.
+</entry>
+
+</row>
+ 
+<row>
+<entry>@set_notify_func</entry>
+
+<entry>
+If the backend wishes to notify the daemon of changes in the value of
+keys it must implement this method. In order to notify the daemon
+of a change, the backend should invoke the supplied @notify_func with
+@user_data. Backends must not notify the daemon of changes which the
+daemon has not expressed interest in by adding a listener with
+@add_listener. Also, the backend must make every effort to minimise the
+number of notifications it emits. For example, if the daemon has added
+a listener for /apps and another for /apps/foo and the value of
+/apps/foo/bar changes, the backend should only emit a single notification.
+</entry>
+
+</row>
+ 
+<row>
+<entry>@add_listener</entry>
+
+<entry>
+If it is possible for entries to be changed concurrently by another
+daemon, the backend may support notifying the daemon (and any listening
+clients) of such changes. This function should add a listener to a
+section of the tree and when any of the following events occur, the
+backend should invoke the notify function with the key that has changed:
+ <itemizedlist mark="bullet">
+  <listitem>
+    <para>If the entry is set or unset</para>
+  </listitem>
+  <listitem>
+    <para>If the entry's value changes</para>
+  </listitem>
+  <listitem>
+    <para>If the entry's schema name changes</para>
+  </listitem>
+  <listitem>
+    <para>
+      If the entry is a schema and its value in <emphasis>any</emphasis>
+      locale changes
+    </para>
+  </listitem>
+ </itemizedlist>
+Note, the backend should <emphasis>not</emphasis> notify the daemon of
+any changes that originated from the daemon itself.
+</entry>
+
+</row>
+
+<row>
+<entry>@remove_listener</entry>
+
+<entry>
+Remove a listener added with @add_listener. The listener is identified
+by the integer supplied.
+</entry>
+
+</row>
+ 
+</tbody></tgroup></informaltable>
+</para>
+
+@vtable_size: 
+@shutdown: 
+@resolve_address: 
+@lock: 
+@unlock: 
+@readable: 
+@writable: 
+@query_value: 
+@query_metainfo: 
+@set_value: 
+@all_entries: 
+@all_subdirs: 
+@unset_value: 
+@dir_exists: 
+@remove_dir: 
+@set_schema: 
+@sync_all: 
+@destroy_source: 
+@clear_cache: 
+@blow_away_locks: 
+@set_notify_func: 
+@add_listener: 
+@remove_listener: 
+
+<!-- ##### STRUCT GConfBackend ##### -->
+<para>
+
+</para>
+
+@name: 
+@refcount: 
+@vtable: 
+@module: 
+
+<!-- ##### FUNCTION gconf_address_backend ##### -->
+<para>
+
+</para>
+
+@address: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gconf_address_resource ##### -->
+<para>
+
+</para>
+
+@address: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gconf_backend_file ##### -->
+<para>
+
+</para>
+
+@address: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gconf_get_backend ##### -->
+<para>
+
+</para>
+
+@address: 
+@err: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gconf_backend_ref ##### -->
+<para>
+
+</para>
+
+@backend: 
+
+
+<!-- ##### FUNCTION gconf_backend_unref ##### -->
+<para>
+
+</para>
+
+@backend: 
+
+
+<!-- ##### FUNCTION gconf_backend_resolve_address ##### -->
+<para>
+
+</para>
+
+@backend: 
+@address: 
+@err: 
+@Returns: 
+
+

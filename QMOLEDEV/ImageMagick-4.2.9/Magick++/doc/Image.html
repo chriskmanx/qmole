@@ -1,0 +1,2540 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="GENERATOR" content="Mozilla/4.61 [en] (X11; U; SunOS 5.6 sun4u) [Netscape]">
+   <meta name="Author" content="Bob Friesenhahn">
+   <meta name="Description" content="Description of Magick::Image Class">
+   <title>Magick::Image Class</title>
+</head>
+<body text="#000000" bgcolor="#FFFFFF" link="#0000EE" vlink="#551A8B" alink="#FF0000">
+
+<center>
+<h1>
+Magick::Image Class</h1></center>
+Image is the primary object in Magick++ and represents a single image frame
+(see <a href="ImageDesign.html">design</a>). The <a href="STL.html">STL
+interface</a> must be used to operate on image sequences or image formats
+which are comprized of multiple image frames. Various image manipulation
+operations may be applied to the image. Attributes may be set on the image
+to influence the operation of the manipulation operations. As a convenience,
+including <tt>&lt;Magick++.h></tt> is sufficient in order to use the complete
+Magick++ API. The Magick++ API is enclosed within the <i>Magick</i> namespace
+so you must either add the prefix "<tt>Magick::</tt>" to each class/enumeration
+name or add the statement "<tt>using namespace Magick;</tt>" after including
+the <tt>Magick++.h </tt>header.
+<p>Image is very easy to use. For example, here is a the source to a program
+which reads an image, crops it, and writes it to a new file (the exception
+handling is optional):
+<blockquote><tt><font color="#000066">#include &lt;Magick++.h></font></tt>
+<br><tt><font color="#000066">#include &lt;iostream></font></tt>
+<br><tt><font color="#000066">using namespace std;</font></tt>
+<br><tt><font color="#000066">using namespace Magick;</font></tt>
+<br><tt><font color="#000066">int main(int argc,char **argv)</font></tt>
+<br><tt><font color="#000066">{</font></tt>
+<br><tt><font color="#000066">&nbsp; try {</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; // Create an image object
+and read an image</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; Image image( "girl.gif"
+);</font></tt>
+<p><tt><font color="#000066">&nbsp;&nbsp;&nbsp; // Crop the image to specified
+size</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.crop("100x100+100+100"
+); // Geometry implicitly initialized by char *</font></tt>
+<p><tt><font color="#000066">&nbsp;&nbsp;&nbsp; // Write the image to a
+file</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.write( "x.gif" );</font></tt>
+<br><tt><font color="#000066">&nbsp; }</font></tt>
+<br><tt><font color="#000066">&nbsp; catch( Exception error_ )</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; {</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; cout &lt;&lt;
+"Caught exception: " &lt;&lt; error_.what() &lt;&lt; endl;</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return 1;</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; }</font></tt>
+<br><tt><font color="#000066">&nbsp; return 0;</font></tt>
+<br><tt><font color="#000066">}</font></tt></blockquote>
+The following is the source to a program which illustrates the use of Magick++'s
+efficient reference-counted assignment and copy-constructor operation which
+minimizes use of memory and eliminates unncessary copy operations.&nbsp;
+The program accomplishes the following:
+<ol>
+<li>
+Read master image.</li>
+
+<li>
+Assign master image to second image.</li>
+
+<li>
+Zoom second image to the size 640x480.</li>
+
+<li>
+Assign master image to a third image.</li>
+
+<li>
+Zoom third image to the size 800x600.</li>
+
+<li>
+Write the second image to a file.</li>
+
+<li>
+Write the third image to a file.</li>
+</ol>
+
+<blockquote><tt><font color="#000066">#include &lt;Magick++.h></font></tt>
+<br><tt><font color="#000066">#include &lt;iostream></font></tt>
+<br><tt><font color="#000066">using namespace std;</font></tt>
+<br><tt><font color="#000066">using namespace Magick;</font></tt>
+<br><tt><font color="#000066">int main(int argc,char **argv)</font></tt>
+<br><tt><font color="#000066">{</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; Magick::Image master("horse.jpg");</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; Magick::Image second =
+master;</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; second.zoom("640x480");</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; Magick::Image third =
+master;</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; third.zoom("800x600");</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; second.write("horse640x480.jpg");</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; third.write("horse800x600.jpg");</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; return 0;</font></tt>
+<br><tt><font color="#000066">}</font></tt></blockquote>
+During the entire operation, a maximum of three images exists in memory
+and the image data is never copied.
+<p>The following is the source for another simple program which creates
+a 100 by 100 pixel white image with a red pixel in the center and writes
+it to a file:
+<blockquote><tt><font color="#000066">#include &lt;Magick++.h></font></tt>
+<br><tt><font color="#000066">using namespace std;</font></tt>
+<br><tt><font color="#000066">using namespace Magick;</font></tt>
+<br><tt><font color="#000066">int main(int argc,char **argv)</font></tt>
+<br><tt><font color="#000066">{</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; Image image( "100x100",
+"xc:white" );</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.pixelColor( 49,
+49, "red" );</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.write( "red_pixel.png"
+);</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; return 0;</font></tt>
+<br><tt><font color="#000066">}</font></tt></blockquote>
+If you wanted to change the color image to grayscale, you could simply
+add the lines:
+<p><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.quantizeColorSpace(
+GRAYColorspace );</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.quantize( options
+);</font></tt>
+<p>prior to writing the image.
+<center>
+<h3>
+BLOBs</h3></center>
+While encoded images (e.g. JPEG) are most often written-to and read-from
+a disk file, encoded images may also reside in memory. Encoded images in
+memory are known as BLOBs (Binary Large OBjects) and may be represented
+using the <a href="Blob.html">Blob</a> class. The encoded image may be
+initially placed in memory by reading it directly from a file, reading
+the image from a database, memory-mapped from a disk file, or could be
+written to memory by Magick++. Once the encoded image has been placed within
+a Blob, it may be read into a Magick++ Image via a <a href="#constructor_blob">constructor</a>
+or <a href="#read">read()</a>. Likewise, a Magick++ image may be written
+to a Blob via <a href="#write">write()</a>.
+<p>An example of using Image to write to a Blob follows:
+<br>&nbsp;
+<blockquote><tt><font color="#000066">#include &lt;Magick++.h></font></tt>
+<br><tt><font color="#000066">using namespace std;</font></tt>
+<br><tt><font color="#000066">using namespace Magick;</font></tt>
+<br><tt><font color="#000066">int main(int argc,char **argv)</font></tt>
+<br><tt><font color="#000066">{</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; // Read GIF file from
+disk</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; Image image( "giraffe.gif"
+);</font></tt>
+<p><tt><font color="#000066">&nbsp;&nbsp;&nbsp; // Write to BLOB in JPEG
+format</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; Blob blob;</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.magick( "JPEG" )
+// Set JPEG output format</font></tt>
+<br><tt><font color="#000066">&nbsp;&nbsp;&nbsp; image.write( blob );</font></tt>
+<p><tt><font color="#000066">&nbsp;&nbsp;&nbsp; [ Use BLOB data (in JPEG
+format) here ]</font></tt>
+<p><tt><font color="#000066">&nbsp;&nbsp;&nbsp; return 0;</font></tt>
+<br><tt><font color="#000066">}</font></tt></blockquote>
+
+<p><br>likewise, to read an image from a Blob, you could use one of the
+following examples:
+<p>[ Entry condition for the following examples is that <i>data</i> is
+pointer to encoded image data and <i>length</i> represents the size of
+the data ]
+<blockquote><tt><font color="#000066">Blob blob( data, length );</font></tt>
+<br><tt><font color="#000066">Image image( blob );</font></tt></blockquote>
+or
+<blockquote><tt><font color="#000066">Blob blob( data, length );</font></tt>
+<br><tt><font color="#000066">Image image;</font></tt>
+<br><tt><font color="#000066">image.read( blob);</font></tt></blockquote>
+some images do not contain their size so the size must be specified seperately:
+<blockquote><tt><font color="#000066">Blob blob( data, length );</font></tt>
+<br><tt><font color="#000066">Image image;</font></tt>
+<br><tt><font color="#000066">image.size( "640x480")</font></tt>
+<br><tt><font color="#000066">image.read( blob);</font></tt></blockquote>
+
+<center>
+<h3>
+Constructors</h3></center>
+Image may be constructed in a number of ways. It may be constructed from
+a file, a URL, or an encoded image (e.g. JPEG) contained in an in-memory
+<a href="Blob.html">BLOB</a>.
+The available Image constructors are shown in the following table:
+<br>&nbsp;
+<br>&nbsp;
+<table BORDER WIDTH="100%" BGCOLOR="#FFFFFF" NOSAVE >
+<caption>Image Constructors</caption>
+
+<tr>
+<td>
+<center><b>Signature</b></center>
+</td>
+
+<td>
+<center><b>Description</b></center>
+</td>
+</tr>
+
+<tr>
+<td><font size=-1>const std::string &amp;imageSpec_</font></td>
+
+<td><font size=-1>Construct Image by reading from file or URL specified
+by <i>imageSpec_</i>.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const Geometry &amp;size_, const <a href="Color.html">Color</a>
+&amp;color_</font></td>
+
+<td><font size=-1>Construct a blank image canvas of specified size and
+color</font></td>
+</tr>
+
+<tr>
+<td><a NAME="constructor_blob"></a><font size=-1>const <a href="Blob.html">Blob</a>
+&amp;blob_</font></td>
+
+<td><font size=-1>Construct Image by reading from encoded image data contained
+in an in-memory <a href="Blob.html">BLOB</a>.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;size_,
+const <a href="Blob.html">Blob</a> &amp;blob_</font></td>
+
+<td><font size=-1>Construct Image of specified size from encoded image
+data contained in an in-memory <a href="Blob.html">BLOB</a>. This form
+is useful for images that do not specifiy their size or to specify a size
+hint for decoding an image. For example, when reading a Photo CD, JBIG,
+or JPEG image, a size request causes the library to return an image which
+is the next resolution greater or equal to the specified size. This may
+result in memory and time savings.</font></td>
+</tr>
+</table>
+
+<center>
+<h3>
+Image Manipulation Methods</h3></center>
+Image supports access to all the single-image (versus image-list) manipulation
+operations provided by the ImageMagick library. These operations are shown
+in the following table:
+<br>&nbsp;
+<table BORDER NOSAVE >
+<caption>Image Image Manipulation Methods</caption>
+
+<tr ALIGN=CENTER NOSAVE>
+<td NOSAVE><b>Method</b></td>
+
+<td><b>Signature(s)</b></td>
+
+<td><b>Description</b></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="addNoise"></a><font size=-1>addNoise</font></center>
+</td>
+
+<td><font size=-1><a href="Enumerations.html#NoiseType">NoiseType</a> noiseType_</font></td>
+
+<td><font size=-1>Add noise to image with specified noise type.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="4" NOSAVE>
+<center><a NAME="annotate"></a><font size=-1>annotate</font></center>
+</td>
+
+<td><font size=-1>const std::string &amp;text_, const <a href="Geometry.html">Geometry</a>
+&amp;location_</font></td>
+
+<td><font size=-1>Annotate image (render text on image) at specified location.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>string text_, const <a href="Geometry.html">Geometry</a>
+&amp;location_, <a href="Enumerations.html#GravityType">GravityType</a>
+gravity_</font></td>
+
+<td><font size=-1>Annotate image (render text on image) at specified location
+and influenced by gravity.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const std::string &amp;text_, const <a href="Geometry.html">Geometry</a>
+&amp;location_, <a href="Enumerations.html#GravityType">GravityType</a>
+gravity_, double degrees_,&nbsp;</font></td>
+
+<td><font size=-1>Annotate image (render text on image) starting at specified
+location, influenced by gravity, and rendered at specified rotation angle.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const std::string &amp;text_, <a href="Enumerations.html#GravityType">GravityType</a>
+gravity_ = NorthWestGravity</font></td>
+
+<td><font size=-1>Annotate image (render text on image) at location implied
+by gravity.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="blur"></a><font size=-1>blur</font></center>
+</td>
+
+<td><font size=-1>double factor_</font></td>
+
+<td><font size=-1>Blur image with specified blur factor</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="border"></a><font size=-1>border</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_
+= "6x6+0+0"</font></td>
+
+<td><font size=-1>Border image (add border to image).&nbsp; The color of
+the border is specified by the <i>borderColor</i> attribute.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="charcoal"></a><font size=-1>charcoal</font></center>
+</td>
+
+<td><font size=-1>double factor_ = 50</font></td>
+
+<td><font size=-1>Charcoal effect image (looks like charcoal sketch)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="chop"></a><font size=-1>chop</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_</font></td>
+
+<td><font size=-1>Chop image (remove vertical or horizontal subregion of
+image)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="colorize"></a><font size=-1>colorize</font></center>
+</td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;opaqueColor_,
+const <a href="Color.html">Color</a> &amp;penColor_</font></td>
+
+<td><font size=-1>Colorize opaque color in image using pen color</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="comment"></a><font size=-1>comment</font></center>
+</td>
+
+<td><font size=-1>const string &amp;comment_</font></td>
+
+<td><font size=-1>Comment image (add comment string to image).&nbsp; By
+default, each image is commented with its file name. Use&nbsp; this&nbsp;
+method to&nbsp; assign a specific comment to the image.&nbsp; Optionally
+you can include the image filename, type, width, height, or other&nbsp;
+image&nbsp; attributes by embedding <a href="FormatCharacters.html">special
+format characters.</a></font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="3" NOSAVE>
+<center><a NAME="composite"></a><font size=-1>composite</font></center>
+</td>
+
+<td><font size=-1>const <a href="Image.html">Image</a> &amp;compositeImage_,
+int xOffset_, int yOffset_,
+<a href="Enumerations.html#CompositeOperator">CompositeOperator</a>
+compose_ = <i>InCompositeOp</i></font></td>
+
+<td NOSAVE><font size=-1>Compose an image onto another at offset specified
+by <i>xOffset_</i>, <i>yOffset_&nbsp;</i> using composition algorithm specified
+by <i>compose_</i>.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Image.html">Image</a> &amp;compositeImage_,
+const <a href="Geometry.html">Geometry</a> &amp;offset_,
+<a href="Enumerations.html#CompositeOperator">CompositeOperator</a>
+compose_ = <i>InCompositeOp</i></font></td>
+
+<td><font size=-1>Compose an image onto another at offset specified by
+<i>offset_</i>
+using composition algorithm specified by <i>compose_</i>.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Image.html">Image</a> &amp;compositeImage_,
+<a href="Enumerations.html#GravityType">GravityType</a>
+gravity_, <a href="Enumerations.html#CompositeOperator">CompositeOperator</a>
+compose_ = <i>InCompositeOp</i></font></td>
+
+<td><font size=-1>Compose an image onto another with placement specified
+by <i>gravity_</i> using composition algorithm specified by <i>compose_</i>.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="condense"></a><font size=-1>condense</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Condense image (Run-length encode image in memory).</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="contrast"></a><font size=-1>contrast</font></center>
+</td>
+
+<td><font size=-1>unsigned int sharpen_</font></td>
+
+<td><font size=-1>Contrast image (enhance intensity differences in image)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="crop"></a><font size=-1>crop</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_</font></td>
+
+<td><font size=-1>Crop image (subregion of original image)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="cycleColormap"></a><font size=-1>cycleColormap</font></center>
+</td>
+
+<td><font size=-1>int amount_</font></td>
+
+<td><font size=-1>Cycle image colormap</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="despeckle"></a><font size=-1>despeckle</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Despeckle image (reduce speckle noise)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="display"></a><font size=-1>display</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Display image on screen.</font>
+<br><font size=-1><b><font color="#FF0000">Caution: </font></b>if an image
+format is is not compatable with the display visual (e.g. JPEG on a colormapped
+display) then the original image will be altered. Use a copy of the original
+if this is a problem.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="2" NOSAVE>
+<center><a NAME="draw"></a><font size=-1>draw</font></center>
+</td>
+
+<td><font size=-1>const <a href="Drawable.html">Drawable</a> &amp;drawable_</font></td>
+
+<td><font size=-1>Draw shape or text on image.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const std::list&lt;<a href="Drawable.html">Drawable</a>>
+&amp;drawable_</font></td>
+
+<td><font size=-1>Draw shapes or text on image using a set of Drawable
+objects contained in an STL list. Use of this method improves drawing performance
+and allows batching draw objects together in a list for repeated use.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="edge"></a><font size=-1>edge</font></center>
+</td>
+
+<td><font size=-1>double factor_</font></td>
+
+<td><font size=-1>Edge image (hilight edges in image)</font></td>
+</tr>
+
+<tr NOSAVE>
+<td NOSAVE>
+<center><a NAME="emboss"></a><font size=-1>emboss</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Emboss image (hilight edges with 3D effect)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="enhance"></a><font size=-1>enhance</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Enhance image (minimize noise)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="equalize"></a><font size=-1>equalize</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Equalize image (histogram equalization)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="flip"></a><font size=-1>flip</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Flip image (reflect each scanline in the vertical direction)</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="4" NOSAVE>
+<center><a NAME="floodFillColor"></a><font size=-1>floodFill-</font>
+<br><font size=-1>Color</font></center>
+</td>
+
+<td><font size=-1>int x_, int y_, const <a href="Color.html">Color</a>
+&amp;fillColor_</font></td>
+
+<td ROWSPAN="2" NOSAVE><font size=-1>Flood-fill color across pixels that
+match the color of the target pixel and are neighbors of the target pixel.
+Uses current fuzz setting when determining color match.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;point_,
+const <a href="Color.html">Color</a> &amp;fillColor_</font></td>
+</tr>
+
+<tr NOSAVE>
+<td><font size=-1>int x_, int y_, const <a href="Color.html">Color</a>
+&amp;fillColor_, const <a href="Color.html">Color</a> &amp;borderColor_</font></td>
+
+<td ROWSPAN="2" NOSAVE><font size=-1>Flood-fill color across pixels starting
+at target-pixel and stopping at pixels matching specified border color.
+Uses current fuzz setting when determining color match.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;point_,
+const <a href="Color.html">Color</a> &amp;fillColor_, const <a href="Color.html">Color</a>
+&amp;borderColor_</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="4" NOSAVE>
+<center><a NAME="floodFillTexture"></a><font size=-1>floodFill-</font>
+<br><font size=-1>Texture</font></center>
+</td>
+
+<td><font size=-1>int x_, int y_,&nbsp; const Image &amp;texture_</font></td>
+
+<td ROWSPAN="2" NOSAVE><font size=-1>Flood-fill texture across pixels that
+match the color of the target pixel and are neighbors of the target pixel.
+Uses current fuzz setting when determining color match.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;point_,
+const Image &amp;texture_</font></td>
+</tr>
+
+<tr NOSAVE>
+<td><font size=-1>int x_, int y_, const Image &amp;texture_, const <a href="Color.html">Color</a>
+&amp;borderColor_</font></td>
+
+<td ROWSPAN="2" NOSAVE><font size=-1>Flood-fill texture across pixels starting
+at target-pixel and stopping at pixels matching specified border color.
+Uses current fuzz setting when determining color match.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;point_,
+const Image &amp;texture_, const <a href="Color.html">Color</a> &amp;borderColor_</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="flop"></a><font size=-1>flop</font></center>
+</td>
+
+<td><font size=-1>void&nbsp;</font></td>
+
+<td><font size=-1>Flop image (reflect each scanline in the horizontal direction)</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="2" NOSAVE>
+<center><a NAME="frame"></a><font size=-1>frame</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_
+= "25x25+6+6"</font></td>
+
+<td ROWSPAN="2" NOSAVE><font size=-1>Add decorative frame around image</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>unsigned int width_, unsigned int height_, int x_, int
+y_, int innerBevel_ = 0, int outerBevel_ = 0</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="2" NOSAVE>
+<center><a NAME="gamma"></a><font size=-1>gamma</font></center>
+</td>
+
+<td><font size=-1>double gamma_</font></td>
+
+<td><font size=-1>Gamma correct image (uniform red, green, and blue correction).</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>double gammaRed_, double gammaGreen_, double gammaBlue_</font></td>
+
+<td><font size=-1>Gamma correct red, green, and blue channels of image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="implode"></a><font size=-1>implode</font></center>
+</td>
+
+<td><font size=-1>double factor_</font></td>
+
+<td><font size=-1>Implode image (special effect)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="label"></a><font size=-1>label</font></center>
+</td>
+
+<td><font size=-1>const string &amp;label_</font></td>
+
+<td><font size=-1>Assign a label to an image. Use this option to&nbsp;
+assign&nbsp; a&nbsp; specific label to the image. Optionally you can include
+the image filename, type, width, height, or scene number in the label by
+embedding&nbsp; <a href="FormatCharacters.html">special format characters.</a>
+If the first character of string is @, the image label is read from a file
+titled by the remaining characters in the string. When converting to Postscript,
+use this&nbsp; option to specify a header string to print above the image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="layer"></a><font size=-1>layer</font></center>
+</td>
+
+<td><font size=-1><a href="Enumerations.html#LayerType">LayerType</a> layer_</font></td>
+
+<td><font size=-1>Extract layer from image. Use this option to extract
+a particular layer from&nbsp; the image.&nbsp; <i>MatteLayer</i>,&nbsp;
+for&nbsp; example, is useful for extracting the opacity values from an
+image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="magnify"></a><font size=-1>magnify</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Magnify image by integral size</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="map"></a><font size=-1>map</font></center>
+</td>
+
+<td><font size=-1>const Image &amp;mapImage_ , bool dither_ = false</font></td>
+
+<td><font size=-1>Remap image colors with closest color from reference
+image. Set dither_ to <i>true</i> in to apply Floyd/Steinberg error diffusion
+to the image. By default, color reduction chooses an optimal&nbsp; set&nbsp;
+of colors that best represent the original image. Alternatively, you can&nbsp;
+choose&nbsp; a&nbsp; particular&nbsp; set&nbsp; of colors&nbsp; from&nbsp;
+an image file with this option.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="matteFloodfill"></a><font size=-1>matteFloodfill</font></center>
+</td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;target_, unsigned
+int matte_, int x_, int y_, <a href="Enumerations.html#PaintMethod">PaintMethod</a>
+method_</font></td>
+
+<td><font size=-1>Floodfill designated area with a matte value</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="minify"></a><font size=-1>minify</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Reduce image by integral size</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="modulate"></a><font size=-1>modulate</font></center>
+</td>
+
+<td><font size=-1>double brightness_, double saturation_, double hue_</font></td>
+
+<td><font size=-1>Modulate percent hue, saturation, and brightness of an
+image</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="negate"></a><font size=-1>negate</font></center>
+</td>
+
+<td><font size=-1>bool grayscale_ = false</font></td>
+
+<td><font size=-1>Negate colors in image.&nbsp; Replace every pixel with
+its complementary color (white becomes black, yellow becomes blue, etc.).&nbsp;
+Set grayscale to only negate grayscale values in image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="normalize"></a><font size=-1>normalize</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Normalize image (increase contrast by normalizing the
+pixel values to span the full range of color values).</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="oilPaint"></a><font size=-1>oilPaint</font></center>
+</td>
+
+<td><font size=-1>unsigned int radius_ = 3</font></td>
+
+<td><font size=-1>Oilpaint image (image looks like oil painting)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="opaque"></a><font size=-1>opaque</font></center>
+</td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;opaqueColor_,
+const <a href="Color.html">Color</a> &amp;penColor_</font></td>
+
+<td><font size=-1>Change color of pixels matching opaqueColor_ to specified
+penColor_.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="ping"></a><font size=-1>ping</font></center>
+</td>
+
+<td><font size=-1>const std::string &amp;imageSpec_</font></td>
+
+<td><font size=-1>Ping is similar to read except only enough of the image
+is read to determine the image columns, rows, and filesize.&nbsp; The <a href="#columns">columns</a></font>,
+<font size=-1><a href="#rows">rows</a>,
+and <a href="#fileSize">fileSize</a> attributes are valid after invoking
+ping.&nbsp; The image data is not valid after calling ping.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="quantize"></a><font size=-1>quantize</font></center>
+</td>
+
+<td><font size=-1>bool measureError_ = false</font></td>
+
+<td NOSAVE><font size=-1>Quantize image (reduce number of colors). Set
+measureError_ to true in order to calculate error attributes.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="raise"></a><font size=-1>raise</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_
+= "6x6+0+0",&nbsp; bool raisedFlag_ =&nbsp; false</font></td>
+
+<td><font size=-1>Raise image (lighten or darken the edges of an image
+to give a 3-D raised or lowered effect)</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="4" NOSAVE>
+<center><a NAME="read"></a><font size=-1>read</font></center>
+</td>
+
+<td><font size=-1>const string &amp;imageSpec_</font></td>
+
+<td><font size=-1>Read image into current object</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;size_,
+const std::string &amp;imageSpec_</font></td>
+
+<td><font size=-1>Read image of specified size into current object. This
+form is useful for images that do not specifiy their size or to specify
+a size hint for decoding an image. For example, when reading a Photo CD,
+JBIG, or JPEG image, a size request causes the library to return an image
+which is the next resolution greater or equal to the specified size. This
+may result in memory and time savings.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Blob.html">Blob</a> &amp;blob_</font></td>
+
+<td><font size=-1>Read encoded image contained in an in-memory <a href="Blob.html">BLOB</a>
+into current object</font></td>
+
+<td></td>
+</tr>
+
+<tr>
+<td><font size=-1>const Geometry &amp;size_, const <a href="Blob.html">Blob</a>
+&amp;blob_</font></td>
+
+<td><font size=-1>Read encoded image of specified size from an in-memory
+<a href="Blob.html">BLOB</a>
+into current object. This form is useful for images that do not specifiy
+their size or to specify a size hint for decoding an image. For example,
+when reading a Photo CD, JBIG, or JPEG image, a size request causes the
+library to return an image which is the next resolution greater or equal
+to the specified size. This may result in memory and time savings.</font></td>
+
+<td></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="reduceNoise"></a><font size=-1>reduceNoise</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Reduce noise in image using a noise peak elimination
+filter.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="roll"></a><font size=-1>roll</font></center>
+</td>
+
+<td><font size=-1>int columns_, int rows_</font></td>
+
+<td><font size=-1>Roll image (rolls image vertically and horizontally)
+by specified number of columnms and rows)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="rotate"></a><font size=-1>rotate</font></center>
+</td>
+
+<td><font size=-1>double degrees_, bool crop_ = false, unsigned int sharpen_
+= false</font></td>
+
+<td><font size=-1>Rotate image counter-clockwise by specified number of
+degrees. Optionally crop image to original size and sharpen image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="sample"></a><font size=-1>sample</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_&nbsp;</font></td>
+
+<td><font size=-1>Resize image by using pixel sampling algorithm</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="scale"></a><font size=-1>scale</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_</font></td>
+
+<td><font size=-1>Resize image by using simple ratio algorithm</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="segment"></a><font size=-1>segment</font></center>
+</td>
+
+<td><font size=-1>double clusterThreshold_ = 1.0,</font>
+<br><font size=-1>double smoothingThreshold_ = 1.5</font></td>
+
+<td><font size=-1>Segment (coalesce similar image components) by analyzing
+the histograms of the color components and identifying units that are homogeneous
+with the fuzzy c-means technique. Also uses <i>quantizeColorSpace</i> and
+<i>verbose</i>
+image attributes. Specify <i>clusterThreshold_</i>, as the number&nbsp;
+of&nbsp; pixels&nbsp; each cluster&nbsp; must exceed the cluster threshold
+to be considered valid. <i>SmoothingThreshold_</i> eliminates noise in
+the&nbsp; second derivative of the histogram. As the value is&nbsp; increased,
+you can&nbsp; expect&nbsp; a&nbsp; smoother second derivative.&nbsp; The
+default is 1.5.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="shade"></a><font size=-1>shade</font></center>
+</td>
+
+<td NOSAVE><font size=-1>double azimuth_ = 30, double elevation_ = 30,</font>
+<br><font size=-1>bool colorShading_ = false</font></td>
+
+<td><font size=-1>Shade image using distant light source. Specify <i>azimuth_</i>
+and <i>elevation_</i> as the&nbsp; position&nbsp; of&nbsp; the light source.
+By default, the shading results as a grayscale image.. Set c<i>olorShading_</i>
+to <i>true</i> to shade the red, green, and blue components of the image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="sharpen"></a><font size=-1>sharpen</font></center>
+</td>
+
+<td><font size=-1>double factor_</font></td>
+
+<td><font size=-1>Sharpen pixels in image. Specify factor as the percent
+enhancement (0.0 - 99.9%).</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="shear"></a><font size=-1>shear</font></center>
+</td>
+
+<td><font size=-1>double xShearAngle_, double yShearAngle_,</font>
+<br><font size=-1>&nbsp;bool crop_ = false</font></td>
+
+<td><font size=-1>Shear image (create parallelogram by sliding image by
+X or Y axis).&nbsp; Shearing slides one edge of an image along the X&nbsp;
+or&nbsp; Y axis,&nbsp; creating&nbsp; a parallelogram.&nbsp; An X direction
+shear slides an edge along the X axis, while&nbsp; a&nbsp; Y&nbsp; direction
+shear&nbsp; slides&nbsp; an edge along the Y axis.&nbsp; The amount of
+the shear is controlled by a shear angle.&nbsp; For X direction&nbsp; shears,&nbsp;
+x&nbsp; degrees is measured relative to the Y axis, and similarly, for
+Y direction shears&nbsp; y&nbsp; degrees is measured relative to the X
+axis. Empty triangles left over from shearing the&nbsp; image&nbsp; are
+filled&nbsp; with&nbsp; the&nbsp; color&nbsp; defined as <i>borderColor</i>.
+Specify crop_ as true_ to crop the sheared image to the original size.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="solarize"></a><font size=-1>solarize</font></center>
+</td>
+
+<td><font size=-1>double factor_ = 50.0</font></td>
+
+<td NOSAVE><font size=-1>Solarize image (similar to effect seen when exposing
+a photographic film to light during the development process)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="spread"></a><font size=-1>spread</font></center>
+</td>
+
+<td><font size=-1>unsigned int amount_ = 3</font></td>
+
+<td><font size=-1>Spread pixels randomly within image by specified amount</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="stegano"></a><font size=-1>stegano</font></center>
+</td>
+
+<td><font size=-1>const Image &amp;watermark_</font></td>
+
+<td><font size=-1>Add a digital watermark to the image (based on second
+image)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="stereo"></a><font size=-1>stereo</font></center>
+</td>
+
+<td><font size=-1>const Image &amp;rightImage_</font></td>
+
+<td><font size=-1>Create an image which appears in stereo when viewed with
+red-blue glasses (Red image on left, blue on right)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="swirl"></a><font size=-1>swirl</font></center>
+</td>
+
+<td><font size=-1>double degrees_</font></td>
+
+<td><font size=-1>Swirl image (image pixels are rotated by degrees)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="texture"></a><font size=-1>texture</font></center>
+</td>
+
+<td><font size=-1>const Image &amp;texture_</font></td>
+
+<td><font size=-1>Layer a texture on image background</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="threshold"></a><font size=-1>threshold</font></center>
+</td>
+
+<td><font size=-1>double threshold_</font></td>
+
+<td><font size=-1>Threshold image</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="2" NOSAVE>
+<center><a NAME="transform"></a><font size=-1>transform</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;imageGeometry_</font></td>
+
+<td ROWSPAN="2" NOSAVE><font size=-1>Transform image based on image and
+crop geometries. Crop geometry is optional.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;imageGeometry_,
+const <a href="Geometry.html">Geometry</a> &amp;cropGeometry_&nbsp;</font></td>
+</tr>
+
+<tr>
+<td><a NAME="transformColorSpace"></a><font size=-1>transform-</font>
+<br><font size=-1>ColorSpace</font></td>
+
+<td><font size=-1><a href="Enumerations.html#ColorspaceType">ColorspaceType</a>
+colorSpace_</font></td>
+
+<td><font size=-1>Transform the image representation to a different colorspace.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="transparent"></a><font size=-1>transparent</font></center>
+</td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;color_</font></td>
+
+<td><font size=-1>Add matte image to image, setting pixels matching color
+to transparent.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="trim"></a><font size=-1>trim</font></center>
+</td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Trim edges that are the background color from the image.</font></td>
+</tr>
+
+<tr>
+<td><a NAME="uncondense"></a><font size=-1>uncondense</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>Uncondense image. Removes any run-length encoding from
+image pixels so that they may be edited as an array.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="wave"></a><font size=-1>wave</font></center>
+</td>
+
+<td><font size=-1>double amplitude_ = 25.0, double wavelength_ = 150.0</font></td>
+
+<td><font size=-1>Alter an image along a sine wave.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td ROWSPAN="2" NOSAVE>
+<center><a NAME="write"></a><font size=-1>write</font></center>
+</td>
+
+<td><font size=-1>const string &amp;imageSpec_</font></td>
+
+<td><font size=-1>Write image to a file using filename i<i>mageSpec_</i>.</font>
+<br><font size=-1><b><font color="#FF0000">Caution: </font></b>if an image
+format is selected which is capable of supporting fewer colors than the
+original image or quantization has been requested, the original image will
+be quantized to fewer colors. Use a copy of the original if this is a problem.</font></td>
+</tr>
+
+<tr>
+<td><font size=-1><a href="Blob.html">Blob</a> *blob_</font></td>
+
+<td><font size=-1>Write image to a in-memory <a href="Blob.html">BLOB</a>
+stored in <i>blob_</i>.</font>
+<br><font size=-1><b><font color="#FF0000">Caution: </font></b>if an image
+format is selected which is capable of supporting fewer colors than the
+original image or quantization has been requested, the original image will
+be quantized to fewer colors. Use a copy of the original if this is a problem.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="zoom"></a><font size=-1>zoom</font></center>
+</td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_</font></td>
+
+<td><font size=-1>Zoom image to specified size.</font></td>
+</tr>
+</table>
+
+<center>
+<h3>
+Image Attributes</h3></center>
+Image attributes are set and obtained via methods in Image. Except for
+methods which accept pointer arguments (e.g. c<tt>hromaBluePrimary)</tt>
+all methods return attributes by value. Within the image object, attributes
+may be properties of the image, the user-options, or both. In the case
+where the attribute is a property of both the image and the user-options,
+the attribute associated with the image is returned if operations on the
+image can usefully update it, or the user-options if not. In all cases,
+the value set is equivalent to the next returned value. It is an error
+(<a href="Exception.html">an exception</a> will be thrown) to attempt to
+set an attribute which is only a property of the image if no image is contained
+within the object. In the case of setting an attribute which is both a
+property of the image and the user-options and no image is present, the
+user-options are set and no error is reported.
+<p>The supported image attributes and the method arguments required to
+obtain them are shown in the following table:
+<br>&nbsp;
+<table BORDER NOSAVE >
+<caption>Image Image Attributes</caption>
+
+<tr>
+<td>
+<center><b>Attribute</b></center>
+</td>
+
+<td>
+<center><b>Property</b>
+<br><b>Of</b></center>
+</td>
+
+<td>
+<center><b>Type</b></center>
+</td>
+
+<td>
+<center><b>Get Signature</b></center>
+</td>
+
+<td>
+<center><b>Set Signature</b></center>
+</td>
+
+<td>
+<center><b>Description</b></center>
+</td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="adjoin"></a><font size=-1>adjoin</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>bool</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>bool flag_</font></td>
+
+<td><font size=-1>Join images into a single multi-image file.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="antiAlias"></a><font size=-1>antiAlias</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>bool</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>bool flag_</font></td>
+
+<td><font size=-1>Control antialiasing of rendered Postscript and Postscript
+or TrueType fonts. Enabled by default.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="animationDelay"></a><font size=-1>animation-</font>
+<br><font size=-1>Delay</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td NOSAVE><font size=-1>unsigned int (0 to 65535)</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td NOSAVE><font size=-1>unsigned int delay_</font></td>
+
+<td><font size=-1>Time in 1/100ths of a second (0 to 65535) which must
+expire before displaying the next image in an animated sequence. This option
+is useful for regulating the animation of a sequence&nbsp; of GIF images
+within Netscape.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="animationIterations"></a><font size=-1>animation-</font>
+<br><font size=-1>Iterations</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int iterations_</font></td>
+
+<td><font size=-1>Number of iterations to loop an animation (e.g. Netscape
+loop extension) for.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="backgroundColor"></a><font size=-1>background-</font>
+<br><font size=-1>Color</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Color.html">Color</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;color_</font></td>
+
+<td><font size=-1>Image background color</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="backgroundTexture"></a><font size=-1>background-</font>
+<br><font size=-1>Texture</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const string &amp;texture_</font></td>
+
+<td><font size=-1>Image to use as background texture.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="baseColumns"></a><font size=-1>baseColumns</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td NOSAVE><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Base image width (before transformations)</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="baseFilename"></a><font size=-1>baseFilename</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Base image filename (before transformations)</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="baseRows"></a><font size=-1>baseRows</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Base image height (before transformations)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="borderColor"></a><font size=-1>borderColor</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Color.html">Color</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>&nbsp;const <a href="Color.html">Color</a> &amp;color_</font></td>
+
+<td><font size=-1>Image border color</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="boxColor"></a><font size=-1>boxColor</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Color.html">Color</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;boxColor_</font></td>
+
+<td><font size=-1>Base color that annotation text is rendered on.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="chromaBluePrimary"></a><font size=-1>chroma-</font>
+<br><font size=-1>BluePrimary</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>float x &amp; y</font></td>
+
+<td><font size=-1>float *x_, float *y_</font></td>
+
+<td><font size=-1>float x_, float y_</font></td>
+
+<td><font size=-1>Chromaticity blue primary point (e.g. x=0.15, y=0.06)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="chromaGreenPrimary"></a><font size=-1>chroma-</font>
+<br><font size=-1>GreenPrimary</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>float x &amp; y</font></td>
+
+<td><font size=-1>float *x_, float *y_</font></td>
+
+<td><font size=-1>float x_, float y_</font></td>
+
+<td><font size=-1>Chromaticity green primary point (e.g. x=0.3, y=0.6)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="chromaRedPrimary"></a><font size=-1>chroma-</font>
+<br><font size=-1>RedPrimary</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>float x &amp; y</font></td>
+
+<td><font size=-1>float *x_, float *y_</font></td>
+
+<td><font size=-1>float x_, float y_</font></td>
+
+<td><font size=-1>Chromaticity red primary point (e.g. x=0.64, y=0.33)</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="chromaWhitePoint"></a><font size=-1>chroma-</font>
+<br><font size=-1>WhitePoint</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>float x &amp; y</font></td>
+
+<td><font size=-1>float *x_, float *y_</font></td>
+
+<td><font size=-1>float x_, float y_</font></td>
+
+<td><font size=-1>Chromaticity white point (e.g. x=0.3127, y=0.329)</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="classType"></a><font size=-1>classType</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Enumerations.html#ClassType">ClassType</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td NOSAVE><font size=-1>&nbsp;<a href="Enumerations.html#ClassType">ClassType</a>
+class_</font></td>
+
+<td><font size=-1>Image storage class.&nbsp; Note that conversion from
+a DirectClass image to a PseudoClass image may result in a loss of color
+due to the limited size of the palette (256 or 65535 colors).</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="colorFuzz"></a><font size=-1>colorFuzz</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int fuzz_</font></td>
+
+<td><font size=-1>Colors within this distance are considered equal. A number
+of algorithms search for a target&nbsp; color. By default the color must
+be exact. Use this option to match colors that are close to the target
+color in RGB space.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="colorMap"></a><font size=-1>colorMap</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Color.html">Color</a></font></td>
+
+<td><font size=-1>unsigned int index_</font></td>
+
+<td><font size=-1>unsigned int index_, const <a href="Color.html">Color</a>
+&amp;color_</font></td>
+
+<td><font size=-1>Color at color-pallet index.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="columns"></a><font size=-1>columns</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Image width</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="comment"></a><font size=-1>comment</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Image comment</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="compressType"></a><font size=-1>compress-</font>
+<br><font size=-1>Type</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Enumerations.html#CompressionType">CompressionType</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1><a href="Enumerations.html#CompressionType">CompressionType</a>
+compressType_</font></td>
+
+<td><font size=-1>Image compresion type. The default is the compression
+type of the specified image file.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td><a NAME="condensed"></a><font size=-1>condensed</font></td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>bool</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Image is condensed (uses run-length encoding).</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="density"></a><font size=-1>density</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Geometry.html">Geometry</a>&nbsp; (default 72x72)</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;density_</font></td>
+
+<td><font size=-1>Vertical and horizontal resolution in pixels of the image.
+This option specifies an image density when decoding a Postscript or Portable
+Document page. Often used with <i>psPageSize</i>.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="depth"></a><font size=-1>depth</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1>&nbsp;unsigned int (8 or 16)</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int depth_</font></td>
+
+<td><font size=-1>Image depth. Used to specify the bit depth when reading
+or writing&nbsp; raw images. Defaults to the quantum depth that ImageMagick
+is compiled with.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="directory"></a><font size=-1>directory</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Tile names from within an image montage</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="fileName"></a><font size=-1>fileName</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const string &amp;fileName_</font></td>
+
+<td><font size=-1>Image file name.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="fileSize"></a><font size=-1>fileSize</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Number of bytes of the image on disk</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="filterType"></a><font size=-1>filterType</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Enumerations.html#FilterType">FilterType</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1><a href="Enumerations.html#FilterType">FilterType</a>
+filterType_</font></td>
+
+<td><font size=-1>Filter to use when resizing image. The reduction filter
+employed has a sigificant effect on the time required to resize an image
+and the resulting quality. The default filter is <i>Lanczos</i> which has
+been shown to produce high quality results when reducing most images.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="font"></a><font size=-1>font</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const string &amp;font_</font></td>
+
+<td><font size=-1>Text rendering font. If the font is a fully qualified
+X server font name, the font is obtained from an X&nbsp; server. To use
+a TrueType font, precede the TrueType filename with an @. Otherwise, specify&nbsp;
+a&nbsp; Postscript font name (e.g. "helvetica").</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="fontPointsize"></a><font size=-1>fontPointsize</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int pointSize_</font></td>
+
+<td><font size=-1>Text rendering font point size</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="format"></a><font size=-1>format</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Long form image format description.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="gamma"></a><font size=-1>gamma</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>double (typical range 0.8 to 2.3)</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Gamma level of the image. The same color image displayed
+on two different&nbsp; workstations&nbsp; may&nbsp; look&nbsp; different
+due to differences in the display monitor.&nbsp; Use gamma correction&nbsp;
+to&nbsp; adjust&nbsp; for this&nbsp; color&nbsp; difference.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="geometry"></a><font size=-1>geometry</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Geometry.html">Geometry</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Preferred size of the image when encoding.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="gifDisposeMethod"></a><font size=-1>gifDispose-</font>
+<br><font size=-1>Method</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font>
+<br><font size=-1>{ 0 = Disposal not specified,</font>
+<br><font size=-1>1 = Do not dispose of graphic,</font>
+<br><font size=-1>3 = Overwrite graphic with background color,</font>
+<br><font size=-1>4 = Overwrite graphic with previous graphic. }</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int disposeMethod_</font></td>
+
+<td><font size=-1>GIF disposal method. This option is used to control how
+successive frames are rendered (how the preceding frame is disposed of)
+when creating a GIF animation.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="iccColorProfile"></a>i<font size=-1>ccColorProfile</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Blob.html">Blob</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Blob.html">Blob</a> &amp;colorProfile_</font></td>
+
+<td><font size=-1>ICC color profile. Supplied via a <a href="Blob.html">Blob</a>
+since Magick++/ and ImageMagick do not currently support formating this
+data structure directly.&nbsp; Specifications are available from the <a href="http://www.color.org/">International
+Color Consortium</a> for the format of ICC color profiles.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="interlaceType"></a><font size=-1>interlace-</font>
+<br><font size=-1>Type</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Enumerations.html#InterlaceType">InterlaceType</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1><a href="Enumerations.html#InterlaceType">InterlaceType</a>
+interlace_</font></td>
+
+<td><font size=-1>The type of interlacing scheme (default <i>NoInterlace</i>).
+This option is used to specify the type of&nbsp; interlacing scheme&nbsp;
+for&nbsp; raw&nbsp; image formats such as RGB or YUV. <i>NoInterlace</i>
+means do not&nbsp; interlace, <i>LineInterlace</i> uses scanline interlacing,
+and <i>PlaneInterlace</i> uses plane interlacing. <i>PartitionInterlace</i>
+is like <i>PlaneInterlace</i> except the&nbsp; different planes&nbsp; are
+saved&nbsp; to individual files (e.g.&nbsp; image.R, image.G, and image.B).
+Use <i>LineInterlace</i> or <i>PlaneInterlace</i> to create an interlaced
+GIF or progressive JPEG image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="iptcProfile"></a><font size=-1>iptcProfile</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Blob.html">Blob</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Blob.html">Blob</a>&amp; iptcProfile_</font></td>
+
+<td><font size=-1>IPTC profile. Supplied via a <a href="Blob.html">Blob</a>
+since Magick++ and ImageMagick do not currently&nbsp; support formating
+this data structure directly. Specifications are available from the <a href="http://www.iptc.org/iptc/">International
+Press Telecommunications Council</a> for IPTC profiles.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="label"></a><font size=-1>label</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const string &amp;label_</font></td>
+
+<td><font size=-1>Image label</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="lineWidth"></a><font size=-1>lineWidth</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int lineWidth_</font></td>
+
+<td><font size=-1>Line width for drawing lines, circles, ellipses, etc.
+See <a href="Drawable.html">Drawable</a>.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="magick"></a><font size=-1>magick</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td NOSAVE><font size=-1>&nbsp;const string &amp;magick_</font></td>
+
+<td><font size=-1>Get image format (e.g. "GIF")</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="matte"></a><font size=-1>matte</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>bool</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>bool matteFlag_</font></td>
+
+<td><font size=-1>True if the image has transparency. If set True, store
+matte channel if&nbsp; the image has one otherwise create an opaque one.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="matteColor"></a><font size=-1>matteColor</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Color.html">Color</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;matteColor_</font></td>
+
+<td><font size=-1>Image matte (transparent) color</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="meanErrorPerPixel"></a><font size=-1>meanError-</font>
+<br><font size=-1>PerPixel</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>double</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>The mean error per pixel computed when an image is color
+reduced. This parameter is only valid if verbose is set to true and the
+image has just been quantized.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="monochrome"></a><font size=-1>monochrome</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>bool</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>bool flag_</font></td>
+
+<td><font size=-1>Transform the image to black and white</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="montageGeometry"></a><font size=-1>montage-</font>
+<br><font size=-1>Geometry</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Geometry.html">Geometry</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td NOSAVE><font size=-1>Tile size and offset within an image montage.
+Only valid for montage images.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="normalizedMaxError"></a><font size=-1>normalized-</font>
+<br><font size=-1>MaxError</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>double</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>The normalized max error per pixel computed when an image
+is color reduced. This parameter is only valid if verbose is set to true
+and the image has just been quantized.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="normalizedMeanError"></a><font size=-1>normalized-</font>
+<br><font size=-1>MeanError</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>double</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>The normalized mean error per pixel computed when an
+image is color reduced. This parameter is only valid if verbose is set
+to true and the image has just been quantized.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="packets"></a><font size=-1>packets</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>The number of runlength-encoded packets in</font>
+<br><font size=-1>the image</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="packetSize"></a><font size=-1>packetSize</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>The number of bytes in each pixel packet</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="penColor"></a><font size=-1>penColor</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Color.html">Color</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Color.html">Color</a> &amp;penColor_</font></td>
+
+<td><font size=-1>Pen color to use when annotating on or drawing on image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="penTexture"></a><font size=-1>penTexture</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const Image &amp; penTexture_</font></td>
+
+<td><font size=-1>Texture image to paint with (similar to penColor).</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="pixelColor"></a><font size=-1>pixelColor</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Color.html">Color</a></font></td>
+
+<td><font size=-1>unsigned int x_, unsigned int y_</font></td>
+
+<td><font size=-1>unsigned int x_, unsigned int y_, const <a href="Color.html">Color</a>
+&amp;color_</font></td>
+
+<td><font size=-1>Get/set pixel color at location x &amp; y.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="psPageSize"></a><font size=-1>psPageSize</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Geometry.html#PostscriptPageSize">Geometry</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Geometry.html#PostscriptPageSize">Geometry</a>
+&amp;pageSize_</font></td>
+
+<td><font size=-1>Postscript page size. Use this&nbsp; option to specify
+the dimensions&nbsp; of the Postscript page in dots per inch or a TEXT
+page in pixels. This option is typically used in concert with <i>density</i>.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="quality"></a><font size=-1>quality</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int (0 to 100)</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int quality_</font></td>
+
+<td><font size=-1>JPEG/MIFF/PNG compression level (default 75).</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="quantizeColors"></a><font size=-1>quantize-</font>
+<br><font size=-1>Colors</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int colors_</font></td>
+
+<td><font size=-1>Preferred number of colors in the image. The actual number
+of colors in the image may be less than your request, but never more. Images
+with less unique colors than specified with this option will have any duplicate
+or unused colors removed.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="quantizeColorSpace"></a><font size=-1>quantize-</font>
+<br><font size=-1>ColorSpace</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Enumerations.html#ColorspaceType">ColorspaceType</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1><a href="Enumerations.html#ColorspaceType">ColorspaceType</a>
+colorSpace_</font></td>
+
+<td><font size=-1>Colorspace to quantize colors in (default RGB). Empirical
+evidence suggests that distances in color spaces such as YUV or YIQ correspond
+to perceptual color differences more closely than do distances in RGB space.
+These color spaces may give better results when color reducing an image.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="quantizeDither"></a><font size=-1>quantize-</font>
+<br><font size=-1>Dither</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>bool</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>bool flag_</font></td>
+
+<td><font size=-1>Apply Floyd/Steinberg error diffusion to the image. The
+basic strategy of dithering is to&nbsp; trade&nbsp; intensity resolution&nbsp;
+for&nbsp; spatial&nbsp; resolution&nbsp; by&nbsp; averaging the intensities&nbsp;
+of&nbsp; several&nbsp; neighboring&nbsp; pixels. Images which&nbsp; suffer&nbsp;
+from&nbsp; severe&nbsp; contouring&nbsp; when&nbsp; reducing colors can
+be improved with this option. The quantizeColors or monochrome option must
+be set for this option to take effect.</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="quantizeError"></a><font size=-1>quantize-</font>
+<br><font size=-1>Error</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE>&nbsp;</td>
+
+<td><font size=-1>Quantization error.&nbsp; Only valid if verbose is set
+to true prior to executing quantize and the value is read back immediately.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="quantizeTreeDepth"></a><font size=-1>quantize-</font>
+<br><font size=-1>TreeDepth</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int (0 to 8)</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int treeDepth_</font></td>
+
+<td><font size=-1>Depth of the quantization color classification tree.
+Values of 0 or 1 allow selection of the optimal tree depth for the color
+reduction algorithm. Values between 2 and 8 may be used to manually adjust
+the tree depth.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="renderingIntent"></a><font size=-1>rendering-</font>
+<br><font size=-1>Intent</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Enumerations.html#RenderingIntent">RenderingIntent</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1><a href="Enumerations.html#RenderingIntent">RenderingIntent</a>
+render_</font></td>
+
+<td><font size=-1>The type of rendering intent</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="resolutionUnits"></a><font size=-1>resolution-</font>
+<br><font size=-1>Units</font></center>
+</td>
+
+<td><font size=-1>Image &amp;</font>
+<br><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Enumerations.html#ResolutionType">ResolutionType</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1><a href="Enumerations.html#ResolutionType">ResolutionType</a>
+units_</font></td>
+
+<td><font size=-1>Units of image resolution</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="rows"></a><font size=-1>rows</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>The number of pixel rows in the image</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="scene"></a><font size=-1>scene</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int scene_</font></td>
+
+<td><font size=-1>Image scene number</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="signature"></a><font size=-1>signature</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>bool force_ = false</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Image MD5 signature. Set force_ to 'true' to force re-computation
+of signature.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="size"></a><font size=-1>size</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1><a href="Geometry.html">Geometry</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const <a href="Geometry.html">Geometry</a> &amp;geometry_</font></td>
+
+<td><font size=-1>Width and height of a raw image (an image which does
+not support width and height information).&nbsp; Size may also be used
+to affect the image size read from a multi-resolution format (e.g. Photo
+CD, JBIG, or JPEG.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="subImage"></a><font size=-1>subImage</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int subImage_</font></td>
+
+<td><font size=-1>Subimage of an image sequence</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="subRange"></a><font size=-1>subRange</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>unsigned int</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>unsigned int subRange_</font></td>
+
+<td><font size=-1>Number of images relative to the base image</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="tileName"></a><font size=-1>tileName</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const string &amp;tileName_</font></td>
+
+<td><font size=-1>Tile name</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="totalColors"></a><font size=-1>totalColors</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>unsigned long</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Number of colors in the image</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="type"></a><font size=-1>type</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1><a href="Enumerations.html#ImageType">ImageType</a></font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>Image type</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="verbose"></a><font size=-1>verbose</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>bool</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>bool verboseFlag_</font></td>
+
+<td><font size=-1>Print detailed information about the image</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="view"></a><font size=-1>view</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>string</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const string &amp;view_</font></td>
+
+<td><font size=-1>FlashPix viewing parameters.</font></td>
+</tr>
+
+<tr>
+<td>
+<center><a NAME="x11Display"></a><font size=-1>x11Display</font></center>
+</td>
+
+<td><font size=-1>Options</font></td>
+
+<td><font size=-1>string (e.g. "hostname:0.0")</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td><font size=-1>const string &amp;display_</font></td>
+
+<td><font size=-1>X11 display to display to, obtain fonts from, or to capture
+image from</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="xResolution"></a><font size=-1>xResolution</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>double</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>x resolution of the image</font></td>
+</tr>
+
+<tr NOSAVE>
+<td>
+<center><a NAME="yResolution"></a><font size=-1>yResolution</font></center>
+</td>
+
+<td><font size=-1>Image</font></td>
+
+<td><font size=-1>double</font></td>
+
+<td><font size=-1>void</font></td>
+
+<td BGCOLOR="#666666" NOSAVE><font size=-1>&nbsp;</font></td>
+
+<td><font size=-1>y resolution of the image</font></td>
+</tr>
+</table>
+
+</body>
+</html>

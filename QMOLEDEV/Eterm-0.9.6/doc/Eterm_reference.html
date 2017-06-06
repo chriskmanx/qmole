@@ -1,0 +1,1409 @@
+<H1>Eterm Technical Reference</H1>
+
+<P>
+This document covers the technical aspects of Eterm, including escape sequences
+it supports, "under-the-hood" descriptions of certain Eterm features, etc.
+Portions of this document were taken from the XTerm documentation.</P>
+
+<H2>Table of Contents</H2>
+<OL TYPE=I>
+  <LI><A HREF="#conventions">Document Conventions</A>
+  <LI><A HREF="#symbols">Symbols</A>
+  <LI><A HREF="#escape">Escape Sequences</A>
+      <UL>
+        <LI><A HREF="#codes">Escape Codes Eterm Knows</A>
+        <LI><A HREF="#image">Image Escape Sequences</A>
+        <LI><A HREF="#mouse">Mouse Reporting</A>
+      </UL>
+  <LI><A HREF="#keys">Key Sequences</A>
+  <LI><A HREF="#std">Eterm Extensions, Standards, and Implementations</A>
+      <UL>
+        <LI><A HREF="#eterm_esc">Eterm Proprietary Escape Sequences</A>
+        <LI><A HREF="#trans">Transparency</A>
+      </UL>
+</OL>
+
+<H2><A NAME="conventions">Document Conventions</A></H2>
+
+<TABLE BORDER=2 CELLSPACING=2 CELLPADDING=5>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Convention</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Meaning</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT><B>c</B></TT></TD>
+  <TD>A literal.  It should be typed as shown.</TD>
+</TR>
+<TR>
+  <TD><TT>SYM</TT></TD>
+  <TD>A symbol.  Replace with the proper character.  See the symbol table below
+      for a listing of the symbols used and their meanings.</TD>
+</TR>
+<TR>
+  <TD><I>text</I></TD>
+  <TD>A parameter.  Replace the italicized text with a parameter.  The text
+      itself generally describes the type of parameter needed.</TD>
+</TR>
+<TR>
+  <TD>[ ... ]</TD>
+  <TD>Items enclosed in brackets are optional.</TD>
+</TR>
+<TR>
+  <TD>{ ... | ... }</TD>
+  <TD>Items inclosed in braces and separated by pipes indicate that exactly one
+      of the items should be chosen.</TD>
+</TR>
+</TABLE>
+<BR>
+
+<H2><A NAME="symbols">Symbols</A></H2>
+
+<TABLE BORDER=2 CELLSPACING=2 CELLPADDING=5>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Symbol</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Meaning</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT>BEL</TT></TD>
+  <TD>Bell (Ctrl-G)</TD>
+</TR>
+<TR>
+  <TD><TT>BS</TT></TD>
+  <TD>Backspace (Ctrl-H)</TD>
+</TR>
+<TR>
+  <TD><TT>CR</TT></TD>
+  <TD>Carriage Return (Ctrl-M)</TD>
+</TR>
+<TR>
+  <TD><TT>ENQ</TT></TD>
+  <TD>Enquiry (Ctrl-E), Send Device Attributes (DA).  Eterm ignores
+      ENQ if NO_ENQ_ANS is defined, which it is by default in
+      <TT>src/feature.h</TT>.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC</TT></TD>
+  <TD>Escape (Ctrl-[)</TD>
+</TR>
+<TR>
+  <TD><TT>FF</TT> or <TT>NP</TT></TD>
+  <TD>Form Feed or New Page(Ctrl-L)</TD>
+</TR>
+<TR>
+  <TD><TT>LF</TT> or <TT>NL</TT></TD>
+  <TD>Line Feed or New Line (Ctrl-J)</TD>
+</TR>
+<TR>
+  <TD><TT>SO</TT></TD>
+  <TD>Shift Out (Ctrl-N), invokes the G1 (alternate) character set</TD>
+</TR>
+<TR>
+  <TD><TT>SI</TT></TD>
+  <TD>Shift In (Ctrl-O), invokes the G0 (default) character set</TD>
+</TR>
+<TR>
+  <TD><TT>SPC</TT></TD>
+  <TD>Space</TD>
+</TR>
+<TR>
+  <TD><TT>TAB</TT> or <TT>HT</TT></TD>
+  <TD>Horizontal Tab (Ctrl-I)</TD>
+</TR>
+<TR>
+  <TD><TT>VT</TT></TD>
+  <TD>Vertical Tab (Ctrl-K)</TD>
+</TR>
+</TABLE>
+
+<H2><A NAME="escape">Escape Sequences</A></H2>
+
+<P>
+<TABLE BORDER=2 CELLSPACING=2 CELLPADDING=5>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Sequence</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Function</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT>ESC { <B>(</B> | <B>)</B> | <B>*</B> | <B>+</B> | <B>$</B> } { <B>0</B> | <B>A</B> | <B>B</B> }</TT></TD>
+  <TD>Select ISO 2022 character sets.<BR>
+      <UL>
+        <LI><TT><B>(</B></TT> sets the G0 character set
+        <LI><TT><B>)</B></TT> sets the G1 character set
+        <LI><TT><B>*</B></TT> sets the G2 character set
+        <LI><TT><B>+</B></TT> sets the G3 character set
+        <LI><TT><B>$</B></TT> sets the Kanji character set
+      </UL>
+      <UL>
+        <LI><TT><B>0</B></TT> uses the DEC Special Character and Line Drawing set
+        <LI><TT><B>A</B></TT> uses the United Kingdom (UK) character set
+        <LI><TT><B>B</B></TT> uses the United States (USASCII) character set
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>7</B></TT></TD>
+  <TD>Save cursor (SC)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>8</B></TT></TD>
+  <TD>Restore cursor (RC)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>=</B></TT></TD>
+  <TD>Application Keypad (SMKX)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>&gt;</B></TT></TD>
+  <TD>Numeric Keypad (RMKX)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>@</B></TT></TD>
+  <TD>Discards the subsequent character</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>D</B></TT></TD>
+  <TD>Index (IND)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>E</B></TT></TD>
+  <TD>Next Line (NEL)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>G</B></TT></TD>
+  <TD>Graphics (an rxvt extension).  Eterm replies to <TT>ESC <B>G
+      Q</B></TT> (query graphics) with <TT>ESC <B>G 0</B></TT> (no
+      graphics available) and ignores all other graphics
+      sequences.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>H</B></TT></TD>
+  <TD>Tab Set (HTS)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>M</B></TT></TD>
+  <TD>Reverse Index (RI)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>Z</B></TT></TD>
+  <TD>Obselete form of Send Device Attributes (DA), which is <TT>ESC <B>[ c</B></TT></TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>@</B></TT></TD>
+  <TD>Insert <I>n</I> blank Characters (ICH).  Default for <I>n</I> is 1.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>A</B></TT></TD>
+  <TD>Cursor Up <I>n</I> times (CUU), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>B</B></TT></TD>
+  <TD>Cursor Down <I>n</I> times (CUD), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>C</B></TT></TD>
+  <TD>Cursor Forward <I>n</I> times (CUF), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>D</B></TT></TD>
+  <TD>Cursor Backward <I>n</I> times (CUB), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>E</B></TT></TD>
+  <TD>Cursor Down <I>n</I> times and to first column, default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>F</B></TT></TD>
+  <TD>Cursor Up <I>n</I> times and to first column, default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>G</B></TT></TD>
+  <TD>Cursor to Column <I>n</I> (HPA)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>r</I> <B>;</B> <I>c</I> ] <B>H</B></TT></TD>
+  <TD>Cursor Position [row;column] (CUP), default 1;1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>I</B></TT></TD>
+  <TD>Move forward <I>n</I> tab stops, default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>J</B></TT></TD>
+  <TD>Erase in Display (ED)
+      <UL>
+        <LI><I>n</I> == 0:  Clear Below (default)
+        <LI><I>n</I> == 1:  Clear Above
+        <LI><I>n</I> == 2:  Clear All
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>K</B></TT></TD>
+  <TD>Erase in Line (EL)
+      <UL>
+        <LI><I>n</I> == 0:  Clear to Right (default)
+        <LI><I>n</I> == 1:  Clear to Left (EL1)
+        <LI><I>n</I> == 2:  Clear All
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>L</B></TT></TD>
+  <TD>Insert <I>n</I> lines (IL), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>M</B></TT></TD>
+  <TD>Delete <I>n</I> lines (DL), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>P</B></TT></TD>
+  <TD>Delete <I>n</I> characters (DCH), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>W</B></TT></TD>
+  <TD>Tabulator functions
+      <UL>
+        <LI><I>n</I> == 0:  Tab Set (HTS)
+        <LI><I>n</I> == 2:  Tab Clear (TBC), clear current column
+        <LI><I>n</I> == 5:  Tab Clear (TBC), clear all
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>X</B></TT></TD>
+  <TD>Erase <I>n</I> characters (ECH), default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>Z</B></TT></TD>
+  <TD>Move backward <I>n</I> tabstops, default 1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>`</B></TT></TD>
+  <TD>Same as <TT>ESC <B>[</B> <I>n</I> <B>G</B> (HPA)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>a</B></TT></TD>
+  <TD>Same as <TT>ESC <B>[</B> <I>n</I> <B>C</B> (CUF)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>c</B></TT></TD>
+  <TD>Send Device Attributes (DA), default of 0 returns
+      "<TT>ESC<B>[?1;2c</B></TT>" indicating a VT100 with advanced video option
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>d</B></TT></TD>
+  <TD>Cursor to line <I>n</I> (VPA)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>e</B></TT></TD>
+  <TD>Same as <TT>ESC <B>[</B> <I>n</I> <B>A</B> (CUU)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>r</I> <B>;</B> <I>c</I> ] <B>f</B></TT></TD>
+  <TD>Horizontal and Vertical Position (HVP), default 1;1</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>g</B></TT></TD>
+  <TD>Tab Clear
+      <UL>
+        <LI><I>n</I> == 0:  Tab Clear (TBC), clear current column (default)
+        <LI><I>n</I> == 3:  Tab Clear (TBC), clear all
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>i</B></TT></TD>
+  <TD>Printing
+      <UL>
+        <LI><I>n</I> == 4:  Disable transparent print mode (MC4)
+        <LI><I>n</I> == 5:  Enable transparent print mode (MC5)
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> <I>n</I> [ <B>;</B> <I>n</I> ... ] { <B>h</B> | <B>l</B> }</TT></TD>
+  <TD><UL>
+        <LI><B>h</B>:  Set Mode (SM)
+        <LI><B>l</B>:  Reset Mode (RM)
+      </UL>
+      <UL>
+        <LI><I>n</I> == 4:  Insert Mode (SMIR)/Replace Mode (RMIR)
+        <LI><I>n</I> == 20:  Automatic Newline/Normal Linefeed (LNM)
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> <I>n</I> [ <B>;</B> <I>n</I> ... ] <B>m</B></TT></TD>
+  <TD>Character Attributes (SGR)
+      <UL>
+        <LI><I>n</I> == 0:  Normal (default)
+        <LI><I>n</I> == 1/22:  Turn bold (bright fg) on/off
+        <LI><I>n</I> == 4/24:  Turn underline on/off
+        <LI><I>n</I> == 5/25:  Turn "blink" (bright bg) on/off
+        <LI><I>n</I> == 7/27:  Turn inverse on/off
+        <LI><I>n</I> == 30/40:  foreground/background black
+        <LI><I>n</I> == 31/41:  foreground/background red
+        <LI><I>n</I> == 32/42:  foreground/background green
+        <LI><I>n</I> == 33/43:  foreground/background yellow
+        <LI><I>n</I> == 34/44:  foreground/background blue
+        <LI><I>n</I> == 35/45:  foreground/background magenta
+        <LI><I>n</I> == 36/46:  foreground/background cyan
+        <LI><I>n</I> == 37/47:  foreground/background white
+        <LI><I>n</I> == 39/49:  foreground/background default
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>n</B></TT></TD>
+  <TD>Device Status Report (DSR)
+      <UL>
+        <LI><I>n</I> == 5:  Status Report, returns "<TT>ESC<B>[0n</B></TT>"
+                            ("OK")
+        <LI><I>n</I> == 6:  Report Cursor Position (CPR) as
+                            "<TT>ESC<B>[</B><I>r</I><B>;</B><I>c</I><B>R</B></TT>"
+        <LI><I>n</I> == 7:  Request display name (ignored by default for
+                            security reasons)
+        <LI><I>n</I> == 8:  Request version number in window title
+        <LI><I>n</I> == 9:  Display pixmap/transparency status in
+                            window title (See
+                            <A HREF="#eterm_esc">below</A>.)
+
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>t</I> <B>;</B> <I>b</I> ] <B>r</B></TT></TD>
+  <TD>Set Scrolling Region (CSR), where <I>t</I> is the top row and <I>b</I> is
+      the bottom row, defaults to the full screen</TD>
+</TR>
+<!--
+<TR>
+  <TD><TT>ESC <B>[</B> [ <I>n</I> ] <B>x</B></TT></TD>
+  <TD>Request Terminal Parameters (DECREQTPARM)</TD>
+</TR>
+-->
+<TR>
+  <TD><TT>ESC <B>[ ?</B> <I>n</I> [ <B>;</B> <I>n</I> ... ] { <B>h</B> | <B>l</B> | <B>s</B> | <B>r</B> | <B>t</B> }</TT></TD>
+  <TD>DEC Private Modes (shown as set/reset)
+      <UL>
+        <LI><B>h</B>:  Set Private Mode (DECSET)
+        <LI><B>l</B>:  Reset Private Mode (DECRST)
+        <LI><B>s</B>:  Save all DEC Private Mode values
+        <LI><B>r</B>:  Restore previously-saved DEC Private Mode values
+        <LI><B>t</B>:  Toggle Private Mode (rxvt/Eterm extension)
+      </UL>
+      <UL>
+        <LI><I>n</I> == 1:  Application/Normal cursor keys (DECCKM)
+        <LI><I>n</I> == 3:  132/80 column mode (DECCOLM)
+        <LI><I>n</I> == 4:  Smooth/Jump scrolling (DECSCLM) [not yet implemented]
+        <LI><I>n</I> == 5:  Reverse/Normal video (DECSCNM)
+        <LI><I>n</I> == 6:  Origin/Normal cursor mode (DECOM)
+        <LI><I>n</I> == 7:  Wraparound mode on/off (DECAWM)
+        <LI><I>n</I> == 9:  (X10 Xterm mouse reporting) Do/Don't send mouse
+                            coords on button press (see <A HREF="#mouse">below</A>)
+        <LI><I>n</I> == 25:  Visible/invisible cursor
+        <LI><I>n</I> == 30:  Toggle scrollbar on/off (rxvt/Eterm extension)
+        <LI><I>n</I> == 35:  Allow/Disallow xterm shift+key sequences (rxvt/Eterm extension)
+        <LI><I>n</I> == 40:  Allow/Disallow 80 <--> 132 mode
+        <LI><I>n</I> == 47:  Use Alternate/Normal screen buffer
+        <LI><I>n</I> == 66:  Application/Normal keypad (DECPAM)
+        <LI><I>n</I> == 67:  Backspace key sends BS/DEL (DECBKM)
+        <LI><I>n</I> == 1000:  (X11 Xterm mouse reporting) Do/Don't send mouse
+                               coords on button press and release (see
+                               <A HREF="#mouse">below</A>)
+        <LI><I>n</I> == 1010:  Scroll to bottom on tty output
+        <LI><I>n</I> == 1012:  Scroll to bottom on tty input
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[</B> <I>n</I> [ <B>;</B> <I>n</I> [ ... ] ] <B>t</B></TT></TD>
+  <TD>Window Operations
+      <UL>
+        <LI><I>n</I> == 1:  Un-iconify window
+        <LI><I>n</I> == 2:  Iconify window
+        <LI><I>n</I> == 3:  Move window.  Must by followed by
+                            <TT><B>;</B><I>x</I><B>;</B><I>y</I></TT>
+        <LI><I>n</I> == 4:  Resize window.  Must by followed by
+                            <TT><B>;</B><I>height</I><B>;</B><I>width</I></TT>
+        <LI><I>n</I> == 5:  Raise window
+        <LI><I>n</I> == 6:  Lower window
+        <LI><I>n</I> == 7:  Refresh window
+        <LI><I>n</I> == 8:  Resize text area.  Must by followed by
+                            <TT><B>;</B><I>height</I><B>;</B><I>width</I></TT>,
+                            with <I>height</I> and <I>width</I> given in
+                            characters.
+        <LI><I>n</I> == 11:  Report icon state.  (not implemented)
+        <LI><I>n</I> == 13:  Report window position as
+                             <TT>ESC<B>[3;</B><I>x</I><B>;</B><I>y</I><B>t</B></TT>
+        <LI><I>n</I> == 14:  Report window size in pixels as
+                             <TT>ESC<B>[4;</B><I>height</I><B>;</B><I>width</I><B>t</B></TT>
+        <LI><I>n</I> == 18:  Report text area size in characters as
+                             <TT>ESC<B>[4;</B><I>height</I><B>;</B><I>width</I><B>t</B></TT>
+        <LI><I>n</I> == 20:  Report icon name as 
+                             <TT>ESC<B>]L</B><I>name</I>ESC<B>\</B></TT>
+        <LI><I>n</I> == 21:  Report window title as 
+                             <TT>ESC<B>]l</B><I>title</I>ESC<B>\</B></TT>
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>]</B> <I>n</I> <B>;</B> <I>string</I> BEL</TT></TD>
+  <TD>Set X Terminal Parameters
+      <UL>
+        <LI><I>n</I> == 0:  Change icon name and window title to <I>string</I>
+        <LI><I>n</I> == 1:  Change icon name to <I>string</I>
+        <LI><I>n</I> == 2:  Change window title to <I>string</I>
+        <LI><I>n</I> == 3:  Set text property <I>string</I> (format:  var=value)
+        <LI><I>n</I> == 5:  Steal input focus and raise window (See
+                            <A HREF="#eterm_esc">below</A>.)
+        <LI><I>n</I> == 6:  Eterm-specific escape sequences (See
+                            <A HREF="#eterm_esc">below</A>.)
+        <LI><I>n</I> == 10:  Set foreground color to <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 11.
+        <LI><I>n</I> == 11:  Set background color to <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 12.
+        <LI><I>n</I> == 12:  Set cursor color to <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 13.
+        <LI><I>n</I> == 13:  Set mouse pointer color to <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 14.
+        <LI><I>n</I> == 14:  Ignore <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 15.
+        <LI><I>n</I> == 15:  Ignore <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 16.
+        <LI><I>n</I> == 16:  Ignore <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 17.
+        <LI><I>n</I> == 17:  Ignore <I>string</I>.
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 18.
+        <LI><I>n</I> == 18:  Set bold color to <I>string</I>.
+                             Eterm extension (see <A HREF="#image">below</A>).
+                             If additional semicolon-delimited
+                             <I>string</I> values are specified,
+                             continue with <I>n</I> == 19.
+        <LI><I>n</I> == 19:  Set underline color to <I>string</I>.
+                             Eterm extension (see <A HREF="#image">below</A>).
+        <LI><I>n</I> == 20:  Image commands (see <A HREF="#image">below</A>)
+        <LI><I>n</I> == 30:  Dump contents of scrollback to file
+                             <I>string</I>.  (Disabled by default.)
+        <LI><I>n</I> == 39:  Set the default foreground color to <I>string</I>
+        <LI><I>n</I> == 49:  Set the default background color to <I>string</I>
+        <LI><I>n</I> == 50:  Set font to <I>string</I>.  rxvt/Eterm extensions:
+            <UL>
+              <LI><I>string</I> == "<B>#+</B><I>n</I>":  Change font up by <I>n</I>, default 1
+              <LI><I>string</I> == "<B>#-</B><I>n</I>":  Change font down by <I>n</I>, default 1
+              <LI><I>string</I> empty:  Change to font 0
+              <LI><I>string</I> == "<B>#</B><I>n</I>":  Change to font <I>n</I>
+            </UL>
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>]</B> { <B>l</B> | <B>L</B> | <B>I</B> } <I>string</I> ESC <B>\</B></TT></TD>
+  <TD><UL>
+        <LI><TT><B>l</B></TT>:  Change window title to <I>string</I>
+        <LI><TT><B>L</B></TT>:  Change icon name to <I>string</I>
+        <LI><TT><B>I</B></TT>:  Read new icon image from file whose path is <I>string</I>
+      </UL>
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] P</B> <I>n rr gg bb</I></TT></TD>
+  <TD>Changes terminal color <I>n</I> ('0' through 'f') to the color
+      represented by the RGB values <I>rr</I>, <I>gg</I>, and
+      <I>bb</I>.  (Compatible with Linux console.)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] R</B></TT></TD>
+  <TD>Restores the original palette.  (Compatible with Linux
+      console.)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>c</B></TT></TD>
+  <TD>Full Reset (RIS)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>n</B></TT></TD>
+  <TD>Invoke the G2 character set (LS2)</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>o</B></TT></TD>
+  <TD>Invoke the G3 character set (LS3)</TD>
+</TR>
+</TABLE>
+
+<H2><A NAME="codes">Escape Codes Eterm Knows</A></H2>
+
+<TABLE BORDER=2 CELLSPACING=2 CELLPADDING=5>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Escaped String</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Meaning</B></FONT></TD>
+</TR>
+<TR>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Backslash-Escaped Characters (case is ignored)</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\a</B></TT></TD>
+  <TD><TT>BEL</TT> (Alert)</TD>
+</TR>
+<TR>
+  <TD><TT><B>\b</B></TT></TD>
+  <TD><TT>BS</TT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\c</B><I>X</I></TT></TD>
+  <TD>Interpreted as Ctrl-<I>X</I>.  Analogous to <TT><B>^</B><I>X</I></TT>.</TD>
+</TR>
+<TR>
+  <TD><TT><B>\e</B></TT></TD>
+  <TD><TT>ESC</TT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\f</B></TT></TD>
+  <TD><TT>FF</TT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\n</B></TT></TD>
+  <TD><TT>LF</TT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\r</B></TT></TD>
+  <TD><TT>CR</TT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\t</B></TT></TD>
+  <TD><TT>TAB</TT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\v</B></TT></TD>
+  <TD><TT>VT</TT></TD>
+</TR>
+<TR>
+  <TD><TT><B>\</B><I>nnn</I></TT></TD>
+  <TD><I>nnn</I> is interpreted as an octal number, and the corresponding
+      character is inserted.
+  </TD>
+</TR>
+<TR>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Convenience Shortcuts</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT><B>^</B><I>X</I></TT></TD>
+  <TD>Interpreted as Ctrl-<I>X</I>.  <I>X</I> can be any character between
+      <TT><B>@</B></TT> and <TT><B>_</B></TT>.  Case is ignored.
+  </TD>
+</TR>
+<TR>
+  <TD><TT><B>C-</B><I>X</I></TT></TD>
+  <TD>Interpreted as Ctrl-<I>X</I>.  Analogous to <TT><B>^</B><I>X</I></TT>.</TD>
+</TR>
+<TR>
+  <TD><TT><B>M-</B><I>X</I></TT></TD>
+  <TD>Interpreted as <TT>ESC</TT> followed by <I>X</I>.  Analogous to
+      <TT><B>\e</B><I>X</I></TT>.  If the string begins with <TT><B>M-</B></TT>,
+      a <TT>CR</TT> is automatically appended to the end of the string if not
+      already present.
+  </TD>
+</TR>
+</TABLE>
+
+<H3><A NAME="image">Image Escape Sequences</A></H3>
+
+<P>
+The <I>string</I> supplied to the image escape sequence (above)
+consists of a filename (which can be empty) followed by a semicolon,
+then one or more geometry strings.  Each geometry string contains zero
+or one scale/position adjustment and may optionally be followed by a
+colon and one or more colon-delimited pixmap operations.  The
+following table shows the valid geometry strings and their affects on
+the background image:</P>
+
+<TABLE BORDER=2 CELLSPACING=2 CELLPADDING=5>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>String</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Function</B></FONT></TD>
+</TR>
+<TR>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Adjusting scaling and position</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT><I>W</I><B>x</B><I>H</I><B>+</B><I>X</I><B>+</B><I>Y</I></TT></TD>
+  <TD>Set scaling to <I>W</I>% by <I>H</I>%, and position to <I>X</I>%
+      by <I>Y</I>%.  <I>W</I> and <I>H</I> are percentages of the
+      terminal window size.  <I>X</I> and <I>Y</I> are also
+      percentages; e.g., <B>+50+50</B> centers the image in the
+      window.</TD>
+</TR>
+<TR>
+  <TD><TT><I>W</I><B>x</B><I>H</I><B>+</B><I>X</I></TT></TD>
+  <TD>Assumes <I>Y</I> == <I>X</I></TD>
+</TR>
+<TR>
+  <TD><TT><I>W</I><B>x</B><I>H</I></TT></TD>
+  <TD>Assumes <I>Y</I> == <I>X</I> == 50 (centers the image)</TD>
+</TR>
+<TR>
+  <TD><TT><I>W</I><B>+</B><I>X</I><B>+</B><I>Y</I></TT></TD>
+  <TD>Assumes <I>H</I> == <I>W</I></TD>
+</TR>
+<TR>
+  <TD><TT><I>W</I><B>+</B><I>X</I></TT></TD>
+  <TD>Assumes <I>H</I> == <I>W</I> and <I>Y</I> == <I>X</I></TD>
+</TR>
+<TR>
+  <TD><TT><I>W</I></TT></TD>
+  <TD>Assumes <I>H</I> == <I>W</I> and <I>Y</I> == <I>X</I> == 50</TD>
+</TR>
+<TR>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Adjusting position only</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT><B>=+</B><I>X</I><B>+</B><I>Y</I></TT></TD>
+  <TD>Set position to <I>X</I>% by <I>Y</I>% (absolute).</TD>
+</TR>
+<TR>
+  <TD><TT><B>=+</B><I>X</I></TT></TD>
+  <TD>Set position to <I>X</I>% by <I>X</I>%.</TD>
+</TR>
+<TR>
+  <TD><TT><B>+</B><I>X</I><B>+</B><I>Y</I></TT></TD>
+  <TD>Adjust position horizontally <I>X</I>% and vertically <I>Y</I>% from
+      current position (relative).</TD>
+</TR>
+<TR>
+  <TD><TT><B>+</B><I>X</I><B>+</B><I>X</I></TT></TD>
+  <TD>Adjust position horizontally <I>X</I>% and vertically <I>X</I>% from
+      current position.</TD>
+</TR>
+<TR>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Adjusting scale only</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT><I>W</I><B>x0</B></TT></TD>
+  <TD>Multiply horizontal scaling factor by <I>W</I>%</TD>
+</TR>
+<TR>
+  <TD><TT><B>0x</B><I>H</I></TT></TD>
+  <TD>Multiply vertical scaling factor by <I>H</I>%</TD>
+</TR>
+<TR>
+  <TD><TT><B>0x0</B></TT></TD>
+  <TD>No scaling (show image at normal size).</TD>
+</TR>
+<TR>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Pixmap Operations</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT><B>tile</B></TT></TD>
+  <TD>Tile image.  Scaling/position modifiers above will affect the
+      tile size and origin.</TD>
+</TR>
+<TR>
+  <TD><TT><B>propscale</B></TT></TD>
+  <TD>When scaling, scale proportionally.  That is, maintain the
+      proper aspect ratio for the image.  Any portion of the
+      background not covered by the image is filled with the current
+      background color.</TD>
+</TR>
+</TABLE>
+
+<P>
+Examples:</P>
+
+<UL>
+  <LI>"<TT><B>\e]20;Dragon.jpg\007</B></TT>" -- Set background image to
+      "Dragon.jpg"
+  <LI>"<TT><B>\e]20;Canyon.jpg;200\007</B></TT>" -- Set background image to
+      "Canyon.jpg", scaling to 200% by 200%, and center it.
+  <LI>"<TT><B>\e]20;;100\007</B></TT>" -- Set scaling back to 100%
+  <LI>"<TT><B>\e]20;blackstone.png;0x0\007</B></TT>" -- Set background image to
+      "blackstone.png", centered and at original size
+  <LI>"<TT><B>\e]20;;:tile\007</B></TT>" -- Tile current image instead of scaling
+</UL>
+
+<H3><A NAME="mouse">Mouse Reporting</A></H3>
+
+<P>
+When Eterm receives a mouse reporting request (and if mouse reporting is
+currently enabled), it replies with the sequence
+"<TT><B>ESC[M</B><I>bxy</I></TT>".  The values for <I>b</I>, <I>x</I>, and
+<I>y</I> are as follows (subtract the value of space ' ' first):</P>
+
+<UL>
+  <LI>Button status:  The lower 2 bits of <I>b</I> indicate the button status,
+      with 00 indicating Button1 down, 01 indicating Button2 down, 10 indicating
+      Button3 down, and 11 indicating the button was released.  (<TT>button =
+      <I>b</I> & 0x3 - ' '</TT>)
+  <LI>Modifier status:  The upper bits of <I>b</I> are used to flag which
+      modifiers were active when the button was pressed.  The low bit is the
+      Shift flag, the middle is Meta, and the high bit is Control.  (<TT>mod =
+      <I>b</I> & 0x1c - ' '</TT>)
+  <LI>Coordinates:  <I>x</I> and <I>y</I> are the column and row, respectively.
+      (<TT>c = <I>x</I> - ' '; r = <I>y</I> - ' '</TT>)
+</UL>
+
+<H2><A NAME="keys">Key Sequences</A></H2>
+
+<TABLE BORDER=2 CELLSPACING=2 CELLPADDING=5>
+<TR>
+  <TD COLSPAN=5 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Cursor Keys</B></FONT></TD>
+</TR>
+<TR>
+  <TD ROWSPAN=2 ALIGN=middle BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Key Pressed</B></FONT></TD>
+  <TD COLSPAN=4 ALIGN=middle BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>What Eterm Sends</B></FONT></TD>
+</TR>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Normal</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Shift</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Control</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Application</B></FONT></TD>
+</TR>
+<TR>
+  <TD>Up</TD>
+  <TD><TT><B>ESC [ A</B></TT></TD>
+  <TD><TT><B>ESC [ a</B></TT></TD>
+  <TD><TT><B>ESC O a</B></TT></TD>
+  <TD><TT><B>ESC O A</B></TT></TD>
+</TR>
+<TR>
+  <TD>Down</TD>
+  <TD><TT><B>ESC [ B</B></TT></TD>
+  <TD><TT><B>ESC [ b</B></TT></TD>
+  <TD><TT><B>ESC O b</B></TT></TD>
+  <TD><TT><B>ESC O B</B></TT></TD>
+</TR>
+<TR>
+  <TD>Right</TD>
+  <TD><TT><B>ESC [ C</B></TT></TD>
+  <TD><TT><B>ESC [ c</B></TT></TD>
+  <TD><TT><B>ESC O c</B></TT></TD>
+  <TD><TT><B>ESC O C</B></TT></TD>
+</TR>
+<TR>
+  <TD>Left</TD>
+  <TD><TT><B>ESC [ D</B></TT></TD>
+  <TD><TT><B>ESC [ d</B></TT></TD>
+  <TD><TT><B>ESC O d</B></TT></TD>
+  <TD><TT><B>ESC O D</B></TT></TD>
+</TR>
+<TR>
+  <TD COLSPAN=5 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Special Keys</B></FONT></TD>
+</TR>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Key Pressed</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Normal</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Shift</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Control</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Control+Shift</B></FONT></TD>
+</TR>
+<TR>
+  <TD>Tab</TD>
+  <TD><TT><B>^I</B></TT></TD>
+  <TD><TT><B>ESC [ Z</B></TT></TD>
+  <TD><TT><B>^I</B></TT></TD>
+  <TD>&nbsp;</TD>
+</TR>
+<TR>
+  <TD>Backspace</TD>
+  <TD><TT><B>^H</B></TT></TD>
+  <TD><TT><B>^?</B></TT></TD>
+  <TD><TT><B>^?</B></TT></TD>
+  <TD>&nbsp;</TD>
+</TR>
+<TR>
+  <TD>Home (Find)</TD>
+  <TD><TT><B>ESC [ 1 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 1 $</B></TT></TD>
+  <TD><TT><B>ESC [ 1 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 1 @</B></TT></TD>
+</TR>
+<TR>
+  <TD>End (Select)</TD>
+  <TD><TT><B>ESC [ 4 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 4 $</B></TT></TD>
+  <TD><TT><B>ESC [ 4 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 4 @</B></TT></TD>
+</TR>
+<TR>
+  <TD>Insert</TD>
+  <TD><TT><B>ESC [ 2 ~</B></TT></TD>
+  <TD><TT>Paste mouse selection</TT></TD>
+  <TD><TT><B>ESC [ 2 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 2 @</B></TT></TD>
+</TR>
+<TR>
+  <TD>Delete (Execute)</TD>
+  <TD><TT><B>ESC [ 3 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 3 $</B></TT></TD>
+  <TD><TT><B>ESC [ 3 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 3 @</B></TT></TD>
+</TR>
+<TR>
+  <TD>PageUp (Prior)</TD>
+  <TD><TT><B>ESC [ 5 ~</B></TT></TD>
+  <TD><TT>Scroll up one page</TT></TD>
+  <TD><TT><B>ESC [ 5 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 5 @</B></TT></TD>
+</TR>
+<TR>
+  <TD>PageDown (Next)</TD>
+  <TD><TT><B>ESC [ 6 ~</B></TT></TD>
+  <TD><TT>Scroll down one page</TT></TD>
+  <TD><TT><B>ESC [ 6 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 6 @</B></TT></TD>
+</TR>
+<TR>
+  <TD COLSPAN=5 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Function Keys (Note:  Shift-F1 through F10 sends F11-F20)</B></FONT></TD>
+</TR>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Key Pressed</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Normal</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Shift</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Control</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Control+Shift</B></FONT></TD>
+</TR>
+<TR>
+  <TD>F1</TD>
+  <TD><TT><B>ESC [ 11 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 23 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 11 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 23 ^</B></TT></TD>
+</TR>
+<TR>
+  <TD>F2</TD>
+  <TD><TT><B>ESC [ 12 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 24 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 12 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 24 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F3</TD>	   
+  <TD><TT><B>ESC [ 13 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 25 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 13 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 25 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F4</TD>	   
+  <TD><TT><B>ESC [ 14 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 26 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 14 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 26 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F5</TD>	   
+  <TD><TT><B>ESC [ 15 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 28 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 15 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 28 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F6</TD>	   
+  <TD><TT><B>ESC [ 17 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 29 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 17 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 29 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F7</TD>	   
+  <TD><TT><B>ESC [ 18 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 31 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 18 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 31 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F8</TD>	   
+  <TD><TT><B>ESC [ 19 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 32 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 19 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 32 ^</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F9</TD>	   
+  <TD><TT><B>ESC [ 20 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 33 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 20 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 33 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F10</TD>	   
+  <TD><TT><B>ESC [ 21 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 34 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 21 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 34 ^</B></TT></TD>
+</TR>		   
+<TR>		   
+  <TD>F11</TD>	   
+  <TD><TT><B>ESC [ 23 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 23 $</B></TT></TD>
+  <TD><TT><B>ESC [ 23 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 23 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F12</TD>	   
+  <TD><TT><B>ESC [ 24 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 24 $</B></TT></TD>
+  <TD><TT><B>ESC [ 24 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 24 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F13</TD>	   
+  <TD><TT><B>ESC [ 25 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 25 $</B></TT></TD>
+  <TD><TT><B>ESC [ 25 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 25 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F14</TD>	   
+  <TD><TT><B>ESC [ 26 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 26 $</B></TT></TD>
+  <TD><TT><B>ESC [ 26 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 26 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F15 (Help)</TD>	   
+  <TD><TT><B>ESC [ 28 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 28 $</B></TT></TD>
+  <TD><TT><B>ESC [ 28 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 28 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F16 (Menu)</TD>	   
+  <TD><TT><B>ESC [ 29 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 29 $</B></TT></TD>
+  <TD><TT><B>ESC [ 29 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 29 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F17</TD>	   
+  <TD><TT><B>ESC [ 31 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 31 $</B></TT></TD>
+  <TD><TT><B>ESC [ 31 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 31 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F18</TD>	   
+  <TD><TT><B>ESC [ 32 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 32 $</B></TT></TD>
+  <TD><TT><B>ESC [ 32 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 32 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F19</TD>	   
+  <TD><TT><B>ESC [ 33 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 33 $</B></TT></TD>
+  <TD><TT><B>ESC [ 33 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 33 @</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>F20</TD>	   
+  <TD><TT><B>ESC [ 34 ~</B></TT></TD>
+  <TD><TT><B>ESC [ 34 $</B></TT></TD>
+  <TD><TT><B>ESC [ 34 ^</B></TT></TD>
+  <TD><TT><B>ESC [ 34 @</B></TT></TD>
+</TR>
+<TR>
+  <TD COLSPAN=5 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Keypad</B></FONT></TD>
+</TR>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Key Pressed</B></FONT></TD>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Normal</B></FONT></TD>
+  <TD COLSPAN=2 BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Application</B></FONT></TD>
+</TR>
+<TR>		   
+  <TD>KP_Enter</TD>	   
+  <TD COLSPAN=2><TT><B>^M</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O M</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>KP_F1</TD>	   
+  <TD COLSPAN=2><TT><B>ESC O P</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O P</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>KP_F2</TD>	   
+  <TD COLSPAN=2><TT><B>ESC O Q</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O Q</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>KP_F3</TD>	   
+  <TD COLSPAN=2><TT><B>ESC O R</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O R</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>KP_F4</TD>	   
+  <TD COLSPAN=2><TT><B>ESC O S</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O S</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_Multiply</TD>	   
+  <TD COLSPAN=2><TT><B>*</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O j</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_Add</TD>	   
+  <TD COLSPAN=2><TT><B>+</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O k</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_Separator</TD>	   
+  <TD COLSPAN=2><TT><B>,</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O l</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_Subtract</TD>	   
+  <TD COLSPAN=2><TT><B>-</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O m</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_Decimal</TD>	   
+  <TD COLSPAN=2><TT><B>.</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O n</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_Divide</TD>	   
+  <TD COLSPAN=2><TT><B>/</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O o</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_0</TD>	   
+  <TD COLSPAN=2><TT><B>0</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O p</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_1</TD>	   
+  <TD COLSPAN=2><TT><B>1</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O q</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_2</TD>	   
+  <TD COLSPAN=2><TT><B>2</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O r</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_3</TD>	   
+  <TD COLSPAN=2><TT><B>3</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O s</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_4</TD>	   
+  <TD COLSPAN=2><TT><B>4</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O t</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_5</TD>	   
+  <TD COLSPAN=2><TT><B>5</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O u</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_6</TD>	   
+  <TD COLSPAN=2><TT><B>6</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O v</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_7</TD>	   
+  <TD COLSPAN=2><TT><B>7</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O w</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_8</TD>	   
+  <TD COLSPAN=2><TT><B>8</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O x</B></TT></TD>
+</TR>
+<TR>		   
+  <TD>XK_KP_9</TD>	   
+  <TD COLSPAN=2><TT><B>9</B></TT></TD>
+  <TD COLSPAN=2><TT><B>ESC O y</B></TT></TD>
+</TR>
+</TABLE>
+
+<H2><A NAME="std">Eterm Extensions, Standards, and Implementations</A></H2>
+
+<P>
+
+<H3><A NAME="eterm_esc">Eterm Proprietary Escape Sequences</A></H3>
+
+<P>
+The table below contains a listing of all the Eterm-specific escape sequences
+that Eterm supports.  These sequences were created by the Eterm authors.  Please
+note the following conventions used in this table:</P>
+
+<P>
+When an escape sequence is said to "set/toggle" an option, this means that the
+boolean parameter of the sequence is optional.  If given, it will either set or
+unset the option.  If omitted, the current state of that option will be
+reversed (i.e., turned off if on, or on if off).  Acceptable values for "true"
+are:  <TT><B>1</B></TT>, <TT><B>on</B></TT>, <TT><B>yes</B></TT>, or (of course)
+<TT><B>true</B></TT>.  Likewise, acceptable values for "false" are:
+<TT><B>0</B></TT>, <TT><B>off</B></TT>, <TT><B>no</B></TT>, or
+<TT><B>false</B></TT>.</P>
+
+<TABLE BORDER=2 CELLSPACING=2 CELLPADDING=5>
+<TR>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Sequence</B></FONT></TD>
+  <TD BGCOLOR="#999999"><FONT SIZE=+1 COLOR="#000000"><B>Function</B></FONT></TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>[ 9 n</B></TT></TD>
+  <TD>Titlebar Status.  This places Eterm's current status in the titlebar.  The
+      status information includes the application name and version number, as
+      well as the shading/tinting state if transparent, the path to the
+      background image if there is one, or "No Pixmap" if neither of these is
+      true.
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 5 ;</B> BEL</TT></TD>
+  <TD>Steal Focus.  Eterm will raise itself to the top and steal keyboard/mouse
+      focus.  This is useful in case your window manager dies or has trouble
+      starting up.  By default, this is activated by holding the Ctrl key and
+      clicking on the Eterm window with the left mouse button (Button1).
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 0 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle transparency state.  This affects all images for which
+      transparency is an allowed mode.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 1 ;</B> [ <I>class</I> <B>;</B> ] <I>color</I> <B>;</B> <I>attribute</I> <B>;</B> <I>value</I> BEL</TT></TD>
+  <TD>Adjusts a color modifier.  <I>class</I> determines which image
+      class will have its color modifier altered:  <B>bg</B>
+      (background, the default), <B>up</B> (up arrow), <B>down</B>
+      (down arrow), <B>sb</B> (scrollbar trough), <B>sa</B> (scrollbar
+      anchor), <B>st</B> (scrollbar thumb), <B>menu</B> (popup menu
+      background), <B>menuitem</B> (popup menu items), <B>submenu</B>
+      (menu items which represent submenus), <B>button</B> (buttons on
+      the buttonbar), or <B>bbar</B> (buttonbar).  Next comes the
+      <I>color</I> which determines how pixels are modified.  This is
+      either <B>image</B>, <B>red</B>, <B>green</B>, or <B>blue</B>.
+      <I>attribute</I> is one of <B>brightness</B>, <B>contrast</B>,
+      or <B>gamma</B>, and <I>value</I> is the actual integer value
+      (>= 0).  As stated in the man page, 256 (0x100) is 100%.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 2 ;</B> { <B>shade</B> | <B>tint</B> } [ <I>class</I> <B>;</B> ] <I>value</I> BEL</TT></TD>
+  <TD>Shade/tint the specified <I>class</I> (see above).  For shading,
+      <I>value</I> is the shade percentage.  For tinting, it is the
+      tint color or mask.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 3 ;</B> BEL</TT></TD>
+  <TD>Force an update the of transparency background.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 10 ;</B> [ <I>type</I> ] [ <B>;</B> <I>width</I> ] BEL</TT></TD>
+  <TD>Set scrollbar style to <I>type</I> and scrollbar width to <I>width</I>.
+      If specified, <I>type</I> must be one of <TT><B>motif</B></TT>,
+      <TT><B>xterm</B></TT>, or <TT><B>next</B></TT>.  If you omit the
+      <I>type</I> parameter and only wish to set the width, take care not to
+      omit the extra semicolon.  <I>width</I> is an integer.  Its value is
+      fairly wide-open, but should be something reasonable.
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 11 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle right-side scrollbar.
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 12 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle floating scrollbar (i.e., one with no trough).</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 13 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle popup scrollbar (i.e., one that appears when the window has
+      focus and disappears when it does not).
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 14 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle display of buttonbars.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 20 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle visual bell.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 21 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle map alert.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 22 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle xterm's cutchar selection behavior.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 23 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle selection of the whole line by triple-click.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 24 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle viewport mode for all images that have allowed viewport
+      mode.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 25 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle selection trailing spaces.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 26 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle reporting as keysyms.  See the man page for details.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 27 </B> [ <B>;</B> <I>boolean</I> ] BEL</TT></TD>
+  <TD>Set/toggle the refusal of keyboard input and focus.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 50 ;</B> <I>desktop</I> BEL</TT></TD>
+  <TD>Move Eterm to desktop <I>desktop</I> and make it the current desktop.
+      This requires a compliant Window Manager, such as
+      <A HREF="http://www.enlightenment.org/" TARGET="_top">Enlightenment</A>.
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 72</B> [ ;</B> <I>string</I> ] BEL</TT></TD>
+  <TD>Search for and highlight any occurances of <I>string</I> in the
+      scrollback buffer.
+  </TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 6 ; 80 ;</B> <I>level</I> BEL</TT></TD>
+  <TD>Set the debugging level to <I>level</I>.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 18 ;</B> <I>string</I> BEL</TT></TD>
+  <TD>Set bold color to <I>string</I>.</TD>
+</TR>
+<TR>
+  <TD><TT>ESC <B>] 19 ;</B> <I>string</I> BEL</TT></TD>
+  <TD>Set underline color to <I>string</I>.</TD>
+</TR>
+</TABLE>
+
+<H3><A NAME="trans">Transparency</A></H3>
+
+<P>
+The standard for implementing transparency was a mutual effort between
+myself, Carsten Haitzler &lt;raster@rasterman.com&gt;, Gerald Britton
+&lt;gbritton@mit.edu&gt;, and Nat Friedman &lt;nat@nat.org&gt;, based
+off of an original idea by Nat.  First I'll define the standard, then
+I'll discuss its justification.</P>
+
+<P>
+There are two separate procedures for setting the transparency
+property (the _XROOTPMAP_ID atom in X).  The first is for persistent X
+clients such as window managers.  These clients should proceed through
+their normal mechanism for setting the desktop image.  Once the
+finalized pixmap has been created, the _XROOTPMAP_ID property should
+be set on the desktop window (the same window which will receive the
+pixmap...note that this is not necessarily the root window), and its
+value should be set to the Pixmap ID.  The following sample code
+(taken from <A HREF="http://www.enlightenment.org/"
+TARGET="_top">Enlightenment</A>) demonstrates this:</P>
+
+<PRE>
+<FONT COLOR="#3333ff">/* disp is the Display, win is the desktop Window, pmap is the pixmap */</FONT>
+static Atom prop = 0;
+
+if (!prop) {
+  prop = XInternAtom(disp, "_XROOTPMAP_ID", False);
+}
+XChangeProperty(disp, win, prop, XA_PIXMAP, 32, PropModeReplace,
+                (unsigned char *)&pmap, 1);
+XSetWindowBackgroundPixmap(disp, win, pmap);
+XClearWindow(disp, win);
+</PRE>
+
+<P>
+The second procedure is for temporary clients; i.e., clients who set the desktop
+pixmap and then exit.  An example of this type of client would be Esetroot, the
+transparency utility provided with Eterm.  These clients should set the
+_XROOTPMAP_ID property just like the persistent client does.  They should also
+set a companion property as well, ESETROOT_PMAP_ID.  Both are set to the same
+pixmap ID.  When a temporary client runs, it checks to see if _XROOTPMAP_ID and
+ESETROOT_PMAP_ID have the same value.  If so, the client knows that it can
+safely do an XKillClient() on the pixmap ID.  This will save memory, as the
+old pixmap can be removed.  If they are not equal, however, calling
+XKillClient() would kill the persistent client which did set it, most likely the
+user's window manager.  This would be a Bad Idea<SUP>tm</SUP>.  The following
+code fragment (taken from Esetroot) illustrates this process:</P>
+
+<PRE>
+<FONT COLOR="#3333ff">/* disp is the Display, win is the desktop Window, pmap is the pixmap */</FONT>
+Atom prop_root, prop_esetroot, type;
+int format;
+unsigned long length, after;
+unsigned char *data_root, *data_esetroot;
+
+<FONT COLOR="#3333ff">/* First check to see if the properties already exist, and if they are equal */</FONT>
+prop_root = XInternAtom(disp, "_XROOTPMAP_ID", True);
+prop_esetroot = XInternAtom(disp, "ESETROOT_PMAP_ID", True);
+
+if (prop_root != None && prop_esetroot != None) {
+  XGetWindowProperty(disp, win, prop_root, 0L, 1L, False, AnyPropertyType,
+                     &type, &format, &length, &after, &data_root);
+  if (type == XA_PIXMAP) {
+    XGetWindowProperty(disp, win, prop_esetroot, 0L, 1L, False, AnyPropertyType,
+                       &type, &format, &length, &after, &data_esetroot);
+    if (data_root && data_esetroot && type == XA_PIXMAP && *((Pixmap *) data_root) == *((Pixmap *) data_esetroot)) {
+      <FONT COLOR="#3333ff">/* It's safe.  Kill the pixmap. */</FONT>
+      XKillClient(disp, *((Pixmap *) data_root));
+    }
+  }
+}
+
+<FONT COLOR="#3333ff">/* This will locate the property, creating it if it doesn't exist */</FONT>
+prop_root = XInternAtom(disp, "_XROOTPMAP_ID", False);
+prop_esetroot = XInternAtom(disp, "ESETROOT_PMAP_ID", False);
+
+<FONT COLOR="#3333ff">/* The call above should have created it.  If that failed, we can't continue. */</FONT>
+if (prop_root == None || prop_esetroot == None) {
+  fprintf(stderr, "Error:  Creation of pixmap property failed.\n");
+  exit(1);
+}
+XChangeProperty(disp, win, prop_root, XA_PIXMAP, 32, PropModeReplace,
+                (unsigned char *) &pmap, 1);
+XChangeProperty(disp, win, prop_esetroot, XA_PIXMAP, 32, PropModeReplace,
+                (unsigned char *) &pmap, 1);
+XSetCloseDownMode(disp, RetainPermanent);
+</PRE>
+
+<P>
+When the client runs, it looks for the _XROOTPMAP_ID property on the desktop
+window.  (The client searches through all its parent windows until it either
+finds one with this property set, or hits the root window without finding it.)
+If the client finds this property, it can then use the pixmap directly, or make
+a copy of the pixmap in order to perform additional operations on it (such as
+brightening, shading, tinting, etc.).</P>
+
+<P>
+So why use this technique?  Why require such support from the window manager and
+other external applications?  Why not simply set the background to
+<TT>ParentRelative</TT> and be done with it? let X handle everything?  This
+seems to be a point of great confusion lately.  Those who have taken the time to
+put the other terminal emulators who have chosen the latter route through their
+paces already know the answer:  Power.  Very simply, you have *much* greater
+power and flexibility with this technique than any other.  X only permits a
+limited amount of flexibility when copying the background directly (basically
+just bitwise logical operations).  The above technique allows programs to tint,
+shade, brighten, or otherwise manipulate the image in *any* way they see fit.
+Want a 10% shade?  A 30% shade?  Maybe a light cyan tint?  Or perhaps you prefer
+a midnight blue tint....  With this technique, you can have it *your* way, not
+their way.</P>
+

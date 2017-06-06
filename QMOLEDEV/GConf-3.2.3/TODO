@@ -1,0 +1,110 @@
+GNOME 1.4 release (must freeze VERY soon)
+===
+
+The release with 1.4 is not going to be super-useful for large-scale
+installation administration; it's mostly just going to be a
+process-transparent way to store settings, limited to single
+workstation config files.
+
+No more source-incompatible API changes are planned for 1.4 at this
+time.
+
+API additions
+==
+
+* Implement batch gets
+
+Other
+==
+
+* Maintain documentation
+
+* Envisioneering
+
+Maybe 1.4
+===
+
+* Implement dump/slurp functionality (define XML DTD to represent 
+  modifications to the database; augment gconftool to be able to 
+  write out the current state of the database in this format, 
+  and also apply the changes given in the format)
+
+* Make it so that once the first notification of a change in a GConfChangeSet
+  is delivered, the other values will be retrieved by gconf_get() and 
+  gconf_client_get(), which means a way to invalidate GConfClient
+  cached stuff, and doing the setting of all values in the changeset
+  before the notifications.
+
+* Allow various currently-hardcoded items to be set from environment variables
+  or a config file ("home" directory to use, timeout lengths, etc. are 
+  some candidates).
+
+* "Laptop mode" where GConf avoids touching the disk much
+
+* Implement server-side search (Kind of hard to actually implement 
+  on the server, at least in any sort of fast way, and 
+  all other gconf-using apps will block while the server is searching,
+  without some tricks to let the main loop run sometimes, so, dunno.)
+
+* Implement a way to get the GConfMetaInfo
+
+Future
+===
+
+* Berkeley DB backend (note: consider issues surrounding various incompatible 
+  versions of DB and historical problems with the upgrade path, cf. 
+  RPM and gnome-mime-db)
+
+* Performance tuning
+
+* Document locking issues for backends (backends should perform
+  their own locking, handle concurrency, etc.)
+
+* Document which database GConf will write to given multiple 
+  writeable databases (i.e. the first one it can write to,
+  at the moment, maybe eventually the "database map" will 
+  specify which it writes to)
+
+* Implement a way for backends to notify gconfd of changes they detect
+
+* Implement a "database map"; this would be a tree structure (similar
+  in implementation to GConfListeners). Rather than storing listeners
+  at the tree nodes, store a list of databases in order, and 
+  readability/writability of each database. Create a config file
+  (perhaps in the GMarkup XML subset from glib 2.0) for configuring
+  the database map. Figure out whether this can entirely replace
+  the readable/writable methods from the backend vtable.
+  It likely replaces the gconf/path configuration file. (Essentially
+  the idea is a database path per key/directory, instead of a 
+  global database path, giving administrators more flexibility.)
+
+  Also, aliases for paths, and way for apps to install a suggested
+  default database alias ("per_display" "per_homedir" etc.)
+  (See gconf-list post)
+
+  Details to be figured out.
+
+* GUI admin tool, and GUI user tool (are these the same?)
+
+* Thread support for scalability; may require ORBit thread safety?
+  Or a protocol with oneway CORBA methods (client requests a value,
+  gconfd calls back when it has the value)
+
+* Fix non-default GConfEngines: this means propagating change
+  notifications from them to other engines with the same 
+  databases. Or maybe instead we should use the mechanism
+  used when the same database is in two gconfds (backend 
+  notifies us of changes).
+
+  Suspect that all notification has to come from the backend,
+  this is the only way to get sane behavior if _some_ notification
+  comes from the backend. Hmm.
+
+* Use a real DTD and a nicer structure for the XML backend format
+
+* The design of the client-server architecture is horked, overcomplicating 
+  GConf.idl; the client should remember all its state (listeners, etc.), 
+  and when the server disappears (we lose the connection to it), the 
+  client resends its state; thus eliminating the saved state file 
+  and making things more robust.
+  

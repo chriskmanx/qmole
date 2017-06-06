@@ -1,0 +1,295 @@
+.ad l
+.nh
+.TH MIFF 5 "1 August 1998" "ImageMagick"
+.SH NAME
+MIFF - Magick Image File Format is a platform-independent format for
+storing bitmap images.  MIFF is a part of the ImageMagick toolkit of
+image manipulation utilities for the X Window System.  ImageMagick is
+capable of converting many different image file formats to and from MIFF
+(e.g. JPEG, XPM, TIFF, etc.).
+.SH SYNOPSIS
+.B #include <image.h>
+.SH DESCRIPTION
+A MIFF image file consist of two sections.  The first section is a
+header composed of keywords describing the image in text form.  The
+next section is the binary image data.  The header is separated from
+the image data by a \fB:\fP character immediately followed by a
+\fBnewline\fP.
+
+The MIFF header is composed entirely of LATIN-1 characters.  The fields
+in the header are keyword and value combination in the
+\fIkeyword=value\fP format, with each keyword and value separated by an
+equal sign (=).  Each \fIkeyword=value\fP combination is delimited by
+at least one control or whitespace character.  Comments may appear in
+the header section and are always delimited by braces.  The MIFF header
+always ends with a colon (:) character, followed by a \fBctrl-Z\fP
+character.  It is also common to proceed the colon with a \fBformfeed\fP
+and a \fBnewline\fP character.  The \fBformfeed\fP prevents the listing
+of binary data when using \fBmore(1)\fP under Unix where the \fBctrl-Z\fP
+has the same effect with the \fBtype\fP command on the Win32 command line.
+
+The following is a list of \fIkeyword=value\fP combinations that may be
+found in a MIFF file:
+.TP
+.B "background-color=\fIx,y\fP"
+.B "border-color=\fIx,y\fP"
+.B "matte-color=\fIx,y\fP"
+these optional keywords reflects the image background, border, and matte
+colors respectively.
+.TP
+.B "class=\fIDirectClass\fP"
+.B "class=\fBPseudoClass\fP"
+the type of binary image data stored in the MIFF file.  If
+this keyword is not present, \fBDirectClass\fP image data is assumed.
+.TP
+.B "colors=\fIvalue\fP"
+the number of colors in a \fBDirectClass\fP image. For a
+\fBPseudoClass\fP image, this keyword specifies the size of the
+colormap.  If this keyword is not present in the header, and the image
+is \fBPseudoClass\fP, a linear 256 color grayscale colormap is used
+with the image data.
+.TP
+.B "color-profile=\fIvalue\fP"
+the number of bytes in the International Color Consortium color profile.
+The profile is defined by the ICC profile specification located at
+ftp://sgigate.sgi.com/pub/icc/icc34.ps.
+.TP
+.B "colorspace=\fBRGB\fP"
+.B "colorspace=\fBCMYK\fP"
+the colorspace of the pixel data.  The default is RGB.
+.TP
+.B "columns=\fIvalue\fP"
+the width of the image in pixels.  This is a required keyword and
+has no default.
+.TP
+.B "compression=\fBBZip\fP"
+.B "compression=\fBFax\fP"
+.B "compression=\fBJPEG\fP"
+.B "compression=\fBLZW\fP"
+.B "compression=\fBRunlengthEncoded\fP"
+.B "compression=\fBZip\fP"
+the type of algorithm used to compress the image data.  If this
+keyword is not present, the image data is assumed to be uncompressed.
+.TP
+.B "delay \fI<1/100ths of a second>\fP"
+the interframe delay in an image sequence.  The maximum delay is 65535.
+.TP
+.B "depth=\fB8\fP"
+.B "depth=\fB16\fP"
+the depth of a single color value representing values from 0 to 255
+(depth 8) or 65535 (depth 16).  If this keyword is absent, a depth of 8 is
+assumed.
+.TP
+.B "dispose \fIvalue\fP"
+GIF disposal method.
+
+Here are the valid methods:
+
+.nf
+     0  No disposal specified.
+     1  Do not dispose between frames.
+     2  Overwrite frame with background color from header.
+     3  Overwrite with previous frame.
+.fi
+.TP
+.B "gamma=\fIvalue\fP"
+the gamma of the image.  If it is not specified, a gamma of 1.0
+(linear brightness response) is assumed,
+.TP
+.B "id=\fBImageMagick\fP"
+identifies the file as a MIFF-format image file.  This keyword
+is required and has no default.  Although this keyword can appear anywhere
+in the header, it should start as the first keyword of the header in column
+1.  This will allow programs like \fBfile\fP(1) to easily identify the file
+as MIFF.
+.TP
+.B "iterations \fIvalue\fP"
+the number of times an image sequence loops before stopping.
+.TP
+.B "label=\fI"value"\fP"
+defines a short title or caption for the image.  If
+any whitespace appears in the label, it must be enclosed within double
+quotes.
+.TP
+.B "matte=\fBTrue\fP"
+.B "matte=\fBFalse\fP"
+specifies whether a \fBDirectClass\fP image has matte data.  Matte data
+is generally useful for image compositing.  This keyword has no meaning
+for pseudo-color images.
+.TP
+.B "montage=\fI<width>x<height>{\+-}<x offset>{\+-}<y offset>\fP
+size and location of the individual tiles of a composite image.  See
+\fBX(1)\fP for details about the geometry specification.
+
+Use this keyword when the image is a composite of a number of different
+tiles.  A tile consists of an image and optionally a border and a
+label.  \fI<width>\fP is the size in pixels of each individual tile in
+the horizontal direction and \fI<height>\fP is the size in the vertical
+direction.  Each tile must have an equal number of pixels in width and
+equal in height.  However, the width can differ from the height.  \fI<x
+offset>\fP is the offset in number of pixels from the vertical edge of
+the composite image where the first tile of a row begins and \fI<y
+offset>\fP is the offset from the horizontal edge where the first tile
+of a column begins.
+
+If this keyword is specified, a directory of tile names must follow the
+image header.  The format of the directory is explained below.
+.TP
+.B "packets=\fIvalue\fP"
+the number of compressed color packets in the image data
+section.  This keyword is optional for \fBRunlengthEncoded\fP
+images, mandatory for \fBZip\fP  or \fBBZip\fP images, and not used for
+uncompressed image.
+.TP
+.B "page=\fIvalue\fP"
+preferred size and location of an image canvas.
+.TP
+.B "red-primary=\fIx,y\fP"
+.B "green-primary=\fIx,y\fP"
+.B "blue-primary=\fIx,y\fP"
+.B "white-point=\fIx,y\fP"
+this optional keyword reflects the chromaticity primaries and white point.
+.TP
+.B "rendering-intent=\fBsaturation\fP"
+.B "rendering-intent=\fBperceptual\fP"
+.B "rendering-intent=\fBabsolute\fP"
+.B "rendering-intent=\fBrelative\fP"
+Rendering intent is the CSS-1 property that has been defined by the
+International Color Consortium (http://www.color.org).
+.TP
+.B "resolution=\fI<x-resolution>x<y-resolution>\fP"
+vertical and horizontal resolution of the image.  See \fBunits\fP
+for the specific resolution units (e.g. pixels per inch).
+.TP
+.B "rows=\fIvalue\fP"
+the height of the image in pixels.  This is a required keyword
+and has no default.
+.TP
+.B "scene=\fIvalue\fP"
+the sequence number for this MIFF image file.  This optional
+keyword is used when a MIFF image file is one in a sequence of files
+used in an animation.
+.TP
+.B "signature=\fIvalue\fP"
+this optional keyword contains a string that uniquely identifies
+the image pixel contents.  RSA's Data Security MD5 Digest Algorithm is
+recommended.
+.TP
+.B "units=\fBpixels-per-inch\fP"
+.B "units=\fBpixels-per-centimeter\fP"
+image resolution units.
+
+The following is a sample MIFF header.  In this example, <FF> is a formfeed
+character:
+
+    id=ImageMagick
+    class=PseudoClass  colors=256  signature=d79e1c308aa5bbcdeea8ed63df412da9
+    compression=RunlengthEncoded  packets=27601
+    columns=1280  rows=1024
+    scene=1
+    {
+      Rendered via Dore by Sandi Tennyson.
+    }
+    <FF>
+    :
+
+.PP
+Note that \fIkeyword=value\fP combinations may be separated by newlines or
+spaces and may occur in any order within the header.  Comments (within
+braces) may appear anywhere before the colon.
+
+If you specify the \fBmontage\fP keyword in the header, follow
+the header with a directory of image tiles.  This directory consists of
+a name for each tile of the composite image separated by a
+\fBnewline\fP character.  The list is terminated with a NULL character.
+
+If you specify the \fBcolor-profile\fP keyword in the header, follow
+the header (or montage directory if the \fBmontage\fP keyword is in the
+header) with the binary color profile.
+
+Next comes the binary image data itself.  How the image
+data is formatted depends upon the class of the image as specified (or
+not specified) by the value of the \fBclass\fP keyword in the header.
+
+\fBDirectClass\fP images (class=DirectClass) are continuous-tone, RGB
+images stored as intensity values in red-green-blue order.  Each color
+value is one byte in size for an image depth of 8 and there are three bytes per
+pixel (four with an optional matte value).  If the depth is 16, each
+color value is two bytes with the most significant byte being first.
+The total number of pixels in a \fBDirectClass\fP image is calculates
+by multiplying the rows value by the column value in the header.
+
+\fBPseudoClass\fP images (class=PseudoClass) are colormapped RGB
+images.  The colormap is stored as a series of red-green-blue pixel
+values, each value being a byte in size.  If the image depth is 16,
+each colormap entry is two bytes with the most significant byte being
+first. The number of colormap entries is indicated by the colors keyword
+in the header, with a maximum of 65,535 total entries allowed.  The
+colormap data occurs immediately following the header (or image directory
+if the \fBmontage\fP keyword is in the header).
+
+\fBPseudoClass\fP image data is an array of index values into the color
+map.  If there are 256 or fewer colors in the image, each byte of image
+data contains an index value.  If the image contains more than 256
+colors or the depth is 16, the index value is stored as two contiguous
+bytes with the most significant byte being first.  The total number of
+pixels in a \fBPseudoClass\fP image is calculated by multiplying the
+rows value by the columns value in the header.
+
+The image data in a MIFF file may be uncompressed or may be compressed
+using one of two algorithms.  The compression keyword in the header
+indicates how the image data is compressed. The run-length encoding
+(RLE) algorithm may be used to encode image data into packets of
+compressed data.  For \fBDirectClass\fP images, runs of identical
+pixels values (not BYTE values) are encoded into a series of four-byte
+packets (five bytes if a matte value is included).  The first three
+bytes of the packet contain the red, green, and blue values of the
+pixel in the run.  The fourth byte contains the number of pixels in the
+run.  This value is in the range of 0 to 255 and is one less than
+the actual number of pixels in the run.  For example, a value of 127
+indicates that there are 128 pixels in the run.
+
+For \fBPseudoClass\fP images, the same RLE algorithm is used.  Runs of
+identical index values are encoded into packets.  Each packet contains
+the colormap index value followed by the number of index values in the
+run.  The number of bytes in a \fBPseudoClass\fP RLE packet will be
+either two or three, depending upon the size of the index values.  The
+number of RLE packets stored in the file is specified by the packets
+keyword in the header, but is not required.
+
+Use Zip or BZip compression to achieve a greater compression ratio than
+run-length encoding.  The number of compressed packets stored in the file is
+specified by the packets keyword in the header.
+
+MIFF files may contain more than one image.  Simply concatenate each
+individual image (composed of a header and image data) into one file.
+.SH SEE ALSO
+.B
+display(1), animate(1), import(1), montage(1), mogrify(1), convert(1), more(1), compress(1)
+.SH COPYRIGHT
+Copyright 1998 E. I. du Pont de Nemours and Company
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files ("ImageMagick"),
+to deal in ImageMagick without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of ImageMagick, and to permit persons to whom the
+ImageMagick is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of ImageMagick.
+
+The software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement.  In no event shall
+E. I. du Pont de Nemours and Company be liable for any claim, damages or
+other liability, whether in an action of contract, tort or otherwise,
+arising from, out of or in connection with ImageMagick or the use or other
+dealings in ImageMagick.
+
+Except as contained in this notice, the name of the E. I. du Pont de
+Nemours and Company shall not be used in advertising or otherwise to
+promote the sale, use or other dealings in ImageMagick without prior
+written authorization from the E. I. du Pont de Nemours and Company.
+.SH AUTHORS
+John Cristy, E.I. du Pont de Nemours and Company Incorporated

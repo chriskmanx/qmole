@@ -1,0 +1,269 @@
+
+// Really, this whole interface should be used only via the GConf 
+// client library. I reserve the right to change it whenever I feel 
+// like it. So there.
+
+enum ConfigBasicValueType { BInvalidVal, BIntVal, BStringVal, BFloatVal, BBoolVal, BSchemaVal };
+
+enum ConfigValueType { InvalidVal, IntVal, StringVal, FloatVal, BoolVal, SchemaVal, ListVal, PairVal };
+
+struct ConfigSchema {
+  ConfigValueType value_type;
+  ConfigValueType value_list_type;
+  ConfigValueType value_car_type;
+  ConfigValueType value_cdr_type;
+  string locale;
+  string short_desc;
+  string long_desc;
+  string owner;
+  // Work around lack of recursive data types
+  string encoded_default_value;
+};
+
+union ConfigBasicValue switch (ConfigBasicValueType) {
+ case BInvalidVal:
+   long dummy;
+ case BIntVal: 
+   long int_value;
+ case BStringVal:
+   string string_value;
+ case BFloatVal:
+   float float_value;
+ case BBoolVal:
+   boolean bool_value;
+   // hope this doesn't slow down transmission of smaller types 
+ case BSchemaVal:
+   ConfigSchema schema_value;
+};
+
+typedef sequence<ConfigBasicValue> BasicValueList;
+
+struct ConfigList {
+  BasicValueList seq;
+  ConfigBasicValueType list_type;
+};
+
+union ConfigValue switch (ConfigValueType) {
+ case InvalidVal:
+   long dummy;
+ case IntVal:
+   long int_value;
+ case StringVal:
+   string string_value;
+ case FloatVal:
+   float float_value;
+ case BoolVal:
+   boolean bool_value;
+ case SchemaVal:
+   ConfigSchema schema_value;
+ case ListVal:
+   ConfigList list_value;
+ case PairVal:
+   BasicValueList pair_value;
+};
+
+struct ConfigStringProperty
+{
+  string key;
+  string value;
+};
+
+interface ConfigDatabase;
+
+interface ConfigListener {
+  typedef sequence<string> KeyList;
+  
+  oneway void notify (in ConfigDatabase database,
+                      in unsigned long cnxn,
+                      in string key,
+                      in ConfigValue value,
+                      in boolean is_default,
+                      in boolean is_writable);
+
+  oneway void ping ();
+
+  /// This should conceivably not be oneway.
+  /// I'm worried about the server blocking waiting for
+  /// busy clients.
+
+  oneway void update_listener (in ConfigDatabase database,
+                               in string db_address,
+                               in unsigned long old_cnxn,
+                               in string where,
+                               in unsigned long new_cnxn);
+  
+  oneway void invalidate_cached_values (in ConfigDatabase database,
+                                        in KeyList keys);
+  
+  // Called when a new daemon starts up, and we need to drop caches
+  // in case the new daemon has a different default database
+  oneway void drop_all_caches ();
+};
+
+// Sync this with GConfErrNo in gconf.h, when it makes sense
+// (e.g. G_CONF_NO_SERVER doesn't make sense here)
+
+enum ConfigErrorType {
+  ConfigFailed, ConfigNoPermission,
+  ConfigBadAddress, ConfigBadKey,
+  ConfigParseError, ConfigCorrupt,
+  ConfigTypeMismatch, ConfigIsDir, ConfigIsKey,
+  ConfigOverridden, ConfigLockFailed,
+  ConfigNoWritableDatabase, ConfigInShutdown
+};
+
+exception ConfigException {
+  ConfigErrorType err_no;
+  string message;
+};
+
+interface ConfigDatabase {
+  typedef sequence<string> KeyList;
+  typedef sequence<ConfigValue> ValueList;
+  typedef sequence<boolean> IsDefaultList;
+  typedef sequence<boolean> IsWritableList;
+  
+  // "where" is the portion of the namespace to listen to
+  // Returns a connection ID for removal
+  unsigned long add_listener(in string where,
+                             in ConfigListener who);  
+
+  void remove_listener(in unsigned long cnxn);
+  
+  ConfigValue lookup(in string key)
+    raises (ConfigException);
+
+  // separate from lookup for efficiency
+  ConfigValue lookup_with_locale(in string key,
+                                 in string locale,
+                                 in boolean use_schema_default,
+                                 out boolean value_is_default,
+                                 out boolean value_is_writable)
+    raises (ConfigException);
+
+  // syntactic sugar, semi-hack: should maybe use a get_metainfo()
+  // function (which we should have anyway)
+  ConfigValue lookup_default_value(in string key,
+                                   in string locale)
+    raises (ConfigException);
+
+  // Grab lots of values at once
+  void batch_lookup (in KeyList keys,
+                     in string locale,
+                     out ValueList values,
+                     out IsDefaultList is_defaults,
+                     out IsWritableList is_writables)
+    raises (ConfigException);
+  
+  void set(in string key, in ConfigValue value)
+    raises (ConfigException);
+  
+  void unset(in string key)
+    raises (ConfigException);
+
+  void unset_with_locale(in string key, in string locale)
+    raises (ConfigException);
+
+  // Setting to InvalidVal does an unset
+  void batch_change(in string locale, // only used for unsets 
+                    in KeyList keys,
+                    in ValueList values)
+    raises (ConfigException);
+  
+  boolean dir_exists(in string dir)
+    raises (ConfigException);
+
+  void remove_dir(in string dir)
+    raises (ConfigException);
+
+  void all_entries(in string dir,
+                   in string locale,
+                   out KeyList keys,
+                   out ValueList values,
+                   out IsDefaultList is_defaults,
+                   out IsWritableList is_writables)
+    raises (ConfigException);
+
+  void all_dirs(in string dir,
+                out KeyList subdirs)
+    raises (ConfigException);
+  
+  // if first arg is a key, second arg should be a key pointing
+  //  to a schema. 
+  // if first arg is a dir, second arg should be a key pointing 
+  //  to a dir full of schemas.
+  void set_schema(in string key,
+                  in string schema_key)
+    raises (ConfigException);
+
+  void sync()
+    raises (ConfigException);
+
+  void clear_cache();
+  
+  void synchronous_sync()
+    raises (ConfigException);
+};
+
+interface ConfigDatabase2 : ConfigDatabase {
+
+  typedef sequence<string> SchemaNameList;
+  
+  // Fixed version of lookup_with_locale that gets
+  // all the relevant information
+  ConfigValue lookup_with_schema_name (in string key,
+                                       in string locale,
+                                       in boolean use_schema_default,
+                                       out string  schema_name,
+                                       out boolean value_is_default,
+                                       out boolean value_is_writable)
+    raises (ConfigException);
+  
+  void all_entries_with_schema_name (in string dir,
+                                     in string locale,
+                                     out KeyList keys,
+                                     out ValueList values,
+                                     out SchemaNameList schema_names,
+                                     out IsDefaultList is_defaults,
+                                     out IsWritableList is_writables)
+    raises (ConfigException);  
+};
+
+interface ConfigDatabase3 : ConfigDatabase2 {
+
+  typedef sequence<ConfigStringProperty> PropList;
+  typedef long UnsetFlags;
+  const UnsetFlags UNSET_INCLUDING_SCHEMA_NAMES = 1;
+  
+  unsigned long add_listener_with_properties (in string where,
+                                              in ConfigListener who,
+                                              in PropList properties)
+    raises (ConfigException); /* plain add_listener doesn't have this, sadly */
+  
+  void recursive_unset (in string key,
+                        in UnsetFlags flags)
+    raises (ConfigException);
+};
+
+interface ConfigServer {
+
+  ConfigDatabase get_default_database ();
+
+  // Use a specific address instead of the default database;
+  // invalid_context returned on failure.
+  ConfigDatabase get_database (in string address)
+    raises (ConfigException);
+
+  void add_client (in ConfigListener client);
+  void remove_client (in ConfigListener client);
+  
+  long ping();
+
+  void shutdown();
+};
+
+interface ConfigServer2 : ConfigServer {
+  typedef sequence<string> AddressList;
+
+  ConfigDatabase get_database_for_addresses (in AddressList addresses);
+};

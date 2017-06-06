@@ -1,0 +1,195 @@
+Evolution Data Sources LDAP Backend For GConf
+=============================================
+
+  This is a special-purpose backend for GConf which enables default
+mail accounts, addressbooks and calendars for Evolution to be
+configured using each user's LDAP entry. By setting each user's mail
+address, incoming/outgoing mail server addresses and
+addressbook/calendar addresses in the user's LDAP entry, Evolution
+will be automatically configured to use these addresses.
+
+Getting it Going
+================
+
+  Once installed, you first need to point the backend at the
+appropriate LDAP server. Edit /etc/gconf/2/evoldap.conf:
+
+---
+<evoldap>
+  <server>
+    <host>ldap.blaa.com</host>
+    <port></port>
+    <base_dn>ou=people,dc=blaa,dc=com</base_dn>
+  </server>
+---
+
+  <host> should be pointed at your LDAP server, <port> should usually
+be left blank (it defaults to 389, the standard port for LDAP) and
+<base_dn> should point to the location in LDAP where your user entries
+are stored.
+
+  You then need to store the mail account and addressbook/calendar
+information in your user's LDAP entries. Using the default template
+(see below for details on the template) you need to install the LDAP
+schemas from in your LDAP server evoldap.schema.
+
+  How you install the custom schema depends entirely on the LDAP
+server you're using, but with the openldap server, you can just edit
+/etc/openldap/slapd.conf and add
+
+    include /etc/openldap/schema/evoldap.schema
+
+  somewhere near the top of the file. You then install the .schema
+file in /etc/openldap/schema and restarted slapd.
+
+  Once the schema is installed, you need to modify the LDAP entries to
+add the "evolutionMailAccount", "evolutionAddressbookSource",
+"evolutionCalendarSource" and "evolutionTasksSource" objectClasses and
+set the cn, mail, evolutionMailSourceURI, evolutionMailTransportURI,
+evolutionAddressbookURI, evolutionCalendarURI and evolutionTasksURI
+attributes. You can use any method you like to modify the LDAP entries
+e.g. a graphical LDAP editor like "gq" or a slapd.replog script with
+ldapmodify:
+
+---
+ldapmodify -x -W -D cn=Manager,dc=blaa,dc=com -h ldap.blaa.com <<EOF
+dn: uid=markmc,ou=people,dc=blaa,dc=com
+add: objectClass
+objectClass: evolutionMailAccount
+objectClass: evolutionAddressbookSource
+objectClass: evolutionCalendarSource
+objectClass: evolutionTasksSource
+
+cn: Mark McLoughlin
+mail: markmc@blaa.com
+evolutionMailSourceURI: imap://markmc@mail.blaa.com/;use_ssl=always
+evolutionMailTransportURI: smtp://mail.blaa.com
+evolutionAddressbookSource: FIXME
+evolutionCalendarSource: FIXME
+evolutionTasksSource: FIXME
+EOF
+---
+
+  You should then be able to verify that the backend is generating the
+correct value for the /apps/evolution/mail/accounts GConf key:
+
+---
+[markmc@blaa ~]$ gconftool-2 --direct --config-source=evoldap:readonly:/etc/gconf/2/evoldap.conf -g /apps/evolution/mail/accounts
+Resolved address "evoldap:readonly:/gnome/head/INSTALL/etc/gconf/2/evoldap.conf" to a read-only configuration source at position 0
+None of the resolved addresses are writable; saving configuration settings will not be possible
+[<?xml version="1.0"?>
+<account name="markmc@blaa.com" uid="1113478550.9037.0@blaa"
+enabled="true">
+      <identity>
+        <name>Mark McLoughlin</name>
+        <addr-spec>markmc@blaa.com</addr-spec>
+        <reply-to/>
+        <organization/>
+        <signature uid=""/>
+      </identity>
+      <source save-passwd="false" keep-on-server="false" auto-check="false" auto-check-timeout="10">
+        <url>imap://markmc@mail.blaa.com/;use_ssl=always</url>
+      </source>
+      <transport save-passwd="false">
+        <url>smtp://mail.blaa.com</url>
+      </transport>
+      <drafts-folder/>
+      <sent-folder/>
+      <auto-cc always="false">
+        <recipients/>
+      </auto-cc>
+      <auto-bcc always="false">
+        <recipients/>
+      </auto-bcc>
+      <pgp encrypt-to-self="false" always-trust="false" always-sign="false" no-imip-sign="false">
+        <key-id></key-id>
+      </pgp>
+      <smime sign-default="false" encrypt-default="false" encrypt-to-self="false">
+        <sign-key-id/>
+        <encrypt-key-id/>
+      </smime>
+    </account>
+]
+---
+
+  Finally, in order to make GConf pull from this configuration source,
+you need to add it to the GConf path file in /etc/gconf/2/path by
+adding the configuration source address -
+"evoldap:readonly:/etc/gconf/2/evoldap.conf" - after the user's
+configuration source - e.g.
+
+---
+# Give users a default storage location, ~/.gconf
+xml:readwrite:$(HOME)/.gconf
+
+# Pull default Evolution account from LDAP
+evoldap:readonly:/etc/gconf/2/evoldap.conf
+---
+
+Getting More Complex
+====================
+
+  Although this default method of setting things up should work for
+most people, the configuration file does give you a fair number of
+options if e.g. you didn't want to (or couldn't) add the custom
+evolutionMailAccount schema to your LDAP server or if you wanted to
+have multiple default accounts per user.
+
+  The default template looks like:
+
+---
+  <template filter="(&amp;(uid=$(USER))(objectClass=inetOrgPerson)(objectClass=evolutionMailAccount)(objectClass=evolutionAddressbookSource)(objectClass=evolutionCalendarSource)(objectClass=evolutionTasksSource))">
+
+    <account_template>
+      <account name="$(LDAP_ATTR_mail)" uid="$(EVOLUTION_UID)" enabled="true">
+        <identity>
+          <name>$(LDAP_ATTR_cn)</name>
+          <addr-spec>$(LDAP_ATTR_mail)</addr-spec>
+          <reply-to></reply-to>
+          <organization></organization>
+          <signature uid=""/>
+        </identity>
+---
+
+  The first configurable part is the "filter_str" attribute. This can
+be any valid LDAP filter which the backend uses to query the LDAP
+server using the base DN specified earlier. You can test the filter
+from the command line with:
+
+---
+ldapsearch -x -h ldap.blaa.com -b ou=people,dc=blaa,dc=com "(& (uid=markmc)(objectClass=inetOrgPerson)(objectClass=evolutionMailAccount)(objectClass=evolutionAddressbookSource)(objectClass=evolutionCalendarSource)(objectClass=evolutionTasksSource))"
+---
+
+  (Note that you need to unescape the ampersand and use a valid
+   username when testing the filter)
+
+  The next configurable part is the variables sprinkled around in the
+snippet above. There are three types of variables:
+
+  - $(USER) is the username of the user running evolution
+  - $(EVOLUTION_UID) is a UID generated by the backend in the same
+    format as Evolution uses 
+  - $(LDAP_ATTR_*) is the name of an LDAP attribute
+
+  Each of these variables can be used anywhere in the filter - well,
+you can't use the $(LDAP_ATTR_*) variables in the filter - or template
+<account>.
+
+  The value of the /apps/evolution/mail/accounts key is generated by
+applying this template to each of the LDAP entries returned by
+searching using the filter string in the specified base DN. The value
+of the $(LDAP_ATTR_*) variable is determined by looking up the
+attribute value on then entry to which the template is being applied.
+
+  Effectively, this means you can don't need to use the custom schema,
+you can store the account data anywhere in the directory and you can
+have multiple accounts per user.
+
+Caveats
+=======
+
+  - In the short term, the configuration file format, schema etc. are
+    all still subject to change
+
+  - This hasn't yet seen much testing. If you try this out, feedback
+    is much appreciated whether it be good or bad.

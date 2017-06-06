@@ -1,0 +1,477 @@
+.ad l
+.nh
+.TH import 1 "1 May 1994" "ImageMagick"
+.SH NAME
+import - capture some or all of an X server screen and save the image to
+a file.
+.SH SYNOPSIS
+.B "import"
+[ \fIoptions\fP ... ] [ \fIfile\fP ]
+.SH DESCRIPTION
+\fBimport\fP reads an image from any visible window on an X server and
+outputs it as an image file.  You can capture a single window, the
+entire screen, or any rectangular portion of the screen.  Use
+\fBdisplay\fP (see \fBdisplay(1)\fP) for redisplay, printing, editing,
+formatting, archiving, image processing, etc. of the captured image.
+
+The target window can be specified by id, name, or may be selected by
+clicking the mouse in the desired window.  If you press a button and
+then drag, a rectangle will form which expands and contracts as
+the mouse moves.  To save the portion of the screen  defined by the
+rectangle, just release the button.  The keyboard bell is rung once at
+the beginning of the screen capture and twice when it completes.
+
+.SH EXAMPLES
+
+To select an X window with the mouse and save it in the MIFF image
+format to a file titled window.miff, use:
+
+.nf
+     import window.miff
+.fi
+
+To select an X window and save it in the Encapsulated Postscript format
+to include in another document, use:
+
+.nf
+     import figure.eps
+.fi
+
+To capture the entire X server screen in the JPEG image format in a file
+titled root.jpeg, use:
+
+.nf
+     import -window root root.jpeg
+.fi
+.SH OPTIONS
+\fBimport\fP options can appear on the command line or in your X resources
+file (see \fBX(1)\fP).  Options on the command line supersede values specified
+in your X resources file.
+.TP
+.B "-adjoin
+join images into a single multi-image file.
+
+By default, all images of an image sequence are stored in the same
+file.  However, some formats (e.g. JPEG) do not support more than one image
+and are saved to separate files.  Use \fB+adjoin\fP to force this behavior.
+.TP
+.B "-border"
+include image borders in the output image.
+.B "-colors \fIvalue\fP"
+preferred number of colors in the image.
+
+The actual number of colors in the image may be less than your request,
+but never more.  Note, this is a color reduction option.  Images with
+less unique colors than specified with this option will have any duplicate
+or unused colors removed.
+Refer to \fBquantize(9)\fP for more details.
+
+Note, options \fB-dither\fP, \fB-colorspace\fP, and \fB-treedepth\fP affect
+the color reduction algorithm.
+.TP
+.B "-colorspace \fIvalue\fP"
+the type of colorspace: \fBGRAY\fP, \fBOHTA\fP, \fBRGB\fP,
+\fBTransparent\fP, \fBXYZ\fP, \fBYCbCr\fP, \fBYIQ\fP, \fBYPbPr\fP,
+\fBYUV\fP, or \fBCMYK\fP.
+
+Color reduction, by default, takes place in the RGB color space.
+Empirical evidence suggests that distances in color spaces such as YUV
+or YIQ correspond to perceptual color differences more closely
+than do distances in RGB space.  These color spaces may give better
+results when color reducing an image.  Refer to \fBquantize(9)\fP for
+more details.
+
+The \fBTransparent\fP color space behaves uniquely in that it preserves
+the matte channel of the image if it exists.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+.TP
+.B "-comment \fIstring\fP"
+annotate an image with a comment.
+
+By default, each image is commented with its file name.  Use this
+option to assign a specific comment to the image.  Optionally you can
+include the image filename, type, width, height, or other image
+attributes by embedding special format characters:
+
+.nf
+    %b   file size
+    %d   directory
+    %e   filename extension
+    %f   filename
+    %h   height
+    %m   magick
+    %p   page number
+    %s   scene number
+    %t   top of filename
+    %w   width
+    %x   x resolution
+    %y   y resolution
+    \\n   newline
+    \\r   carriage return
+.fi
+
+For example,
+
+.nf
+     -comment "%m:%f %wx%h"
+.fi
+
+produces an image comment of \fBMIFF:bird.miff 512x480\fP for an image
+titled \fBbird.miff\fP and whose width is 512 and height is 480.
+
+If the first character of \fIstring\fP is \fB@\fP, the image comment is read
+from a file titled by the remaining characters in the string.
+.TP
+.B "-compress \fItype\fP"
+the type of image compression: \fINone\fP, \fIBZip\fP, \fIFax\fP, \fIGroup4\fP,
+\fIJPEG\fP, \fILZW\fP, \fIRunlengthEncoded\fP, or \fIZip\fP.
+
+Specify \fB\+compress\fP to store the binary image in an uncompressed format.
+The default is the compression type of the specified image file.
+.TP
+.B "-crop \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}\fP"
+preferred size and location of the cropped image.  See \fBX(1)\fP for details
+about the geometry specification.
+
+To specify a percentage width or height instead, append \fB%\fP.  For example
+to crop the image by ten percent on all sides of the image, use \fB-crop 10%\fP.
+
+Omit the x and y offset to generate one or more subimages of a uniform size.
+
+Use cropping to crop a particular area of an image.   Use \fB-crop
+0x0\fP to trim edges that are the background color.  Add an x and y offset
+to leave a portion of the trimmed edges with the image.
+.TP
+.B "-delay \fI<1/100ths of a second>x<seconds>\fP"
+display the next image after pausing.
+
+This option is useful for regulating the display of the sequence of
+images.  \fI1/100ths of a second\fP must expire before the display of
+the next image.  The default is 6/100 of a second between each frame
+of the image sequence.  The second value is optional.  It specifies the
+number of \fIseconds\fP to pause before repeating your animation
+sequence.
+.TP
+.B "-density \fI<width>x<height>\fP
+vertical and horizontal resolution in pixels of the image.
+
+This option specifies an image density when decoding a Postscript or Portable
+Document page.  The default is 72 pixels per inch in the horizontal and
+vertical direction.  This option is used in concert with \fB-page\fP.
+.TP
+.B "-descend"
+obtain image by descending window hierarchy.
+.TP
+.B "-display \fIhost:display[.screen]\fP"
+specifies the X server to contact; see \fBX(1)\fP.
+.TP
+.B "-dispose \fImethod\fP"
+GIF disposal method.
+
+Here are the valid methods:
+
+.nf
+     0     No disposal specified.
+     1     Do not dispose between frames.
+     2     Overwrite frame with background color from header.
+     3     Overwrite with previous frame.
+.fi
+.TP
+.B "-dither"
+apply Floyd/Steinberg error diffusion to the image.
+
+The basic strategy of dithering is to trade intensity resolution for
+spatial resolution by averaging the intensities of several neighboring
+pixels.  Images which suffer from severe contouring when reducing colors
+can be improved with this option.
+
+The \fB-colors\fP or \fB-monochrome\fP option is required for this option
+to take effect.
+
+Use \fB+dither\fP to render Postscript without text or graphic aliasing.
+.TP
+.B "-frame"
+include window manager frame.
+.TP
+.B "-geometry \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}{!}{<}{>}\fP"
+the width and height of the image.
+
+By default, the width and height are maximum values.  That is, the
+image is expanded or contracted to fit the width and height value while
+maintaining the aspect ratio of the image.  Append an exclamation point
+to the geometry to force the image size to exactly the size you
+specify.  For example, if you specify \fB640x480!\fP the image width is
+set to 640 pixels and height to 480.  If only one factor is
+specified, both the width and height assume the value.
+
+To specify a percentage width or height instead, append \fB%\fP.  The
+image size is multiplied by the width and height percentages to obtain
+the final image dimensions.  To increase the size of an image, use a
+value greater than 100 (e.g. 125%).  To decrease an image's size, use a
+percentage less than 100.
+
+Use \fB>\fP to change the dimensions of the image \fIonly\fP
+if its size exceeds the geometry specification.  \fB<\fP resizes
+the image \fIonly\fP if its dimensions is less than the geometry
+specification.  For example, if you specify \fB640x480>\fP and the
+image size is 512x512, the image size does not change.  However, if
+the image is 1024x1024, it is resized to 640x480.
+.TP
+.B "-interlace \fItype\fP"
+the type of interlacing scheme: \fBNone\fP, \fBLine\fP, \fBPlane\fP, or
+\fBPartition\fP.  The default is \fBNone\fP.
+
+This option is used to specify the type of interlacing scheme for raw
+image formats such as \fBRGB\fP or \fBYUV\fP.  \fBNo\fP means do not
+interlace (RGBRGBRGBRGBRGBRGB...), \fBLine\fP uses scanline
+interlacing (RRR...GGG...BBB...RRR...GGG...BBB...), and \fBPlane\fP uses
+plane interlacing (RRRRRR...GGGGGG...BBBBBB...).    \fBPartition\fP is like
+plane except the different planes are saved to individual files (e.g.
+image.R, image.G, and image.B).
+
+Use \fBLine\fP, or \fBPlane\fP to create an interlaced GIF or progressive
+JPEG image.
+.B "-label \fIname\fP"
+assign a label to an image.
+
+Use this option to assign a specific label to the image.
+Optionally you can
+include the image filename, type, width, height, or other image
+attributes by embedding special format characters.  See \fB-comment\fP
+for details.
+
+For example,
+
+.nf
+     -label "%m:%f %wx%h"
+.fi
+
+produces an image label of \fBMIFF:bird.miff 512x480\fP for an image
+titled \fBbird.miff\fP and whose width is 512 and height is 480.
+
+If the first character of \fIstring\fP is \fB@\fP, the image label is read
+from a file titled by the remaining characters in the string.
+
+When converting to Postscript, use this option to specify a header string
+to print above the image. Specify the label font with \fB-font\fP.
+.TP
+.B "-monochrome"
+transform image to black and white.
+.TP
+.B "-negate"
+replace every pixel with its complementary color (white becomes black, yellow
+becomes blue, etc.).
+
+The red, green, and blue intensities of an image are negated.   Use
+\fB+negate\fP to only negate the grayscale pixels of the image.
+.TP
+.B "-page \fI<width>x<height>{\+-}<x offset>{\+-}<y offset>{%}{!}{<}{>}\fP"
+preferred size and location of an image canvas.
+
+Use this option to specify the dimensions of the Postscript page in
+dots per inch or a TEXT page in pixels.  The choices for a Postscript page are:
+
+.nf
+       11x17         792  1224 
+       Ledger       1224   792    
+       Legal         612  1008
+       Letter        612   792
+       LetterSmall   612   792
+       ArchE        2592  3456
+       ArchD        1728  2592
+       ArchC        1296  1728
+       ArchB         864  1296
+       ArchA         648   864
+       A0           2380  3368
+       A1           1684  2380
+       A2           1190  1684
+       A3            842  1190
+       A4            595   842
+       A4Small       595   842
+       A5            421   595
+       A6            297   421
+       A7            210   297
+       A8            148   210
+       A9            105   148
+       A10            74   105
+       B0           2836  4008
+       B1           2004  2836
+       B2           1418  2004
+       B3           1002  1418
+       B4            709  1002
+       B5            501   709
+       C0           2600  3677
+       C1           1837  2600
+       C2           1298  1837
+       C3            918  1298
+       C4            649   918
+       C5            459   649
+       C6            323   459
+       Flsa          612   936 
+       Flse          612   936
+       HalfLetter    396   612
+.fi
+
+For convenience you can specify the page size by media (e.g.
+A4, Ledger, etc.).  Otherwise, \fB-page\fP behaves much like \fB-geometry\fP
+(e.g. -page letter+43+43>).
+
+To position a GIF image, use -page \fI{\+-}<x offset>{\+-}<y offset>\fP
+(e.g. -page +100+200).
+
+For a Postscript page, the image is sized as in \fB-geometry\fP and
+positioned relative to the lower left hand corner of the page by
+\fI{\+-}<x offset>{\+-}<y offset>\fP.  Use -page 612x792>, for example,
+to center the image within the page.  If the image size exceeds the
+Postscript page, it is reduced to fit the page.
+
+The default page dimensions for a TEXT image is 612x792.
+
+This option is used in concert with \fB-density\fP.
+.TP
+.B "-pointsize \fIvalue\fP"
+pointsize of the Postscript font.
+.TP
+.B "-quality \fIvalue\fP"
+JPEG/MIFF/PNG compression level.
+
+For the JPEG image format, quality is 0 (worst) to 100 (best).  The default
+quality is 75.
+
+Quality for the MIFF and PNG image format sets the amount of image compression
+(quality / 10) and filter-type (quality % 10).  Compression quality
+values range from 0 (worst) to 100 (best).  If filter-type is 4
+or less, the specified filter-type is used for all scanlines:
+
+.nf
+    0: none
+    1: sub
+    2: up
+    3: average
+    4: Paeth
+.fi
+
+If filter-type is 5, adaptive filtering is used when quality
+is greater than 50 and the image does not have a color map,
+otherwise no filtering is used.
+
+If filter-type is 6 or more, adaptive filtering with
+\fIminimum-sum-of-absolute-values\fP is used.
+
+The default is quality is 75.  Which means nearly the best compression
+with adaptive filtering.
+
+For further information, see the PNG specification (RFC 2083),
+<http://www.w3.org/pub/WWW/TR>.
+.TP
+.B "-rotate \fIdegrees{<}{>}\fP"
+apply Paeth image rotation to the image.
+
+Use \fB>\fP to rotate the image \fIonly\fP if its width exceeds the
+height.  \fB<\fP rotates the image \fIonly\fP if its width is less than
+the height.  For example, if you specify \fB-90>\fP and the image size
+is 480x640, the image is not rotated by the specified angle.  However,
+if the image is 640x480, it is rotated by -90 degrees.
+
+Empty triangles left over from rotating the image are filled with
+the color defined as \fBbordercolor\fP (class \fBborderColor\fP).
+.TP
+.B "-scene \fIvalue\fP"
+number of screen snapshots.
+
+Use this option to grab more than one image from the X server screen to create
+an animation sequence.
+.TP
+.B "-screen"
+This option indicates that the GetImage request used to obtain the image
+should be done on the root window, rather than directly on the specified
+window.  In this way, you can obtain pieces of other windows that overlap
+the specified window, and more importantly, you can capture menus or other
+popups that are independent windows but appear over the specified window.
+.TP
+.B "-silent"
+operate silently, i.e. don't ring any bells.
+.TP
+.B "-transparency \fIcolor\fP"
+make this color transparent within the image.
+.TP
+.B "-treedepth \fIvalue\fP"
+Normally, this integer value is zero or one.  A zero or one tells
+\fBconvert\fP to choose a optimal tree depth for the color reduction
+algorithm.
+
+An optimal depth generally allows the best representation of the source
+image with the fastest computational speed and the least amount of
+memory.  However, the default depth is inappropriate for some images.
+To assure the best representation, try values between 2 and 8 for this
+parameter.  Refer to \fBquantize(9)\fP for more details.
+
+The \fB-colors\fP option is required for this option to take effect.
+.TP
+.B -verbose
+print detailed information about the image.
+
+This information is printed: image scene number;  image name;  image size;
+the image class (\fIDirectClass\fP or \fIPseudoClass\fP);  the total
+number of unique colors;  and the number of seconds to read and write the
+image.
+.TP
+.B "-window \fIid\fP"
+select window with this id or name.
+
+With this option you can specify the target window by id or name rather
+than using the mouse.  Specify 'root' to select X's root window as the
+target window.
+.PP
+Options are processed in command line order.
+Any option you specify on the command line remains in effect until it is
+explicitly changed by specifying the option again with a different effect.
+
+\fIfile\fP specifies the image filename.  If \fIfile\fP is omitted, it defaults
+to \fBmagick.miff\fP.  The default image format is MIFF.  To specify a
+particular image format, precede the filename with an image format name and a
+colon (i.e.  gif:image) or specify the image type as the filename suffix (i.e.
+image.jpg).  See \fBconvert(1)\fP for a list of valid image formats.
+
+Specify \fIfile\fP as \fI-\fP for standard output.  If \fIfile\fP has
+the extension \fB.Z\fP or \fB.gz\fP, the file size is compressed using
+with \fBcompress\fP or \fBgzip\fP respectively.  Precede the image file
+name \fI|\fP to pipe to a system command. If \fIfile\fP already exists,
+you will be prompted as to whether it should be overwritten.
+.SH ENVIRONMENT
+
+.TP
+.B display
+To get the default host, display number, and screen.
+.SH SEE ALSO
+.B
+display(1), animate(1), montage(1), mogrify(1), convert(1), combine(1), xtp(1)
+.SH COPYRIGHT
+1998 1998 E. I. du Pont de Nemours and Company
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files ("ImageMagick"),
+to deal in ImageMagick without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of ImageMagick, and to permit persons to whom the
+ImageMagick is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of ImageMagick.
+
+The software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement.  In no event shall
+E. I. du Pont de Nemours and Company be liable for any claim, damages or
+other liability, whether in an action of contract, tort or otherwise,
+arising from, out of or in connection with ImageMagick or the use or other
+dealings in ImageMagick.
+
+Except as contained in this notice, the name of the E. I. du Pont de
+Nemours and Company shall not be used in advertising or otherwise to
+promote the sale, use or other dealings in ImageMagick without prior
+written authorization from the E. I. du Pont de Nemours and Company.
+.SH AUTHORS
+John Cristy, E.I. du Pont De Nemours and Company Incorporated

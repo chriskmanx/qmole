@@ -1,0 +1,962 @@
+                             Magick::Image Class
+
+Image is the primary object in Magick++ and represents a single image frame
+(see design). The STL interface must be used to operate on image sequences
+or image formats which are comprized of multiple image frames. Various image
+manipulation operations may be applied to the image. Attributes may be set
+on the image to influence the operation of the manipulation operations. As a
+convenience, including <Magick++.h> is sufficient in order to use the
+complete Magick++ API. The Magick++ API is enclosed within the Magick
+namespace so you must either add the prefix "Magick::" to each
+class/enumeration name or add the statement "using namespace Magick;" after
+including the Magick++.h header.
+
+Image is very easy to use. For example, here is a the source to a program
+which reads an image, crops it, and writes it to a new file (the exception
+handling is optional):
+
+#include <Magick++.h>
+#include <iostream>
+using namespace std;
+using namespace Magick;
+int main(int argc,char **argv)
+{
+  try {
+    // Create an image object and read an image
+    Image image( "girl.gif" );
+
+    // Crop the image to specified size
+    image.crop("100x100+100+100" ); // Geometry implicitly initialized by
+char *
+
+    // Write the image to a file
+    image.write( "x.gif" );
+  }
+  catch( Exception error_ )
+    {
+      cout << "Caught exception: " << error_.what() << endl;
+      return 1;
+    }
+  return 0;
+}
+
+The following is the source to a program which illustrates the use of
+Magick++'s efficient reference-counted assignment and copy-constructor
+operation which minimizes use of memory and eliminates unncessary copy
+operations.  The program accomplishes the following:
+
+  1. Read master image.
+  2. Assign master image to second image.
+  3. Zoom second image to the size 640x480.
+  4. Assign master image to a third image.
+  5. Zoom third image to the size 800x600.
+  6. Write the second image to a file.
+  7. Write the third image to a file.
+
+#include <Magick++.h>
+#include <iostream>
+using namespace std;
+using namespace Magick;
+int main(int argc,char **argv)
+{
+    Magick::Image master("horse.jpg");
+    Magick::Image second = master;
+    second.zoom("640x480");
+    Magick::Image third = master;
+    third.zoom("800x600");
+    second.write("horse640x480.jpg");
+    third.write("horse800x600.jpg");
+    return 0;
+}
+
+During the entire operation, a maximum of three images exists in memory and
+the image data is never copied.
+
+The following is the source for another simple program which creates a 100
+by 100 pixel white image with a red pixel in the center and writes it to a
+file:
+
+#include <Magick++.h>
+using namespace std;
+using namespace Magick;
+int main(int argc,char **argv)
+{
+    Image image( "100x100", "xc:white" );
+    image.pixelColor( 49, 49, "red" );
+    image.write( "red_pixel.png" );
+    return 0;
+}
+
+If you wanted to change the color image to grayscale, you could simply add
+the lines:
+
+    image.quantizeColorSpace( GRAYColorspace );
+    image.quantize( options );
+
+prior to writing the image.
+
+Image supports access to all the single-image (versus image-list)
+manipulation operations provided by the ImageMagick library. These
+operations are shown in the following table:
+
+                      Image Image Manipulation Methods
+
+     Method             Signature(s)                   Description
+
+    addNoise   NoiseType noiseType_           Add noise to image with
+                                              specified noise type.
+
+               string text_, const Geometry   Annotate image (render text
+               &location_, unsigned int       on image) at specified
+               gravity_ = NorthWestGravity    location and influenced by
+    annotate                                  gravity.
+               const std::string &text_,      Annotate image (render text
+               unsigned int gravity_ =        on image) at location implied
+               NorthWestGravity               by gravity.
+
+      blur     double factor_                 Blur image with specified
+                                              blur factor
+                                              Border image (add border to
+     border    const Geometry &geometry_ =    image).  The color of the
+               "6x6+0+0"                      border is specified by the
+                                              borderColor attribute.
+
+    charcoal   double factor_ = 50            Charcoal effect image (looks
+                                              like charcoal sketch)
+                                              Chop image (remove vertical
+      chop     const Geometry &geometry_      or horizontal subregion of
+                                              image)
+
+    colorize   const Color &opaqueColor_,     Colorize opaque color in
+               const Color &penColor_         image using pen color
+                                              Comment image (add comment
+                                              string to image).  By
+                                              default, each image is
+                                              commented with its file name.
+                                              Use  this  method to  assign
+    comment    const string &comment_         a specific comment to the
+                                              image.  Optionally you can
+                                              include the image filename,
+                                              type, width, height, or
+                                              other  image  attributes by
+                                              embedding special format
+                                              characters.
+               const Image &compositeImage_,
+               int xOffset_, int yOffset_,
+               CompositeOperator compose_ =
+               InCompositeOp                  Compose an image onto another
+   composite                                  at specified offset and using
+               const Image &compositeImage_,  specified algorithm
+               const Geometry &offset_,
+               CompositeOperator compose_ =
+               InCompositeOp
+
+    condense   void                           Condense image (Re-run-length
+                                              encode image in memory).
+                                              Contrast image (enhance
+    contrast   unsigned int sharpen_          intensity differences in
+                                              image)
+
+      crop     const Geometry &geometry_      Crop image (subregion of
+                                              original image)
+ cycleColormap int amount_                    Cycle image colormap
+
+   despeckle   void                           Despeckle image (reduce
+                                              speckle noise)
+                                              Display image on screen.
+                                              Caution: if an image format
+                                              is is not compatable with the
+                                              display visual (e.g. JPEG on
+    display    void                           a colormapped display) then
+                                              the original image will be
+                                              altered. Use a copy of the
+                                              original if this is a
+                                              problem.
+               const Drawable &drawable_      Draw shape or text on image.
+                                              Draw shapes or text on image
+                                              using a set of Drawable
+                                              objects contained in an STL
+      draw     const std::list<Drawable>      list. Use of this method
+               &drawable_                     improves drawing performance
+                                              and allows batching draw
+                                              objects together in a list
+                                              for repeated use.
+
+      edge     double factor_                 Edge image (hilight edges in
+                                              image)
+
+     emboss    void                           Emboss image (hilight edges
+                                              with 3D effect)
+
+    enhance    void                           Enhance image (minimize
+                                              noise)
+
+    equalize   void                           Equalize image (histogram
+                                              equalization)
+                                              Flip image (reflect each
+      flip     void                           scanline in the vertical
+                                              direction)
+                                              Flood-fill color across
+               int x_, int y_, const Color    pixels that match the color
+               &fillColor_                    of the target pixel and are
+                                              neighbors of the target
+               const Geometry &point_, const  pixel. Uses current fuzz
+               Color &fillColor_              setting when determining
+  floodFill-                                  color match.
+     Color     int x_, int y_, const Color    Flood-fill color across
+               &fillColor_, const Color       pixels starting at
+               &borderColor_                  target-pixel and stopping at
+                                              pixels matching specified
+               const Geometry &point_, const  border color. Uses current
+               Color &fillColor_, const Color fuzz setting when determining
+               &borderColor_                  color match.
+                                              Flood-fill texture across
+               int x_, int y_,  const Image   pixels that match the color
+               &texture_                      of the target pixel and are
+                                              neighbors of the target
+               const Geometry &point_, const  pixel. Uses current fuzz
+               Image &texture_                setting when determining
+  floodFill-                                  color match.
+    Texture    int x_, int y_, const Image    Flood-fill texture across
+               &texture_, const Color         pixels starting at
+               &borderColor_                  target-pixel and stopping at
+                                              pixels matching specified
+               const Geometry &point_, const  border color. Uses current
+               Image &texture_, const Color   fuzz setting when determining
+               &borderColor_                  color match.
+                                              Flop image (reflect each
+      flop     void                           scanline in the horizontal
+                                              direction)
+               const Geometry &geometry_ =
+               "25x25+6+6"
+
+     frame     unsigned int width_, unsigned  Add decorative frame around
+               int height_, int x_, int y_,   image
+               int innerBevel_ = 0, int
+               outerBevel_ = 0
+                                              Gamma correct image (uniform
+               double gamma_                  red, green, and blue
+     gamma                                    correction).
+               double gammaRed_, double       Gamma correct red, green, and
+               gammaGreen_, double gammaBlue_ blue channels of image.
+
+    implode    double factor_                 Implode image (special
+                                              effect)
+                                              Assign a label to an image.
+                                              Use this option to  assign
+                                              a  specific label to the
+                                              image. Optionally you can
+                                              include the image filename,
+                                              type, width, height, or scene
+                                              number in the label by
+                                              embedding  special format
+     label     const string &label_           characters. If the first
+                                              character of string is @, the
+                                              image label is read from a
+                                              file titled by the remaining
+                                              characters in the string.
+                                              When converting to
+                                              Postscript, use this  option
+                                              to specify a header string to
+                                              print above the image.
+                                              Extract layer from image. Use
+                                              this option to extract a
+                                              particular layer from  the
+     layer     LayerType layer_               image.  MatteLayer,  for
+                                              example, is useful for
+                                              extracting the opacity values
+                                              from an image.
+
+    magnify    void                           Magnify image by integral
+                                              size
+                                              Remap image colors with
+                                              closest color from reference
+                                              image. Set dither_ to true in
+                                              to apply Floyd/Steinberg
+                                              error diffusion to the image.
+                                              By default, color reduction
+      map      const Image &mapImage_ , bool  chooses an optimal  set  of
+               dither_ = false
+                                              colors that best represent
+                                              the original image.
+                                              Alternatively, you can
+                                              choose  a  particular  set
+                                              of colors  from  an image
+                                              file with this option.
+               const Color &target_, unsigned
+ matteFloodfillint matte_, int x_, int y_,    Floodfill designated area
+               PaintMethod method_            with a matte value
+     minify    void                           Reduce image by integral size
+                                              Modulate percent hue,
+    modulate   double brightness_, double     saturation, and brightness of
+               saturation_, double hue_
+                                              an image
+                                              Negate colors in image.
+                                              Replace every pixel with its
+                                              complementary color (white
+     negate    bool grayscale_ = false        becomes black, yellow becomes
+                                              blue, etc.).  Set grayscale
+                                              to only negate grayscale
+                                              values in image.
+                                              Normalize image (increase
+   normalize   void                           contrast by normalizing the
+                                              pixel values to span the full
+                                              range of color values).
+
+    oilPaint   unsigned int radius_ = 3       Oilpaint image (image looks
+                                              like oil painting)
+                                              Change color of pixels
+     opaque    const Color &opaqueColor_,     matching opaqueColor_ to
+               const Color &penColor_
+                                              specified penColor_.
+                                              Quantize image (reduce number
+    quantize   bool measureError_ = false     of colors). Set measureError_
+                                              to true in order to calculate
+                                              error attributes.
+
+               const Geometry &geometry_ =    Raise image (lighten or
+     raise     "6x6+0+0",  bool raisedFlag_   darken the edges of an image
+               =  false                       to give a 3-D raised or
+                                              lowered effect)
+
+               const string &imageSpec_       Read image into current
+                                              object
+                                              Read image of specified size
+                                              into current object. This
+                                              form is useful for images
+                                              that do not specifiy their
+                                              size or to specify a size
+                                              hint for decoding an image.
+      read                                    For example, when reading a
+               const Geometry &size_, const
+               std::string &imageSpec_        Photo CD, JBIG, or JPEG
+                                              image, a size request causes
+                                              the library to return an
+                                              image which is the next
+                                              resolution greater or equal
+                                              to the specified size. This
+                                              may result in memory and time
+                                              savings.
+                                              Reduce noise in image using a
+  reduceNoise  void                           noise peak elimination
+                                              filter.
+                                              Roll image (rolls image
+      roll     int columns_, int rows_        vertically and horizontally)
+                                              by specified number of
+                                              columnms and rows)
+                                              Rotate image
+               double degrees_, bool crop_ =  counter-clockwise by
+     rotate    false, unsigned int sharpen_ = specified number of degrees.
+               false                          Optionally crop image to
+                                              original size and sharpen
+                                              image.
+
+     sample    const Geometry &geometry_      Resize image by using pixel
+                                              sampling algorithm
+
+     scale     const Geometry &geometry_      Resize image by using simple
+                                              ratio algorithm
+                                              Segment (coalesce similar
+                                              image components) by
+                                              analyzing the histograms of
+                                              the color components and
+                                              identifying units that are
+                                              homogeneous with the fuzzy
+                                              c-means technique. Also uses
+                                              quantizeColorSpace and
+                                              verbose image attributes.
+               double clusterThreshold_ =     Specify clusterThreshold_, as
+    segment    1.0,                           the number  of  pixels  each
+               double smoothingThreshold_ =   cluster  must exceed the the
+               1.5                            cluster threshold to be
+                                              considered valid.
+                                              SmoothingThreshold_
+                                              eliminates noise in the
+                                              second derivative of the
+                                              histogram. As the value is
+                                              increased, you can  expect
+                                              a  smoother second
+                                              derivative.  The default is
+                                              1.5.
+                                              Shade image using distant
+                                              light source. Specify
+                                              azimuth_ and elevation_ as
+               double azimuth_ = 30, double   the  position  of  the light
+     shade     elevation_ = 30,               source. By default, the
+               bool colorShading_ = false     shading results as a
+                                              grayscale image.. Set
+                                              colorShading_ to true to
+                                              shade the red, green, and
+                                              blue components of the image.
+                                              Sharpen pixels in image.
+    sharpen    double factor_                 Specify factor as the percent
+                                              enhancement (0.0 - 99.9%).
+                                              Shear image (create
+                                              parallelogram by sliding
+                                              image by X or Y axis).
+                                              Shearing slides one edge of
+                                              an image along the X  or  Y
+                                              axis,  creating  a
+                                              parallelogram.  An X
+                                              direction shear slides an
+                                              edge along the X axis, while
+                                              a  Y  direction shear
+                                              slides  an edge along the Y
+                                              axis.  The amount of the
+               double xShearAngle_, double    shear is controlled by a
+     shear     yShearAngle_,                  shear angle.  For X
+                bool crop_ = false            direction  shears,  x
+                                              degrees is measured relative
+                                              to the Y axis, and similarly,
+                                              for Y direction shears  y
+                                              degrees is measured relative
+                                              to the X axis. Empty
+                                              triangles left over from
+                                              shearing the  image  are
+                                              filled  with  the  color
+                                              defined as borderColor.
+                                              Specify crop_ as true_ to
+                                              crop the sheared image to the
+                                              original size.
+                                              Solarize image (similar to
+                                              effect seen when exposing a
+    solarize   double factor_ = 50.0          photographic film to light
+                                              during the development
+                                              process)
+
+     spread    unsigned int amount_ = 3       Spread pixels randomly within
+                                              image by specified amount
+                                              Add a digital watermark to
+    stegano    const Image &watermark_        the image (based on second
+                                              image)
+                                              Create an image which appears
+     stereo    const Image &rightImage_       in stereo when viewed with
+                                              red-blue glasses (Red image
+                                              on left, blue on right)
+
+     swirl     double degrees_                Swirl image (image pixels are
+                                              rotated by degrees)
+
+    texture    const Image &texture_          Layer a texture on image
+                                              background
+   threshold   double threshold_              Threshold image
+               const Geometry &imageGeometry_
+                                              Transform image based on
+   transform   const Geometry                 image and crop geometries.
+               &imageGeometry_, const         Crop geometry is optional.
+               Geometry &cropGeometry_
+                                              Add matte image to image,
+  transparent  const Color &color_            setting pixels matching color
+                                              to transparent.
+                                              Trim edges that are the
+      trim     void                           background color from the
+                                              image.
+
+      wave     double amplitude_ = 25.0,      Alter an image along a sine
+               double wavelength_ = 150.0     wave.
+                                              Write image to a file using
+                                              filename imageSpec_.
+                                              Caution: if an image format
+                                              is selected which is capable
+                                              of supporting fewer colors
+     write     const string &imageSpec_       than the original image or
+                                              quantization has been
+                                              requested, the original image
+                                              will be quantized to fewer
+                                              colors. Use a copy of the
+                                              original if this is a
+                                              problem.
+      zoom     const Geometry &geometry_      Zoom image to specified size.
+
+                              Image Attributes
+
+Image attributes are set and obtained via methods in Image. Except for
+methods which accept pointer arguments (e.g. chromaBluePrimary) all methods
+return attributes by value. Within the image object, attributes may be
+properties of the image, the user-options, or both. In the case where the
+attribute is a property of both the image and the user-options, the
+attribute associated with the image is returned if operations on the image
+can usefully update it, or the user-options if not. In all cases, the value
+set is equivalent to the next returned value. It is an error (an exception
+will be thrown) to attempt to set an attribute which is only a property of
+the image if no image is contained within the object. In the case of setting
+an attribute which is both a property of the image and the user-options and
+no image is present, the user-options are set and no error is reported.
+
+The supported image attributes and the method arguments required to obtain
+them are shown in the following table:
+
+                                Image Image Attributes
+
+              Property
+   Attribute                 Type          Get      Set Signature     Description
+                 Of                     Signature
+                                                                  Join images into a
+    adjoin    Image    bool             void       bool flag_     single multi-image
+                                                                  file.
+                                                                  Control
+                                                                  antialiasing of
+                                                                  rendered
+   antiAlias  Options  bool             void       bool flag_     Postscript and
+                                                                  Postscript or
+                                                                  TrueType fonts.
+                                                                  Enabled by
+                                                                  default.
+                                                                  Time in 1/100ths
+                                                                  of a second (0 to
+                                                                  65535) which must
+                                                                  expire before
+                                                                  displaying the
+                                                                  next image in an
+  animation-  Image &  unsigned int (0             unsigned int   animated sequence.
+     Delay    Options  to 65535)        void       delay_         This option is
+                                                                  useful for
+                                                                  regulating the
+                                                                  animation of a
+                                                                  sequence  of GIF
+                                                                  images within
+                                                                  Netscape.
+                                                                  Number of
+  animation-  Image &                              unsigned int   iterations to loop
+  Iterations  Options  unsigned int     void       iterations_    an animation (e.g.
+                                                                  Netscape loop
+                                                                  extension) for.
+ background-  Image &                              const Color    Image background
+     Color    Options  Color            void       &color_        color
+
+ background-                                       const string   Image to use as
+    Texture   Options  string           void       &texture_      background
+                                                                  texture.
+                                                                  Base image width
+  baseColumns Image    unsigned int     void                      (before
+                                                                  transformations)
+                                                                  Base image
+ baseFilename Image    string           void                      filename (before
+                                                                  transformations)
+                                                                  Base image height
+   baseRows   Image    unsigned int     void                      (before
+                                                                  transformations)
+
+  borderColor Image &  Color            void        const Color   Image border color
+              Options                              &color_
+                                                                  Base color that
+   boxColor   Options  Color            void       const Color    annotation text is
+                                                   &boxColor_
+                                                                  rendered on.
+                                                                  Chromaticity blue
+   chroma-                              float *x_, float x_, floatprimary point
+  BluePrimary Image    float x & y      float *y_  y_             (e.g. x=0.15,
+                                                                  y=0.06)
+                                                                  Chromaticity green
+   chroma-                              float *x_, float x_, floatprimary point
+ GreenPrimary Image    float x & y      float *y_  y_             (e.g. x=0.3,
+                                                                  y=0.6)
+                                                                  Chromaticity red
+   chroma-                              float *x_, float x_, floatprimary point
+  RedPrimary  Image    float x & y      float *y_  y_             (e.g. x=0.64,
+                                                                  y=0.33)
+
+   chroma-                              float *x_, float x_, floatChromaticity white
+  WhitePoint  Image    float x & y      float *y_  y_             point (e.g.
+                                                                  x=0.3127, y=0.329)
+   classType  Image    ClassType        void                      Image class
+                                                                  Colors within this
+                                                                  distance are
+                                                                  considered equal.
+                                                                  A number of
+                                                                  algorithms search
+                                                                  for a target
+   colorFuzz  Image &  unsigned int     void       unsigned int   color. By default
+              Options                              fuzz_          the color must be
+                                                                  exact. Use this
+                                                                  option to match
+                                                                  colors that are
+                                                                  close to the
+                                                                  target color in
+                                                                  RGB space.
+                                                   unsigned int   Color at
+   colorMap   Image    Color            unsigned   index_, const  color-pallet
+                                        int index_
+                                                   Color &color_  index.
+    columns   Image    unsigned int     void                      Image width
+    comment   Image    string           void                      Image comment
+                                                                  Image compresion
+                                                                  type. The default
+  compress-   Image &                              CompressionTypeis the compression
+     Type     Options  CompressionType  void       compressType_  type of the
+                                                                  specified image
+                                                                  file.
+                                                                  Vertical and
+                                                                  horizontal
+                                                                  resolution in
+                                                                  pixels of the
+                                                                  image. This option
+    density   Options  Geometry         void       const Geometry specifies an image
+                       (default 72x72)             &density_      density when
+                                                                  decoding a
+                                                                  Postscript or
+                                                                  Portable Document
+                                                                  page. Often used
+                                                                  with psPageSize.
+                                                                  Image depth. Used
+                                                                  to specify the bit
+                                                                  depth when reading
+                                                                  or writing  raw
+     depth    Image &   unsigned int (8 void       unsigned int   images. Defaults
+              Options  or 16)                      depth_
+                                                                  to the quantum
+                                                                  depth that
+                                                                  ImageMagick is
+                                                                  compiled with.
+                                                                  Tile names from
+   directory  Image    string           void                      within an image
+                                                                  montage
+
+   fileName   Image &  string           void       const string   Image file name.
+              Options                              &fileName_
+
+   fileSize   Image    unsigned int     void                      Number of bytes of
+                                                                  the image on disk
+                                                                  Filter to use when
+                                                                  resizing image.
+                                                                  The reduction
+                                                                  filter employed
+                                                                  has a sigificant
+                                                                  effect on the time
+                                                                  required to resize
+  filterType  Image &  FilterType       void       FilterType     an image and the
+              Options                              filterType_    resulting quality.
+                                                                  The default filter
+                                                                  is Lanczos which
+                                                                  has been shown to
+                                                                  produce high
+                                                                  quality results
+                                                                  when reducing most
+                                                                  images.
+                                                                  Text rendering
+                                                                  font. If the font
+                                                                  is a fully
+                                                                  qualified X server
+                                                                  font name, the
+                                                                  font is obtained
+                                                                  from an X  server.
+     font     Options  string           void       const string   To use a TrueType
+                                                   &font_         font, precede the
+                                                                  TrueType filename
+                                                                  with an @.
+                                                                  Otherwise,
+                                                                  specify  a
+                                                                  Postscript font
+                                                                  name (e.g.
+                                                                  "helvetica").
+
+ fontPointsizeOptions  unsigned int     void       unsigned int   Text rendering
+                                                   pointSize_     font point size
+                                                                  Long form image
+    format    Image    string           void                      format
+                                                                  description.
+                                                                  Gamma level of the
+                                                                  image. The same
+                                                                  color image
+                                                                  displayed on two
+                                                                  different
+                       double (typical                            workstations  may
+     gamma    Image    range 0.8 to     void                      look  different
+                       2.3)                                       due to differences
+                                                                  in the display
+                                                                  monitor.  Use
+                                                                  gamma correction
+                                                                  to  adjust  for
+                                                                  this  color
+                                                                  difference.
+                                                                  Preferred size of
+   geometry   Image    Geometry         void                      the image when
+                                                                  encoding.
+                       unsigned int
+                       { 0 = Disposal
+                       not specified,                             GIF disposal
+                       1 = Do not                                 method. This
+                       dispose of                                 option is used to
+                       graphic,                                   control how
+ gifDispose-  Image &  3 = Overwrite               unsigned int   successive frames
+    Method    Options  graphic with     void       disposeMethod_ are rendered (how
+                       background                                 the preceding
+                       color,                                     frame is disposed
+                       4 = Overwrite                              of) when creating
+                       graphic with                               a GIF animation.
+                       previous
+                       graphic. }
+                                                                  The type of
+                                                                  interlacing scheme
+                                                                  (default
+                                                                  NoInterlace). This
+                                                                  option is used to
+                                                                  specify the type
+                                                                  of  interlacing
+                                                                  scheme  for  raw
+                                                                  image formats such
+                                                                  as RGB or YUV.
+                                                                  NoInterlace means
+                                                                  do not  interlace,
+                                                                  LineInterlace uses
+                                                                  scanline
+                                                                  interlacing, and
+                                                                  PlaneInterlace
+  interlace-  Image &                              InterlaceType  uses plane
+     Type     Options  InterlaceType    void       interlace_     interlacing.
+                                                                  PartitionInterlace
+                                                                  is like
+                                                                  PlaneInterlace
+                                                                  except the
+                                                                  different planes
+                                                                  are saved  to
+                                                                  individual files
+                                                                  (e.g.  image.R,
+                                                                  image.G, and
+                                                                  image.B). Use
+                                                                  LineInterlace or
+                                                                  PlaneInterlace to
+                                                                  create an
+                                                                  interlaced GIF or
+                                                                  progressive JPEG
+                                                                  image.
+
+     label    Image    string           void       const string   Image label
+                                                   &label_
+                                                                  Line width for
+   lineWidth  Options  unsigned int     void       unsigned int   drawing lines,
+                                                   lineWidth_     circles, ellipses,
+                                                                  etc. See Drawable.
+
+    magick    Image &  string           void        const string  Get image format
+              Options                              &magick_       (e.g. "GIF")
+                                                                  True if the image
+                                                                  has transparency.
+                                                                  If set True, store
+     matte    Image    bool             void       bool matteFlag_matte channel if
+                                                                  the image has one
+                                                                  otherwise create
+                                                                  an opaque one.
+                                                                  Image matte
+  matteColor  Image &  Color            void       const Color    (transparent)
+              Options                              &matteColor_
+                                                                  color
+                                                                  The mean error per
+                                                                  pixel computed
+                                                                  when an image is
+                                                                  color reduced.
+  meanError-                                                      This parameter is
+   PerPixel   Image    double           void                      only valid if
+                                                                  verbose is set to
+                                                                  true and the image
+                                                                  has just been
+                                                                  quantized.
+                                                                  Transform the
+  monochrome  Options  bool             void       bool flag_     image to black and
+                                                                  white
+                                                                  Tile size and
+   montage-                                                       offset within an
+   Geometry   Image    Geometry         void                      image montage.
+                                                                  Only valid for
+                                                                  montage images.
+                                                                  The normalized max
+                                                                  error per pixel
+                                                                  computed when an
+                                                                  image is color
+ normalized-                                                      reduced. This
+   MaxError   Image    double           void                      parameter is only
+                                                                  valid if verbose
+                                                                  is set to true and
+                                                                  the image has just
+                                                                  been quantized.
+                                                                  The normalized
+                                                                  mean error per
+                                                                  pixel computed
+                                                                  when an image is
+ normalized-                                                      color reduced.
+   MeanError  Image    double           void                      This parameter is
+                                                                  only valid if
+                                                                  verbose is set to
+                                                                  true and the image
+                                                                  has just been
+                                                                  quantized.
+                                                                  The number of
+    packets   Image    unsigned int     void                      runlength-encoded
+                                                                  packets in
+                                                                  the image
+                                                                  The number of
+  packetSize  Image    unsigned int     void                      bytes in each
+                                                                  pixel packet
+                                                                  Pen color to use
+   penColor   Options  Color            void       const Color    when annotating on
+                                                   &penColor_     or drawing on
+                                                                  image.
+                                                                  Texture image to
+  penTexture  Options  Image            void       const Image &  paint with
+                                                   penTexture_    (similar to
+                                                                  penColor).
+                                        unsigned   unsigned int
+                                                                  Get/set pixel
+  pixelColor  Image    Color            int x_,    x_, unsigned   color at location
+                                        unsigned   int y_, const
+                                        int y_     Color &color_  x & y.
+                                                                  Postscript page
+                                                                  size. Use this
+                                                                  option to specify
+                                                                  the dimensions  of
+                                                                  the Postscript
+  psPageSize  Image &  Geometry         void       const Geometry page in dots per
+              Options                              &pageSize_     inch or a TEXT
+                                                                  page in pixels.
+                                                                  This option is
+                                                                  typically used in
+                                                                  concert with
+                                                                  density.
+                                                                  JPEG/MIFF/PNG
+    quality   Options  unsigned int (0  void       unsigned int   compression level
+                       to 100)                     quality_
+                                                                  (default 75).
+                                                                  Preferred number
+                                                                  of colors in the
+                                                                  image. The actual
+                                                                  number of colors
+                                                                  in the image may
+                                                                  be less than your
+  quantize-                                        unsigned int   request, but never
+    Colors    Options  unsigned int     void       colors_        more. Images with
+                                                                  less unique colors
+                                                                  than specified
+                                                                  with this option
+                                                                  will have any
+                                                                  duplicate or
+                                                                  unused colors
+                                                                  removed.
+                                                                  Colorspace to
+                                                                  quantize colors in
+                                                                  (default RGB).
+                                                                  Empirical evidence
+                                                                  suggests that
+                                                                  distances in color
+                                                                  spaces such as YUV
+  quantize-                                        ColorspaceType or YIQ correspond
+  ColorSpace  Options  ColorspaceType   void       colorSpace_    to perceptual
+                                                                  color differences
+                                                                  more closely than
+                                                                  do distances in
+                                                                  RGB space. These
+                                                                  color spaces may
+                                                                  give better
+                                                                  results when color
+                                                                  reducing an image.
+                                                                  Apply
+                                                                  Floyd/Steinberg
+                                                                  error diffusion to
+                                                                  the image. The
+                                                                  basic strategy of
+                                                                  dithering is to
+                                                                  trade  intensity
+                                                                  resolution  for
+                                                                  spatial
+                                                                  resolution  by
+                                                                  averaging the
+                                                                  intensities  of
+  quantize-                                                       several
+    Dither    Options  bool             void       bool flag_     neighboring
+                                                                  pixels. Images
+                                                                  which  suffer
+                                                                  from  severe
+                                                                  contouring  when
+                                                                  reducing colors
+                                                                  can be improved
+                                                                  with this option.
+                                                                  The quantizeColors
+                                                                  or monochrome
+                                                                  option must be set
+                                                                  for this option to
+                                                                  take effect.
+                                                                  Quantization
+                                                                  error.  Only valid
+                                                                  if verbose is set
+  quantize-                                                       to true prior to
+     Error    Image    unsigned int     void                      executing quantize
+                                                                  and the value is
+                                                                  read back
+                                                                  immediately.
+                                                                  Depth of the
+                                                                  quantization color
+                                                                  classification
+                                                                  tree. Values of 0
+                                                                  or 1 allow
+                                                                  selection of the
+  quantize-            unsigned int (0             unsigned int   optimal tree depth
+   TreeDepth  Options  to 8)            void       treeDepth_     for the color
+                                                                  reduction
+                                                                  algorithm. Values
+                                                                  between 2 and 8
+                                                                  may be used to
+                                                                  manually adjust
+                                                                  the tree depth.
+  rendering-                                       RenderingIntentThe type of
+    Intent    Image    RenderingIntent  void       render_        rendering intent
+ resolution-  Image &                              ResolutionType Units of image
+     Units    Options  ResolutionType   void       units_         resolution
+                                                                  The number of
+     rows     Image    unsigned int     void                      pixel rows in the
+                                                                  image
+
+     scene    Image    unsigned int     void       unsigned int   Image scene number
+                                                   scene_
+                                                                  Image MD5
+                                        bool                      signature. Set
+   signature  Image    string           force_ =                  force_ to 'true'
+                                        false                     to force
+                                                                  re-computation of
+                                                                  signature.
+                                                                  Width and height
+                                                                  of a raw image (an
+                                                                  image which does
+                                                                  not support width
+                                                                  and height
+                                                                  information).
+     size     Options  Geometry         void       const Geometry Size may also be
+                                                   &geometry_
+                                                                  used to affect the
+                                                                  image size read
+                                                                  from a
+                                                                  multi-resolution
+                                                                  format (e.g. Photo
+                                                                  CD, JBIG, or JPEG.
+
+   subImage   Options  unsigned int     void       unsigned int   Subimage of an
+                                                   subImage_      image sequence
+                                                                  Number of images
+   subRange   Options  unsigned int     void       unsigned int   relative to the
+                                                   subRange_
+                                                                  base image
+                                                                  Any text
+     text     Image    string           void                      associated with
+                                                                  the image
+
+   tileName   Options  string           void       const string   Tile name
+                                                   &tileName_
+
+  totalColors Image    unsigned long    void                      Number of colors
+                                                                  in the image
+     type     Image    ImageType        void                      Image type
+                                                                  Print detailed
+    verbose   Options  bool             void       bool           information about
+                                                   verboseFlag_
+                                                                  the image
+
+     view     Options  string           void       const string   FlashPix viewing
+                                                   &view_         parameters.
+                                                                  X11 display to
+  x11Display  Options  string (e.g.     void       const string   display to, obtain
+                       "hostname:0.0")             &display_      fonts from, or to
+                                                                  capture image from
+
+  xResolution Image    double           void                      x resolution of
+                                                                  the image
+
+  yResolution Image    double           void                      y resolution of
+                                                                  the image

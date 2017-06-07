@@ -34,9 +34,9 @@ QMole uses the excellent [Herbstluft Window Manager](https://www.herbstluftwm.or
 
 QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) - [LinkedIn Profile](https://www.linkedin.com/in/chriskohlhepp/) and licensed open-source under the GNU GENERAL PUBLIC LICENSE. A special mention goes to Florian Engel of Cologne, Germany, for being the maintainer and scribe of QMole for the last year and a half. Thank you Florian. Thank you also to our beta testers Kyle Serbov,  Jimmy Huy & Tejas Desai.
 
-![Flying Mole Banner](artwork/qmolefly.png)
-
 ## The Story
+
+![Flying Mole Banner](artwork/qmolefly.png)
 
 So here is a small story. Some years ago my wife gave me an "generation one" iPad as a present - my first touch screen device. Since the iPad had a solid state drive, it would outlast, on a full battery charge, any notebook with a conventional hard drive that I had at the time. I could, and did, fly from Sydney to Los Angeles and keep using my iPad. Yet my initial euphoria was short lived. I quickly found myself in Apple's "Walled Garden." I had to "buy to try," and more often than not, apps failed to provide the feature depth and breadth of comparable applications on Microsoft Windows or Linux - even where the Windows or Linux competitors were entirely free. Frequently, I found myself buying multiple apps for the same purpose to arrive at something to my liking. Very early did I realise that if I wanted the functionality I sought, I would need to build it myself. Cydia already provided access to a host of GNU / Linux applications on the iPhone, but only terminal based. I wanted Java. I wanted a GTK desktop. I wanted the iPhython notebook (to tun OCaml). I wanted a tiling window manager that routed my apps to virtual desktops on demand - load balancing for touch screen apps. And I wanted it on my iPhone. So I built it and I called it QMole. A mole because it subsumed what was there (the garden) and "Q" because I didn't want another "I" something.
 
@@ -81,6 +81,10 @@ Screenshots showing QMole capabilities
 ### 2cydia-screenshots
 
 Screenshots showing QMole installation via Cydia
+
+### artwork
+
+Various sketches, icons, and drawings - thanks to my dear wife. 
 
 ## Licence Disclaimer
 

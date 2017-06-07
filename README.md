@@ -32,7 +32,7 @@ QMole is a hybrid. It is not a virtualization solution like VMWare or VirtualBox
 
 QMole uses the excellent [Herbstluft Window Manager](https://www.herbstluftwm.org). The window managers [Fluxbox](http://fluxbox.org), [i3](https://i3wm.org), and [Awesome](https://awesomewm.org) are also supported. 
 
-QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) - [LinkedIn Profile](https://www.linkedin.com/in/chriskohlhepp/) and licensed open-source under the GNU GENERAL PUBLIC LICENSE. A special mention goes to Florian Engel of Cologne, Germany, for being the maintainer of QMole for the last year and a half. Thank you Florian. Thank you also to our beta testers Kyle Serbov,  Jimmy Huy & Tejas Desai.
+QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) - [LinkedIn Profile](https://www.linkedin.com/in/chriskohlhepp/) and licensed open-source under the GNU GENERAL PUBLIC LICENSE. A special mention goes to Florian Engel of Cologne, Germany, for being the maintainer and scribe of QMole for the last year and a half. Thank you Florian. Thank you also to our beta testers Kyle Serbov,  Jimmy Huy & Tejas Desai.
 
 ![Flying Mole Banner](qmolefly.png)
 

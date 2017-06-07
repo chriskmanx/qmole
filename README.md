@@ -40,7 +40,7 @@ QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpre
 
 So here is a small story. Some years ago my wife gave me an "generation one" iPad as a present - my first touch screen device. Since the iPad had a solid state drive, it would outlast, on a full battery charge, any notebook with a conventional hard drive that I had at the time. I could, and did, fly from Sydney to Los Angeles and keep using my iPad. Yet my initial euphoria was short lived. I quickly found myself in Apple's "Walled Garden." I had to "buy to try," and more often than not, apps failed to provide the feature depth and breadth of comparable applications on Microsoft Windows or Linux - even where the Windows or Linux competitors were entirely free. Frequently, I found myself buying multiple apps for the same purpose to arrive at something to my liking. Very early did I realise that if I wanted the functionality I sought, I would need to build it myself. Cydia already provided access to a host of GNU / Linux applications on the iPhone, but only terminal based. I wanted Java. I wanted a GTK desktop. I wanted the iPhython notebook (to tun OCaml). I wanted a tiling window manager that routed my apps to virtual desktops on demand - load balancing for touch screen apps. And I wanted it on my iPhone. So I built it and I called it QMole. A mole because it subsumed what was there (the garden) and "Q" because I didn't want another "I" something.
 
-Over the years, QMole served me well. I built everything on the iPhone and iPad. In due time, I had built almost an entire "Linux" distribution with some 170 Debian packages, comprising some 35 million lines of code . As time went on, Apple changed from 32 bit CPUs to 64 bit CPUs. The format for executables on iOS changed a number of times. Ultimately, I had to decide if I wanted to maintain my own Linux distribution or give Linux back to whom it belongs: the community.
+Over the years, QMole served me well. I built everything on the iPhone and iPad. In due time, I had built almost an entire "Linux" distribution with some 170 Debian packages, comprising some 42 million lines of code . As time went on, Apple changed from 32 bit CPUs to 64 bit CPUs. The format for executables on iOS changed a number of times. Ultimately, I had to decide if I wanted to maintain my own Linux distribution or give Linux back to whom it belongs: the community.
 
 So today I have done just that. I released QMole open-source on Github. A separate Github repository holds the Debian packages which makes for a smaller download footprint.
 
@@ -52,23 +52,23 @@ Happy hacking !
 
 ### QMOLEDEV
 
-Primary source repository of *ported* applications, all built in-place on a first generation iPad. Configure and build scripts have been modified to work around peculiarities of iOS, such as needing signed binaries to prevent the kernel from killing off intermediate executables produced during configuration or compilation. This means no cross build system, e.g. Linux or Mac OSX is needed here. These are 32 bit builds. According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately *40 million lines of mostly C and C++ code* contained in this repository.
+Primary source repository of *ported* applications, all built in-place on a first generation iPad. Configure and build scripts have been modified to work around peculiarities of iOS, such as needing signed binaries to prevent the kernel from killing off intermediate executables produced during configuration or compilation. This means no cross build system, e.g. Linux or Mac OSX is needed here. These are 32 bit builds. 
 
 
 ### QMOLEDEV64
 
-Secondary source repository of *ported* systems, all built in-pace on an iPhone 5S. These are 64 bit builds. Primary application focus is a Swiss Army Knife of network tools that turns your iphone into a Wifi hotspot security tool. You will find network capture tcpdump, nmap and snort tools here. According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately *800,000 lines of mostly C, C++ and BASH code* contained in this repository.
+Secondary source repository of *ported* systems, all built in-pace on an iPhone 5S. These are 64 bit builds. Primary application focus is a Swiss Army Knife of network tools that turns your iphone into a Wifi hotspot security tool. You will find network capture tcpdump, nmap and snort tools here. 
 
 ### XORG0 XORG1 XORG2
 
-Primary source repositories of *ported* X11 (Unix Windowing) systems. According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately 1.9 million lines of mostly C and C++ code contained in these repositories.
+Primary source repositories of *ported* X11 (Unix Windowing) systems.
 
 ### qmole-msg
 ### qmole-probe
 ### qmolegui
 ### qmoledevice
 
-This is the core of the QMole system itself, written predominantly in Objective-C and OCaml.  According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately *2000 lines of Objective-C and OCaml* contained in these repositories. Objective-C accommodates the front-end of the system. The 400 lines of OCaml comprise the back-end of the system.
+This is the core of the QMole system itself, written predominantly in Objective-C and OCaml.  Objective-C accommodates the front-end of the system. OCaml accommodates the back-end of the system.
 
 ### scripts
 

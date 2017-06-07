@@ -34,7 +34,7 @@ QMole uses the excellent [Herbstluft Window Manager](https://www.herbstluftwm.or
 
 QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) - [LinkedIn Profile](https://www.linkedin.com/in/chriskohlhepp/) and licensed open-source under the GNU GENERAL PUBLIC LICENSE. A special mention goes to Florian Engel of Cologne, Germany, for being the maintainer and scribe of QMole for the last year and a half. Thank you Florian. Thank you also to our beta testers Kyle Serbov,  Jimmy Huy & Tejas Desai.
 
-![Flying Mole Banner](qmolefly.png)
+![Flying Mole Banner](artwork/qmolefly.png)
 
 ## The Story
 

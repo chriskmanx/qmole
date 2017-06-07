@@ -12,7 +12,7 @@ US Darpa Funded Battlefield Strategy Optimization Tool
 
 ## OCaml COQ Proof Tool
 
-Analyze and proof (or disprove) network security protocols...
+Analyze and prove (or disprove) network security protocols...
 
 ![OCaml COQ Proof Tool](screenshots/OCaml-Coq-IDE.png)
 ![OCaml COQ Proof Tool](screenshots/OCaml-Coq-Proof-Tool.png)

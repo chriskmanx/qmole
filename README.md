@@ -9,7 +9,7 @@ GNU Linux Desktop System for IPhone &amp; IPad
 
 [QMole Linux Desktop Manual](https://chriskohlhepp.wordpress.com/linux-on-iphone/qmole-linux-desktop-for-ios-manual/)
 
-What is Qmole?
+## What is Qmole?
 
 
 1) It’s a smart routing tiling window manager for tablets.
@@ -25,16 +25,52 @@ That’s kind of a world’s first !
 
 QMole allows iPhones and iPads to run graphical Linux applications. It enables touch-screen operation of Linux applications executing together with native iOS applications on a self contained Linux style desktop. This desktop introduces automatic window management for the touch screen and enables full access to the data on your device.
 
-QMole Architecture""
+## QMole Architecture
 
 ![QMole Archiecture](qmole-inux-architecture.png)
 
 
-QMole is a hybrid. It is not a virtualization solution like VMWare or VirtualBox. Neither is it an operating system. It requires no new API of application developers, as does iOS. QMole sandwiches applications in standard Linux abstraction on one side and provides touch screen abstractions and window management on the other side. This provides re-usability of Linux applications. In architectural terms, QMole occupies a space somewhere between BSD and Linux, but based on the Darwin kernel. 
+QMole is a hybrid. It is not a virtualization solution like VMWare or VirtualBox. Neither is it an operating system. It requires no new API of application developers, as does iOS. QMole sandwiches applications in standard Linux abstraction on one side and provides touch screen abstractions and window management on the other side. This provides re-usability of Linux applications. In architectural terms, QMole occupies a space somewhere between BSD and Linux, but based on the Darwin kernel.
 
-QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) [LinkedIn](https://www.linkedin.com/in/chriskohlhepp/) and licensed open-source under the GNU GENERAL PUBLIC LICENSE.
+QMole uses the excellent [Herbstluft Window Manager](https://www.herbstluftwm.org).
+
+QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpress.com) [LinkedIn](https://www.linkedin.com/in/chriskohlhepp/) and licensed open-source under the GNU GENERAL PUBLIC LICENSE. A special mention goes to Florian Engel of Cologne, Germany, for being the maintainer of QMole for the last year and a half. Thank you Florian.
 
 ![Flying Mole Banner](qmolefly.png)
+
+## Manifest
+
+### QMOLEDEV
+
+Primary source repository of *ported* applications, all built in-place on a first generation iPad. Configure and build scripts have been modified to work around peculiarities of iOS, such as needing signed binaries to prevent the kernel from killing off intermediate executables produced during configuration or compilation. This means no cross build system, e.g. Linux or Mac OSX is needed here. These are 32 bit builds. According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately 40 million lines of mostly C and C++ code contained in this repository.
+
+
+### QMOLEDEV64
+
+Secondary source repository of *ported* systems, all built in-pace on an iPhone 5S. These are 64 bit builds. Primary application focus is a Swiss Army Knife of network tools that turns your iphone into a Wifi hotspot security tool. You will find network capture tcpdump, nmap and snort tools here. According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately 800,000 lines of mostly C, C++ and BASH code contained in this repository.
+
+### XORG0 XORG1 XORG2
+
+Primary source repositories of *ported* X11 (Unix Windowing) systems. According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately 1.9 million lines of mostly C and C++ code contained in these repositories.
+
+### qmole-msg
+### qmole-probe
+### qmolegui
+### qmoledevice
+
+This is the core of the QMole system itself, written predominantly in Objective-C and OCaml.  According to the code counter [CLOC](http://cloc.sourceforge.net), there are approximately 2000 lines of Objective-C and OCaml contained in these repositories. Objective-C accommodated the front-end of the system. 400 lines of OCaml are the back-end of the system.
+
+### scripts
+
+Various helper and build scripts to assist with building the REPO
+
+### qmole-screenshots
+
+Screenshots showing QMole capabilities
+
+### cydia-screenshots
+
+Screenshots showing QMole installation via Cydia
 
 ## Licence Disclaimer
 
@@ -48,6 +84,7 @@ Each approach as its merits. The existing implementation is optimized for use wi
 
 Please refer to [QMole Linux Desktop Manual](https://chriskohlhepp.wordpress.com/linux-on-iphone/qmole-linux-desktop-for-ios-manual/) for notes on QMole's touch screen optimization.
 
+If you require different licence terms, feel free to get in touch with myself. 
 
 ## iOS Compatibility Notes
 

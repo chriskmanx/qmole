@@ -1,0 +1,519 @@
+@c English version 2011-07-15
+@menu
+* Introducci@'on a lapack::
+* Funciones y variables para lapack::
+@end menu
+
+@node Introducci@'on a lapack, Funciones y variables para lapack, lapack, lapack
+@section Introducci@'on a lapack
+
+@code{lapack} es una traducci@'on autom@'atica a Common Lisp (con el programa @code{f2c})  
+de la librer@'{@dotless{i}}a LAPACK escrita en Fortran.
+
+
+@node Funciones y variables para lapack, , Introducci@'on a lapack, lapack
+@section Funciones y variables para lapack
+
+@deffn {Funci@'on} dgeev (@var{A})
+@deffnx {Funci@'on} dgeev (@var{A}, @var{right_p}, @var{left_p})
+
+Calcula los autovalores y, opcionalmente, tambi@'en los autovectores de la matriz @var{A}.
+Todos los elementos de @var{A} deben ser enteros o n@'umeros decimales en coma flotante.
+Adem@'as, @var{A} debe ser cuadrada (igual n@'umero de filas que de columnas) y puede
+ser o no sim@'etrica.
+
+@code{dgeev(@var{A})} calcula s@'olo los autovalores de @var{A}. 
+@code{dgeev(@var{A}, @var{right_p}, @var{left_p})} calcula los autovalores de @var{A}
+y los autovectores por la derecha cuando @math{@var{right_p} = @code{true}}, y
+los autovectores por la izquierda cuando @math{@var{left_p} = @code{true}}.
+
+La funci@'on devuelve una lista de tres elementos.
+El primer elemento es una lista con los autovalores.
+El segundo elemento es @code{false} o la matriz de autovectores por la derecha.
+El tercer elemento es @code{false} o la matriz de autovectores por la izquierda.
+
+El autovector por la derecha @math{v(j)} (la @math{j}-@'esima columna de la matriz de
+autovectores por la derecha) satisface
+
+@math{A . v(j) = lambda(j) . v(j)}
+
+donde @math{lambda(j)} es su autovalor asociado.
+
+El autovector por la izquierda @math{u(j)} (la @math{j}-@'esima columna de la matriz de
+autovectores por la izquierda) satisface
+
+@math{u(j)**H . A = lambda(j) . u(j)**H}
+
+donde @math{u(j)**H} denota la transpuesta conjugada de @math{u(j)}.
+
+La funci@'on de Maxima @code{ctranspose} calcula la transpuesta conjugada.
+
+Los autovectores calculados est@'an normalizados para que su norma
+eucl@'{@dotless{i}}dea valga 1 y su componente mayor tenga su parte
+imaginaria igual a cero.
+
+Ejemplo:
+
+@c ===beg===
+@c load (lapack)$
+@c fpprintprec : 6;
+@c M : matrix ([9.5, 1.75], [3.25, 10.45]);
+@c dgeev (M);
+@c [L, v, u] : dgeev (M, true, true);
+@c D : apply (diag_matrix, L);
+@c M . v - v . D;
+@c transpose (u) . M - D . transpose (u);
+@c ===end===
+@example
+(%i1) load (lapack)$
+(%i2) fpprintprec : 6;
+(%o2)                           6
+(%i3) M : matrix ([9.5, 1.75], [3.25, 10.45]);
+                         [ 9.5   1.75  ]
+(%o3)                    [             ]
+                         [ 3.25  10.45 ]
+(%i4) dgeev (M);
+(%o4)          [[7.54331, 12.4067], false, false]
+(%i5) [L, v, u] : dgeev (M, true, true);
+                           [ - .666642  - .515792 ]
+(%o5) [[7.54331, 12.4067], [                      ], 
+                           [  .745378   - .856714 ]
+                                        [ - .856714  - .745378 ]
+                                        [                      ]]
+                                        [  .515792   - .666642 ]
+(%i6) D : apply (diag_matrix, L);
+                      [ 7.54331     0    ]
+(%o6)                 [                  ]
+                      [    0     12.4067 ]
+(%i7) M . v - v . D;
+                [      0.0       - 8.88178E-16 ]
+(%o7)           [                              ]
+                [ - 8.88178E-16       0.0      ]
+(%i8) transpose (u) . M - D . transpose (u);
+                     [ 0.0  - 4.44089E-16 ]
+(%o8)                [                    ]
+                     [ 0.0       0.0      ]
+@end example
+@end deffn
+
+
+
+@deffn {Funci@'on} dgeqrf (@var{A})
+
+Calcula la descomposici@'on QR de la matriz @var{A}.
+Todos los elementos de @var{A} deben ser enteros o n@'umeros
+reales. No es necesario que @var{A} tenga
+el mismo n@'umero de filas que de columnas.
+
+La funci@'on devuelve una lista con dos elementos; el primero es
+la matriz cuadrada ortonormal @var{Q}, con el mismo n@'umero de
+filas que @var{A}, y el segundo es la matriz triangular superior @var{R},
+de iguales dimensiones que @var{A}. El producto @code{@var{Q} . @var{R}}, 
+siendo "." el operador de la multiplicaci@'on matricial, es igual a
+@var{A}, ignorando errores de redondeo.
+
+@c ===beg===
+@c load (lapack)$
+@c fpprintprec : 6;
+@c M : matrix ([1, -3.2, 8], [-11, 2.7, 5.9]);
+@c [q, r] : dgeqrf (M);
+@c q . r - M;
+@c mat_norm (%);
+@c ===end===
+@example
+(%i1) load (lapack) $
+(%i2) fpprintprec : 6 $
+(%i3) M : matrix ([1, -3.2, 8], [-11, 2.7, 5.9]) $
+(%i4) [q, r] : dgeqrf (M);
+       [ - .0905357  .995893  ]
+(%o4) [[                      ], 
+       [  .995893    .0905357 ]
+                               [ - 11.0454   2.97863   5.15148 ]
+                               [                               ]]
+                               [     0      - 2.94241  8.50131 ]
+(%i5) q . r - M;
+         [ - 7.77156E-16   1.77636E-15   - 8.88178E-16 ]
+(%o5)    [                                             ]
+         [      0.0       - 1.33227E-15   8.88178E-16  ]
+(%i6) mat_norm (%, 1);
+(%o6)                      3.10862E-15
+@end example
+
+@end deffn
+
+
+
+
+@deffn {Funci@'on} dgesv (@var{A}, @var{b})
+
+Calcula la soluci@'on @var{x} de la ecuaci@'on @math{@var{A} @var{x} = @var{b}},
+siendo @var{A} una matriz cuadrada y @var{b} otra matriz con el mismo
+n@'umero de filas que @var{A} y un n@'umero arbitrario de columnas. Las 
+dimensiones de la soluci@'on @var{x} son las mismas de @var{b}.
+
+Los elementos de @var{A} y @var{b} deben ser reducibles a n@'umeros decimales
+si se les aplica la funci@'on @code{float}, por lo que tales elementos
+pueden en principio ser de cualquier tipo num@'erico, constantes num@'ericas
+simb@'olicas o cualesquiera expresiones reducibles a un n@'umero decimal.
+Los elementos de @var{x} son siempre n@'umeros decimales. Todas las
+operaciones aritm@'eticas se realizan en coma flotante.
+
+@code{dgesv} calcula la soluci@'on mediante la descomposici@'on LU de @var{A}.
+
+Ejemplos:
+
+@code{dgesv} calcula la soluci@'on @var{x} de la ecuaci@'on 
+@math{@var{A} @var{x} = @var{b}}.
+
+@c ===beg===
+@c A : matrix ([1, -2.5], [0.375, 5]);
+@c b : matrix ([1.75], [-0.625]);
+@c x : dgesv (A, b);
+@c dlange (inf_norm, b - A . x);
+@c ===end===
+@example
+(%i1) A : matrix ([1, -2.5], [0.375, 5]);
+                               [   1    - 2.5 ]
+(%o1)                          [              ]
+                               [ 0.375    5   ]
+(%i2) b : matrix ([1.75], [-0.625]);
+                                  [  1.75   ]
+(%o2)                             [         ]
+                                  [ - 0.625 ]
+(%i3) x : dgesv (A, b);
+                            [  1.210526315789474  ]
+(%o3)                       [                     ]
+                            [ - 0.215789473684211 ]
+(%i4) dlange (inf_norm, b - A.x);
+(%o4)                                 0.0
+@end example
+
+@var{b} una matriz con el mismo n@'umero de filas que @var{A}
+y un n@'umero arbitrario de columnas. Las dimensiones de 
+@var{x} son las mismas de @var{b}.
+
+@c ===beg===
+@c A : matrix ([1, -0.15], [1.82, 2]);
+@c b : matrix ([3.7, 1, 8], [-2.3, 5, -3.9]);
+@c x : dgesv (A, b);
+@c dlange (inf_norm, b - A . x);
+@c ===end===
+@example
+(%o0)                                done
+(%i1) A : matrix ([1, -0.15], [1.82, 2]);
+                               [  1    - 0.15 ]
+(%o1)                          [              ]
+                               [ 1.82    2    ]
+(%i2) b : matrix ([3.7, 1, 8], [-2.3, 5, -3.9]);
+                              [  3.7   1    8   ]
+(%o2)                         [                 ]
+                              [ - 2.3  5  - 3.9 ]
+(%i3) x : dgesv (A, b);
+        [  3.103827540695117   1.20985481742191    6.781786185657722  ]
+(%o3)   [                                                             ]
+        [ - 3.974483062032557  1.399032116146062  - 8.121425428948527 ]
+(%i4) dlange (inf_norm, b - A . x);
+(%o4)                       1.1102230246251565E-15
+@end example
+
+Los elementos de @var{A} y @var{b} deben ser reducibles a n@'umeros decimales.
+
+@c ===beg===
+@c A : matrix ([5, -%pi], [1b0, 11/17]);
+@c b : matrix ([%e], [sin(1)]);
+@c x : dgesv (A, b);
+@c dlange (inf_norm, b - A . x);
+@c ===end===
+@example
+(%i1) A : matrix ([5, -%pi], [1b0, 11/17]);
+                               [   5    - %pi ]
+                               [              ]
+(%o1)                          [         11   ]
+                               [ 1.0b0   --   ]
+                               [         17   ]
+(%i2) b : matrix ([%e], [sin(1)]);
+                                  [   %e   ]
+(%o2)                             [        ]
+                                  [ sin(1) ]
+(%i3) x : dgesv (A, b);
+                             [ 0.690375643155986 ]
+(%o3)                        [                   ]
+                             [ 0.233510982552952 ]
+(%i4) dlange (inf_norm, b - A . x);
+(%o4)                        2.220446049250313E-16
+@end example
+
+@end deffn
+
+
+
+
+@deffn {Funci@'on} dgesvd (@var{A})
+@deffnx {Funci@'on} dgesvd (@var{A}, @var{left_p}, @var{right_p})
+
+Calcula la descomposici@'on singular (SVD, en ingl@'es) de la matriz @var{A},
+que contiene los valores singulares y, opcionalmente, los vectores singulares por
+la derecha o por la izquierda. Todos los elementos de @var{A} deben ser enteros o 
+n@'umeros decimales en coma flotante. La matriz @var{A} puede ser cuadrada o no 
+(igual n@'umero de filas que de columnas).
+
+Sea @math{m} el n@'umero de filas y @math{n} el de columnas de @var{A}.
+La descomposici@'on singular de @var{A} consiste en calcular tres matrices: 
+@var{U}, @var{Sigma} y @var{V^T}, tales que
+
+@c @math{@var{A} = @var{U} . @var{Sigma} . @var{V^T}}
+@math{@var{A} = @var{U} . @var{Sigma} . @var{V}^T}
+
+donde @var{U} es una matriz unitaria @math{m}-por-@math{m},
+@var{Sigma} es una matriz diagonal @math{m}-por-@math{n} y
+@var{V^T} es una matriz unitaria @math{n}-por-@math{n}.
+
+Sea @math{sigma[i]} un elemento diagonal de @math{Sigma}, esto es,
+@math{@var{Sigma}[i, i] = @var{sigma}[i]}. Los elementos @math{sigma[i]}
+se llaman valores singulares de @var{A}, los cuales son reales y no negativos,
+siendo devueltos por la funci@'on @code{dgesvd} en orden descendente. 
+
+Las primeras @math{min(m, n)} columnas de @var{U} y @var{V} son los vectores
+singulares izquierdo y derecho de @var{A}. N@'otese que @code{dgesvd}
+devuelve la transpuesta de @var{V}, no la propia matriz @var{V}.
+
+@code{dgesvd(@var{A})} calcula @'unicamente los valores singulares de @var{A}.
+@code{dgesvd(@var{A}, @var{left_p}, @var{right_p})} calcula los valores singulares
+de @var{A} y los vectores sigulares por la izquierda cuando @math{@var{left_p} = @code{true}},
+y los vectores sigulares por la derecha cuando @math{@var{right_p} = @code{true}}.
+
+La funci@'on devuelve una lista de tres elementos.
+El primer elemento es una lista con los valores singulares.
+El segundo elemento es @code{false} o la matriz de vectores singulares por la izquierda.
+El tercer elemento es @code{false} o la matriz de vectores singulares por la derecha.
+
+Ejemplo:
+
+@c ===beg===
+@c load (lapack)$
+@c fpprintprec : 6;
+@c M: matrix([1, 2, 3], [3.5, 0.5, 8], [-1, 2, -3], [4, 9, 7]);
+@c dgesvd (M);
+@c [sigma, U, VT] : dgesvd (M, true, true);
+@c m : length (U);
+@c n : length (VT);
+@c Sigma:
+@c   genmatrix(lambda ([i, j], if i=j then sigma[i] else 0),
+@c             m, n);
+@c U . Sigma . VT - M;
+@c transpose (U) . U;
+@c VT . transpose (VT);
+@c ===end===
+@example
+(%i1) load (lapack)$
+(%i2) fpprintprec : 6;
+(%o2)                           6
+(%i3) M: matrix([1, 2, 3], [3.5, 0.5, 8], [-1, 2, -3], [4, 9, 7]);
+                        [  1    2    3  ]
+                        [               ]
+                        [ 3.5  0.5   8  ]
+(%o3)                   [               ]
+                        [ - 1   2   - 3 ]
+                        [               ]
+                        [  4    9    7  ]
+(%i4) dgesvd (M);
+(%o4)      [[14.4744, 6.38637, .452547], false, false]
+(%i5) [sigma, U, VT] : dgesvd (M, true, true);
+(%o5) [[14.4744, 6.38637, .452547], 
+[ - .256731  .00816168   .959029    - .119523 ]
+[                                             ]
+[ - .526456   .672116   - .206236   - .478091 ]
+[                                             ], 
+[  .107997   - .532278  - .0708315  - 0.83666 ]
+[                                             ]
+[ - .803287  - .514659  - .180867    .239046  ]
+[ - .374486  - .538209  - .755044 ]
+[                                 ]
+[  .130623   - .836799   0.5317   ]]
+[                                 ]
+[ - .917986   .100488    .383672  ]
+(%i6) m : length (U);
+(%o6)                           4
+(%i7) n : length (VT);
+(%o7)                           3
+(%i8) Sigma:
+        genmatrix(lambda ([i, j], if i=j then sigma[i] else 0),
+                  m, n);
+                  [ 14.4744     0        0    ]
+                  [                           ]
+                  [    0     6.38637     0    ]
+(%o8)             [                           ]
+                  [    0        0     .452547 ]
+                  [                           ]
+                  [    0        0        0    ]
+(%i9) U . Sigma . VT - M;
+          [  1.11022E-15        0.0       1.77636E-15 ]
+          [                                           ]
+          [  1.33227E-15    1.66533E-15       0.0     ]
+(%o9)     [                                           ]
+          [ - 4.44089E-16  - 8.88178E-16  4.44089E-16 ]
+          [                                           ]
+          [  8.88178E-16    1.77636E-15   8.88178E-16 ]
+(%i10) transpose (U) . U;
+       [     1.0      5.55112E-17    2.498E-16     2.77556E-17  ]
+       [                                                        ]
+       [ 5.55112E-17      1.0       5.55112E-17    4.16334E-17  ]
+(%o10) [                                                        ]
+       [  2.498E-16   5.55112E-17       1.0       - 2.08167E-16 ]
+       [                                                        ]
+       [ 2.77556E-17  4.16334E-17  - 2.08167E-16       1.0      ]
+(%i11) VT . transpose (VT);
+          [      1.0           0.0      - 5.55112E-17 ]
+          [                                           ]
+(%o11)    [      0.0           1.0       5.55112E-17  ]
+          [                                           ]
+          [ - 5.55112E-17  5.55112E-17       1.0      ]
+@end example
+
+
+@end deffn
+
+@deffn {Funci@'on} dlange (@var{norm}, @var{A})
+@deffnx {Funci@'on} zlange (@var{norm}, @var{A})
+
+Calcula una norma o seudonorma de la matriz @var{A}.
+
+@table @code
+@item max
+Calcula @math{max(abs(A(i, j)))}, siendo @math{i} y @math{j} n@'umeros de filas
+y columnas, respectivamente, de @var{A}.
+N@'otese que esta funci@'on no es una norma matricial.
+@item one_norm
+Calcula la norma @math{L[1]} de @var{A},
+esto es, el m@'aximo de la suma de los valores absolutos de los elementos de cada columna.
+@item inf_norm
+Calcula la norma @math{L[inf]} de @var{A},
+esto es, el m@'aximo de la suma de los valores absolutos de los elementos de cada fila.
+@item frobenius
+Calcula la norma de Frobenius de @var{A},
+esto es, la ra@'{@dotless{i}}z cuadrada de la suma de los cuadrados de los elementos de
+la matriz.
+@end table
+@end deffn
+
+
+@deffn {Funci@'on} dgemm (@var{A}, @var{B})
+@deffnx {Funci@'on} dgemm (@var{A}, @var{B}, @var{options})
+Calcula el producto de dos matrices y, opcionalmente, suma este producto
+con una tercera matriz.
+
+En su forma m@'as simple, @code{dgemm(@var{A}, @var{B})} calcula el
+producto de las matrices reales @var{A} y @var{B}.
+
+En la segunda forma, @code{dgemm} calcula @math{@var{alpha} *
+@var{A} * @var{B} + @var{beta} * @var{C}}, donde @var{A}, @var{B} y
+@var{C} son matrices reales de dimensiones apropiadas, siendo @var{alpha} 
+y @var{beta} n@'umeros reales. De forma opcional, tanto @var{A} como @var{B}
+pueden transponerse antes de calcular su producto. Los par@'ametros adicionales
+se pueden especificar en cualquier orden, siendo su sintaxis de la forma
+@code{clave=valor}. Las claves reconocidas son:
+
+@table @var
+@item C
+La matriz @var{C} que debe ser sumada. El valor por defecto es @code{false},
+lo que significa que no se sumar@'a ninguna matriz.
+@item alpha
+El producto de @var{A} por @var{B} se multiplicar@'a por este vaalor. El valor
+por defecto es 1.
+@item beta
+Si se da la matriz @var{C}, se multiplicar@'a por este valor antes de ser sumada.
+El valor por defecto es 0, lo que significa que @var{C} no se suma, incluso estando
+presente. Por lo tanto, t@'engase cuidado en especificar un valor no nulo para @var{beta}.
+@item transpose_a
+Si toma el valor @code{true}, se utilizar@'a la transpuesta de @var{A}, en lugar de la 
+propia matriz @var{A}, en el producto. El valor por defecto es @code{false}.
+@item transpose_b
+Si toma el valor @code{true}, se utilizar@'a la transpuesta de @var{B}, en lugar de la 
+propia matriz @var{B}, en el producto. El valor por defecto es @code{false}.
+@end table
+
+@c ===beg===
+@c load (lapack)$
+@c A : matrix([1,2,3],[4,5,6],[7,8,9]);
+@c B : matrix([-1,-2,-3],[-4,-5,-6],[-7,-8,-9]);
+@c C : matrix([3,2,1],[6,5,4],[9,8,7]);
+@c dgemm(A,B);
+@c A . B;
+@c dgemm(A,B,transpose_a=true);
+@c transpose(A) . B;
+@c dgemm(A,B,c=C,beta=1);
+@c A . B + C;
+@c dgemm(A,B,c=C,beta=1, alpha=-1);
+@c -A . B + C
+@example
+(%i1) load (lapack)$
+(%i2) A : matrix([1,2,3],[4,5,6],[7,8,9]);
+                                  [ 1  2  3 ]
+                                  [         ]
+(%o2)                             [ 4  5  6 ]
+                                  [         ]
+                                  [ 7  8  9 ]
+(%i3) B : matrix([-1,-2,-3],[-4,-5,-6],[-7,-8,-9]);
+                               [ - 1  - 2  - 3 ]
+                               [               ]
+(%o3)                          [ - 4  - 5  - 6 ]
+                               [               ]
+                               [ - 7  - 8  - 9 ]
+(%i4) C : matrix([3,2,1],[6,5,4],[9,8,7]);
+                                  [ 3  2  1 ]
+                                  [         ]
+(%o4)                             [ 6  5  4 ]
+                                  [         ]
+                                  [ 9  8  7 ]
+(%i5) dgemm(A,B);
+                         [ - 30.0   - 36.0   - 42.0  ]
+                         [                           ]
+(%o5)                    [ - 66.0   - 81.0   - 96.0  ]
+                         [                           ]
+                         [ - 102.0  - 126.0  - 150.0 ]
+(%i6) A . B;
+                            [ - 30   - 36   - 42  ]
+                            [                     ]
+(%o6)                       [ - 66   - 81   - 96  ]
+                            [                     ]
+                            [ - 102  - 126  - 150 ]
+(%i7) dgemm(A,B,transpose_a=true);
+                         [ - 66.0  - 78.0   - 90.0  ]
+                         [                          ]
+(%o7)                    [ - 78.0  - 93.0   - 108.0 ]
+                         [                          ]
+                         [ - 90.0  - 108.0  - 126.0 ]
+(%i8) transpose(A) . B;
+                           [ - 66  - 78   - 90  ]
+                           [                    ]
+(%o8)                      [ - 78  - 93   - 108 ]
+                           [                    ]
+                           [ - 90  - 108  - 126 ]
+(%i9) dgemm(A,B,c=C,beta=1);
+                         [ - 27.0  - 34.0   - 41.0  ]
+                         [                          ]
+(%o9)                    [ - 60.0  - 76.0   - 92.0  ]
+                         [                          ]
+                         [ - 93.0  - 118.0  - 143.0 ]
+(%i10) A . B + C;
+                            [ - 27  - 34   - 41  ]
+                            [                    ]
+(%o10)                      [ - 60  - 76   - 92  ]
+                            [                    ]
+                            [ - 93  - 118  - 143 ]
+(%i11) dgemm(A,B,c=C,beta=1, alpha=-1);
+                            [ 33.0   38.0   43.0  ]
+                            [                     ]
+(%o11)                      [ 72.0   86.0   100.0 ]
+                            [                     ]
+                            [ 111.0  134.0  157.0 ]
+(%i12) -A . B + C;
+                               [ 33   38   43  ]
+                               [               ]
+(%o12)                         [ 72   86   100 ]
+                               [               ]
+                               [ 111  134  157 ]
+
+@end example
+@end deffn
+

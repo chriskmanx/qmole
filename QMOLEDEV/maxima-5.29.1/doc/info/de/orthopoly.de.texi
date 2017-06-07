@@ -1,0 +1,872 @@
+@c -----------------------------------------------------------------------------
+@c File     : orthopoly.de.texi
+@c License  : GNU General Public License (GPL)
+@c Language : German
+@c Date     : 08.11.2010
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Introduction to orthogonal polynomials::
+* Functions and Variables for orthogonal polynomials::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Introduction to orthogonal polynomials, Functions and Variables for orthogonal polynomials, orthopoly, orthopoly
+@section Introduction to orthogonal polynomials
+@c -----------------------------------------------------------------------------
+
+@code{orthopoly} is a package for symbolic and numerical evaluation of several
+kinds of orthogonal polynomials, including Chebyshev, Laguerre, Hermite, Jacobi,
+Legendre, and ultraspherical (Gegenbauer) polynomials.  Additionally,
+@code{orthopoly} includes support for the spherical Bessel, spherical Hankel,
+and spherical harmonic functions.
+
+For the most part, @code{orthopoly} follows the conventions of Abramowitz and
+Stegun @i{Handbook of Mathematical Functions}, Chapter 22 (10th printing,
+December 1972); additionally, we use Gradshteyn and Ryzhik, 
+@i{Table of Integrals, Series, and Products} (1980 corrected and enlarged
+edition), and Eugen Merzbacher @i{Quantum Mechanics} (2nd edition, 1970).
+
+@c INSTALLATION INSTRUCTIONS NO LONGER RELEVANT
+@c BUT MAYBE SOME OF THESE FILES SHOULD BE MENTIONED IN ANOTHER CONTEXT
+@c This will create a directory @code{orthopoly_x} (again x is the release 
+@c identifier) that contains the source file @code{orthopoly.lisp}, user 
+@c documentation in html and texi formats, a sample maxima initialization file 
+@c @code{orthopoly-init.lisp}, a README file, a testing routine 
+@c @code{test_orthopoly.mac}, and two demonstration files.
+
+@c Start Maxima and compile orthopoly. To do this, use the command
+@c 
+@c (c1) compile_file("orthopoly.lisp");
+
+Barton Willis of the University of Nebraska at Kearney (UNK) wrote the
+@code{orthopoly} package and its documentation.  The package is released under
+the GNU General Public License (GPL).
+
+@c -----------------------------------------------------------------------------
+@subsection Getting Started with orthopoly
+@c -----------------------------------------------------------------------------
+
+@code{load (orthopoly)} loads the @code{orthopoly} package.
+
+To find the third-order Legendre polynomial,
+
+@example
+(%i1) legendre_p (3, x);
+                      3             2
+             5 (1 - x)    15 (1 - x)
+(%o1)      - ---------- + ----------- - 6 (1 - x) + 1
+                 2             2
+@end example
+
+To express this as a sum of powers of @var{x}, apply @mref{ratsimp} or
+@mref{rat} to the result.
+
+@example
+(%i2) [ratsimp (%), rat (%)];
+                        3           3
+                     5 x  - 3 x  5 x  - 3 x
+(%o2)/R/            [----------, ----------]
+                         2           2
+@end example
+
+Alternatively, make the second argument to @code{legendre_p} (its ``main'' 
+variable) a canonical rational expression (CRE).
+
+@example
+(%i1) legendre_p (3, rat (x));
+                              3
+                           5 x  - 3 x
+(%o1)/R/                   ----------
+                               2
+@end example
+
+For floating point evaluation, @code{orthopoly} uses a running error analysis
+to estimate an upper bound for the error.  For example,
+
+@example
+(%i1) jacobi_p (150, 2, 3, 0.2);
+(%o1) interval(- 0.062017037936715, 1.533267919277521E-11)
+@end example
+
+Intervals have the form @code{interval (@var{c}, @var{r})}, where @var{c} is the
+center and @var{r} is the radius of the interval.  Since Maxima does not support
+arithmetic on intervals, in some situations, such as graphics, you want to
+suppress the error and output only the center of the interval.  To do this, set
+the option variable @mref{orthopoly_returns_intervals} to @code{false}.
+
+@example
+(%i1) orthopoly_returns_intervals : false;
+(%o1)                         false
+(%i2) jacobi_p (150, 2, 3, 0.2);
+(%o2)                  - 0.062017037936715
+@end example
+
+Refer to the section @ref{Floating point Evaluation} for more information.
+
+Most functions in @code{orthopoly} have a @mref{gradef} property; thus
+
+@example
+(%i1) diff (hermite (n, x), x);
+(%o1)                     2 n H     (x)
+                               n - 1
+(%i2) diff (gen_laguerre (n, a, x), x);
+              (a)               (a)
+           n L   (x) - (n + a) L     (x) unit_step(n)
+              n                 n - 1
+(%o2)      ------------------------------------------
+                               x
+@end example
+
+The unit step function in the second example prevents an error that would
+otherwise arise by evaluating with @var{n} equal to 0.
+
+@example
+(%i3) ev (%, n = 0);
+(%o3)                           0
+@end example
+
+The @code{gradef} property only applies to the ``main'' variable; derivatives
+with respect other arguments usually result in an error message; for example
+
+@example
+(%i1) diff (hermite (n, x), x);
+(%o1)                     2 n H     (x)
+                               n - 1
+(%i2) diff (hermite (n, x), n);
+
+Maxima doesn't know the derivative of hermite with respect the first
+argument
+ -- an error.  Quitting.  To debug this try debugmode(true);
+@end example
+
+Generally, functions in @code{orthopoly} map over lists and matrices.  For
+the mapping to fully evaluate, the option variables @mref{doallmxops} and
+@mref{listarith} must both be @code{true} (the defaults).
+To illustrate the mapping over matrices, consider
+
+@example
+(%i1) hermite (2, x);
+                                     2
+(%o1)                    - 2 (1 - 2 x )
+(%i2) m : matrix ([0, x], [y, 0]);
+                            [ 0  x ]
+(%o2)                       [      ]
+                            [ y  0 ]
+(%i3) hermite (2, m);
+               [                             2  ]
+               [      - 2        - 2 (1 - 2 x ) ]
+(%o3)          [                                ]
+               [             2                  ]
+               [ - 2 (1 - 2 y )       - 2       ]
+@end example
+
+In the second example, the @code{i, j} element of the value
+is @code{hermite (2, m[i,j])}; this is not the same as computing
+@code{-2 + 4 m . m}, as seen in the next example.
+
+@example
+(%i4) -2 * matrix ([1, 0], [0, 1]) + 4 * m . m;
+                    [ 4 x y - 2      0     ]
+(%o4)               [                      ]
+                    [     0      4 x y - 2 ]
+@end example
+
+If you evaluate a function at a point outside its domain, generally
+@code{orthopoly} returns the function unevaluated.  For example,
+
+@example
+(%i1) legendre_p (2/3, x);
+(%o1)                        P   (x)
+                              2/3
+@end example
+
+@code{orthopoly} supports translation into TeX; it also does two-dimensional
+output on a terminal.
+
+@example
+(%i1) spherical_harmonic (l, m, theta, phi);
+                          m
+(%o1)                    Y (theta, phi)
+                          l
+(%i2) tex (%);
+$$Y_@{l@}^@{m@}\left(\vartheta,\varphi\right)$$
+(%o2)                         false
+(%i3) jacobi_p (n, a, a - b, x/2);
+                          (a, a - b) x
+(%o3)                    P          (-)
+                          n          2
+(%i4) tex (%);
+$$P_@{n@}^@{\left(a,a-b\right)@}\left(@{@{x@}\over@{2@}@}\right)$$
+(%o4)                         false
+@end example
+
+@c -----------------------------------------------------------------------------
+@subsection Limitations
+@c -----------------------------------------------------------------------------
+
+When an expression involves several orthogonal polynomials with symbolic orders,
+it's possible that the expression actually vanishes, yet Maxima is unable to
+simplify it to zero.  If you divide by such a quantity, you'll be in trouble.
+For example, the following expression vanishes for integers @var{n} greater than
+1, yet Maxima is unable to simplify it to zero.
+
+@example
+(%i1) (2*n - 1) * legendre_p (n - 1, x) * x - n * legendre_p (n, x)
+      + (1 - n) * legendre_p (n - 2, x);
+(%o1)  (2 n - 1) P     (x) x - n P (x) + (1 - n) P     (x)
+                  n - 1           n               n - 2
+@end example
+
+For a specific @var{n}, we can reduce the expression to zero.
+
+@example
+(%i2) ev (% ,n = 10, ratsimp);
+(%o2)                           0
+@end example
+
+Generally, the polynomial form of an orthogonal polynomial is ill-suited
+for floating point evaluation.  Here's an example.
+
+@example 
+(%i1) p : jacobi_p (100, 2, 3, x)$
+
+(%i2) subst (0.2, x, p);
+(%o2)                3.4442767023833592E+35
+(%i3) jacobi_p (100, 2, 3, 0.2);
+(%o3)  interval(0.18413609135169, 6.8990300925815987E-12)
+(%i4) float(jacobi_p (100, 2, 3, 2/10));
+(%o4)                   0.18413609135169
+@end example
+
+The true value is about 0.184; this calculation suffers from extreme subtractive
+cancellation error.  Expanding the polynomial and then evaluating, gives a
+better result.
+
+@example
+(%i5) p : expand(p)$
+(%i6) subst (0.2, x, p);
+(%o6) 0.18413609766122982
+@end example
+
+This isn't a general rule; expanding the polynomial does not always
+result in an expression that is better suited for numerical evaluation.
+By far, the best way to do numerical evaluation is to make one or more
+of the function arguments floating point numbers.  By doing that, 
+specialized floating point algorithms are used for evaluation.
+
+Maxima's @mref{float} function is somewhat indiscriminate; if you apply
+@code{float} to an expression involving an orthogonal polynomial with a
+symbolic degree or order parameter, these parameters may be 
+converted into floats; after that, the expression will not evaluate 
+fully.  Consider
+
+@example
+(%i1) assoc_legendre_p (n, 1, x);
+                               1
+(%o1)                         P (x)
+                               n
+(%i2) float (%);
+                              1.0
+(%o2)                        P   (x)
+                              n
+(%i3) ev (%, n=2, x=0.9);
+                             1.0
+(%o3)                       P   (0.9)
+                             2
+@end example
+
+The expression in (%o3) will not evaluate to a float; @code{orthopoly} doesn't
+recognize floating point values where it requires an integer.  Similarly, 
+numerical evaluation of the @mref{pochhammer} function for orders that
+exceed @mref{pochhammer_max_index} can be troublesome; consider
+
+@example
+(%i1) x :  pochhammer (1, 10), pochhammer_max_index : 5;
+(%o1)                         (1)
+                                 10
+@end example
+
+Applying @code{float} doesn't evaluate @var{x} to a float
+
+@example
+(%i2) float (x);
+(%o2)                       (1.0)
+                                 10.0
+@end example
+
+To evaluate @var{x} to a float, you'll need to bind @code{pochhammer_max_index}
+to 11 or greater and apply @code{float} to @var{x}.
+
+@example
+(%i3) float (x), pochhammer_max_index : 11;
+(%o3)                       3628800.0
+@end example
+
+The default value of @code{pochhammer_max_index} is 100;
+change its value after loading @code{orthopoly}.
+
+Finally, be aware that reference books vary on the definitions of the 
+orthogonal polynomials; we've generally used the conventions 
+of conventions of Abramowitz and Stegun.
+
+Before you suspect a bug in orthopoly, check some special cases 
+to determine if your definitions match those used by @code{orthopoly}.
+Definitions often differ by a normalization; occasionally, authors
+use ``shifted'' versions of the functions that makes the family
+orthogonal on an interval other than @math{(-1, 1)}.  To define, for example,
+a Legendre polynomial that is orthogonal on @math{(0, 1)}, define
+
+@example
+(%i1) shifted_legendre_p (n, x) := legendre_p (n, 2*x - 1)$
+
+(%i2) shifted_legendre_p (2, rat (x));
+                            2
+(%o2)/R/                 6 x  - 6 x + 1
+(%i3) legendre_p (2, rat (x));
+                               2
+                            3 x  - 1
+(%o3)/R/                    --------
+                               2
+@end example
+
+@c -----------------------------------------------------------------------------
+@anchor{Floating point Evaluation}
+@subsection Floating point Evaluation
+@c -----------------------------------------------------------------------------
+
+Most functions in @code{orthopoly} use a running error analysis to 
+estimate the error in floating point evaluation; the 
+exceptions are the spherical Bessel functions and the associated Legendre 
+polynomials of the second kind.  For numerical evaluation, the spherical 
+Bessel functions call SLATEC functions.  No specialized method is used
+for numerical evaluation of the associated Legendre polynomials of the
+second kind.
+
+The running error analysis ignores errors that are second or higher order
+in the machine epsilon (also known as unit roundoff).  It also
+ignores a few other errors.  It's possible (although unlikely) 
+that the actual error exceeds the estimate.
+
+Intervals have the form @code{interval (@var{c}, @var{r})}, where @var{c} is
+the center of the interval and @var{r} is its radius.  The center of an interval
+can be a complex number, and the radius is always a positive real number.
+
+Here is an example.
+
+@example
+(%i1) fpprec : 50$
+
+(%i2) y0 : jacobi_p (100, 2, 3, 0.2);
+(%o2) interval(0.1841360913516871, 6.8990300925815987E-12)
+(%i3) y1 : bfloat (jacobi_p (100, 2, 3, 1/5));
+(%o3) 1.8413609135168563091370224958913493690868904463668b-1
+@end example
+
+Let's test that the actual error is smaller than the error estimate
+
+@example
+(%i4) is (abs (part (y0, 1) - y1) < part (y0, 2));
+(%o4)                         true
+@end example
+
+Indeed, for this example the error estimate is an upper bound for the
+true error.
+
+Maxima does not support arithmetic on intervals.
+
+@example
+(%i1) legendre_p (7, 0.1) + legendre_p (8, 0.1);
+(%o1) interval(0.18032072148437508, 3.1477135311021797E-15)
+        + interval(- 0.19949294375000004, 3.3769353084291579E-15)
+@end example
+
+A user could define arithmetic operators that do interval math.  To define
+interval addition, we can define
+
+@example
+(%i1) infix ("@@+")$
+
+(%i2) "@@+"(x,y) := interval (part (x, 1) + part (y, 1), part (x, 2)
+      + part (y, 2))$
+
+(%i3) legendre_p (7, 0.1) @@+ legendre_p (8, 0.1);
+(%o3) interval(- 0.019172222265624955, 6.5246488395313372E-15)
+@end example
+
+The special floating point routines get called when the arguments
+are complex.  For example,
+
+@example
+(%i1) legendre_p (10, 2 + 3.0*%i);
+(%o1) interval(- 3.876378825E+7 %i - 6.0787748E+7, 
+                                           1.2089173052721777E-6)
+@end example
+
+Let's compare this to the true value.
+
+@example
+(%i1) float (expand (legendre_p (10, 2 + 3*%i)));
+(%o1)          - 3.876378825E+7 %i - 6.0787748E+7
+@end example
+
+Additionally, when the arguments are big floats, the special floating point
+routines get called; however, the big floats are converted into double floats
+and the final result is a double.
+
+@example
+(%i1) ultraspherical (150, 0.5b0, 0.9b0);
+(%o1) interval(- 0.043009481257265, 3.3750051301228864E-14)
+@end example
+
+@c -----------------------------------------------------------------------------
+@subsection Graphics and @code{orthopoly}
+@c -----------------------------------------------------------------------------
+
+To plot expressions that involve the orthogonal polynomials, you 
+must do two things:
+@enumerate
+@item 
+Set the option variable @mref{orthopoly_returns_intervals} to @code{false},
+@item
+Quote any calls to @code{orthopoly} functions.
+@end enumerate
+
+If function calls aren't quoted, Maxima evaluates them to polynomials before 
+plotting; consequently, the specialized floating point code doesn't get called.
+Here is an example of how to plot an expression that involves
+a Legendre polynomial.
+
+@example
+(%i1) plot2d ('(legendre_p (5, x)), [x, 0, 1]),
+                        orthopoly_returns_intervals : false;
+(%o1)
+@end example
+
+@ifnotinfo
+@image{../figures/orthopoly1,8cm}
+@end ifnotinfo
+
+The @i{entire} expression @code{legendre_p (5, x)} is quoted; this is different
+than just quoting the function name using @code{'legendre_p (5, @var{x})}.
+
+@c -----------------------------------------------------------------------------
+@subsection Miscellaneous Functions
+@c -----------------------------------------------------------------------------
+
+The @code{orthopoly} package defines the Pochhammer symbol and a unit step
+function.  @code{orthopoly} uses the Kronecker delta function and the unit step
+function in @mref{gradef} statements.
+
+To convert Pochhammer symbols into quotients of gamma functions,
+use @mrefdot{makegamma}
+
+@example
+(%i1) makegamma (pochhammer (x, n));
+                          gamma(x + n)
+(%o1)                     ------------
+                            gamma(x)
+(%i2) makegamma (pochhammer (1/2, 1/2));
+                                1
+(%o2)                       ---------
+                            sqrt(%pi)
+@end example
+
+Derivatives of the Pochhammer symbol are given in terms of the @mref{psi}@w{}
+function.
+
+@example
+(%i1) diff (pochhammer (x, n), x);
+(%o1)             (x)  (psi (x + n) - psi (x))
+                     n     0             0
+(%i2) diff (pochhammer (x, n), n);
+(%o2)                   (x)  psi (x + n)
+                           n    0
+@end example
+
+You need to be careful with the expression in (%o1); the difference of the
+@code{psi} functions has polynomials when @code{@var{x} = -1, -2, .., -@var{n}}.
+These polynomials cancel with factors in @code{pochhammer (@var{x}, @var{n})}
+making the derivative a degree @code{@var{n} - 1} polynomial when @var{n} is a
+positive integer.
+
+The Pochhammer symbol is defined for negative orders through its representation
+as a quotient of gamma functions.  Consider
+
+@example
+(%i1) q : makegamma (pochhammer (x, n));
+                          gamma(x + n)
+(%o1)                     ------------
+                            gamma(x)
+(%i2) sublis ([x=11/3, n= -6], q);
+                               729
+(%o2)                        - ----
+                               2240
+@end example
+
+Alternatively, we can get this result directly.
+
+@example
+(%i1) pochhammer (11/3, -6);
+                               729
+(%o1)                        - ----
+                               2240
+@end example
+
+The unit step function is left-continuous; thus
+
+@example
+(%i1) [unit_step (-1/10), unit_step (0), unit_step (1/10)];
+(%o1)                       [0, 0, 1]
+@end example
+
+If you need a unit step function that is neither left or right continuous
+at zero, define your own using @mrefcomma{signum} for example,
+
+@example
+(%i1) xunit_step (x) := (1 + signum (x))/2$
+
+(%i2) [xunit_step (-1/10), xunit_step (0), xunit_step (1/10)];
+                                1
+(%o2)                       [0, -, 1]
+                                2
+@end example
+
+Do not redefine @mref{unit_step} itself; some code in @code{orthopoly}
+requires that the unit step function be left-continuous.
+
+@c -----------------------------------------------------------------------------
+@subsection Algorithms
+@c -----------------------------------------------------------------------------
+
+Generally, @code{orthopoly} does symbolic evaluation by using a hypergeometic
+representation of the orthogonal polynomials.  The hypergeometic functions are
+evaluated using the (undocumented) functions @code{hypergeo11} and
+@code{hypergeo21}.  The exceptions are the half-integer Bessel functions and the
+associated Legendre function of the second kind.  The half-integer Bessel
+functions are evaluated using an explicit representation, and the associated
+Legendre function of the second kind is evaluated using recursion.
+
+For floating point evaluation, we again convert most functions into
+a hypergeometic form; we evaluate the hypergeometic functions using 
+forward recursion.  Again, the exceptions are the half-integer Bessel functions 
+and the associated Legendre function of the second kind.  Numerically, 
+the half-integer Bessel functions are evaluated using the SLATEC code.
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for orthogonal polynomials,  , Introduction to orthogonal polynomials, orthopoly
+@section Functions and Variables for orthogonal polynomials
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@anchor{assoc_legendre_p}
+@deffn {Function} assoc_legendre_p (@var{n}, @var{m}, @var{x})
+
+The associated Legendre function of the first kind of degree @var{n} and
+order @var{m}.
+
+Reference: Abramowitz and Stegun, equations 22.5.37, page 779, 8.6.6
+(second equation), page 334, and 8.2.5, page 333.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{assoc_legendre_q}
+@deffn {Function} assoc_legendre_q (@var{n}, @var{m}, @var{x})
+
+The associated Legendre function of the second kind of degree @var{n}
+and order @var{m}.
+
+Reference: Abramowitz and Stegun, equation 8.5.3 and 8.1.8.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{chebyshev_t}
+@deffn {Function} chebyshev_t (@var{n}, @var{x})
+
+The Chebyshev function of the first kind.
+
+Reference: Abramowitz and Stegun, equation 22.5.47, page 779.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{chebyshev_u}
+@deffn {Function} chebyshev_u (@var{n}, @var{x})
+
+The Chebyshev function of the second kind.
+
+Reference: Abramowitz and Stegun, equation 22.5.48, page 779.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{gen_laguerre}
+@deffn {Function} gen_laguerre (@var{n}, @var{a}, @var{x})
+
+The generalized Laguerre polynomial of degree @var{n}.
+
+Reference: Abramowitz and Stegun, equation 22.5.54, page 780.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{hermite}
+@deffn {Function} hermite (@var{n}, @var{x})
+
+The Hermite polynomial.
+
+Reference: Abramowitz and Stegun, equation 22.5.55, page 780.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{intervalp}
+@deffn {Function} intervalp (@var{e})
+
+Return @code{true} if the input is an interval and return false if it isn't.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{jacobi_p}
+@deffn {Function} jacobi_p (@var{n}, @var{a}, @var{b}, @var{x})
+
+The Jacobi polynomial.
+
+The Jacobi polynomials are actually defined for all @var{a} and @var{b};
+however, the Jacobi polynomial weight
+@code{(1 - @var{x})^@var{a} (1 + @var{x})^@var{b}} isn't integrable for
+@code{@var{a} <= -1} or @code{@var{b} <= -1}.
+
+Reference: Abramowitz and Stegun, equation 22.5.42, page 779.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{laguerre}
+@deffn {Function} laguerre (@var{n}, @var{x})
+
+The Laguerre polynomial.
+
+Reference: Abramowitz and Stegun, equations 22.5.16 and 22.5.54, page 780.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{legendre_p}
+@deffn {Function} legendre_p (@var{n}, @var{x})
+
+The Legendre polynomial of the first kind.
+
+Reference: Abramowitz and Stegun, equations 22.5.50 and 22.5.51, page 779.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{legendre_q}
+@deffn {Function} legendre_q (@var{n}, @var{x})
+
+The Legendre polynomial of the first kind.
+
+Reference: Abramowitz and Stegun, equations 8.5.3 and 8.1.8.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{orthopoly_recur}
+@deffn {Function} orthopoly_recur (@var{f}, @var{args})
+
+Returns a recursion relation for the orthogonal function family @var{f} with
+arguments @var{args}.  The recursion is with respect to the polynomial degree.
+
+@example
+(%i1) orthopoly_recur (legendre_p, [n, x]);
+@group
+                (2 n - 1) P     (x) x + (1 - n) P     (x)
+                           n - 1                 n - 2
+(%o1)   P (x) = -----------------------------------------
+         n                          n
+@end group
+@end example
+
+The second argument to @code{orthopoly_recur} must be a list with the 
+correct number of arguments for the function @var{f}; if it isn't, 
+Maxima signals an error.
+
+@example
+(%i1) orthopoly_recur (jacobi_p, [n, x]);
+
+Function jacobi_p needs 4 arguments, instead it received 2
+ -- an error.  Quitting.  To debug this try debugmode(true);
+@end example
+
+Additionally, when @var{f} isn't the name of one of the 
+families of orthogonal polynomials, an error is signalled.
+
+@example
+(%i1) orthopoly_recur (foo, [n, x]);
+
+A recursion relation for foo isn't known to Maxima
+ -- an error.  Quitting.  To debug this try debugmode(true);
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{orthopoly_returns_intervals}
+@defvr {Variable} orthopoly_returns_intervals
+Default value: @code{true}
+
+When @code{orthopoly_returns_intervals} is @code{true}, floating point results
+are returned in the form @code{interval (@var{c}, @var{r})}, where @var{c} is
+the center of an interval and @var{r} is its radius.  The center can be a
+complex number; in that case, the interval is a disk in the complex plane.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@anchor{orthopoly_weight}
+@deffn {Function} orthopoly_weight (@var{f}, @var{args})
+
+Returns a three element list; the first element is 
+the formula of the weight for the orthogonal polynomial family
+@var{f} with arguments given by the list @var{args}; the 
+second and third elements give the lower and upper endpoints
+of the interval of orthogonality.  For example,
+
+@example
+(%i1) w : orthopoly_weight (hermite, [n, x]);
+                            2
+                         - x
+(%o1)                 [%e    , - inf, inf]
+(%i2) integrate(w[1]*hermite(3, x)*hermite(2, x), x, w[2], w[3]);
+(%o2)                           0
+@end example
+
+The main variable of @var{f} must be a symbol; if it isn't, Maxima
+signals an error.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{pochhammer}
+@deffn {Function} pochhammer (@var{n}, @var{x})
+
+The Pochhammer symbol. For nonnegative integers @var{n} with
+@code{@var{n} <= pochhammer_max_index}, the expression
+@code{pochhammer (@var{x}, @var{n})} evaluates to the product
+@code{@var{x} (@var{x} + 1) (@var{x} + 2) ... (@var{x} + n - 1)} when
+@code{@var{n} > 0} and to 1 when @code{@var{n} = 0}.  For negative @var{n},
+@code{pochhammer (@var{x}, @var{n})} is defined as
+@code{(-1)^@var{n} / pochhammer (1 - @var{x}, -@var{n})}.  Thus
+
+@example
+(%i1) pochhammer (x, 3);
+(%o1)                   x (x + 1) (x + 2)
+(%i2) pochhammer (x, -3);
+                                 1
+(%o2)               - -----------------------
+                      (1 - x) (2 - x) (3 - x)
+@end example
+
+To convert a Pochhammer symbol into a quotient of gamma functions,
+(see Abramowitz and Stegun, equation 6.1.22) use @mrefcomma{makegamma} for
+example 
+
+@example
+(%i1) makegamma (pochhammer (x, n));
+                          gamma(x + n)
+(%o1)                     ------------
+                            gamma(x)
+@end example
+
+When @var{n} exceeds @mref{pochhammer_max_index} or when @var{n} is symbolic,
+@code{pochhammer} returns a noun form.
+
+@example
+(%i1) pochhammer (x, n);
+(%o1)                         (x)
+                                 n
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{pochhammer_max_index}
+@defvr {Variable} pochhammer_max_index
+Default value: 100
+
+@code{pochhammer (@var{n}, @var{x})} expands to a product if and only if
+@code{@var{n} <= pochhammer_max_index}.
+
+Examples:
+
+@example
+(%i1) pochhammer (x, 3), pochhammer_max_index : 3;
+(%o1)                   x (x + 1) (x + 2)
+(%i2) pochhammer (x, 4), pochhammer_max_index : 3;
+(%o2)                         (x)
+                                 4
+@end example
+
+Reference: Abramowitz and Stegun, equation 6.1.16, page 256.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@anchor{spherical_bessel_j}
+@deffn {Function} spherical_bessel_j (@var{n}, @var{x})
+
+The spherical Bessel function of the first kind.
+
+Reference: Abramowitz and Stegun, equations 10.1.8, page 437 and 10.1.15,
+page 439.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{spherical_bessel_y}
+@deffn {Function} spherical_bessel_y (@var{n}, @var{x})
+
+The spherical Bessel function of the second kind.
+
+Reference: Abramowitz and Stegun, equations 10.1.9, page 437 and 10.1.15,
+page 439.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{spherical_hankel1}
+@deffn {Function} spherical_hankel1 (@var{n}, @var{x})
+
+The spherical Hankel function of the first kind.
+
+Reference: Abramowitz and Stegun, equation 10.1.36, page 439.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{spherical_hankel2}
+@deffn {Function} spherical_hankel2 (@var{n}, @var{x})
+
+The spherical Hankel function of the second kind.
+
+Reference: Abramowitz and Stegun, equation 10.1.17, page 439.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{spherical_harmonic}
+@deffn {Function} spherical_harmonic (@var{n}, @var{m}, @var{x}, @var{y})
+
+The spherical harmonic function.
+
+Reference: Merzbacher 9.64.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{unit_step}
+@deffn {Function} unit_step (@var{x})
+
+The left-continuous unit step function; thus @code{unit_step (@var{x})} vanishes
+for @code{@var{x} <= 0} and equals 1 for @code{@var{x} > 0}.
+
+If you want a unit step function that takes on the value 1/2 at zero, use
+@code{(1 + signum (@var{x}))/2}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{ultraspherical}
+@deffn {Function} ultraspherical (@var{n}, @var{a}, @var{x})
+
+The ultraspherical polynomial (also known as the Gegenbauer polynomial).
+
+Reference: Abramowitz and Stegun, equation 22.5.46, page 779.
+@end deffn
+
+@c --- End of file orthopoly.de.texi -------------------------------------------
+

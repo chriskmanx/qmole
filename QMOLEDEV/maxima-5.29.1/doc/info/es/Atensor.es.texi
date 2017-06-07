@@ -1,0 +1,195 @@
+@c English version 2011-03-14
+@menu
+* Introducci@'on a atensor::
+* Funciones y variables para atensor::
+@end menu
+
+@node Introducci@'on a atensor, Funciones y variables para atensor, atensor, atensor
+@section Introducci@'on a atensor
+
+El paquete @code{atensor} contiene funciones para la manipulaci@'on algebraica de tensores. Para hacer uso de @code{atensor} es necesario cargarlo en memoria haciendo @code{load(atensor)}, seguido de una llamada a la funci@'on  @code{init_atensor}.
+
+La parte m@'as importante de @code{atensor} es una bater@'{@dotless{i}}a de reglas de simplificaci@'on para el producto no conmutativo ("@code{.}"). El paquete @code{atensor} reconoce algunos tipos de @'algebras; las correspondientes reglas de simplificaci@'on se activan tan pronto como se hace una llamada a la funci@'on @code{init_atensor}.
+
+Las capacidades de @code{atensor} se pueden demostrar definiendo el @'algebra de cuaterniones como un @'algebra de Clifford Cl(0,2) con una base de dos vectores. Las tres unidades imaginarias son los dos vectores de la base junto con su producto:
+
+@example
+    i = v     j = v     k = v  . v
+         1         2         1    2
+@end example
+
+Aunque el paquete @code{atensor} incluye su propia definici@'on para el @'algebra de cuaterniones, no se utiliza en el siguiente ejemplo, en el cual se construye la tabla de multiplicaci@'on como una matriz:
+
+@example
+
+(%i1) load(atensor);
+(%o1)       /share/tensor/atensor.mac
+(%i2) init_atensor(clifford,0,0,2);
+(%o2)                                done
+(%i3) atensimp(v[1].v[1]);
+(%o3)                                 - 1
+(%i4) atensimp((v[1].v[2]).(v[1].v[2]));
+(%o4)                                 - 1
+(%i5) q:zeromatrix(4,4);
+                                [ 0  0  0  0 ]
+                                [            ]
+                                [ 0  0  0  0 ]
+(%o5)                           [            ]
+                                [ 0  0  0  0 ]
+                                [            ]
+                                [ 0  0  0  0 ]
+(%i6) q[1,1]:1;
+(%o6)                                  1
+(%i7) for i thru adim do q[1,i+1]:q[i+1,1]:v[i];
+(%o7)                                done
+(%i8) q[1,4]:q[4,1]:v[1].v[2];
+(%o8)                               v  . v
+                                     1    2
+(%i9) for i from 2 thru 4 do for j from 2 thru 4 do
+      q[i,j]:atensimp(q[i,1].q[1,j]);
+(%o9)                                done
+(%i10) q;
+@group
+                   [    1        v         v      v  . v  ]
+                   [              1         2      1    2 ]
+                   [                                      ]
+                   [   v         - 1     v  . v    - v    ]
+                   [    1                 1    2      2   ]
+(%o10)             [                                      ]
+                   [   v      - v  . v     - 1      v     ]
+                   [    2        1    2              1    ]
+                   [                                      ]
+                   [ v  . v      v        - v       - 1   ]
+                   [  1    2      2          1            ]
+@end group
+@end example
+
+El paquete @code{atensor} reconoce como vectores de la base s@'{@dotless{i}}mbolos indexados, donde el s@'{@dotless{i}}mbolo es el almacenado en  @code{asymbol} y el @'{@dotless{i}}ndice va desde 1 hasta @code{adim}. Para s@'{@dotless{i}}mbolos indexados, y s@'olo para ellos, se eval@'uan las formas bilineales @code{sf}, @code{af} y @code{av}. La evaluaci@'on sustituye el valor de @code{aform[i,j]} en lugar de @code{fun(v[i],v[j])}, donde @code{v} representa el valor de @code{asymbol} y @code{fun} es  @code{af} o @code{sf}; o sustituye @code{v[aform[i,j]]} en lugar de @code{av(v[i],v[j])}.
+
+Huelga decir que las funciones @code{sf}, @code{af} y @code{av} pueden volver a definirse.
+
+Cuando se carga el paquete @code{atensor} se hacen las siguientes asignaciones de variables:
+
+@example
+dotscrules:true;
+dotdistrib:true;
+dotexptsimp:false;
+@end example
+
+Si se quiere experimentar con una @'algebra no asociativa, tambi@'en se puede igualar la variable  @code{dotassoc} a @code{false}. En tal caso, sin embargo, @code{atensimp} no ser@'a siempre capaz de realizar las simplificaciones deseadas.
+
+
+@c end concepts atensor
+@node Funciones y variables para atensor,  , Introducci@'on a atensor, atensor
+
+@section Funciones y variables para atensor
+
+@deffn {Funci@'on} init_atensor (@var{alg_type}, @var{opt_dims})
+@deffnx {Funci@'on} init_atensor (@var{alg_type})
+
+Inicializa el paquete @code{atensor} con el tipo de @'algebra especificado, @var{alg_type}, que puede ser una de las siguientes:
+
+@code{universal}: El @'algebra universal no tiene reglas de conmutaci@'on.
+
+@code{grassmann}: El @'algebra de Grassman se define mediante la relaci@'on de conmutaci@'on @code{u.v+v.u=0}.
+
+@code{clifford}: El @'algebra de Clifford se define mediante la regla de conmutaci@'on  @code{u.v+v.u=-2*sf(u,v)} donde  @code{sf} es una funci@'on escalar sim@'etrica. Para esta @'algebra,  @var{opt_dims} puede contener hasta tres enteros no negativos, que representan el n@'umero de dimensiones positivas, degeneradas y negativas, respectivamente, de esta @'algebra. Si se suministran los valores de @var{opt_dims}, @code{atensor} configurar@'a los valores de @code{adim} y @code{aform} de forma apropiada. En otro caso, @code{adim} tomar@'a por defecto el valor 0 y @code{aform} no se definir@'a.
+
+@code{symmetric}: El @'algebra sim@'etrica se define mediante la regla de conmutaci@'on @code{u.v-v.u=0}.
+
+@code{symplectic}: El @'algebra simpl@'ectica se define mediante la regla de conmutaci@'on @code{u.v-v.u=2*af(u,v)}, donde @code{af} es una funci@'on escalar antisim@'etrica. Para el @'algebra simpl@'ectica, @var{opt_dims} puede contener hasta dos enteros no negativos, que representan las dimensiones no degeneradas y degeneradas, respectivamente. Si se suministran los valores de @var{opt_dims}, @code{atensor} configurar@'a los valores de @code{adim} y @code{aform} de forma apropiada. En otro caso, @code{adim} tomar@'a por defecto el valor 0 y @code{aform} no se definir@'a.
+
+@code{lie_envelop}: El @'algebra de la envolvente de Lie se define mediante la regla de conmutaci@'on @code{u.v-v.u=2*av(u,v)}, donde @code{av} es una funci@'on antisim@'etrica.
+
+La funci@'on @code{init_atensor} tambi@'en reconoce algunos tipos de @'algebras predefinidas:
+
+@code{complex} implementa el @'algebra de n@'umeros complejos como un @'algebra de Clifford Cl(0,1). La llamada  @code{init_atensor(complex)} equivale a @code{init_atensor(clifford,0,0,1)}.
+
+@code{quaternion} implementa el @'algebra de cuaterniones. La llamada @code{init_atensor(quaternion)} equivale a
+@code{init_atensor(clifford,0,0,2)}.
+
+@code{pauli} implementa el @'algebra de Pauli como un @'algebra de Clifford Cl(3,0). La llamada @code{init_atensor(pauli)} equivale a @code{init_atensor(clifford,3)}.
+
+@code{dirac} implementa el @'algebra de Dirac como un @'algebra de Clifford Cl(3,1). La llamada @code{init_atensor(dirac)} equivale a @code{init_atensor(clifford,3,0,1)}.
+
+@end deffn
+
+
+@deffn {Funci@'on} atensimp (@var{expr})
+
+Simplifica la expresi@'on algebraica de un tensor  @var{expr} de acuerdo con las reglas configuradas mediante una llamada a  @code{init_atensor}. La simplificaci@'on incluye la aplicaci@'on recursiva de las reglas de conmutaci@'on y llamadas a @code{sf}, @code{af} y @code{av} siempre que sea posible. Se utiliza un algoritmo que asegure que la funci@'on termina siempre, incluso en el caso de expresiones complejas.
+
+@end deffn
+
+@deffn {Funci@'on} alg_type
+
+Tipo de @'algebra. Valores v@'alidos son @code{universal}, @code{grassmann},
+@code{clifford}, @code{symmetric}, @code{symplectic} y @code{lie_envelop}.
+
+@end deffn
+
+@defvr {Variable} adim
+Valor por defecto: 0
+
+La dimensi@'on del @'algebra. El paquete @code{atensor} utiliza el valor de @code{adim} para determinar si un objeto indexado es un vector v@'alido para la base. V@'ease @code{abasep}.
+
+@end defvr
+
+@defvr {Variable} aform
+Valor por defecto: @code{ident(3)}
+
+Valores por defecto para las formas bilineales  @code{sf}, @code{af} y @code{av}. El valor por defecto es la matriz identidad @code{ident(3)}.
+
+@end defvr
+
+@defvr {Variable} asymbol
+Valor por defecto: @code{v}
+
+S@'{@dotless{i}}mbolo para los vectores base.
+
+@end defvr
+
+@deffn {Funci@'on} sf (@var{u}, @var{v})
+
+Una funci@'on escalar sim@'etrica que se utiliza en relaciones de conmutaci@'on. La implementaci@'on por defecto analiza si los dos argumentos son vectores base mediante  @code{abasep} y en tal caso sustituye el valor correspondiente de la matriz  @code{aform}.
+
+@end deffn
+
+@deffn {Funci@'on} af (@var{u}, @var{v})
+
+Una funci@'on escalar antisim@'etrica que se utiliza en relaciones de conmutaci@'on. La implementaci@'on por defecto analiza si los dos argumentos son vectores base mediante  @code{abasep} y en tal caso sustituye el valor correspondiente de la matriz  @code{aform}.
+
+@end deffn
+
+@deffn {Funci@'on} av (@var{u}, @var{v})
+
+Una funci@'on antisim@'etrica que se utiliza en relaciones de conmutaci@'on. La implementaci@'on por defecto analiza si los dos argumentos son vectores base mediante  @code{abasep} y en tal caso sustituye el valor correspondiente de la matriz  @code{aform}.
+
+Ejemplo:
+
+@example
+(%i1) load(atensor);
+(%o1)       /share/tensor/atensor.mac
+(%i2) adim:3;
+(%o2)                                  3
+(%i3) aform:matrix([0,3,-2],[-3,0,1],[2,-1,0]);
+                               [  0    3   - 2 ]
+                               [               ]
+(%o3)                          [ - 3   0    1  ]
+                               [               ]
+                               [  2   - 1   0  ]
+(%i4) asymbol:x;
+(%o4)                                  x
+(%i5) av(x[1],x[2]);
+(%o5)                                 x
+                                       3
+@end example
+
+@end deffn
+
+
+@deffn {Funci@'on} abasep (@var{v})
+
+Analiza si su argumento es un vector base en @code{atensor}. Esto es, si se trata de un s@'{@dotless{i}}mbolo indexado, siendo el s@'{@dotless{i}}mbolo el mismo que el valor de @code{asymbol} y si el @'{@dotless{i}}ndice tiene un valor num@'erico entre 1 y @code{adim}.
+
+@end deffn

@@ -1,0 +1,649 @@
+;;; -*- Lisp -*-
+
+(in-package :cl-user)
+
+(pushnew :cl *features*)
+
+;; Don't try to optimize so much in ECL.
+;; Therefore functions can be redefined (essential for share libraries).
+#+ecl (declaim (optimize (debug 2)))
+
+#+gcl
+(let ((version-num (+ (* 10000 system::*gcl-major-version*)
+		      (* 100 system::*gcl-minor-version*)
+		      system::*gcl-extra-version*)))
+  (if (> version-num 20603)
+      (pushnew :gcl-working-proclaims *features*)))
+		      
+#+cmu
+(setf ext:*gc-verbose* nil)
+
+;; In server.lisp, we load up sb-bsd-sockets for sbcl.  This also
+;; causes asdf to be loaded.  Not normally a problem, but
+;; asdf::*output-translations* is not NIL when maxima is restarted.
+;; If you give maxima.core (as a binary distribution) to someone else,
+;; the translations are wrong.  The solution is to clear the
+;; translations before saving the core.
+;;
+;; This should really be done for all lisps that might have asdf2
+;; loaded.  Currently, I (rtoy) thinks this only happens with sbcl.
+;;
+;; (This issue was brought to my attention by Zach Beane, on irc.
+;; Solution by Nikodemus Siivola.)
+#+(and sbcl asdf2)
+(pushnew 'asdf::clear-configuration *save-hooks*)
+
+;; If you want maxima to use long-floats for arithmetic, use this:
+#+(and nil (or clisp scl))
+(pushnew :flonum-long *features*)
+
+;; If you want maxima to use double-double-floats, use this:
+#+(and nil cmu double-double)
+(pushnew :flonum-double-double *features*)
+
+(setf *load-verbose* nil)
+
+(defvar *maxima-build-time* (multiple-value-list (get-decoded-time)))
+
+(export '*maxima-build-time*)
+
+#+ecl
+(defun do-compile-ecl (file &rest args)
+  ;; Not sure about this.  Compile twice.  The first produces a .o
+  ;; file.  The second produces the .fas file to keep defsystem happy
+  ;; because defsystem needs to load the files while compiling so
+  ;; macros and such are defined.
+  (let* ((output (getf args :output-file))
+	 (object-output (compile-file-pathname output :system-p t)))
+    (and (apply #'compile-file file :output-file object-output args)
+	 (c:build-fasl output :lisp-files (list object-output)))))
+
+#+ecl
+(defun build-maxima-lib ()
+  (labels ((list-all-objects (module)
+             (if (eql (mk::component-type module) :file)
+		 (list (mk::component-full-pathname module :binary))
+		 (apply #'append (mapcar #'list-all-objects (mk::component-components module))))))
+    (let* ((files (list-all-objects (mk:find-system 'maxima))))
+      #+msvc
+      (progn
+	(c::build-static-library "binary-ecl/maxima-lib" :lisp-files (print files))
+	(let ((c::*ld-format* (concatenate 'string c::*ld-format* " /LIBPATH:binary-ecl")))
+	  (c::build-fasl "binary-ecl/maxima" :lisp-files '(maxima-lib))))
+      #-msvc
+      (let ((obj (mapcar #'(lambda (p)
+			     ;; Convert dir/foo.fas to dir/foo.o
+			     (make-pathname :type "o" :defaults p))
+			 files)))
+	(c::build-program "binary-ecl/maxima" :lisp-files obj
+			  :ld-flags
+			  (let ((x (symbol-value (find-symbol "*AUTOCONF-LD-FLAGS*"
+							      (find-package "MAXIMA")))))
+			    (if (and x (not (string= x ""))) (list x)))
+			  :epilogue-code '(progn (require :defsystem)
+					         (cl-user::run)))))))
+
+(defun maxima-binary-pathname ()
+  #+clisp
+  "binary-clisp"
+  #+cmu
+  (make-pathname :name "binary-cmucl"
+		 :directory (pathname-directory *load-truename*))
+  #+scl
+  (make-pathname :name "binary-scl"
+		 :directory (pathname-directory *load-truename*))
+  #+sbcl
+  (make-pathname :name "binary-sbcl"
+		 :directory (pathname-directory *load-truename*))
+  #+gcl
+  "binary-gcl"
+  #+allegro
+  "binary-acl"
+  #+openmcl
+  "binary-openmcl"
+  #+abcl
+  "binary-abcl"
+  #+lispworks
+  (make-pathname :name "binary-lispworks"
+		 :directory (pathname-directory *load-truename*))
+  #+ecl
+  "binary-ecl"
+  #-(or clisp cmu scl sbcl gcl allegro openmcl abcl lispworks ecl)
+  "binary-unknownlisp")
+
+(mk:defsystem "maxima"
+  :source-extension "lisp"  
+  :binary-pathname (maxima-binary-pathname)
+  #+ecl :compiler-options #+ecl (:system-p t)
+  #+ecl :compiler #+ecl do-compile-ecl
+  :components (#+gcl
+	       (:module proclaim :source-pathname ""
+			:load-only t
+			:components ((:file "maxima-package")
+				     (:file "numerical/f2cl-package")
+				     (:file "numerical/slatec")
+				     (:file "command-line")
+				     (:file "nregex")
+				     #+gcl-working-proclaims
+				     (:file "sys-proclaim")))
+	       (:module package :source-pathname ""
+			#-ecl :load-only #-ecl t
+			:components (#-gcl
+				     (:file "maxima-package")
+				     #+ecl (:file "ecl-port")
+				     (:file "autoconf-variables")))
+	       (:module info :source-pathname ""
+			:components ((:file "nregex")
+				     ;; Some versions of CMUCL already
+				     ;; have a compatible version of
+				     ;; INTL, so skip it if we have
+				     ;; it.
+				     #+#.(cl:if (cl:and (cl:member :cmu cl:*features*) (cl:find-package '#:intl))  '(or) '(and))
+				     (:file "intl")
+				     (:file "cl-info")))
+	       (:module sloop :source-pathname ""
+			:components ((:file "sloop")))
+               (:module declarations :source-pathname ""
+                        :components ((:file "lmdcls"))) 
+               (:module destructuring-let :source-pathname ""
+                        :components ((:file "letmac")))
+               (:module compatibility-macros1 :source-pathname ""
+                        :components ((:file "generr")
+				     (:file "clmacs")))
+               (:module compatibility-macros :source-pathname ""
+                        :components ((:file "commac"))) 
+               (:module prerequisites :source-pathname ""
+                        :components ((:file "mormac") 
+                                     (:file "compat")))
+	       (:module maxima-language-compiler-macros :source-pathname ""
+			:components ((:file "transm")))
+	       (:module command-line :source-pathname ""
+			:depends-on (getopt)
+			:components ((:file "command-line")))
+	       (:module getopt :source-pathname ""
+			:components ((:file "getopt")))
+               (:module fundamental-macros :source-pathname ""
+                        :components ((:file "defcal") 
+                                     (:file "maxmac")))
+               (:module utility-macros :source-pathname ""
+                        :components ((:file "mopers") 
+                                     (:file "mforma")))
+               (:module other-macros :source-pathname ""
+                        :components ((:file "mrgmac") 
+                                     (:file "rzmac")    
+                                     (:file "strmac") 
+                                     (:file "displm")))
+               (:module rat-macros :source-pathname ""
+                        :components ((:file "ratmac") 
+                                     (:file "mhayat")))
+               #+gcl (:file "optimize") ; jfa check this
+               (:module utilities :source-pathname ""
+			:depends-on (utility-macros)
+                        :components ((:file "opers")
+                                     (:file "utils") 
+                                     (:file "sumcon") 
+                                     (:file "sublis") 
+                                     (:file "merror") 
+                                     (:file "mformt") 
+                                     (:file "mutils") 
+                                     (:file "outmis") 
+                                     (:file "ar")))
+               (:module commands :source-pathname ""
+                        :components ((:file "comm")
+                                     (:file "comm2")))
+               (:module evaluator :source-pathname ""
+                        :components ((:file "mlisp") 
+                                     (:file "mmacro") 
+                                     (:file "buildq")))
+	       ;; The free version of Allegro has a heap limit.  Let's
+	       ;; not compile these routines so that we can at least
+	       ;; get the rest of maxima built.
+	       (:module numerical
+			:components
+			(
+			 (:module packages :source-pathname ""
+				  :components
+				  ((:file "f2cl-package")
+				   (:file "slatec")))
+			 (:module f2cl-lib :source-pathname ""
+				  :components ((:file "f2cl-lib")))
+			 (:module slatec :source-pathname "slatec"
+				  :depends-on (f2cl-lib packages)
+				  #+allegro-cl-trial :load-only
+				  #+allegro-cl-trial t
+				  :components
+				  (
+				   (:file "fdump")
+				   (:file "j4save")
+				   (:file "initds"
+					  :depends-on ("xermsg"))
+				   (:file "xgetua")
+				   (:file "xermsg"
+					  :depends-on ("fdump" "j4save" "xercnt" "xerhlt" "xerprn" "xersve"))
+				   (:file "xercnt")
+				   (:file "xerhlt")
+				   (:file "xerprn"
+					  :depends-on ("xgetua"))
+				   (:file "xersve"
+					  :depends-on ("j4save"))
+				   (:file "dcsevl"
+					  :depends-on ("xermsg"))
+	     
+				   ;; Gamma function
+				   (:file "d9lgmc"
+					  :depends-on ("dcsevl" "initds" "xermsg"))
+				   (:file "dgamlm"
+					  :depends-on ("xermsg"))
+				   (:file "dgamma"
+					  :depends-on ("d9lgmc" "dcsevl" "dgamlm" "initds" "xermsg"))
+				   (:file "dgamln")
+				   (:file "dlngam"
+					  :depends-on ("d9lgmc" "dgamma" "xermsg"))
+	     
+				   ;; Bessel J functions
+				   (:file "d9b0mp"
+					  :depends-on ("dcsevl" "initds" "xermsg"))
+				   (:file "d9b1mp"
+					  :depends-on ("dcsevl" "initds" "xermsg"))
+				   (:file "dbesj0"
+					  :depends-on ("d9b0mp" "dcsevl" "initds"))
+				   (:file "dbesj1"
+					  :depends-on ("d9b1mp" "dcsevl" "initds" "xermsg"))
+				   (:file "djairy")
+				   (:file "dasyjy")
+				   (:file "dbesj"
+					  :depends-on ("dasyjy" "djairy" "dlngam" "xermsg"))
+				   ;; Bessel I functions
+				   (:file "dbsi0e"
+					  :depends-on ("dcsevl" "initds"))
+				   (:file "dbsi1e"
+					  :depends-on ("dcsevl" "initds" "xermsg"))
+				   (:file "dbesi0"
+					  :depends-on ("dbsi0e" "dcsevl" "initds" "xermsg"))
+				   (:file "dbesi1"
+					  :depends-on ("dbsi1e" "dcsevl" "initds" "xermsg"))
+				   (:file "dasyik")
+				   (:file "dbesi"
+					  :depends-on ("dasyik" "dlngam" "xermsg"))
+				   (:file "zbesi"
+					  :depends-on ("zabs" "zbinu"))
+	     
+				   ;; Bessel J function for complex
+				   ;; arg and real order.
+
+				   (:file "zabs")
+				   (:file "zacai"
+					  :depends-on ("zabs" "zasyi" "zbknu" "zmlri" "zs1s2" "zseri"))
+				   (:file "zairy"
+					  :depends-on ("zabs" "zacai" "zbknu" "zexp" "zsqrt"))
+				   (:file "zasyi"
+					  :depends-on ("zabs" "zdiv" "zexp" "zmlt" "zsqrt"))
+				   (:file "zbesj"
+					  :depends-on ("zabs" "zbinu"))
+				   (:file "zbinu"
+					  :depends-on ("zabs" "zasyi" "zbuni" "zmlri" "zseri" "zuoik" "zwrsk"))
+				   (:file "zbknu"
+					  :depends-on ("dgamln" "zabs" "zdiv" "zexp" "zkscl"
+								"zlog" "zmlt" "zshch" "zsqrt" "zuchk"))
+				   (:file "zbuni"
+					  :depends-on ("zabs" "zuni1" "zuni2"))
+				   (:file "zdiv")
+				   (:file "zexp")
+				   (:file "zkscl"
+					  :depends-on ("zabs" "zlog" "zuchk"))
+				   (:file "zlog"
+					  :depends-on ("zabs"))
+				   (:file "zmlri"
+					  :depends-on ("dgamln" "zabs" "zexp" "zlog" "zmlt"))
+				   (:file "zmlt")
+				   (:file "zrati"
+					  :depends-on ("zabs" "zdiv"))
+				   (:file "zs1s2"
+					  :depends-on ("zabs" "zexp" "zlog"))
+				   (:file "zseri"
+					  :depends-on ("dgamln" "zabs" "zdiv" "zlog" "zmlt" "zuchk"))
+				   (:file "zshch")
+				   (:file "zsqrt" :depends-on ("zabs"))
+				   (:file "zuchk")
+				   (:file "zunhj"
+					  :depends-on ("zabs" "zdiv" "zlog" "zsqrt"))
+				   (:file "zuni1"
+					  :depends-on ("zabs" "zuchk" "zunik" "zuoik"))
+				   (:file "zuni2"
+					  :depends-on ("zabs" "zairy" "zuchk" "zunhj" "zuoik"))
+				   (:file "zunik"
+					  :depends-on ("zdiv" "zlog" "zsqrt"))
+				   (:file "zuoik"
+					  :depends-on ("zabs" "zlog" "zuchk" "zunhj" "zunik"))
+				   (:file "zwrsk"
+					  :depends-on ("zabs" "zbknu" "zrati"))
+	     
+				   ;; Bessel Y functions
+				   (:file "dbesy0"
+					  :depends-on ("d9b0mp" "dbesj0" "dcsevl" "initds" "xermsg"))
+				   (:file "dbesy1"
+					  :depends-on ("d9b1mp" "dbesj1" "dcsevl" "initds" "xermsg"))
+				   (:file "dbesy"
+					  :depends-on ("dasyjy" "dbesy0" "dbesy1" "dbsynu" "dyairy" "xermsg"))
+				   (:file "dbsynu"
+					  :depends-on ("dgamma" "xermsg"))
+				   (:file "dyairy")
+	     
+				   (:file "zbesy"
+					  :depends-on ("zbesh"))
+				   (:file "zbesh"
+					  :depends-on ("zabs" "zacon" "zbknu" "zbunk" "zuoik"))
+				   (:file "zacon"
+					  :depends-on ("zabs" "zbinu" "zbknu" "zmlt" "zs1s2"))
+				   (:file "zbunk"
+					  :depends-on ("zunk1" "zunk2"))
+				   (:file "zunk1"
+					  :depends-on ("zabs" "zs1s2" "zuchk" "zunik"))
+				   (:file "zunk2"
+					  :depends-on ("zabs" "zairy" "zs1s2" "zuchk" "zunhj"))
+
+				   ;; Bessel K functions
+				   (:file "dbesk0"
+					  :depends-on ("dbesi0" "dbsk0e" "dcsevl" "initds" "xermsg"))
+				   (:file "dbsk0e"
+					  :depends-on ("dbesi0" "dcsevl" "initds" "xermsg"))
+				   (:file "dbesk1"
+					  :depends-on ("dbesi1" "dbsk1e" "dcsevl" "initds" "xermsg"))
+				   (:file "dbsk1e"
+					  :depends-on ("dbesi1" "dcsevl" "initds" "xermsg"))
+				   (:file "dbesk"
+					  :depends-on ("dasyik" "dbesk0" "dbesk1" "dbsk0e" "dbsk1e" "dbsknu" "xermsg"))
+				   (:file "dbsknu"
+					  :depends-on ("dgamma" "xermsg"))
+				   (:file "zbesk"
+					  :depends-on ("zabs" "zacon" "zbknu" "zbunk" "zuoik"))
+				   
+				   ;; Airy functions
+				   (:file "d9aimp"
+					  :depends-on ("dcsevl" "initds" "xermsg"))
+				   (:file "daie"
+					  :depends-on ("d9aimp" "dcsevl" "initds"))
+				   (:file "dai"
+					  :depends-on ("d9aimp" "daie" "dcsevl" "initds" "xermsg"))
+                                  (:file "dbie"
+                                         :depends-on ("d9aimp" "dcsevl" "initds"))
+                                  (:file "dbi"
+                                         :depends-on ("d9aimp" "dbie" "dcsevl" "initds" "xermsg"))
+                                  (:file "zbiry"
+                                         :depends-on ("zabs" "zbinu" "zdiv" "zsqrt"))
+				   ;; Error functions
+				   (:file "derf"
+					  :depends-on ("dcsevl" "derfc" "initds"))
+				   (:file "derfc"
+					  :depends-on ("dcsevl" "initds" "xermsg"))
+				   ;; Exponential integrals
+				   (:file "de1"
+					  :depends-on ("dcsevl" "initds" "xermsg"))
+				   (:file "dei"
+					  :depends-on ("de1"))
+				   (:file "dspenc"
+					  :depends-on ("d9upak"))
+				   (:file "d9upak")))
+			 (:module quadpack
+				  :source-pathname "slatec"
+				  #+allegro-cl-trial :load-only
+				  #+allegro-cl-trial t
+				  :components
+				  (
+				   ;; Support
+				   (:file "dqwgtf")
+				   (:file "dqcheb")
+				   (:file "dqk15w")
+				   (:file "dqwgts")
+				   (:file "dqwgtc")
+				   (:file "dgtsl")
+				   ;; Core integration routines
+				   (:file "dqk15")
+				   (:file "dqk31")
+				   (:file "dqk41")
+				   (:file "dqk51")
+				   (:file "dqk61")
+				   (:file "dqk21")
+				   (:file "dqk15i")
+				   (:file "dqelg")
+				   (:file "dqpsrt")
+				   (:file "dqc25s"
+					  :depends-on ("dqcheb" "dqk15w"))
+				   (:file "dqmomo")
+				   (:file "dqc25c"
+					  :depends-on ("dqcheb"
+						       "dqk15w"))
+				   (:file "dqc25f"
+					  :depends-on ("dgtsl"
+						       "dqcheb"
+						       "dqk15w"
+						       "dqwgtf"))
+				   ;; Basic integrators
+				   (:file "dqage"
+					  :depends-on ("dqk15"
+						       "dqk31"
+						       "dqk41"
+						       "dqk51"
+						       "dqk61"
+						       "dqk21"
+						       "dqpsrt"))
+				   (:file "dqagie"
+					  :depends-on ("dqelg"
+						       "dqk15i"
+						       "dqpsrt"))
+				   (:file "dqagp"
+					  :depends-on ("dqagpe"))
+				   (:file "dqagpe"
+					  :depends-on ("dqelg"
+						       "dqpsrt"
+						       "dqk21"
+						       ))
+				   (:file "dqagse"
+					  :depends-on ("dqk21"
+						       "dqelg"
+						       "dqpsrt"))
+				   (:file "dqawfe"
+					  :depends-on ("dqagie"
+						       "dqawoe"
+						       "dqelg"))
+				   (:file "dqawoe"
+					  :depends-on ("dqc25f"
+						       "dqpsrt"
+						       "dqelg"))
+				   (:file "dqawse"
+					  :depends-on ("dqc25s"
+						       "dqmomo"
+						       "dqpsrt"))
+				   (:file "dqawce"
+					  :depends-on ("dqc25c"
+						       "dqpsrt"))
+				   ;; Simplified interface routines
+				   (:file "dqng")
+				   (:file "dqag"
+					  :depends-on ("dqage"))
+				   (:file "dqags"
+					  :depends-on ("dqagse"))
+				   (:file "dqagi"
+					  :depends-on ("dqagie"))
+				   (:file "dqawf"
+					  :depends-on ("dqawfe"))
+				   (:file "dqawo"
+					  :depends-on ("dqawoe"))
+				   (:file "dqaws"
+					  :depends-on ("dqawse"))
+				   (:file "dqawc"
+					  :depends-on ("dqawce"))
+				   ;; Maxima interface
+				   (:file "quadpack")
+				   )
+			 )))
+               (:module simplification :source-pathname ""
+                        :components ((:file "simp") 
+                                     (:file "float") 
+                                     (:file "csimp") 
+                                     (:file "csimp2") 
+                                     (:file "zero")
+                                     (:file "logarc") 
+                                     (:file "rpart")))
+	       (:module numeric-bigfloat :source-pathname ""
+			:depends-on (#-gcl "package"
+				     #+gcl "proclaim")
+			:components ((:file "numeric")))
+	       (:module server :source-pathname ""
+			:components ((:file "server")))
+               (:module i-o :source-pathname ""
+			:depends-on (compatibility-macros)
+                        :components ((:file "macsys") 
+                                     (:file "mload") 
+                                     (:file "suprv1")
+                                     (:file "dskfn")))
+               (:module factoring :source-pathname ""
+                        :components ((:file "lesfac") 
+                                     (:file "factor") 
+                                     (:file "algfac") 
+                                     (:file "nalgfa") 
+                                     (:file "ufact") 
+                                     (:file "result")))
+	       (:module ifactor :source-pathname ""
+			:components ((:file "ifactor")))
+	       (:module rational-functions :source-pathname ""
+			:components ((:file "rat3a") 
+				     (:file "rat3b") 
+				     (:file "rat3d") 
+				     (:file "rat3c") 
+				     (:file "rat3e") 
+				     (:file "nrat4") 
+				     (:file "ratout")))
+	       (:module maxima-language-compiler :source-pathname ""
+			:components ((:file "transl") 
+				     (:file "transs") 
+				     (:file "trans1") 
+				     (:file "trans2") 
+				     (:file "trans3") 
+				     (:file "trans4") 
+				     (:file "trans5") 
+				     (:file "transf") 
+				     (:file "troper") 
+				     (:file "trutil") 
+				     (:file "trmode") 
+				     (:file "trdata") 
+				     (:file "trpred") 
+				     (:file "transq") 
+				     (:file "acall")
+				     (:file "fcall") 
+				     (:file "evalw") 
+				     (:file "trprop") 
+				     (:file "mdefun"))
+			:depends-on (maxima-language-compiler-macros))
+	       (:module numerical-functions :source-pathname ""
+			:depends-on (trigonometry)
+			:components ((:file "bessel")
+				     (:file "ellipt")
+				     (:file "airy"
+					    :depends-on ("ellipt"))
+				     (:file "plasma")
+				     (:file "intpol")))
+	       (:module reader :source-pathname ""
+			:depends-on (compatibility-macros)
+			:components ((:file "nparse")))
+	       (:module display :source-pathname ""
+			:components ((:file "displa") 
+				     (:file "nforma") 
+				     (:file "grind")))
+	       (:module gcd :source-pathname ""
+			:components ((:file "spgcd")
+				     (:file "ezgcd")))
+	       (:module documentation :source-pathname ""
+			:components ((:file "option")
+				     (:file "macdes")))
+	       (:module algebraic-database :source-pathname ""
+			:components ((:file "inmis") 
+				     (:file "db") 
+				     (:file "compar") 
+				     (:file "askp"))) ;does this belong here?
+	       (:module integration :source-pathname ""
+			:components ((:file "sinint") 
+				     (:file "sin") 
+				     (:file "risch")))
+	       (:module taylor-series :source-pathname ""
+			:components ((:file "hayat")))
+	       (:module definite-integration :source-pathname ""
+			:components ((:file "defint") 
+				     (:file "residu")))
+	       (:module trigonometry :source-pathname ""
+			:components ((:file "trigi") 
+				     (:file "trigo") 
+				     (:file "trgred")))
+	       (:module special-functions :source-pathname ""
+			:components ((:file "specfn")))
+	       (:module matrix-algebra :source-pathname ""
+			:components ((:file "mat") 
+                     (:file "linnew")
+				     (:file "matrix")))
+	       (:module determinants :source-pathname ""
+			:components ((:file "sprdet") 
+				     (:file "newinv") 
+				     (:file "newdet")))
+	       (:module pattern-matching :source-pathname ""
+			:components ((:file "schatc") 
+				     (:file "matcom") 
+				     (:file "matrun") 
+				     (:file "nisimp")))
+	       (:module limits :source-pathname ""
+			:components ((:file "tlimit") 
+				     (:file "limit")))
+	       (:module solve :source-pathname ""
+			:components ((:file "solve") 
+				     (:file "psolve") 
+				     (:file "algsys") 
+				     (:file "polyrz") 
+				     (:file "cpoly")))
+	       (:module debugging :source-pathname ""
+			:components ((:file "mtrace")
+				     (:file "mdebug")))
+	       (:module miscellaneous :source-pathname ""
+			:components ((:file "scs") 
+				     (:file "asum") 
+				     (:file "fortra") 
+				     (:file "optim") 
+				     (:file "marray") 
+				     (:file "mdot") 
+				     (:file "irinte") 
+				     (:file "series") 
+				     (:file "numth") 
+				     (:file "laplac") 
+				     (:file "pade") 
+				     (:file "homog") 
+				     (:file "combin") 
+				     (:file "nset")
+				     (:file "rand-mt19937")
+				     (:file "maxmin")
+				     (:file "nummod")
+				     (:file "conjugate")
+                                     (:file "expintegral")
+                                     (:file "gamma")
+				     (:file "mstuff")))
+	       (:module poisson-series :source-pathname ""
+			:components ((:file "pois2") 
+				     (:file "pois3")))
+	       (:module translated-packages :source-pathname ""
+			:depends-on ("maxima-language-compiler-macros")
+			:components
+			((:file "desoln")
+			 (:file "elim")
+			 (:file "invert")
+			 (:file "hypgeo")
+			 (:file "hyp")
+			 (:file "todd-coxeter")
+			 (:file "mactex")
+			 (:file "plot")))
+	       (:module graphics-drivers :source-pathname ""
+			:components ((:file "gnuplot_def")
+				     (:file "xmaxima_def")))
+	       (:module final :source-pathname ""
+			;; These are not compiled, for whatever reason
+			#-ecl :load-only #-ecl t
+			:components ((:file "autol")
+				     (:file "max_ext")
+				     (:file "share-subdirs")
+				     (:file "init-cl")))))

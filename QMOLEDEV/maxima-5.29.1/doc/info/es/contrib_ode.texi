@@ -1,0 +1,527 @@
+@c English version: 2011-06-11
+@menu
+* Introducci@'on a contrib_ode::
+* Funciones y variables para contrib_ode::
+* Posibles mejoras a contrib_ode::
+* Pruebas realizadas con contrib_ode::
+* Referencias para contrib_ode::
+@end menu
+
+@node Introducci@'on a contrib_ode, Funciones y variables para contrib_ode, contrib_ode, contrib_ode
+
+@section Introducci@'on a contrib_ode 
+
+La funci@'on @code{ode2} de Maxima resuelve ecuaciones diferenciales
+ordinarias (EDO) simples de primer y segundo orden. La funci@'on 
+@code{contrib_ode} extiende las posibilidades de @code{ode2}
+con m@'etodos adicionales para ODEs lineales y no lineales de
+primer orden y homog@'eneas lineales de segundo orden.
+El c@'odigo se encuentra en estado de desarrollo y la
+syntaxis puede cambiar en futuras versiones. Una vez el c@'odigo
+se haya estabilizado podr@'a pasar a integrarse dentro de
+Maxima.
+
+El paquete debe cargarse con la instrucci@'on @code{load('contrib_ode)}
+antes de utilizarlo.
+
+La sintaxis de @code{contrib_ode} es similar a la de @code{ode2}.
+Necesita tres argumentos: una EDO (s@'olo se necesita el miembro
+izquierdo si el derecho es igual cero), la variable dependiente y
+la independiente. Si encuentra la soluci@'on, devolver@'a una
+lista de resultados.
+
+La forma de los resultados devueltos es diferente de la utilizada
+por @code{ode2}.
+Puesto que las ecuaciones no lineales pueden tener m@'ultiples
+soluciones, @code{contrib_ode} devuelve una lista de soluciones.
+Las soluciones pueden tener diferentes formatos:
+@itemize @bullet
+@item
+una funci@'on expl@'{@dotless{i}}cita para la variable dependiente,
+
+@item
+una funci@'on impl@'{@dotless{i}}cita para la variable dependiente,
+
+@item
+una soluci@'on param@'etrica en t@'erminos de la variable @code{%t} o
+
+@item
+una transformaci@'on en otra EDO de variable @code{%u}.
+
+@end itemize
+
+@code{%c} hace referencia a la constante de integraci@'on en 
+las ecuaciones de primer orden.
+@code{%k1} y @code{%k2} son las constantes para las ecuaciones
+de segundo orden.
+Si por cualquier raz@'on contrib_ode no pudiese encontrar una
+soluci@'on, devolver@'a @code{false}, quiz@'as despu@'es de 
+mostrar un mensaje de error.
+
+Ejemplos:
+
+En ocasiones es necesario devolver una lista de soluciones,
+pues algunas EDOs pueden tener m@'ultiples soluciones:
+
+@c ===beg===
+@c load('contrib_ode)$
+@c eqn:x*'diff(y,x)^2-(1+x*y)*'diff(y,x)+y=0;
+@c contrib_ode(eqn,y,x);
+@c method;
+@c ===end===
+@example
+(%i1) load('contrib_ode)$
+
+(%i2) eqn:x*'diff(y,x)^2-(1+x*y)*'diff(y,x)+y=0;
+
+                    dy 2             dy
+(%o2)            x (--)  - (x y + 1) -- + y = 0
+                    dx               dx
+(%i3) contrib_ode(eqn,y,x);
+
+                                             x
+(%o3)             [y = log(x) + %c, y = %c %e ]
+(%i4) method;
+
+(%o4)                        factor
+@end example
+
+Las EDOs no lineales pueden tener soluciones singulares sin
+constantes de integraci@'on, como en la segunda soluci@'on
+del ejemplo siguiente:
+
+@c ===beg===
+@c load('contrib_ode)$
+@c eqn:'diff(y,x)^2+x*'diff(y,x)-y=0;
+@c contrib_ode(eqn,y,x);
+@c method;
+@c ===end===
+@example
+(%i1) load('contrib_ode)$
+
+(%i2) eqn:'diff(y,x)^2+x*'diff(y,x)-y=0;
+
+                       dy 2     dy
+(%o2)                 (--)  + x -- - y = 0
+                       dx       dx
+(%i3) contrib_ode(eqn,y,x);
+
+                                           2
+                                 2        x
+(%o3)              [y = %c x + %c , y = - --]
+                                          4
+(%i4) method;
+
+(%o4)                       clairault
+@end example
+
+La siguiente ODE tiene dos soluciones param@'etricas en t@'erminos
+de la variable @code{%t}. En este caso, las soluciones param@'etricas
+se pueden manipular para dar soluciones expl@'{@dotless{i}}citas.
+
+@c ===beg===
+@c load('contrib_ode)$
+@c eqn:'diff(y,x)=(x+y)^2;
+@c contrib_ode(eqn,y,x);
+@c method;
+@c ===end===
+@example
+(%i1) load('contrib_ode)$
+
+(%i2) eqn:'diff(y,x)=(x+y)^2;
+
+                          dy          2
+(%o2)                     -- = (y + x)
+                          dx
+(%i3) contrib_ode(eqn,y,x);
+
+(%o3) [[x = %c - atan(sqrt(%t)), y = - x - sqrt(%t)], 
+                     [x = atan(sqrt(%t)) + %c, y = sqrt(%t) - x]]
+(%i4) method;
+
+(%o4)                       lagrange
+@end example
+
+En el siguiente ejemplo (Kamke 1.112) se obtiene una soluci@'on 
+impl@'{@dotless{i}}cita.
+
+@c ===beg===
+@c load('contrib_ode)$
+@c assume(x>0,y>0);
+@c eqn:x*'diff(y,x)-x*sqrt(y^2+x^2)-y;
+@c contrib_ode(eqn,y,x);
+@c method;
+@c ===end===
+@example
+(%i1) load('contrib_ode)$
+
+(%i2) assume(x>0,y>0);
+
+(%o2)                    [x > 0, y > 0]
+(%i3) eqn:x*'diff(y,x)-x*sqrt(y^2+x^2)-y;
+
+                     dy           2    2
+(%o3)              x -- - x sqrt(y  + x ) - y
+                     dx
+(%i4) contrib_ode(eqn,y,x);
+
+                                  y
+(%o4)                  [x - asinh(-) = %c]
+                                  x
+(%i5) method;
+
+(%o5)                          lie
+@end example
+
+La siguiente ecuaci@'on de Riccati se transforma en
+una EDO lineal de segundo orden de variable @code{%u}. Maxima
+es incapaz de resolver la nueva EDO, por lo que la devuelve si
+resolver:
+
+@c ===beg===
+@c load('contrib_ode)$
+@c eqn:x^2*'diff(y,x)=a+b*x^n+c*x^2*y^2;
+@c contrib_ode(eqn,y,x);
+@c method;
+@c ===end===
+@example
+(%i1) load('contrib_ode)$
+
+(%i2) eqn:x^2*'diff(y,x)=a+b*x^n+c*x^2*y^2;
+
+                    2 dy      2  2      n
+(%o2)              x  -- = c x  y  + b x  + a
+                      dx
+(%i3) contrib_ode(eqn,y,x);
+
+               d%u
+               ---                            2
+               dx        2     n - 2   a     d %u
+(%o3)  [[y = - ----, %u c  (b x      + --) + ---- c = 0]]
+               %u c                     2      2
+                                       x     dx
+(%i4) method;
+
+(%o4)                        riccati
+@end example
+
+Para EDOs de primer orden, @code{contrib_ode} llama a @code{ode2}.
+Entonces trata de aplicar los siguientes m@'etodos: factorizaci@'on,
+Clairault, Lagrange, Riccati, Abel y Lie. El m@'etodo de Lie no
+se intenta aplicar a las ecuaciones de Abel si el propio
+m@'etodo de Abel no obtiene soluci@'on, pero s@'{@dotless{i}}
+se utiliza si el m@'etodo de Riccati devuelve una EDO de
+segundo orden sin resolver.
+
+Para EDOs de segundo orden, @code{contrib_ode} llama a @code{ode2}
+y luego a @code{odelin}.
+
+Se mostrar@'an mensajes de depurado si se ejecuta la sentencia
+@code{put('contrib_ode,true,'verbose)}.
+
+
+
+@node Funciones y variables para contrib_ode, Posibles mejoras a contrib_ode, Introducci@'on a contrib_ode, contrib_ode
+@section Funciones y variables para contrib_ode
+
+@deffn {Funci@'on} contrib_ode (@var{eqn}, @var{y}, @var{x})
+
+Devuelve la lista de soluciones de la ecuaci@'on diferencia
+ordinaria (EDO) @var{eqn} de variable independiente @var{x}
+y variable dependiente @var{y}.
+
+@end deffn
+
+
+@deffn {Funci@'on} odelin (@var{eqn}, @var{y}, @var{x})
+
+La funci@'on @code{odelin} resulve EDOs homog@'eneas lineales
+de primer y segundo orden con variable independiente @var{x}
+y variable dependiente @var{y}. Devuelve un conjunto fundamental
+de soluciones de la EDO.
+
+Para EDOs de segundo orden, @code{odelin} utiliza un
+m@'etodo desarrollado por Bronstein y Lafaille, que busca las soluciones
+en t@'erminos de funciones especiales dadas.
+
+@c ===beg===
+@c load('contrib_ode)$
+@c odelin(x*(x+1)*'diff(y,x,2)+(x+5)*'diff(y,x,1)+(-4)*y,y,x);
+@c ===end===
+@example
+(%i1) load('contrib_ode);
+
+(%i2) odelin(x*(x+1)*'diff(y,x,2)+(x+5)*'diff(y,x,1)+(-4)*y,y,x);
+...trying factor method
+...solving 7 equations in 4 variables
+...trying the Bessel solver
+...solving 1 equations in 2 variables
+...trying the F01 solver
+...solving 1 equations in 3 variables
+...trying the spherodial wave solver
+...solving 1 equations in 4 variables
+...trying the square root Bessel solver
+...solving 1 equations in 2 variables
+...trying the 2F1 solver
+...solving 9 equations in 5 variables
+       gauss_a(- 6, - 2, - 3, - x)  gauss_b(- 6, - 2, - 3, - x)
+(%o2) @{---------------------------, ---------------------------@}
+                    4                            4
+                   x                            x
+
+@end example
+
+@end deffn
+
+
+@deffn {Funci@'on} ode_check (@var{eqn}, @var{soln})
+
+Devuelve el valor de la ecuaci@'on diferencia
+ordinaria (EDO) @var{eqn} despu@'es de sustituir
+una posible soluci@'on @var{soln}. El valor es
+cero si @var{soln} es una soluci@'on de @var{eqn}.
+
+@c ===beg===
+@c load('contrib_ode)$
+@c eqn:'diff(y,x,2)+(a*x+b)*y;
+@c ans:[y = bessel_y(1/3,2*(a*x+b)^(3/2)/(3*a))*%k2*sqrt(a*x+b)
+@c          +bessel_j(1/3,2*(a*x+b)^(3/2)/(3*a))*%k1*sqrt(a*x+b)];
+@c ode_check(eqn,ans[1]);
+@c ===end===
+@example
+(%i1) load('contrib_ode)$
+
+(%i2) eqn:'diff(y,x,2)+(a*x+b)*y;
+
+                         2
+                        d y
+(%o2)                   --- + (a x + b) y
+                          2
+                        dx
+(%i3) ans:[y = bessel_y(1/3,2*(a*x+b)^(3/2)/(3*a))*%k2*sqrt(a*x+b)
+         +bessel_j(1/3,2*(a*x+b)^(3/2)/(3*a))*%k1*sqrt(a*x+b)];
+
+                                  3/2
+                    1  2 (a x + b)
+(%o3) [y = bessel_y(-, --------------) %k2 sqrt(a x + b)
+                    3       3 a
+                                          3/2
+                            1  2 (a x + b)
+                 + bessel_j(-, --------------) %k1 sqrt(a x + b)]
+                            3       3 a
+(%i4) ode_check(eqn,ans[1]);
+
+(%o4)                           0
+@end example
+
+@end deffn
+
+@defvr {Variable opcional} @code{method}
+
+A la variable @code{method} se le asigna el m@'etodo aplicado. 
+
+@end defvr
+
+@defvr {Variable} @code{%c}
+
+@code{%c} es la constante de integraci@'on para EDOs de primer
+orden.
+
+@end defvr
+
+@defvr {Variable} @code{%k1}
+
+@code{%k1} es la primera constante de integraci@'on para EDOs de segundo
+orden.
+
+@end defvr
+
+@defvr {Variable} @code{%k2}
+
+@code{%k2} es la segunda constante de integraci@'on para EDOs de segundo
+orden.
+
+@end defvr
+
+@deffn {Funci@'on} gauss_a (@var{a}, @var{b}, @var{c}, @var{x})
+
+@code{gauss_a(a,b,c,x)} y @code{gauss_b(a,b,c,x)} son funciones
+geom@'etricas 2F1 . Representan dos soluciones independientes
+cualesquiera de la ecuaci@'on diferencial hipergeom@'etrica
+@code{x(1-x) diff(y,x,2) + [c-(a+b+1)x diff(y,x) - aby = 0} (A&S 15.5.1).  
+
+El @'unico uso que se hace de estas funciones es en las soluciones de
+EDOs que devuelven @code{odelin} y @code{contrib_ode}. La definici@'on
+y utilizaci@'on de estas funciones puede cambiar en futuras distribuciones
+de Maxima.
+
+V@'eanse tambi@'en @code{gauss_b}, @code{dgauss_a} y @code{gauss_b}.
+
+@end deffn
+
+@deffn {Funci@'on} gauss_b (@var{a}, @var{b}, @var{c}, @var{x})
+V@'ease  tambi@'en @code{gauss_a}.
+@end deffn
+
+@deffn {Funci@'on} dgauss_a (@var{a}, @var{b}, @var{c}, @var{x})
+The derivative with respect to x of @code{gauss_a(a,b,c,x)}.
+@end deffn
+
+@deffn {Funci@'on} dgauss_b (@var{a}, @var{b}, @var{c}, @var{x})
+Derivada de @code{gauss_b(@var{a},@var{b},@var{c},@var{x})} respecto de @var{x}.
+@end deffn
+
+
+@deffn {Funci@'on} kummer_m (@var{a}, @var{b}, @var{x})
+
+Funci@'on M de Kummer, tal como la definen Abramowitz y Stegun,
+@i{Handbook of Mathematical Functions}, Secci@'on 13.1.2.
+
+El @'unico uso que se hace de esta funci@'on es en las soluciones de
+EDOs que devuelven @code{odelin} y @code{contrib_ode}. La definici@'on
+y utilizaci@'on de estas funciones puede cambiar en futuras distribuciones
+de Maxima.
+
+V@'eanse tambi@'en @code{kummer_u}, @code{dkummer_m} y @code{dkummer_u}.
+@end deffn
+
+@deffn {Funci@'on} kummer_u (@var{a}, @var{b}, @var{x})
+
+Funci@'on U de Kummer, tal como la definen Abramowitz y Stegun,
+@i{Handbook of Mathematical Functions}, Secci@'on 13.1.3.
+
+V@'ease  tambi@'en @code{kummer_m}.
+@end deffn
+
+@deffn {Funci@'on} dkummer_m (@var{a}, @var{b}, @var{x})
+Derivada de @code{kummer_m(@var{a},@var{b},@var{x})} respecto de @var{x}.
+@end deffn
+
+@deffn {Funci@'on} dkummer_u (@var{a}, @var{b}, @var{x})
+Derivada de @code{kummer_u(@var{a},@var{b},@var{x})} respecto de @var{x}.
+@end deffn
+
+
+@node Posibles mejoras a contrib_ode, Pruebas realizadas con contrib_ode, Funciones y variables para contrib_ode, contrib_ode
+@section Posibles mejoras a contrib_ode
+
+Este paquete a@'un se encuentra en fase de desarrollo. Aspectos pendientes:
+
+@itemize @bullet
+
+@item
+Extender el m@'etodo FACTOR @code{ode1_factor} para que trabaje con
+ra@'{@dotless{i}}ces m@'ultiples.
+
+@item
+Extender el m@'etodo FACTOR @code{ode1_factor} para que intente
+resolver factores de orden superior. En este momento s@'olo
+intenta resolver factores lineales.
+
+@item
+Modificar la rutina LAGRANGE @code{ode1_lagrange} para que prefiera
+ra@'{@dotless{i}}ces reales a las complejas.
+
+@item
+A@~nadir m@'as m@'etodos para las ecuaciones de RIccati.
+
+@item
+Mejorar la identificaci@'on de las ecuaciones de Abel de segunda especie.
+El procedimiento actual no es muy bueno.
+
+@item
+Trabajar la rutina del grupo sim@'etrico de Lie @code{ode1_lie}.
+Existen algunos problemas: algunas partes no est@'an implementadas,
+algunos ejemplos no terminan de ejecutarse, otros producen errors,
+otros devuelven respuestas muy complejas. 
+
+@item
+Hacer m@'as pruebas.
+
+@end itemize
+
+@node Pruebas realizadas con contrib_ode, Referencias para contrib_ode, Posibles mejoras a contrib_ode, contrib_ode
+@section Pruebas realizadas con contrib_ode
+
+Los procedimientos fueron probados con cerca de mil ecuaciones tomadas
+de Murphy, Kamke, Zwillinger y otros. @'Estas se encuentran en el directorio
+de pruebas.
+
+@itemize @bullet
+@item
+La rutina de Clairault @code{ode1_clairault} encuentra todas las
+soluciones conocidas, inclu@'{@dotless{i}}das las singulares,
+de las ecuaciones de Clairault en Murphy y Kamke.
+
+@item
+Las otras rutinas a veces devuelven una sola soluci@'on cuando
+existen m@'as.
+
+@item
+Algunas de las soluciones devueltas por @code{ode1_lie} son
+demasiado complejas e imposibles de interpretar.
+
+@item
+A veces se producen detenciones imprevistas del procedimiento.
+
+@end itemize
+
+@node Referencias para contrib_ode, ,Pruebas realizadas con contrib_ode, contrib_ode
+@section Referencias para contrib_ode
+
+
+@enumerate
+@item
+E. Kamke, Differentialgleichungen Losungsmethoden und Losungen, Vol 1,
+    Geest & Portig, Leipzig, 1961
+
+@item
+G. M. Murphy, Ordinary Differential Equations and Their Solutions,
+    Van Nostrand, New York, 1960
+
+@item
+D. Zwillinger, Handbook of Differential Equations, 3rd edition,
+    Academic Press, 1998
+
+@item
+F. Schwarz, Symmetry Analysis of Abel's Equation, Studies in
+    Applied Mathematics, 100:269-294 (1998)
+
+@item
+F. Schwarz, Algorithmic Solution of Abel's Equation,
+    Computing 61, 39-49 (1998)
+
+@item
+E. S. Cheb-Terrab, A. D. Roche, Symmetries and First Order
+    ODE Patterns, Computer Physics Communications 113 (1998), p 239.
+@ifnottex
+    (@url{http://lie.uwaterloo.ca/papers/ode_vii.pdf})
+@end ifnottex
+@tex
+    (\texttt{http://lie.uwaterloo.ca/\-papers/\-ode\_vii.pdf})
+@end tex
+
+@item
+E. S. Cheb-Terrab, T. Kolokolnikov,  First Order ODEs,
+    Symmetries and Linear Transformations, European Journal of
+    Applied Mathematics, Vol. 14, No. 2, pp. 231-246 (2003).
+@c @ifnottex
+    (@url{http://arxiv.org/abs/math-ph/0007023},@*
+    @url{http://lie.uwaterloo.ca/papers/ode_iv.pdf})
+@c @end ifnottex
+@c @tex
+@c     (\texttt{http://\-arxiv.org/\-abs/\-math-ph/\-0007023},
+@c     \texttt{http://\-lie.\-uwaterloo.ca/\-papers/\-ode\_iv.pdf})
+@c @end tex
+
+@item
+G. W. Bluman, S. C. Anco, Symmetry and Integration Methods for
+    Differential Equations, Springer, (2002)
+
+@item 
+M Bronstein, S Lafaille,
+Solutions of linear ordinary differential equations in terms
+of special functions,
+Proceedings of ISSAC 2002, Lille, ACM Press, 23-28. 
+(@url{http://www-sop.inria.fr/cafe/Manuel.Bronstein/publications/issac2002.pdf})
+@end enumerate

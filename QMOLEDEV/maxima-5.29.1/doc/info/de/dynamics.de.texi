@@ -1,0 +1,520 @@
+@c -----------------------------------------------------------------------------
+@c File     : dynamics.de.texi
+@c License  : GNU General Public License (GPL)
+@c Language : German
+@c Original : dynamics.texi revision 1.16
+@c Date     : 08.11.2010
+@c Revision : 27.03.2011
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Introduction to dynamics::
+* Functions and Variables for dynamics::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Introduction to dynamics, Functions and Variables for dynamics, dynamics, dynamics
+@section Introduction to dynamics
+@c -----------------------------------------------------------------------------
+
+The additional package @code{dynamics} includes several
+functions to create various graphical representations of discrete
+dynamical systems and fractals, and an implementation of the Runge-Kutta
+4th-order numerical method for solving systems of differential equations.
+
+To use the functions in this package you must first load it with
+@code{load("dynamics")}.
+
+Starting with Maxima 5.12, the dynamics package now uses the function
+@code{plot2d} to do the graphs.  The commands that produce graphics
+(with the exception of @code{julia} and @code{mandelbrot}) now accept
+any options of @code{plot2d}, including the option to change among the
+various graphical interfaces, using different plot styles and colors,
+and representing one or both axes in a logarithmic scale.  The old
+options @var{domain}, @var{pointsize}, @var{xcenter}, @var{xradius},
+@var{ycenter}, @var{yradius}, @var{xaxislabel} and @var{yaxislabel}
+are not accepted in this new version.
+
+All programs will now accept any variables names, and not just @var{x}
+and @var{y} as in the older versions.  Two required parameters have
+changes in two of the programs: @code{evolution2d} now requires a list
+naming explicitely the two independent variables, and the horizontal
+range for @code{orbits} no longer requires a step size; the range
+should only specify the variable name, and the minimum and maximum
+values; the number of steps can now be changed with the option
+@var{nticks}.
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for dynamics,  , Introduction to dynamics, dynamics
+@section Functions and Variables for dynamics
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} chaosgame (@code{[[}@var{x1}, @var{y1}@code{]}, @dots{}, @code{[}@var{xm}, @var{ym}@code{]]}, @code{[}@var{x0}, @var{y0}@code{]}, @var{b}, @var{n}, @dots{}, options, @dots{})
+
+Implements the so-called chaos game: the initial point (@var{x0},
+@var{y0}) is plotted and then one of the @var{m} points
+@code{[}@var{x1}, @var{y1}@code{]}, ..., @code{[}@var{xm}, @var{ym}@code{]}
+will be selected at random.  The next point plotted will be on the
+segment from the previous point plotted to the point chosen randomly, at a
+distance from the random point which will be @var{b} times that segment's
+length.  The procedure is repeated @var{n} times.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} evolution (@var{F}, @var{y0}, @var{n}, @dots{}, options, @dots{})
+
+Draws @var{n+1} points in a two-dimensional graph, where the horizontal
+coordinates of the points are the integers 0, 1, 2, @dots{}, @var{n}, and
+the vertical coordinates are the corresponding values @var{y(n)} of the
+sequence defined by the recurrence relation
+@ifnottex
+@example
+        y(n+1) = F(y(n))
+@end example
+@end ifnottex
+@tex
+$$y_{n+1} = F(y_n)$$
+@end tex
+
+With initial value @var{y(0)} equal to @var{y0}.  @var{F} must be an
+expression that depends only on one variable (in the example, it
+depend on @var{y}, but any other variable can be used),
+@var{y0} must be a real number and @var{n} must be a positive integer.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} evolution2d (@code{[}@var{F}, @var{G}@code{]}, @code{[}@var{u}, @var{v}@code{]}, @code{[}@var{u0}, @var{y0}@code{]}, @var{n}, @dots{}, options, @dots{})
+
+Shows, in a two-dimensional plot, the first @var{n+1} points in the
+sequence of points defined by the two-dimensional discrete dynamical
+system with recurrence relations
+@ifnottex
+@example
+        u(n+1) = F(u(n), v(n))    v(n+1) = G(u(n), v(n))
+@end example
+@end ifnottex
+@tex
+$$\cases{u_{n+1} = F(u_n, v_n) &\cr v_{n+1} = G(u_n, v_n)}$$
+@end tex
+
+With initial values @var{u0} and @var{v0}.  @var{F} and @var{G} must be
+two expressions that depend only on two variables, @var{u} and
+@var{v}, which must be named explicitely in a list.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} ifs (@code{[}@var{r1}, @dots{}, @var{rm}@code{]}, @code{[}@var{A1}, @dots{}, @var{Am}@code{]}, @code{[[}@var{x1}, @var{y1}@code{]}, @dots{}, @code{[}@var{xm}, @var{ym}@code{]]}, @code{[}@var{x0}, @var{y0}@code{]}, @var{n}, @dots{}, options, @dots{})
+
+Implements the Iterated Function System method.  This method is similar
+to the method described in the function @code{chaosgame}, but instead of
+shrinking the segment from the current point to the randomly chosen
+point, the 2 components of that segment will be multiplied by the 2 by 2
+matrix @var{Ai} that corresponds to the point chosen randomly.
+
+The random choice of one of the @var{m} attractive points can be made with
+a non-uniform probability distribution defined by the weights
+@var{r1}, @dots{}, @var{rm}.  Those weights are given in cumulative form; for 
+instance if there are 3 points with probabilities 0.2, 0.5 and
+0.3, the weights @var{r1}, @var{r2} and @var{r3} could be 2, 7 and 10.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} julia (@var{x}, @var{y}, @dots{}, @var{options}, @dots{})
+
+Creates a graphics file with the representation of the Julia set for the
+complex number (@var{x} + i @var{y}).  The parameters @var{x} and @var{y}
+must be real.  The file is created in the current directory or in the user's
+directory, using the XPM graphics format.  The program may take several
+seconds to run and after it is finished, a message will be printed with
+the name of the file created.
+
+The points which do not belong to the Julia set are assigned different
+colors, according to the number of iterations it takes the sequence
+starting at that point to move out of the convergence circle of radius
+2.  The maximum number of iterations is set with the option @var{levels};
+after that number of iterations, if the sequence is still inside the
+convergence circle, the point will be painted with the color defined by
+the option @var{color}.
+
+All the colors used for the points that do not belong to the Julia set
+will have the same @var{saturation} and @var{value}, but with different
+hue angles distributed uniformly between @var{hue} and (@var{hue} +
+@var{huerange}).
+
+@var{options} is an optional sequence of options.  The list of accepted
+options is given in a section below.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} mandelbrot (@var{options})
+
+Creates a graphics file with the representation of the Mandelbrot
+set.  The file is created in the current directory or in the user's
+directory, using the XPM graphics format.  The program may take several
+seconds to run and after it is finished, a message will be printed with
+the name of the file created.
+
+The points which do not belong to the Mandelbrot set are
+assigned different colors, according to the number of iterations it
+takes the sequence generated with that point to move out of the
+convergence circle o radius 2.  The maximum number of iterations is set with
+the option @var{levels}; after that number of iterations, if the
+sequence is still inside the convergence circle, the point will be
+painted with the color defined by the option @var{color}.
+
+All the colors used for the points that do not belong to the Mandelbrot
+set will have the same @var{saturation} and @var{value}, but with
+different hue angles distributed uniformly between @var{hue} and
+(@var{hue} + @var{huerange}).
+
+@var{options} is an optional sequence of options.  The list of accepted
+options is given in a section below.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} orbits (@var{F}, @var{y0}, @var{n1}, @var{n2}, [@var{x}, @var{x0}, @var{xf}, @var{xstep}], @dots{}, options, @dots{})
+
+Draws the orbits diagram for a family of one-dimensional
+discrete dynamical systems, with one parameter @var{x}; that kind of
+diagram is used to study the bifurcations of a one-dimensional discrete
+system.
+
+The function @var{F(y)} defines a sequence with a starting value of
+@var{y0}, as in the case of the function @code{evolution}, but in this
+case that function will also depend on a parameter @var{x} that will
+take values in the interval from @var{x0} to @var{xf} with increments of
+@var{xstep}. Each value used for the parameter @var{x} is shown on the
+horizontal axis. The vertical axis will show the @var{n2} values
+of the sequence @var{y(n1+1)},..., @var{y(n1+n2+1)} obtained after letting
+the sequence evolve @var{n1} iterations.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn  {Function} rk (@var{ODE}, @var{var}, @var{initial}, @var{domain})
+@deffnx {Function} rk ([@var{ODE1}, @dots{}, @var{ODEm}], [@var{v1}, @dots{}, @var{vm}], [@var{init1}, @dots{}, @var{initm}], @var{domain})
+
+The first form solves numerically one first-order ordinary differential
+equation, and the second form solves a system of m of those equations,
+using the 4th order Runge-Kutta method.  @var{var} represents the dependent
+variable.  @var{ODE} must be an expression that depends only on the independent
+and dependent variables and defines the derivative of the dependent
+variable with respect to the independent variable.
+
+The independent variable is specified with @code{domain}, which must be a
+list of four elements as, for instance:
+@example
+[t, 0, 10, 0.1]
+@end example
+the first element of the list identifies the independent variable, the
+second and third elements are the initial and final values for that
+variable, and the last element sets the increments that should be used
+within that interval.
+
+If @var{m} equations are going to be solved, there should be @var{m}
+dependent variables @var{v1}, @var{v2}, @dots{}, @var{vm}.  The initial values
+for those variables will be @var{init1}, @var{init2}, @dots{}, @var{initm}.
+There will still be just one independent variable defined by @code{domain},
+as in the previous case.  @var{ODE1}, @dots{}, @var{ODEm} are the expressions
+that define the derivatives of each dependent variable in
+terms of the independent variable.  The only variables that may appear in
+those expressions are the independent variable and any of the dependent
+variables.  It is important to give the derivatives @var{ODE1}, @dots{},
+@var{ODEm} in the list in exactly the same order used for the dependent
+variables; for instance, the third element in the list will be interpreted
+as the derivative of the third dependent variable.
+
+The program will try to integrate the equations from the initial value
+of the independent variable until its last value, using constant
+increments.  If at some step one of the dependent variables takes an
+absolute value too large, the integration will be interrupted at that
+point.  The result will be a list with as many elements as the number of
+iterations made.  Each element in the results list is itself another list
+with @var{m}+1 elements: the value of the independent variable, followed
+by the values of the dependent variables corresponding to that point.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} staircase (@var{F}, @var{y0}, @var{n}, @dots{}, options, @dots{})
+
+Draws a staircase diagram for the sequence defined by the recurrence
+relation
+@ifnottex
+@example
+        y(n+1) = F(y(n))
+@end example
+@end ifnottex
+@tex
+$$y_{n+1} = F(y_n)$$
+@end tex
+
+The interpretation and allowed values of the input parameters is the
+same as for the function @code{evolution}.  A staircase diagram consists
+of a plot of the function @var{F(y)}, together with the line
+@var{G(y)} @code{=} @var{y}.  A vertical segment is drawn from the
+point (@var{y0}, @var{y0}) on that line until the point where it
+intersects the function @var{F}.  From that point a horizontal segment is
+drawn until it reaches the point (@var{y1}, @var{y1}) on the line, and
+the procedure is repeated @var{n} times until the point (@var{yn}, @var{yn})
+is reached.
+@end deffn
+
+@b{Options}
+
+Each option is a list of two or more items.  The first item is the name
+of the option, and the remainder comprises the arguments for the option.
+
+The options accepted by the functions @code{evolution}, @code{evolution2d},
+@code{staircase}, @code{orbits}, @code{ifs} and @code{chaosgame} are the same
+as the options for @code{plot2d}.  In addition to those options, @code{orbits}
+accepts and extra option @var{pixels} that sets up the maximum number of
+different points that will be represented in the vertical direction.
+
+The following options are accepted by the functions @code{julia} and 
+@code{mandelbrot}:
+
+@itemize @bullet
+@item
+@dfn{size} takes either one or two arguments.  If only one argument is
+given, the width and height of the graphic file created will be equal to
+that value, in pixels.  If two arguments are given, they will define the
+width and height.  The default value is 400 pixels for both the width and
+height.  If the two values are not equal, the set will appear distorted.
+
+@item
+@dfn{levels} defines the maximum number of iterations, which is also
+equal to the number of colors used for points not belonging to the
+set.  The default value is 12; larger values mean much longer processing
+times.
+
+@item
+@dfn{huerange} defines the range of hue angles used for the hue of
+points not belonging to the set.  The default value is 360,
+which means that the colors will expand all the range of hues.  Values
+bigger than 360, will mean repeated ranges of the hue, and negative
+values can be used to make the hue angle decrease as the number of
+iterations increases.
+
+@item
+@dfn{hue} sets the hue, in degrees, of the first color used for the
+points which do not belong to the set.  Its default value is 300 degrees,
+which corresponds to magenta; the values for other standard colors are 0
+for red, 45 for orange, 60 for yellow, 120 for green, 180 for cyan and
+240 for blue.  See also option @var{huerange}.
+
+@item
+@dfn{saturation} sets the value of the saturation used for points not
+belonging to the set.  It must be between 0 and 1.  The default is 0.46.
+
+@item
+@dfn{value} sets the value of the colors used for points not belonging
+to the set.  It must be between 0 and 1; the higher the value, the
+brighter the colors.  The default is 0.96
+
+@item
+@dfn{color} must be followed by three parameters that define the hue,
+saturation and value, for the color used to represent the points of the
+set.  The default value is 0 for the three parameters, which corresponds
+to black.  For an explanation of the range of allowed values, see options
+@var{hue}, @var{saturation} and @var{value}.
+
+@item
+@dfn{center} must be followed by two real parameters, which give the
+coordinates, on the complex plane, of the point in the center of the
+region shown.  The default value is 0 for both coordinates (the origin).
+
+@item
+@dfn{radius} sets the radius of the biggest circle inside the square
+region that will be displayed.  The default value is 2.
+
+@item
+@dfn{filename} gives the name of the file where the resulting graph will
+be saved.  The extension .xpm will be added to that name.  If the file
+already exists, it will be replaced by the file generated by the
+function.  The default values are julia for the Julia set, and mandelbrot
+for the Mandelbrot set.
+
+@end itemize
+
+@b{Examples}
+
+Graphical representation and staircase diagram for the sequence:
+2, cos(2), cos(cos(2)),...
+
+@example
+(%i1) load("dynamics")$
+
+(%i2) evolution(cos(y), 2, 11);
+
+(%i3) staircase(cos(y), 1, 11, [y, 0, 1.2]);
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics1,8cm}
+@image{../figures/dynamics2,8cm}
+@end ifnotinfo
+
+If your system is slow, you'll have to reduce the number of iterations in
+the following examples.  And if the dots appear too small in your
+monitor, you might want to try a different style, such as
+@code{[}@var{style},@code{[}@var{points},0.8@code{]]}.
+
+Orbits diagram for the quadratic map, with a parameter @var{a}.
+@ifnottex
+@example
+        x(n+1) = a + x(n)^2
+@end example
+@end ifnottex
+@tex
+$$x_{n+1} = a + x_n^2$$
+@end tex
+
+@example
+(%i4) orbits(x^2+a, 0, 50, 200, [a, -2, 0.25], [style, dots]);
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics3,8cm}
+@end ifnotinfo
+
+To enlarge the region around the lower bifurcation near x @code{=} -1.25 use:
+@example
+(%i5) orbits(x^2+a, 0, 100, 400, [a,-1,-1.53], [x,-1.6,-0.8],
+             [nticks, 400], [style,dots]);
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics4,8cm}
+@end ifnotinfo
+
+Evolution of a two-dimensional system that leads to a fractal:
+
+@example
+(%i6) f: 0.6*x*(1+2*x)+0.8*y*(x-1)-y^2-0.9$
+
+(%i7) g: 0.1*x*(1-6*x+4*y)+0.1*y*(1+9*y)-0.4$
+
+(%i8) evolution2d([f,g], [x,y], [-0.5,0], 50000, [style,dots]);
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics5,8cm}
+@end ifnotinfo
+
+And an enlargement of a small region in that fractal:
+
+@example
+(%i9) evolution2d([f,g], [x,y], [-0.5,0], 300000, [x,-0.8,-0.6],
+                  [y,-0.4,-0.2], [style, dots]);
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics6,8cm}
+@end ifnotinfo
+
+A plot of Sierpinsky's triangle, obtained with the chaos game:
+
+@example
+(%i9) chaosgame([[0, 0], [1, 0], [0.5, sqrt(3)/2]], [0.1, 0.1], 1/2,
+                 30000, [style, dots]);
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics7,8cm}
+@end ifnotinfo
+
+Barnsley's fern, obtained with an Iterated Function System:
+
+@example
+(%i10) a1: matrix([0.85,0.04],[-0.04,0.85])$
+
+(%i11) a2: matrix([0.2,-0.26],[0.23,0.22])$
+
+(%i12) a3: matrix([-0.15,0.28],[0.26,0.24])$
+
+(%i13) a4: matrix([0,0],[0,0.16])$
+
+(%i14) p1: [0,1.6]$
+
+(%i15) p2: [0,1.6]$
+
+(%i16) p3: [0,0.44]$
+
+(%i17) p4: [0,0]$
+
+(%i18) w: [85,92,99,100]$
+
+(%i19) ifs(w, [a1,a2,a3,a4], [p1,p2,p3,p4], [5,0], 50000, [style,dots]);
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics8,8cm}
+@end ifnotinfo
+
+To create a file named @emph{dynamics9.xpm} with a graphical
+representation of the Mandelbrot set, with 12 colors, use:
+
+@example
+mandelbrot([filename,"dynamics9"])$
+@end example
+
+@ifnotinfo
+@image{../figures/dynamics9,8cm}
+@end ifnotinfo
+
+and the Julia set for the number (-0.55 + i 0.6) can be obtained with:
+@example
+julia(-0.55, 0.6, [levels, 36], [center, 0, 0.6], [radius, 0.3],
+      [hue, 240], [huerange, -180], [filename, "dynamics10"])$
+@end example
+
+the graph will be saved in the file @emph{dynamics10.xpm} and will show
+the region from -0.3 to 0.3 in the x direction, and from 0.3 to 0.9 in
+the y direction.  36 colors will be used, starting with blue and ending
+with yellow.
+
+@ifnotinfo
+@image{../figures/dynamics10,8cm}
+@end ifnotinfo
+
+To solve numerically the differential equation
+
+@ifnottex
+@example
+          dx/dt = t - x^2
+@end example
+@end ifnottex
+@tex
+$${{dx}\over{dt}} = t - x^2$$ 
+@end tex
+
+With initial value x(t=0) = 1, in the interval of t from 0 to 8 and with
+increments of 0.1 for t, use:
+
+@example
+(%i20) results: rk(t-x^2,x,1,[t,0,8,0.1])$
+@end example
+
+the results will be saved in the list @code{results}.
+
+To solve numerically the system:
+
+@ifnottex
+@example
+        dx/dt = 4-x^2-4*y^2     dy/dt = y^2-x^2+1
+@end example
+@end ifnottex
+@tex
+$$\cases{{\displaystyle{dx}\over\displaystyle{dt}} = 4-x^2-4y^2 &\cr &\cr {\displaystyle{dy}\over\displaystyle{dt}} = y^2-x^2+1}$$
+@end tex
+
+for t between 0 and 4, and with values of -1.25 and 0.75 for x and y at t=0:
+
+@example
+(%i21) sol: rk([4-x^2-4*y^2,y^2-x^2+1],[x,y],[-1.25,0.75],[t,0,4,0.02])$
+@end example
+
+@c --- End of file dynamics.de.texi --------------------------------------------
+

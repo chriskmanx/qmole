@@ -1,0 +1,277 @@
+/*									* 
+ * diag([a1,a2,..])							*
+ * ai is square matrix or one element					*
+ * Jordan cell JF(labmda,n),labmda is eigenvalue,n is size of matrix 	*
+ * jordan(mat) is jordan form but represented by list			*
+ * we obtain matrix form ,dispJordan(this list)				*
+ * minimalPoly(this list) display minimalpolynomial of that matrix	*
+ * ModeMatrix(mat,this list) return ModeMatrix M,                       *
+ * (M^^-1)AM=JF              		                        	*
+ * mat_function(analytic function,matrix) return f(matrix)              *
+ * this calculation is based on Cauchy integral formular.               *
+ * if f(x) is analytic and mat=diag([JF(m1,n1),,JF(mk,nk)]),            *
+ * then                                                                 * 
+ * f(mat)=ModeMatrix*diag([f(JF(m1,n1)),,f(JF(mk,nk))])*ModeMatrix^^(-1)*
+ * this method is only one of them,6~8or more other methods exist.      *
+ * so I cannot insist on this being best.but I think it very useful.    *
+ * please try jordan.dem                                                *
+ * I intended to write this program,after saw Barton's mat_exp.mc 	*
+ * Partially because of Mathematica BUG ,				*
+ * a:matix( [2,0,0,0,0,0,0,0],						*
+ *        [1,2,0,0,0,0,0,0],						*
+ *        [-4,1,2,0,0,0,0,0],						*
+ *        [2,0,0,2,0,0,0,0],						*
+ *        [-7,2,0,0,2,0,0,0],						*
+ *        [9,0,-2,0,1,2,0,0],						*
+ *        [-34,7,1,-2,-1,1,2,0],					*
+ *        [145,-17,-16,3,9,-2,0,3])$	Mathematica returns wrong answer*
+ * Jordan form,my program returns correct answer for this matrix        *
+ * this program is GPL.							*
+ */
+ /* Make an n element Maxima list [a,a,...a].
+  thank for Barton */
+  load("eigen")$
+
+  duplicate(a,n) := block([k],
+  makelist(a,k,1,n))$
+ 
+
+  diag(x):= block([ mmatrix,z1,ztemp,zero,n,ntemp,sumn,i,j,k,s,sold,front,back],
+    mode_declare([z1,ztemp,zero],list,[mmatrix],any,[n,ntemp,sumn,i,j,k,s,sold,front,back],fixnum),
+    n:length(x),sumn:0,front:0,sold:0,
+    /*gard*/
+    for i:1 thru n do (
+      if (matrixp(x[i])) then 
+      	x[i]:x[i] 
+      else ( 
+       	x[i]:matrix([x[i]]))
+    ),
+   /*sumn is matrix size */
+    for i:1 thru n do sumn:length(x[i])+sumn,
+    ztemp:[],z1:[],back:sumn,
+    for i:1 thru n do (
+      s:length(x[i]),
+      back:back-s,front:front+sold,
+      if (front=0) then
+      	  zero:[]
+      else (
+       	  zero:duplicate(0,front)),
+      for k:1 thru s do (
+      	  ztemp:zero,
+      	for j:1 thru s do (
+      	    ztemp:endcons(x[i][k,j],ztemp)
+      	),
+      	ztemp:append(ztemp,duplicate(0,back)),
+      	if (i=1 and k=1) then 
+	    mmatrix:matrix(ztemp)
+      	else (
+	    mmatrix:addrow(mmatrix,ztemp))
+       ),   
+       sold:s 
+     ),
+  
+  return(mmatrix))$
+ 
+ /*Jordan cell JF(labmda,n),labmda is eigenvalue,n is size of matrix */
+ JF(labmda,n):=block([mmatrix,ztemp,i],
+    mode_declare([ztemp],list,[i,n],fixnum,[mmatrix],any),
+    if (n <= 0) then (
+       print("can not calc JF"),
+       return(0)
+    )else (
+       if (n=1) then (
+	 return(matrix([labmda]))
+       ) else (
+      	   front:-1,back:n-1,ztemp:[],
+       	   for i:1 thru n do (
+      	       front:front+1,back:back-1,
+      	       if (front=0) then (
+		  mmatrix:matrix(append([labmda,1],duplicate(0,back)))
+      	       ) else ( 
+	       	   if (front <= n-2) then (
+      	      	       ztemp:append(duplicate(0,front),[labmda,1],duplicate(0,back)),
+	      	       mmatrix:addrow(mmatrix,ztemp)
+       	      	   ) else (
+	      	       ztemp:append(duplicate(0,front),[labmda]),
+	      	       mmatrix:addrow(mmatrix,ztemp)))
+	    ),
+ return(mmatrix))))$
+	  
+
+/*jordan(matrix),return diag(JF(labmda1,n1),..,JF(labmdak,nk))
+or list [[labmda1,n1,..nl],[labmda2,m1,..mj],..] and M matrix  */
+
+jordan(mat) := block( [JFLIST,eigenlist,multilist,zztemp,i,j,k,n,t,ii,neigen,tmpmulti,
+     blocknum,pmulti,NJ,mattmp],
+   mode_declare([i,j,k,n,t,ii,neigen,pmulti,tmpmulti,blocknum],fixnum,[JFLIST,eigenlist,
+    multilist,NJ,zztemp],list,[mat,mattmp],any),
+   n:length(mat),
+   eigenlist:eigenvectors(mat),
+   neigen:length(eigenlist[1][1]),
+   multilist:eigenlist[1][2],
+   JFLIST:[],
+   for i:1 thru neigen do (
+      pmulti:multilist[i],
+      zztemp:[],NJ:duplicate(0,pmulti),tmpmulti:0,
+     
+      if (pmulti=1) then (
+	 zztemp:cons(1,zztemp)
+      ) else (
+      	 mattmp:mat-(eigenlist[1][1][i])*ident(n),
+	 blocknum:n-rank(mattmp),
+	 if (blocknum=1) then (
+	    zztemp:cons(pmulti,zztemp)
+	 ) else (
+	    if (blocknum=pmulti) then (
+	       for ii:1 thru pmulti do zztemp:cons(1,zztemp)
+	    ) else (
+	       	for k:2  while (pmulti #tmpmulti) do (
+       		   s:0,
+		   t:n-rank(mattmp^^k),
+		   if (k=2) then (
+		      s:0
+		   ) else (
+		       for ii:1 thru k-2 do s:s+(k-ii)*NJ[ii]),
+		   NJ[k-1]:k*blocknum-s-t,
+		   for ii:1 thru NJ[k-1] do zztemp:cons(k-1,zztemp),
+		   tmpmulti:tmpmulti+NJ[k-1]*(k-1)
+		 )))),
+		      
+       JFLIST:endcons(cons(eigenlist[1][1][i],zztemp),JFLIST) 
+     ),
+  return(JFLIST))$
+          
+minimalPoly(a):=block([i,n,x],
+  mode_declare([i,n],fixnum,[a],list,[x,T],any),
+  n:length(a),T:1,
+  for i:1 thru n do (
+     T:T*(x - a[i][1])^(a[i][2])
+  ),
+  return(T))$
+
+dispJordan(a):=block([i,n,p],
+   mode_declare([i,n,j],fixnum,[a],list,[vtemp],any),
+   n:length(a),vtemp:[],
+   for i:1 thru n do (
+      for j:1 thru length(a[i])-1 do (
+       	 vtemp:endcons(JF(a[i][1],a[i][j+1]),vtemp)
+      )
+   ),
+  
+  return(diag(vtemp)))$
+
+/* [2,3,3,2,2,2,1,1,1] to [[3,2],[2,3],[1,3]] */
+chlist(lis):= block([tes,arg1,i,m,counter],
+  mode_declare([tes,i],fixnum,[ag1,lis],list),
+  m:length(lis),
+  arg1:[],tes:lis[2],counter:0,
+  for i:2 thru m do (
+    if (tes=lis[i]) then (
+      counter:counter+1
+    ) else (
+       arg1:endcons([tes,counter],arg1),
+       tes:lis[i],
+       counter:1 ),
+    if (i=m) then (
+      arg1:endcons([tes,counter],arg1)
+   )),
+  return(arg1))$
+ 
+/* calc modematrix T ,T^^(-1)*A*T=JordanForm(A) */ 
+ModeMatrix(a,F):= block([i,j,k,msize,lsize,firstflg,multiplist,mindeg,ev,xv,tmpv,
+ IM,DRNK,modemat,rank1,rankdim,LIS,zerolist,localrank,solvec],
+   mode_declare([i,j,k,msize,firstflg,mindeg,rank1,rankdim],fixnum,[multiplist,ev,
+    xv,tmpv,LIS,zerolist,F],list,[a,IM,DRANK,modemat,solvec],any,[localrank],fixnum),
+   lsize:length(F),
+   msize:length(a),
+   firstflg:0,
+   zerolist:duplicate(0,msize),
+   for i:1 thru lsize do (
+      ev:F[i][1],localrank:F[i][2],
+      multiplist:chlist(F[i]),
+      for j:1 thru length(multiplist) do (
+         mindeg:multiplist[j][1],
+	 localrank:multiplist[j][2],
+	 solvec[1]:matsolve2((a-ev*ident(msize))^^mindeg,zerolist),
+	 for k:2 thru mindeg do (
+	    solvec[k]:transpose((a-ev*ident(msize)).solvec[k-1])[1]
+	 ),
+	 IM:ident(length(%rnum_list)),rank1:0,
+	 for k:1 while (rank1 < localrank) do ( 
+	    LIS:map("=",%rnum_list,row(IM,k)[1]),
+	    tmpv:subst(LIS,solvec[mindeg]),
+	    if (tmpv #zerolist) then (
+	       if (firstflg = 0 ) then (
+		  DRANK:matrix(tmpv),
+		  rank1:1,firstflg:1,
+		  rankdim:1,
+		  modemat:matrix(tmpv),
+		  for l:mindeg-1 step -1 thru 1 do (
+		     modemat:addrow(modemat,subst(LIS,solvec[l]))
+		  )
+		) else (
+		     if (rankdim < rank(addrow(DRANK,tmpv))) then (
+		        DRANK:addrow(DRANK,tmpv),
+			rankdim:rankdim+1,rank1:rank1+1,
+			for l:mindeg step -1 thru 1 do (
+		     modemat:addrow(modemat,subst(LIS,solvec[l]))
+	       	        ))))
+	   )
+	)
+    ),
+   return(transpose(modemat)))$   
+
+  /* matsolve2(mat,v0)
+  v0 is start value of sequence of generarized eigenvectors */
+
+  matsolve2(mat,v0):=block([equation1,unkown1,solut1,solut2,dm1,
+     index1,mat1,vectr1,vectr2,unkw,%rnum],
+     mode_declare([equation1,unkown1,solut1,solut2],list,
+      [dm1,index1],fixnum,
+      [vectr1,vectr2,unkw,mat1],any),
+      dm1:length(mat),
+      unkown1:[],
+      for index1 thru dm1 do unkown1:endcons(concat(unkw,index1),unkown1),
+      vectr1:transpose(matrix(unkown1)),
+      vectr2:transpose(matrix(v0)),
+      mat1:mat.vectr1-vectr2,
+      equation1:[],
+      for index1 thru dm1 do equation1:cons(mat1[index1,1],equation1),
+      %rnum:0,
+      solut1:algsys(equation1,unkown1),
+      if solut1=[] then (
+      	 print("endreach ,I cannot solve this"),return([])
+      ) else (
+      	 solut2:map('rhs,solut1[1]),
+      
+      return(solut2)))$
+
+
+ghelp(f,labmda,k):=subst(labmda,'z,diff(f('z),'z,k)/k!)$
+
+/* f must be analytic function, a is matrix   */
+
+mat_function(f,a):=block([i,j,ii,n,p,L1,L2,b,tempmat,siftmat],
+   mode_declare([i,n,j,ii],fixnum,[L1,L2],list,[a,vtemp,b,tempmat,modemat],any),
+   L2:jordan(a),   
+   n:length(L2),vtemp:[],
+   
+   for i:1 thru n do (
+       for j:1 thru length(L2[i])-1 do (
+	  L1:[],
+       	  for ii:0 thru L2[i][j+1]-1 do (
+	     L1:endcons(ghelp(f,L2[i][1],ii),L1)
+	   ),
+	  tempmat:matrix(L1),
+	  siftmat:JF(0,L2[i][j+1]),
+	  b:tempmat,
+	  for ii:1 thru L2[i][j+1]-1 do (
+	     tempmat: (tempmat . siftmat), 
+	     b:addrow(b,tempmat)
+	   ),
+	   
+       	 vtemp:endcons(b,vtemp)
+      )
+   ),
+   modemat:ModeMatrix(a,L2),
+  return(modemat.diag(vtemp).(modemat)^^-1))$

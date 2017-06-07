@@ -1,0 +1,1222 @@
+%-*-EMaxima-*-
+\documentclass{article}
+\usepackage[lines]{emaxima}
+\usepackage{url}
+
+\newcommand{\emx}{\textsl{\sffamily EMaxima}}
+\newcommand{\mx}{\textsl{\sffamily Maxima}}
+\newcommand{\hyph}{-\hspace{0pt}}
+\newdimen\firstcol
+\firstcol=.35\textwidth
+\newdimen\secondcol
+\secondcol=.65\textwidth
+
+\title{\mx{} and Emacs}
+\author{Jay Belanger}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Using \mx{} and Emacs}
+
+Emacs, while nominally a text editor, is an extensible environment for
+interacting with text in various ways.  As such, it provides a
+convenient interface for many text-based utilities.  For example,
+users of Emacs can interact with \mx{} from within their favorite
+editor\footnote{Emacs.} in a number of ways.  The most basic way is to
+use Emacs as a shell and run a \mx{} process interactively from
+within a buffer.  Emacs can interact with this process from other
+buffers, and thus interact with the \mx{} process in less
+straightforward ways.  Emacs can also be used to write
+\mx{} programs.  A special mode is provided which will take
+care of syntax highlighting, indentation, etc.  Portions of the
+program can also be sent automatically to a \mx{} program.
+Finally, text and \mx{} commands can be interweaved in a \mx{}
+notebook mode called \emx{}.
+
+\section{Running \mx{} Interactively}
+
+To run \mx{} interactively in a buffer, type \texttt{M-x maxima}.  A
+buffer named \texttt{*Maxima*} should start up in which a \mx{}
+process is running.%
+\footnote{In XEmacs, a double input prompt will sometimes appear in
+  the \texttt{*Maxima*} buffer.  If this occurs, the customizable
+  variable \texttt{maxima\hyph{}fix\hyph{}double\hyph{}prompt} can be set to \texttt{t}
+  to take care of this.}
+A history of input commands can be saved across Maxima sessions by
+setting the variable \texttt{maxima\hyph{}save\hyph{}input\hyph{}history} to \texttt{t}.
+In the \texttt{*Maxima*} buffer, \texttt{RET} will check the line for
+balanced parentheses, and send line as input.  \texttt{C-RET} will
+send the line as input without checking for balanced parentheses.  A
+list of available commands are listed in Appendix \ref{app:intmx}.
+
+If this is the only way that \mx{} is to be used from within Emacs,
+then the \textsl{Imaxima} package should be considered.  It allows the
+user to work with \mx{} interactively, and produces the output in
+visually nice form.  It is available from
+\verb+http://memberss3.jcom.home.ne.jp/imaxima/Site/Welcome.html+.
+
+\section{Running \mx{} from arbitrary buffers}
+
+Several commands will access the \mx{} process from outside of the
+\texttt{*Maxima*} buffer; these commands are given  convenient key
+bindings  with the \mx{} minor mode (which can be started
+with \texttt{M-x maxima-minor-mode}), but are available without the
+minor mode.  In the following, the minor mode keybindings are given in
+parentheses.
+
+The command \texttt{M-x maxima-minibuffer-on-determined-region}
+(\texttt{C-c = e}) will send part of the current buffer containing
+the point to the \mx{} process and return the result in the
+minibuffer.  The region that is sent is the region bounded above and
+below by blank lines (although the delimiters can be changed by
+changing the regexps \texttt{maxima\hyph{}minor\hyph{}prefix} and 
+\texttt{maxima\hyph{}minor\hyph{}postfix}).  Given an argument, this command 
+will also insert the output into the current buffer, after the symbol
+\texttt{~==>~}.   (The output indicator \texttt{~==>~} is the value of
+the customizable variable \texttt{maxima\hyph{}minor\hyph{}output}.)
+When calling
+\texttt{maxima\hyph{}minibuffer\hyph{}on\hyph{}determined\hyph{}region} on a region
+which already has some output displayed, everything 
+after the indicator \texttt{~==>~} will be ignored, and, if the new
+output is to be inserted, everything after the indicator will be
+assumed to be old output and deleted.
+
+The commands \texttt{M-x maxima\hyph{}minibuffer\hyph{}on\hyph{}region} (\texttt{C-c = r}),
+\texttt{M-x maxima\hyph{}minibuffer\hyph{}on\hyph{}line} (\texttt{C-c = l}) and 
+\texttt{M-x maxima\hyph{}minibuffer\hyph{}on\hyph{}form} (\texttt{C-c = f}) work
+similarly to \texttt{M-x maxima\hyph{}minibuffer\hyph{}on\hyph{}determined\hyph{}region}, but
+send the current region (respectively, the current line, current form%
+\footnote{The region between the preceding \texttt{;} or \texttt{\$}
+  and the subsequent \texttt{;} or \texttt{\$}.})
+to \mx{} and display the result in the minibuffer.
+Care must be taken when inserting the output into the current buffer
+with \texttt{M-x maxima\hyph{}minibuffer\hyph{}on\hyph{}region} or 
+\texttt{M-x maxima\hyph{}minibuffer\hyph{}on\hyph{}form}, since new output will
+be inserted without the old output being deleted.
+
+The command \texttt{M-x maxima\hyph{}minibuffer} (\texttt{C-c = m}) will use
+the minibuffer to prompt for an expression to send to a \mx{} process,
+and the result will appear in the minibuffer%
+\footnote{In GNU Emacs, the output will be in 2D form if the
+customizable variable \texttt{maxima\hyph{}minibuffer\hyph{}2d} is non-nil.  Since
+XEmacs does not have a resizable minibuffer, this cannot be done in
+XEmacs.}.
+You can scroll through previous minibuffer inputs using the arrow keys.
+
+The latest \mx{} output (whether from a minibuffer command or not) can
+be placed in the current buffer with the command
+\texttt{M-x maxima\hyph{}insert\hyph{}last\hyph{}output} (\texttt{C-c = o}).%
+\footnote{If the output is 2D, this won't look nice.}
+The command \texttt{M-x maxima\hyph{}insert\hyph{}last\hyph{}output\hyph{}tex} (\texttt{C-c = t})
+will insert the last output in \TeX{} form.
+
+\section{\mx{} mode}
+
+\mx{} mode is a major mode for writing \mx{} code.  While in this
+mode, Emacs provides commands for moving around in the code, syntax
+highlighting, indenting lines to an appropriate level, sending
+portions of the code to a \mx{} process, and providing help on \mx{}
+commands.  A list of available commands is in Appendix
+\ref{app:mxmode}.
+
+When something is sent to a \mx{} process, the \texttt{*Maxima*}
+buffer will
+appear.  (If a \mx{} process is not running, one will be started.)  It
+can also be made to appear by using the command \texttt{C-c C-p}.  If
+an argument is given to a command to send information to \mx{}, the
+region will first be checked to make sure the parentheses are
+balanced.  The Maxima process can be killed, after asking for
+confirmation, with \texttt{C-c C-k}.  To kill without confirmation, give
+\texttt{C-c C-k} an argument.
+
+By default, a newline will be indented to the same level as the
+previous line, with an additional space added for open parentheses.  A
+tab will add extra spaces, by default, this is 2.  The behaviour of
+the automatic indentation can be changed by the command 
+\texttt{M-x maxima\hyph{}change\hyph{}indent\hyph{}style}.  The possibilities are
+\texttt{'standard}, as above, and \texttt{'perhaps\hyph{}smart}, which tries
+to guess an appropriate indentation, based on open parentheses, ``do''
+loops, etc.
+
+A \texttt{RET} will, by default, insert a new line, and indent the new
+line an appropriate amount.  This behavior can be changed by setting
+the value of
+\texttt{maxima\hyph{}return\hyph{}style}, the self-explanatory options are
+\texttt{'newline},
+ \texttt{'newline\hyph{}and\hyph{}indent}, and
+\texttt{'reindent\hyph{}then\hyph{}newline\hyph{}and\hyph{}indent}.  (Note that standard Emacs
+behavior is to let \texttt{RET} only insert a newline, and
+\texttt{LFD} or \texttt{C-j} insert a newline and indent it.)
+
+The indentation style, as well as many other things, are customizable;
+see Appendix \ref{app:custmxmode}.
+
+To help writing \mx{} code in \texttt{Noweb},
+\texttt{maxima\hyph{}noweb\hyph{}mode} is a modification of \texttt{maxima\hyph{}mode}
+that will work nicely with \texttt{noweb\hyph{}mode}; namely, it will limit
+any relevant searches to the current chunk and treat
+\texttt{<<\ldots>>} as word parts.
+
+\section{\emx}
+
+\emx{} is a major mode for Emacs that allows the user to write
+documents while interacting with \mx.  It is based on Dan Dill's
+\TeX{}/\textit{Mathematica} package\footnote{\TeX/\textit{Mathematica}
+  is available from \url{ftp://chem.bu.edu/pub/tex-mathematica-2.0}.},
+and uses a modified version of William Schelter's \texttt{maxima.el}.
+While the \mx{} mode provided by \texttt{maxima.el} is designed to
+help write \mx{} programs, \emx{} is designed to help write documents
+that include \mx{} code.  \emx{} is an extension of the \LaTeX{} mode
+provided by AUC\TeX{}\footnote{This can be configured so that \emx{}
+  extends the standard \TeX{} mode provided by Emacs, or just text
+  mode.}, and so has the \LaTeX{} mode commands available.  The
+resulting document can be processed by \LaTeX{}; this requires putting
+\begin{verbatim}
+\usepackage{emaxima}
+\end{verbatim}
+\noindent
+in the preamble.
+
+\subsection{Cells}
+
+The basic unit of \mx{} code in \emx{} is a \textbf{cell}.  A cell
+consists of text between the delimiters
+\begin{verbatim}
+\begin{maxima}
+\end{verbatim}
+\noindent
+and
+\begin{verbatim}
+\end{maxima}
+\end{verbatim}
+\noindent
+A cell can be created by typing \texttt{C-c C-o}.  (The \texttt{C-o} in this
+case stands for \textbf{o}pening a cell.)  The delimiters will then be
+placed in the buffer, and the point will be placed between them.
+
+When working with several cells, you can jump between them by using
+\texttt{C-c +} to go to the next cell and \texttt{C-c -} to go to the
+previous cell.
+
+\subsection{Evaluating cells}
+
+\noindent
+To evaluate the contents of a cell, the command
+\texttt{C-c C-u c} (\texttt{emaxima\hyph{}update\hyph{}cell})\footnote{Sending the
+  cells contents to a \mx{} process and returning the results is
+  called \textbf{updating} the cell, the prefix 
+\texttt{C-c C-u} will be used to update cells in different ways.} 
+will send the contents
+of the cell to a \mx{} process (if there is no \mx{} process running,
+one will be started) and return the results to the cell,
+separated from the input by the marker
+\begin{verbatim}
+\maximaoutput
+\end{verbatim}
+\noindent
+To differentiate
+$\sin(x^2)$, for example, type 
+\texttt{diff(sin(x\^{}2),x);} in a cell:
+\begin{verbatim}
+\begin{maxima}
+diff(sin(x^2),x);
+\end{maxima}
+\end{verbatim}
+\noindent
+After typing \texttt{C-c C-u c}, it will look like
+\begin{verbatim}
+\begin{maxima}
+diff(sin(x^2),x);
+\maximaoutput
+                                           2
+                                  2 x cos(x )
+\end{maxima}
+\end{verbatim}
+\noindent
+To delete the output and return the cell to its original form, you can
+use the command \texttt{C-c C-d}.
+If the document is to be \TeX{}ed, the above cell will look like:
+\newpage
+\begin{maxima}
+diff(sin(x^2),x);
+\end{maxima}
+and the cell with output will look like:
+\begin{maxima}
+diff(sin(x^2),x);
+\maximaoutput
+                                           2
+                                  2 x cos(x )
+\end{maxima}
+
+\emx{} mode can take advantage of the fact that \mx{} can give its
+output in \LaTeX{} form.  The command \texttt{C-c C-u C}
+works the same as \texttt{C-c C-u c}, except now the output is in \LaTeX{}
+form, ready to be formatted by \LaTeX{}.  In general, if 
+\texttt{C-c C-u }\textsl{letter} returns \mx{} output, then
+\texttt{C-c C-u }\textsl{capital letter} will return the output in
+\TeX{} form.  The above cell would become
+\begin{verbatim}
+\begin{maxima}
+diff(sin(x^2),x);
+\maximaoutput*
+\m  2\,x\,\cos x^2 \\
+\end{maxima}
+\end{verbatim}
+\noindent
+which, when \LaTeX{}ed, would become
+\begin{maxima}
+diff(sin(x^2),x);
+\maximaoutput*
+\m  2\,x\,\cos x^2 \\
+\end{maxima}
+\noindent
+(Note that whenever a cell is updated, any old output is discarded and
+replaced with new output.)  The command \texttt{C-c C-u a} will update all
+of the cells in your document, 
+stopping at each one to ask if you indeed want it updated.  Given an
+argument, \texttt{C-u C-c C-u a}, it will update all of the cells in your
+document without asking.  The command \texttt{C-c C-u A} behaves
+similarly, except now all the output is returned in \LaTeX{}  form.
+
+\subsection{Referencing Other Cells}
+
+\noindent
+Instead of \mx{} code, a cell can contain a reference to another cell,
+and when the original cell is sent to \mx{}, the reference is replaced
+by the referenced cell's contents (but only in the \mx{} process
+buffer, the cell's 
+content in the document's buffer is not changed).  In order to do
+this, the original cell must be marked by having a label of the form
+\texttt{<}\textsl{filename}\texttt{:}\textsl{cell label}\texttt{>}.
+(The reason for the \textsl{filename} will become apparent later, and
+\textsl{cell label} is optional for the referencing cell.)
+The referenced cell must also be labeled, with the same
+\textsl{filename} but a unique \textsl{cell label}.  To reference the
+other cell, the original cell need only contain the marker for the
+referenced cell.  For example, given cell 1:
+\begin{verbatim}
+\begin{maxima}[filename:optional]
+<filename:definef>
+diff(f(x),x);
+\end{maxima}
+\end{verbatim}
+\noindent
+and cell 2:
+\begin{verbatim}
+\begin{maxima}[filename:definef]
+f(x):=sin(x^2);
+\end{maxima}
+\end{verbatim}
+\noindent
+then the result of updating cell 1 (\texttt{C-c C-u c}) will be:
+\begin{verbatim}
+\begin{maxima}[filename:optional]
+<filename:definef>
+diff(f(x),x);
+\maximaoutput
+
+                                             2
+                                f(x) := sin(x )
+
+                                           2
+                                  2 x cos(x )
+\end{maxima}
+\end{verbatim}
+\noindent
+When \LaTeX{}ed, the top line will contain a copy of the marker.
+
+\begin{maxima}[filename:optional]
+<filename:definef>
+diff(f(x),x);
+\maximaoutput
+
+                                             2
+                                f(x) := sin(x )
+
+                                           2
+                                  2 x cos(x )
+\end{maxima}
+
+A cell can contain more than one reference, and referenced cells can
+themselves contain references.  
+
+To aid in labelling the cells, the command \texttt{C-c C-x}
+will prompt for a label name and label the
+cell.  To aid in calling references, the command \texttt{C-c C-TAB}
+can be used for completing the
+the \textsl{filename} and \textsl{cell label} parts of a reference, 
+based on the current labels.  
+Another option is to set the Emacs variable
+\texttt{emaxima\hyph{}abbreviations\hyph{}allowed} to \texttt{t}, say, by putting
+the line
+\begin{verbatim}
+(setq emaxima-abbreviations-allowed t)
+\end{verbatim}
+\noindent
+in your \texttt{.emacs} file.  This will allow the \textsl{filename}
+and \textsl{cell label} parts of a reference to be abbreviated by enough
+of a prefix to uniquely identify it, followed by ellipses
+\texttt{...}
+For example, if there are cells labelled
+\begin{verbatim}
+[filename:long description]
+[filename:lengthy description]
+\end{verbatim}
+\noindent
+Then the reference
+\begin{verbatim}
+<...:le...>
+\end{verbatim}
+\noindent
+will suffice to refer to the second label above.
+
+If you want the references in a cell to be replaced by the actual
+code, the command \texttt{C-c @} will expand all the
+references and put the code into a separate buffer (so it will not
+affect the original document).
+
+\subsection{WEB}
+
+\noindent
+The reason for the ability to reference other cells is so that you can
+write what Donald Knuth calls literate programs.  The idea is that the
+program is written in a form natural to the author rather than natural
+to the computer.  (Another aspect of Knuth's system is that the code
+is carefully documented, hence the name ``literate programming'', but
+that is done naturally in \emx{}.)  Knuth called his original
+literate programming tool \texttt{WEB}, since, as he puts it,
+``the structure of a software program may be thought of as a web that
+is made up of many interconnected pieces.''  
+\emx{}'s ability in this respect is taken directly from
+\TeX{}/\textit{Mathematica}, and is ultimately based on
+\texttt{WEB}. To create a 
+program, the ``base cell'' or ``package cell'' should contain 
+a label of the form \texttt{[}\textsl{filename}\texttt{:]} 
+(no cell label), and can
+contain references of the form 
+\texttt{<}\textsl{filename}\texttt{:}\textsl{part}\texttt{>}
+(same file name as the base cell).  
+
+As a simple (and rather silly) example, suppose we want to create a
+program to sum the first $n$ squares.  We could start:
+\begin{verbatim}
+\begin{maxima}[squaresum.max:]
+squaresum(n) := (
+  <squaresum.max:makelist>
+  <squaresum.max:squarelist>
+  <squaresum.max:addlist>
+  );        
+\end{maxima}
+\end{verbatim}
+\noindent
+We would then need cells
+\begin{verbatim}
+\begin{maxima}[squaresum.max:makelist],
+L:makelist(k,k,1,n),
+\end{maxima}
+
+\begin{maxima}[squaresum.max:squarelist]
+<squaresum.max:definesquare>
+L:map(square,L),
+\end{maxima}
+
+\begin{maxima}[squaresum.max:addlist]
+lsum(k,k,L)
+\end{maxima}
+\end{verbatim}
+\noindent
+and then we would also need:
+\begin{verbatim}
+\begin{maxima}[squaresum.max:definesquare]
+square(k) := k^2,
+\end{maxima}
+\end{verbatim}
+\noindent
+When \TeX{}ed, the header of the cell will say that it determines the
+file \texttt{squaresum.mu}.  
+\begin{maxima}[squaresum.max:]
+squaresum(n) := (
+  <squaresum.max:makelist>
+  <squaresum.max:squarelist>
+  <squaresum.max:addlist>
+  );        
+\end{maxima}
+
+The command 
+\texttt{C-u C-c @} will put all the pieces
+together in the file it determines.  The resulting file, in this case,
+will be \texttt{squaresum.max} and will look like:
+\begin{verbatim}
+squaresum(n) := (
+  L:makelist(k,k,1,n),
+  square(k) := k^2,
+  L:map(square,L),
+  lsum(k,k,L)
+  );        
+\end{verbatim}
+\noindent
+(Although the idea is that only the computer need look at this file.)
+
+\subsection{Other types of cells}
+
+\noindent
+When a cell is \TeX{}ed, the input and output are kept separate.  To
+have the results look like a \mx{} session, there are, in addition to
+the standard cells, special cells called \emph{session cells}.   A
+session cell is delimited by
+\begin{verbatim}
+\begin{maximasession}
+\end{verbatim}
+\noindent
+and
+\begin{verbatim}
+\end{maximasession}
+\end{verbatim}
+\noindent
+The command \texttt{C-c C-a} will create a session cell.  When a
+session cell is updated, the portion of the cell after the
+\verb+\maximaoutput+  will contain both the input and the output,
+with the \mx{} prompts.  For example, if the session cell
+\begin{verbatim}
+\begin{maximasession}
+diff(sin(x),x);
+integrate(cos(x),x);
+\end{maximasession}
+\end{verbatim}
+\noindent
+were updated, the result would look like
+\begin{verbatim}
+\begin{maximasession}
+diff(sin(x),x);
+integrate(cos(x),x);
+\maximaoutput
+(%i1) diff(sin(x),x);
+
+
+(%o1)                               cos(x)
+(%i2) integrate(cos(x),x);
+
+
+(%o2)                               sin(x)
+\end{maximasession}
+\end{verbatim}
+\noindent
+which, when \TeX{}ed, would look like
+\begin{maximasession}
+diff(sin(x),x);
+integrate(cos(x),x);
+\maximaoutput
+(%i1) diff(sin(x),x);
+
+
+(%o1)                               cos(x)
+(%i2) integrate(cos(x),x);
+
+
+(%o2)                               sin(x)
+\end{maximasession}
+\noindent
+If it is updated in \TeX{} form, it will look like
+\begin{verbatim}
+\begin{maximasession}
+diff(sin(x),x);
+integrate(cos(x),x);
+\maximaoutput*
+\i5.  diff(sin(x),x); \\
+\o5.  \cos x \\
+\i6.  integrate(cos(x),x); \\
+\o6.  \sin x \\
+\end{maximasession}
+\end{verbatim}
+\noindent
+which, when \TeX{}ed, will look like
+\begin{maximasession}
+diff(sin(x),x);
+integrate(cos(x),x);
+\maximaoutput*
+\i5.  diff(sin(x),x); \\
+\o5.  \cos x \\
+\i6.  integrate(cos(x),x); \\
+\o6.  \sin x \\
+\end{maximasession}
+
+% For particularly long output lines inside the \verb+\maximaoutput*+
+% part of a session cell, the command \verb+\DD+ will typeset anything
+% between the command and \verb+\\+.  Unfortunately, to take advantage
+% of this, the output has to be broken up by hand.
+% If a session cell has not been updated, or has no output for some
+% other reason, it will not appear when the document is \TeX{}ed.
+
+If a cell is \emph{starred}, that is, if the environment ends with an
+asterisk, then the output will not appear in the \TeX{}ed output.
+The star can be toggled with \texttt{C-c C-n}.
+
+If the command to create one type of cell is called while inside
+another type of cell, the type of cell will be changed.  So, for
+example, the command \texttt{C-c C-a} from inside the cell
+\begin{verbatim}
+\begin{maxima}
+diff(x*sin(x),x);
+\end{maxima}
+\end{verbatim}
+\noindent
+will result in
+\begin{verbatim}
+\begin{maximasession}
+diff(x*sin(x),x);
+\end{maximasession}
+\end{verbatim}
+\noindent
+If a standard cell is a package part, its type cannot be changed.
+
+\subsection{\emx{} and \texttt{Preview-LaTeX}}
+
+For users of \texttt{preview-latex}, the \emx{} cells can be
+previewed.\footnote{Currently, this only works in GNU Emacs.}
+This requires using the \texttt{preview} option to the
+\texttt{emaxima} package; i.e., putting
+\begin{verbatim}
+\usepackage[preview]{emaxima}
+\end{verbatim}
+in the preamble.  
+The cells will be un-previewed whenever they are updated.
+If the customizable variable \texttt{emaxima\hyph{}preview\hyph{}after\hyph{}update\hyph{}all}
+is non-nil, then the buffer will be re-previewed whenever an
+update-all command is called.
+
+
+\subsection{Miscellaneous}
+
+\noindent
+Some \mx{} commands can be used even outside of cells.  The command 
+\texttt{C-c C-u l} send the current line to a
+\mx{} process, comment out the current line, and insert the \mx{}
+output in the current buffer.  The command 
+\texttt{C-c C-u L} will do the same, but
+return the result in \LaTeX{} form.
+
+The command \texttt{C-c C-h} will provide
+information on a prompted for function (like \mx's \texttt{describe}), 
+and  \texttt{C-c C-i} will give the \mx{} info manual.
+
+Finally, the \mx{} process can be killed with \texttt{C-c C-k}.
+
+A list of the commands for \emx{} are in Appendix \ref{app:emx}, and
+the customizability options are in Appendix \ref{app:custemx}.
+
+\newpage
+\appendix
+
+\section{Installation}
+
+To run \mx{} interactively or use \mx{} mode or minor mode, the files
+\texttt{maxima.el} and \texttt{maxima\hyph{}font\hyph{}lock.el} need to be
+somewhere in the Emacs load path.  To be able to automatically run
+\mx{} or use \mx{} mode or minor mode, add the lines\\
+\begin{verbatim}
+(autoload 'maxima "maxima" "Run Maxima interactively" t)
+(autoload 'maxima-mode "maxima" "Major mode for writing Maxima programs" t)
+(autoload 'maxima-minor-mode "maxima" "Minor mode for working with Maxima" t)
+
+\end{verbatim}
+\noindent
+in your \texttt{.emacs} file.  
+To ensure that files ending in \texttt{.max} start up in \mx{} mode,
+add the line
+\begin{verbatim}
+(setq auto-mode-alist (cons '("\\.max" . maxima-mode) auto-mode-alist))
+\end{verbatim}
+to \texttt{.emacs}.
+
+For the \emx{} package, in addition to the above files, the files
+\texttt{emaxima.el} and \texttt{emaxima.lisp} need to be somewhere in
+the Emacs load path\footnote{If Emacs cannot find
+  \texttt{emaxima.lisp}, then the \TeX{} output functions will not
+  work, any attempts to get \TeX{} output will result in an error.},
+  and if you want to run \LaTeX{} on the resulting document,
+\texttt{emaxima.sty} and \texttt{maxima.sty} need to be in the \TeX{}
+inputs path.  If you use pdflatex, you'll also need \texttt{pdfcolmk.sty}.
+
+To make sure that \texttt{emaxima.el} is loaded when necessary, the line
+\begin{verbatim}
+(autoload 'emaxima-mode "emaxima" "EMaxima" t)
+\end{verbatim}
+\noindent
+can be inserted into your \texttt{.emacs} file.  Then typing
+\texttt{M-x emaxima\hyph{}mode} will start \emx{} mode.  The command 
+\texttt{M-x emaxima\hyph{}mark\hyph{}file\hyph{}as\hyph{}emaxima} will put the line
+\begin{verbatim}
+%-*-EMaxima-*-
+\end{verbatim}
+\noindent
+at the beginning of the file, if it isn't there already, and will ensure
+that the next time the file is opened, it will be in \texttt{emaxima\hyph{}mode}.  
+This can be done automatically everytime a file is put in
+\texttt{emaxima\hyph{}mode} by putting the line
+\begin{verbatim}
+(add-hook 'emaxima-mode-hook 'emaxima-mark-file-as-emaxima)
+\end{verbatim}
+\noindent
+somewhere in your \texttt{.emacs} file.
+
+
+\section{\mx{} help commands}
+
+The following commands can be used in any Maxima related buffer.  (For
+Maxima minor mode, replace \texttt{C-c C-d} with \texttt{C-= d}.)
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-d h}
+%& \texttt{maxima-help}
+& Get help on a (prompted for) subject.\\
+\texttt{C-c C-d d} \\
+\texttt{C-c C-d C-d}
+%& \texttt{maxima-apropos}
+& Get help with the symbol under point.\\
+\texttt{C-c C-d a}\\
+\texttt{C-c C-d a} & Apropos.\\
+\texttt{C-c C-d p}\\
+\texttt{C-c C-d C-p} & Get apropos with the symbol under point.\\
+\texttt{C-c C-d m}\\
+\texttt{C-c C-d C-m}\\
+\texttt{C-c C-d i}\\
+\texttt{C-c C-d C-i} & Read the Maxima info manual.
+\end{tabular}
+
+\section{Interactive \mx{} commands}
+\label{app:intmx}
+
+\smallskip
+
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{M-TAB} & Complete the Maxima symbol as much as possible, providing
+     a completion buffer if there is more than one possible
+     completion.\\
+\texttt{C-M-TAB} & Complete the input line, based on previous input lines.\\
+\texttt{C-c C-k} & Kill the process and the buffer, after asking for
+  confirmation.  To kill without confirmation, give \texttt{C-c C-k} an
+  argument.\\
+\texttt{M-p} & Bring the previous input to the current prompt.\\
+\texttt{M-n} & Bring the next input to the prompt.\\
+\texttt{M-r} & Bring the previous input matching
+  a regular expression to the prompt.\\
+\texttt{M-s} & Bring the next input matching
+  a regular expression to the prompt.
+\end{tabular}
+
+\section{\mx{} minor mode commands}
+\label{app:intmxmin}
+
+\smallskip
+
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c=e} & Run Maxima on the region between
+\texttt{maxima\hyph{}minor\hyph{}prefix} and \texttt{maxima\hyph{}minor\hyph{}postfix}.  By
+default, these are blank lines.\\
+\texttt{C-c=r} & Run Maxima on the current region. \\
+\texttt{C-c=l} & Run Maxima on the current line.\\
+\texttt{C-c=f} & Run Maxima on the current form.\\
+\texttt{C-c=m} & Prompt for Maxima input in the minibuffer.\\
+\texttt{C-c=o} & Insert the last Maxima output in the current
+buffer.\\
+\texttt{C-c=t} & Insert the last Maxima output in \TeX{} form in the
+current buffer.
+\end{tabular}
+
+
+\section{\mx{} mode commands}
+\label{app:mxmode}
+
+\smallskip
+
+\noindent
+\textbf{Motion}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{M-C-a} & Go to the beginning of the form.\\
+\texttt{M-C-e} & Go to the end of the form.\\
+\texttt{M-C-b} & Go to the beginning of the sexp.\\
+\texttt{M-C-f} & Go to the end of the sexp.
+\end{tabular}
+
+\smallskip
+
+\noindent
+\textbf{Process}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-p} & Start a \mx{} process.\\
+\texttt{C-c C-r} & Send the region to the \mx{} process.\\
+\texttt{C-c C-b} & Send the buffer to the \mx{} process.\\
+\texttt{C-c C-c} & Send the line to the \mx{} process.\\
+\texttt{C-c C-e} & Send the form to the \mx{} process.\\
+\texttt{C-c C-k} & Kill the \mx{} process.\\
+\texttt{C-c C-p} & Display the \mx{} buffer.
+\end{tabular}
+
+\smallskip
+
+\noindent
+\textbf{Completion}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{M-TAB} & Complete the \mx{} symbol.\\
+\end{tabular}
+
+%\smallskip
+\newpage
+
+\noindent
+\textbf{Comments}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c ;} & Comment the region.\\
+\texttt{C-c :} & Uncomment the region.\\
+\texttt{M-;} & Insert a short comment.\\
+\texttt{C-c *} & Insert a comment environment.
+\end{tabular}
+
+
+\smallskip
+
+\noindent
+\textbf{Indentation}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{TAB} & Indent line.\\
+\texttt{M-C-q} & Indent form.
+\end{tabular}
+
+
+\smallskip
+
+\noindent
+\textbf{Miscellaneous}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{M-h} & Mark the form.\\
+\texttt{C-c )} & Check the region for balanced parentheses.\\
+\texttt{C-c C-)} & Check the form for balanced parentheses.
+\end{tabular}
+
+\section{\emx{} mode commands}
+\label{app:emx}
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-o} & Create a (standard) cell.\\
+\texttt{C-c C-a} & Create a session cell.\\
+\texttt{C-c C-n} & Toggle starred cells.\\
+\texttt{C-c +} & Go the the next cell.\\
+\texttt{C-c -} & Go to the previous cell.\\
+\texttt{C-c C-u a} & 
+Update all of the cells.  With an argument, don't ask before updating.\\
+\texttt{C-c C-u A}
+& Update all of the cells in \TeX{} form. With an argument don't ask
+before updating.\\
+\texttt{C-c C-u s}
+& Update all of the session cells in \TeX{} form.  With an
+argument, don't ask before updating.
+\end{tabular}
+
+%\smallskip
+\newpage
+
+\noindent
+\textbf{Commands only available in cells.}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-v}
+%& \texttt{emaxima-send-cell}
+& Send the current cell to the \mx{} process.\\
+\texttt{C-c C-u c}
+%& \texttt{emaxima-update-cell}
+& Update the current cell.\\
+\texttt{C-c C-u C}
+%& \texttt{emaxima-tex-update-cell}
+& Update the current cell in \TeX{} form.\\
+\texttt{C-c C-d}
+%& \texttt{emaxima-delete-output}
+& Delete the output from the current cell.\\
+\texttt{C-c C-x}
+%& \texttt{emaxima-package-part}
+& Insert a heading for the cell indicating that it's part of a
+package. \\
+\texttt{C-c @}
+%& \texttt{emaxima-assemble}
+& Assemble the references contained in the cell.  With an argument,
+assemble the package that the cell defines.\\
+\texttt{C-c C-\texttt{TAB}}
+%& \texttt{emaxima-insert-complete-name}
+& Complete a reference within a cell.
+\end{tabular}
+
+\smallskip
+
+\noindent
+\textbf{Commands only available outside of cells.}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-u l}
+%& \texttt{emaxima-replace-line}
+& Send the current line to \mx{}, and replace the line with the
+\mx{} output.\\
+\texttt{C-c C-u L}
+%& \texttt{emaxima-replace-line-with-tex}
+& Send the current line to \mx{}, and replace the line with the
+\mx{} output in \TeX{} form.
+\end{tabular}
+
+
+\section{AUC\TeX{} commands}
+
+\smallskip
+
+\noindent
+\textbf{Inserting commands}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-e}
+& Insert an environment.\\
+\texttt{C-c C-s}
+& Insert a section.\\
+\texttt{C-c ]}
+& Close an environment.\\
+\texttt{C-c C-j}
+& Insert an item into a list.\\
+\texttt{"}
+& Smart quote.\\
+\texttt{\$}
+& Smart dollar sign.\\
+\texttt{C-c @}
+& Insert double brace.\\
+\texttt{C-c C-m}
+& Insert \TeX{} macro.\\
+\texttt{M-TAB}
+& Complete \TeX{} macro.\\
+\end{tabular}
+
+\smallskip
+
+\noindent
+\textbf{Formatting}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-q C-r}
+& Format region.\\
+\texttt{C-c C-q C-s}
+& Format section.\\
+\texttt{C-c C-q C-e}
+& Format environment.\\
+\texttt{C-c .}
+& Mark an environment.\\
+\texttt{C-c *}
+& Mark a section.
+\end{tabular}
+
+%\smallskip
+\newpage
+
+\noindent
+\textbf{Commenting}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c ;}
+& Comment a region.\\
+\texttt{C-u C-c ;}
+& Uncomment a region.\\
+\texttt{C-c \%}
+& Comment a paragraph.\\
+\texttt{C-u C-c \%}
+& Uncomment a paragraph.
+\end{tabular}
+
+\smallskip
+
+\noindent
+\textbf{Font selection}
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-f C-b}
+& Bold.\\
+\texttt{C-c C-f C-i}
+& Italics.\\
+\texttt{C-c C-f C-r}
+& Roman.\\
+\texttt{C-c C-f C-e}
+& Emphasized.\\
+\texttt{C-c C-f C-t}
+& Typewriter.\\
+\texttt{C-c C-f C-s}
+& Slanted.\\
+\texttt{C-c C-f C-d}
+& Delete font.\\
+\texttt{C-u C-c C-f}
+& Change font.
+\end{tabular}
+
+\noindent
+\textbf{Running \TeX{}}
+
+\smallskip
+
+\noindent
+(Commands: \texttt{TeX}, \texttt{TeX Interactive}, \texttt{LaTeX},
+\texttt{LaTeX Interactive}, \texttt{SliTeX}, \texttt{View},
+\texttt{Print}, \texttt{BibTeX}, \texttt{Index}, \texttt{Check},
+\texttt{File}, \texttt{Spell}.)
+
+\smallskip
+
+\noindent
+\begin{tabular}{p{\firstcol}p{\secondcol}}
+\hline
+\textbf{Key} & \textbf{Description}\\
+\hline
+\texttt{C-c C-c}
+& Run a command on the master file.\\
+\texttt{C-c C-r}
+& Run a command on the current region.\\
+\texttt{C-c C-b}
+& Run a command on the buffer.\\
+\texttt{C-c `}
+& Go to the next error.\\
+\texttt{C-c C-k}
+& Kill the \TeX{} process.\\
+\texttt{C-c C-l}
+& Center the output buffer.\\
+\texttt{C-c C-\^{}}
+& Switch to the master file.\\
+\texttt{C-c C-w}
+& Toggle debug of overful boxes.\\
+\end{tabular}
+
+\section{Customization}
+
+\subsection{Customizing \mx{} mode}
+\label{app:custmxmode}
+
+Indentation in \mx{} mode can be controlled with the following
+variables:
+\begin{description}
+\item[maxima-indent-style] This determines how hard \mx{} mode will
+  try to compute an appropriate indentation.  The options are 
+  \texttt{'standard} and \texttt{'perhaps-smart}, the default is
+  \texttt{'perhaps-smart}.
+\item[maxima-indent-amount] This is the default indentation for each
+  level in \mx{} mode.  By default, it is 2.
+\item[maxima-paren-indent-amount] This is the amount of extra
+  indentation to be added for each parenthetical nesting.  By default,
+  it is 1, so that the lines following an open parenthesis will start
+  in the first column past the parenthesis.
+\item[maxima-blockparen-indent-amount] This is the amount of extra
+  indentation to be added after a \texttt{block(}.  By default, this
+  is $-3$, so that the following lines won't be indented too far.
+\item[maxima-continuation-indent-amount] This is the amount of
+  indentation to be added when a line is the continuation of the
+  expression begun on the previous line.  By default, it is 2.
+\item[maxima-multiline-comment-indent-amount] This is the amount of
+  extra indentation to be given to comments.  By default, it is 2.
+\item[maxima-if-extra-indent-amount] This is the amount of extra
+  indentation to give a then which follows an if, assuming the then
+  starts on its own line.  By default, it is 0, so the then will begin
+  right under the if.
+\end{description}
+
+Other facets of \mx{} mode can be controlled through the following
+options: 
+\begin{description}
+\item[maxima-return-style] This determines how \mx{} mode will handle
+  \texttt{RET}.  The options are \texttt{'newline},
+  \texttt{'newline\hyph{}and\hyph{}indent}, and
+  \texttt{'reindent\hyph{}then\hyph{}newline\hyph{}and\hyph{}indent}, the default is
+  \texttt{'reindent\hyph{}then\hyph{}newline\hyph{}and\hyph{}indent}.
+\end{description}
+
+Some other options that may occasionally need to be set are:
+\begin{description}
+\item[maxima-command]  The command used to start \mx{}.  By default,
+  it is \texttt{maxima}.
+\item[maxima-args] Extra arguments to pass to the \mx{} command.  By
+  default, it is \texttt{nil}.
+\item[maxima-use-tabs]  If this is non-nil, the indentation will use
+  TABS as well as spaces.  By default, it is \texttt{nil}.
+\end{description}
+
+
+\subsection{Customizing \emx{}}
+\label{app:custemx}
+
+There are a few (very few) things that you can do to customize \emx{}.  
+
+By default, \emx{} is an extension of AUC\TeX{} mode.  This can be
+changed by changing the variable \texttt{emaxima\hyph{}use\hyph{}tex}.  The possible
+values are \texttt{'auctex}, \texttt{'tex} and \texttt{nil}.  Setting
+\texttt{emaxima\hyph{}use\hyph{}tex} (the default) to \texttt{'auctex} will make \emx{}
+an extension of AUC\TeX{}, setting it to \texttt{'tex} will make \emx{} an
+extension of Emacs's default \TeX{} mode, and setting
+\texttt{emaxima\hyph{}use\hyph{}tex} to \texttt{nil} will make \emx{} an extension of
+text-mode.  So, for example, putting 
+\begin{verbatim}
+(setq emaxima-use-tex nil)
+\end{verbatim}
+\noindent
+in your \texttt{.emacs} file will make \emx{} default to an extension of
+text mode. 
+
+Whether or not the dots (\dots{}) abbreviation is allowed in cell
+references is controlled by the elisp variable
+\texttt{emaxima\hyph{}abbreviations\hyph{}allowed}, which is set to \texttt{t} by
+default.  Setting this to \texttt{nil} will disallow the abbreviations,
+but will speed up package assembly.
+
+The variable \texttt{emaxima\hyph{}preview\hyph{}after\hyph{}update\hyph{}all} will determine
+whether or not the buffer will be previewed (when preview-latex is
+being used) after an update-all command.  By default, it is \texttt{t}.
+
+
+The \LaTeX{}ed output can be customized somewhat.  The
+\texttt{emaxima} LaTeX{} package can take some options, namely 
+\texttt{breqn}, \texttt{lines}, \texttt{listings} and \texttt{preview}.
+The \texttt{breqn} option will use the \LaTeX{} \texttt{breqn} package
+(which must be installed) to break long \mx{} lines into shorter lines
+automatically.
+The \texttt{preview} option will enable the Emacs preview package
+(which must be installed) to preview the \mx{} environments. 
+The \texttt{lines} option will put lines before and after some of the
+environments. 
+The \texttt{listings} option will use the \LaTeX{} \texttt{listings}
+package (which must be installed) to typeset some of the \mx{} code.
+To use this, the file \texttt{maxima.sty} must be in the search path
+for \TeX. 
+
+The indentation of the \mx{} code can be reset by resetting the
+\LaTeX{} length \verb+\maximaindent+.
+The colors of the prompts, inputs and outputs can be reset by renewing
+the commands \verb+\maximapromptcolor+, \verb+\maximainputcolor+
+and \verb+\maximaoutputcolor+ to appropriate colors.
+
+The top, middle and bottom of a maxima cell are determined by the
+commands \verb+\maximatop+, \verb+\maximamiddle+ and \verb+\maximabottom+.
+By default, \verb+\maximamiddle+ is set to \verb+\maximaoutputmarker+.
+If the \texttt{lines} option is used, then \verb+\maximatop+ and 
+\verb+\maximabottom+ are set to \verb+\maximaboxtop+ and
+\verb+\maximaboxbottom+,  respectively.
+Otherwise, \verb+\maximatop+ and \verb+\maximabottom+ are set to do nothing.
+The top and bottom of a maxima session are determined by
+\verb+\maximasessiontop+ and \verb+\maximasessionbottom+, respectively.
+By default, they do nothing.
+
+The verbatim output for maxima cells is inserted with
+\verb+\maximaverbatiminput+.  This will do one of two things.
+If the listings option is used, this is defined by
+\verb+\lstinputlisting[style=emaxima]{#1}+, and so can be adjusted by
+resetting the emaxima style.   By default, this style is given by
+\begin{verbatim}
+\lstdefinestyle{emaxima}
+               {language=maxima,
+                aboveskip=0pt,
+                belowskip=0pt,
+                xleftmargin=\maximaindent}
+\end{verbatim}
+\noindent
+If the listings package is not used, then \verb+\maximaverbatiminput+ is 
+defined by \verb+\VerbatimInput[xleftmargin=\maximaindent]{#1}+
+(\verb+\VerbatimInput+ is from the fancyvrb package.)
+In either case, it can be adjusted by redefining
+\verb+\maximaverbatiminput+, which is expected to indent everything by
+\verb+\maximaindent+.
+The fonts used in the maximasessions is \verb+\maximafont+, by default
+\verb+\ttfamily+.
+
+\end{document}

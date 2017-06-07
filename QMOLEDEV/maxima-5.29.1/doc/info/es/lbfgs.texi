@@ -1,0 +1,453 @@
+@c English version: 2011-06-11
+@menu
+* Introducci@'on a lbfgs::
+* Funciones y variables para lbfgs::
+@end menu
+
+@node Introducci@'on a lbfgs, Funciones y variables para lbfgs, Top, Top
+@section Introducci@'on a lbfgs
+
+La funci@'on @code{lbfgs} implementa el llamado algoritmo L-BFGS [1]
+para resolver problemas de minimizaci@'on sin restricciones mediante una
+t@'ecnica @i{cuasi-Newton con memoria limitada} (BFGS). El t@'ermino
+memoria limitada procede del hecho de que se almacena una aproximaci@'on
+de rango bajo de la inversa de la matriz hessiana, en lugar de la matriz
+completa. El programa fue originalmente escrito en Fortran [2] por
+Jorge Nocedal, incorporando algunas funciones escritas originalmente
+por Jorge J. Mor@'{e} y David J. Thuente, traducidas posteriormente a Lisp
+autom@'aticamente con el programa @code{f2cl}. El paquete @code{lbfgs}
+contiene el c@'odigo traducido, junto con una funci@'on interfaz que para
+controlar ciertos detalles.
+
+
+Referencias:
+
+[1] D. Liu and J. Nocedal. "On the limited memory BFGS method for large
+scale optimization". @i{Mathematical Programming B} 45:503--528 (1989)
+
+[2] @url{http://netlib.org/opt/lbfgs_um.shar}
+
+@node Funciones y variables para lbfgs, , Introducci@'on a lbfgs, Top
+@section Funciones y variables para lbfgs
+
+@deffn {Funci@'on} lbfgs (@var{FOM}, @var{X}, @var{X0}, @var{epsilon}, @var{iprint})
+@deffnx {Function} lbfgs ([@var{FOM}, @var{grad}] @var{X}, @var{X0}, @var{epsilon}, @var{iprint})
+
+Encuentra una soluci@'on aproximada para el problema de minimizaci@'on
+sin restricciones de la funci@'on objetivo @var{FOM} para la lista de 
+variables @var{X}, partiendo de los estimadores iniciales @var{X0},
+de tal manera que @math{norm(grad(FOM)) < epsilon*max(1, norm(X))}.
+
+El argumento @var{grad} es el gradiente de @var{FOM} respecto
+de las variables @var{X}. @var{grad} es una lista con el mismo 
+n@'umero de elementos que @var{X}. Si no se pasa este argumento, el
+gradiente se calcula autom@'aticamente mediante derivaci@'on
+simb@'olica.
+
+El algoritmo utilizado es una t@'ecnica @i{cuasi-Newton con memoria limitada}
+(BFGS) [1]. El t@'ermino @i{memoria limitada} procede del hecho de que se almacena
+una aproximaci@'on de rango bajo de la inversa de la matriz hessiana, en lugar
+de la matriz completa.
+Cada iteraci@'on del algoritmo es una b@'usqueda a lo largo de una recta,
+cuya direcci@'on se calcula a partir de la matriz inversa aproximada del
+hessiano. La funci@'on objetivo decrece siempre tras cada b@'usqueda
+exitosa a lo largo de la recta; adem@'as, casi siempre decrece tambi@'en
+el m@'odulo del gradiente de la funci@'on.
+
+El argumento @var{iprint} controla los mensajes de progreso que env@'{@dotless{i}}a
+la funci@'on @code{lbfgs}.
+
+
+@table @code
+@item iprint[1]
+@code{@var{iprint}[1]} controla la frecuencia con la que se emiten los mensajes.
+@table @code
+@item iprint[1] < 0
+No se env@'{@dotless{i}}an mensajes.
+@item iprint[1] = 0
+Mensajes @'unicamente en la primera y @'ultima iteraciones.
+@item iprint[1] > 0
+Imprime un mensaje cada @code{@var{iprint}[1]} iteraciones.
+@end table
+@item iprint[2]
+@code{@var{iprint}[2]} controla la cantidad de informaci@'on contenida en los mensajes.
+@table @code
+@item iprint[2] = 0
+Imprime contador de iteraciones, n@'umero de evaluaciones de @var{FOM}, valor de @var{FOM},
+m@'odulo del gradiente de @var{FOM} y amplitud del paso.
+@item iprint[2] = 1
+Igual que @code{@var{iprint}[2] = 0}, incluyendo @var{X0} y el gradiente de @var{FOM} evaluado en @var{X0}.
+@item iprint[2] = 2
+Igual que @code{@var{iprint}[2] = 1}, incluyendo los valores de @var{X} en cada iteraci@'on.
+@item iprint[2] = 3
+Igual que @code{@var{iprint}[2] = 2}, incluyendo el gradiente de @var{FOM} en cada iteraci@'on.
+@end table
+@end table
+
+Las columnas devueltas por @code{lbfgs} son las siguientes:
+
+@table @code
+@item I
+N@'umero de iteraciones. Se incremente tras cada b@'usqueda a lo
+largo de una recta.
+@item NFN
+N@'umero de evaluaciones de la funci@'on objetivo.
+@item FUNC
+Valor de la funci@'on objetivo al final de cada iteraci@'on.
+@item GNORM
+M@'odulo del gradiente de la funci@'on objetivo al final de
+cada iteraci@'on.
+@item STEPLENGTH
+Un par@'ametro interno del algoritmo de b@'usqueda.
+@end table
+
+Para m@'as informaci@'on sobre el algoritmo se puede acudir a los
+comentarios en el c@'odigo original en Fortran [2].
+
+V@'eanse tambi@'en @code{lbfgs_nfeval_max} y @code{lbfgs_ncorrections}.
+
+Referencias:
+
+[1] D. Liu and J. Nocedal. "On the limited memory BFGS method for large
+scale optimization". @i{Mathematical Programming B} 45:503--528 (1989)
+
+[2] @url{http://netlib.org/opt/lbfgs_um.shar}
+
+Ejemplos:
+
+La misma funci@'on objetivo utilizada por FGCOMPUTE en el programa 
+sdrive.f del paquete LBFGS de Netlib. N@'otese que las variables en
+cuesti@'on est@'an subindicadas. La funci@'on objetivo tiene un
+m@'{@dotless{i}}nimo exacto igual a cero en @math{u[k] = 1}, para
+@math{k = 1, ..., 8}.
+@c ===beg===
+@c load (lbfgs);
+@c t1[j] := 1 - u[j];
+@c t2[j] := 10*(u[j + 1] - u[j]^2);
+@c n : 8;
+@c FOM : sum (t1[2*j - 1]^2 + t2[2*j - 1]^2, j, 1, n/2);
+@c lbfgs (FOM, '[u[1], u[2], u[3], u[4], u[5], u[6], u[7], u[8]],
+@c        [-1.2, 1, -1.2, 1, -1.2, 1, -1.2, 1], 1e-3, [1, 0]);
+@c ===end===
+@example
+(%i1) load (lbfgs);
+(%o1)   /usr/share/maxima/5.10.0cvs/share/lbfgs/lbfgs.mac
+(%i2) t1[j] := 1 - u[j];
+(%o2)                     t1  := 1 - u
+                            j         j
+(%i3) t2[j] := 10*(u[j + 1] - u[j]^2);
+                                          2
+(%o3)                t2  := 10 (u      - u )
+                       j         j + 1    j
+(%i4) n : 8;
+(%o4)                           8
+(%i5) FOM : sum (t1[2*j - 1]^2 + t2[2*j - 1]^2, j, 1, n/2);
+                 2 2           2              2 2           2
+(%o5) 100 (u  - u )  + (1 - u )  + 100 (u  - u )  + (1 - u )
+            8    7           7           6    5           5
+                     2 2           2              2 2           2
+        + 100 (u  - u )  + (1 - u )  + 100 (u  - u )  + (1 - u )
+                4    3           3           2    1           1
+(%i6) lbfgs (FOM, '[u[1],u[2],u[3],u[4],u[5],u[6],u[7],u[8]],
+       [-1.2, 1, -1.2, 1, -1.2, 1, -1.2, 1], 1e-3, [1, 0]);
+*************************************************
+  N=    8   NUMBER OF CORRECTIONS=25
+       INITIAL VALUES
+ F=  9.680000000000000D+01   GNORM=  4.657353755084532D+02
+*************************************************
+@end example
+@ifnottex
+@example
+ I NFN   FUNC                    GNORM                   STEPLENGTH
+
+ 1   3   1.651479526340304D+01   4.324359291335977D+00   7.926153934390631D-04
+ 2   4   1.650209316638371D+01   3.575788161060007D+00   1.000000000000000D+00
+ 3   5   1.645461701312851D+01   6.230869903601577D+00   1.000000000000000D+00 
+ 4   6   1.636867301275588D+01   1.177589920974980D+01   1.000000000000000D+00
+ 5   7   1.612153014409201D+01   2.292797147151288D+01   1.000000000000000D+00
+ 6   8   1.569118407390628D+01   3.687447158775571D+01   1.000000000000000D+00
+ 7   9   1.510361958398942D+01   4.501931728123680D+01   1.000000000000000D+00
+ 8  10   1.391077875774294D+01   4.526061463810632D+01   1.000000000000000D+00
+ 9  11   1.165625686278198D+01   2.748348965356917D+01   1.000000000000000D+00
+10  12   9.859422687859137D+00   2.111494974231644D+01   1.000000000000000D+00
+11  13   7.815442521732281D+00   6.110762325766556D+00   1.000000000000000D+00
+12  15   7.346380905773160D+00   2.165281166714631D+01   1.285316401779533D-01
+13  16   6.330460634066370D+00   1.401220851762050D+01   1.000000000000000D+00
+14  17   5.238763939851439D+00   1.702473787613255D+01   1.000000000000000D+00
+15  18   3.754016790406701D+00   7.981845727704576D+00   1.000000000000000D+00
+16  20   3.001238402309352D+00   3.925482944716691D+00   2.333129631296807D-01
+17  22   2.794390709718290D+00   8.243329982546473D+00   2.503577283782332D-01
+18  23   2.563783562918759D+00   1.035413426521790D+01   1.000000000000000D+00
+19  24   2.019429976377856D+00   1.065187312346769D+01   1.000000000000000D+00
+20  25   1.428003167670903D+00   2.475962450826961D+00   1.000000000000000D+00
+21  27   1.197874264861340D+00   8.441707983493810D+00   4.303451060808756D-01
+22  28   9.023848941942773D-01   1.113189216635162D+01   1.000000000000000D+00
+23  29   5.508226405863770D-01   2.380830600326308D+00   1.000000000000000D+00
+24  31   3.902893258815567D-01   5.625595816584421D+00   4.834988416524465D-01
+25  32   3.207542206990315D-01   1.149444645416472D+01   1.000000000000000D+00
+26  33   1.874468266362791D-01   3.632482152880997D+00   1.000000000000000D+00
+27  34   9.575763380706598D-02   4.816497446154354D+00   1.000000000000000D+00
+28  35   4.085145107543406D-02   2.087009350166495D+00   1.000000000000000D+00
+29  36   1.931106001379290D-02   3.886818608498966D+00   1.000000000000000D+00
+30  37   6.894000721499670D-03   3.198505796342214D+00   1.000000000000000D+00
+31  38   1.443296033051864D-03   1.590265471025043D+00   1.000000000000000D+00
+32  39   1.571766603154336D-04   3.098257063980634D-01   1.000000000000000D+00
+33  40   1.288011776581970D-05   1.207784183577257D-02   1.000000000000000D+00
+34  41   1.806140173752971D-06   4.587890233385193D-02   1.000000000000000D+00
+35  42   1.769004645459358D-07   1.790537375052208D-02   1.000000000000000D+00
+36  43   3.312164100763217D-10   6.782068426119681D-04   1.000000000000000D+00
+@end example
+@end ifnottex
+@tex
+\halign{\hfil\tt#&\quad\hfil\tt#\quad&\tt#\hfil\quad&\tt#\hfil\quad&\tt#\hfil\cr
+I& NFN&   FUNC&                    GNORM&                   STEPLENGTH\cr
+&&&&\cr
+ 1& 3& 1.651479526340304D+01& 4.324359291335977D+00& 7.926153934390631D-04\cr
+ 2& 4& 1.650209316638371D+01& 3.575788161060007D+00& 1.000000000000000D+00\cr
+ 3& 5& 1.645461701312851D+01& 6.230869903601577D+00& 1.000000000000000D+00\cr
+ 4& 6& 1.636867301275588D+01& 1.177589920974980D+01& 1.000000000000000D+00\cr
+ 5& 7& 1.612153014409201D+01& 2.292797147151288D+01& 1.000000000000000D+00\cr
+ 6& 8& 1.569118407390628D+01& 3.687447158775571D+01& 1.000000000000000D+00\cr
+ 7& 9& 1.510361958398942D+01& 4.501931728123680D+01& 1.000000000000000D+00\cr
+ 8&10& 1.391077875774294D+01& 4.526061463810632D+01& 1.000000000000000D+00\cr
+ 9&11& 1.165625686278198D+01& 2.748348965356917D+01& 1.000000000000000D+00\cr
+10&12& 9.859422687859137D+00& 2.111494974231644D+01& 1.000000000000000D+00\cr
+11&13& 7.815442521732281D+00& 6.110762325766556D+00& 1.000000000000000D+00\cr
+12&15& 7.346380905773160D+00& 2.165281166714631D+01& 1.285316401779533D-01\cr
+13&16& 6.330460634066370D+00& 1.401220851762050D+01& 1.000000000000000D+00\cr
+14&17& 5.238763939851439D+00& 1.702473787613255D+01& 1.000000000000000D+00\cr
+15&18& 3.754016790406701D+00& 7.981845727704576D+00& 1.000000000000000D+00\cr
+16&20& 3.001238402309352D+00& 3.925482944716691D+00& 2.333129631296807D-01\cr
+17&22& 2.794390709718290D+00& 8.243329982546473D+00& 2.503577283782332D-01\cr
+18&23& 2.563783562918759D+00& 1.035413426521790D+01& 1.000000000000000D+00\cr
+19&24& 2.019429976377856D+00& 1.065187312346769D+01& 1.000000000000000D+00\cr
+20&25& 1.428003167670903D+00& 2.475962450826961D+00& 1.000000000000000D+00\cr
+21&27& 1.197874264861340D+00& 8.441707983493810D+00& 4.303451060808756D-01\cr
+22&28& 9.023848941942773D-01& 1.113189216635162D+01& 1.000000000000000D+00\cr
+23&29& 5.508226405863770D-01& 2.380830600326308D+00& 1.000000000000000D+00\cr
+24&31& 3.902893258815567D-01& 5.625595816584421D+00& 4.834988416524465D-01\cr
+25&32& 3.207542206990315D-01& 1.149444645416472D+01& 1.000000000000000D+00\cr
+26&33& 1.874468266362791D-01& 3.632482152880997D+00& 1.000000000000000D+00\cr
+27&34& 9.575763380706598D-02& 4.816497446154354D+00& 1.000000000000000D+00\cr
+28&35& 4.085145107543406D-02& 2.087009350166495D+00& 1.000000000000000D+00\cr
+29&36& 1.931106001379290D-02& 3.886818608498966D+00& 1.000000000000000D+00\cr
+30&37& 6.894000721499670D-03& 3.198505796342214D+00& 1.000000000000000D+00\cr
+31&38& 1.443296033051864D-03& 1.590265471025043D+00& 1.000000000000000D+00\cr
+32&39& 1.571766603154336D-04& 3.098257063980634D-01& 1.000000000000000D+00\cr
+33&40& 1.288011776581970D-05& 1.207784183577257D-02& 1.000000000000000D+00\cr
+34&41& 1.806140173752971D-06& 4.587890233385193D-02& 1.000000000000000D+00\cr
+35&42& 1.769004645459358D-07& 1.790537375052208D-02& 1.000000000000000D+00\cr
+36&43& 3.312164100763217D-10& 6.782068426119681D-04& 1.000000000000000D+00\cr
+}
+@end tex
+@example
+
+ THE MINIMIZATION TERMINATED WITHOUT DETECTING ERRORS.
+ IFLAG = 0
+(%o6) [u  = 1.000005339815974, u  = 1.000009942839805, 
+        1                       2
+u  = 1.000005339815974, u  = 1.000009942839805, 
+ 3                       4
+u  = 1.000005339815974, u  = 1.000009942839805, 
+ 5                       6
+u  = 1.000005339815974, u  = 1.000009942839805]
+ 7                       8
+@end example
+
+
+
+Un problema de regresi@'on. La funci@'on objetivo es el cuadrado medio
+de la diferencia entre la predicci@'on @math{F(X[i])} y el valor observado
+@math{Y[i]}. La funci@'on @math{F} es mon@'otona y acotada (llamada en ocasiones
+"sigmoidal"). En este ejemplo, @code{lbfgs} calcula valores aproximados para los
+par@'ametros de @math{F} y @code{plot2d} hace una representaci@'on gr@'afica
+comparativa de @math{F} junto con los datos observados.
+
+@c ===beg===
+@c load (lbfgs);
+@c FOM : '((1/length(X))*sum((F(X[i]) - Y[i])^2,
+@c                           i, 1, length(X)));
+@c X : [1, 2, 3, 4, 5];
+@c Y : [0, 0.5, 1, 1.25, 1.5];
+@c F(x) := A/(1 + exp(-B*(x - C)));
+@c ''FOM;
+@c estimates : lbfgs (FOM, '[A, B, C], [1, 1, 1], 1e-4, [1, 0]);
+@c plot2d ([F(x), [discrete, X, Y]], [x, -1, 6]), ''estimates;
+@c ===end===
+@example
+(%i1) load (lbfgs);
+(%o1)   /usr/share/maxima/5.10.0cvs/share/lbfgs/lbfgs.mac
+(%i2) FOM : '((1/length(X))*sum((F(X[i]) - Y[i])^2, i, 1,
+                                                length(X)));
+                               2
+               sum((F(X ) - Y ) , i, 1, length(X))
+                       i     i
+(%o2)          -----------------------------------
+                            length(X)
+(%i3) X : [1, 2, 3, 4, 5];
+(%o3)                    [1, 2, 3, 4, 5]
+(%i4) Y : [0, 0.5, 1, 1.25, 1.5];
+(%o4)                [0, 0.5, 1, 1.25, 1.5]
+(%i5) F(x) := A/(1 + exp(-B*(x - C)));
+                                   A
+(%o5)            F(x) := ----------------------
+                         1 + exp((- B) (x - C))
+(%i6) ''FOM;
+                A               2            A                2
+(%o6) ((----------------- - 1.5)  + (----------------- - 1.25)
+          - B (5 - C)                  - B (4 - C)
+        %e            + 1            %e            + 1
+            A             2            A               2
+ + (----------------- - 1)  + (----------------- - 0.5)
+      - B (3 - C)                - B (2 - C)
+    %e            + 1          %e            + 1
+             2
+            A
+ + --------------------)/5
+      - B (1 - C)     2
+   (%e            + 1)
+(%i7) estimates : lbfgs (FOM, '[A, B, C], [1, 1, 1], 1e-4, [1, 0]);
+*************************************************
+  N=    3   NUMBER OF CORRECTIONS=25
+       INITIAL VALUES
+ F=  1.348738534246918D-01   GNORM=  2.000215531936760D-01
+*************************************************
+
+@end example
+@ifnottex
+@example
+I  NFN  FUNC                    GNORM                   STEPLENGTH
+1    3  1.177820636622582D-01   9.893138394953992D-02   8.554435968992371D-01  
+2    6  2.302653892214013D-02   1.180098521565904D-01   2.100000000000000D+01  
+3    8  1.496348495303005D-02   9.611201567691633D-02   5.257340567840707D-01  
+4    9  7.900460841091139D-03   1.325041647391314D-02   1.000000000000000D+00  
+5   10  7.314495451266917D-03   1.510670810312237D-02   1.000000000000000D+00  
+6   11  6.750147275936680D-03   1.914964958023047D-02   1.000000000000000D+00  
+7   12  5.850716021108205D-03   1.028089194579363D-02   1.000000000000000D+00  
+8   13  5.778664230657791D-03   3.676866074530332D-04   1.000000000000000D+00  
+9   14  5.777818823650782D-03   3.010740179797255D-04   1.000000000000000D+00  
+@end example
+@end ifnottex
+@tex
+\halign{\hfil\tt#&\quad\hfil\tt#\quad&\tt#\hfil\quad&\tt#\hfil\quad&\tt#\hfil\cr
+I& NFN&   FUNC&                    GNORM&                   STEPLENGTH\cr
+&&&&\cr
+1&  3&1.177820636622582D-01& 9.893138394953992D-02& 8.554435968992371D-01\cr
+2&  6&2.302653892214013D-02& 1.180098521565904D-01& 2.100000000000000D+01\cr
+3&  8&1.496348495303005D-02& 9.611201567691633D-02& 5.257340567840707D-01\cr
+4&  9&7.900460841091139D-03& 1.325041647391314D-02& 1.000000000000000D+00\cr
+5& 10&7.314495451266917D-03& 1.510670810312237D-02& 1.000000000000000D+00\cr
+6& 11&6.750147275936680D-03& 1.914964958023047D-02& 1.000000000000000D+00\cr
+7& 12&5.850716021108205D-03& 1.028089194579363D-02& 1.000000000000000D+00\cr
+8& 13&5.778664230657791D-03& 3.676866074530332D-04& 1.000000000000000D+00\cr
+9& 14&5.777818823650782D-03& 3.010740179797255D-04& 1.000000000000000D+00\cr
+}
+@end tex
+@example
+
+ THE MINIMIZATION TERMINATED WITHOUT DETECTING ERRORS.
+ IFLAG = 0
+(%o7) [A = 1.461933911464101, B = 1.601593973254802, 
+                                           C = 2.528933072164854]
+(%i8) plot2d ([F(x), [discrete, X, Y]], [x, -1, 6]), ''estimates;
+(%o8) 
+@end example
+
+Especificando el gradiente de la funci@'on objetivo en lugar de calcularlo
+simb@'olicamente.
+
+@c ===beg===
+@c load (lbfgs)$
+@c F(a, b, c) := (a - 5)^2 + (b - 3)^4 + (c - 2)^6;
+@c F_grad : map (lambda ([x], diff (F(a, b, c), x)), [a, b, c]);
+@c estimates : lbfgs ([F(a, b, c), F_grad],
+@c                    [a, b, c], [0, 0, 0], 1e-4, [1, 0]);
+@c ===end===
+@example
+(%i1) load (lbfgs)$
+(%i2) F(a, b, c) := (a - 5)^2 + (b - 3)^4 + (c - 2)^6;
+                               2          4          6
+(%o2)     F(a, b, c) := (a - 5)  + (b - 3)  + (c - 2)
+(%i3) F_grad : map (lambda ([x], diff (F(a, b, c), x)), [a, b, c]);
+                                    3           5
+(%o3)          [2 (a - 5), 4 (b - 3) , 6 (c - 2) ]
+(%i4) estimates : lbfgs ([F(a, b, c), F_grad],
+                         [a, b, c], [0, 0, 0], 1e-4, [1, 0]);
+*************************************************
+  N=    3   NUMBER OF CORRECTIONS=25
+       INITIAL VALUES
+ F=  1.700000000000000D+02   GNORM=  2.205175729958953D+02
+*************************************************
+
+@end example
+@ifnottex
+@example
+   I  NFN     FUNC                    GNORM                   STEPLENGTH
+
+   1    2     6.632967565917638D+01   6.498411132518770D+01   4.534785987412505D-03  
+   2    3     4.368890936228036D+01   3.784147651974131D+01   1.000000000000000D+00  
+   3    4     2.685298972775190D+01   1.640262125898521D+01   1.000000000000000D+00  
+   4    5     1.909064767659852D+01   9.733664001790506D+00   1.000000000000000D+00  
+   5    6     1.006493272061515D+01   6.344808151880209D+00   1.000000000000000D+00  
+   6    7     1.215263596054294D+00   2.204727876126879D+00   1.000000000000000D+00  
+   7    8     1.080252896385334D-02   1.431637116951849D-01   1.000000000000000D+00  
+   8    9     8.407195124830908D-03   1.126344579730013D-01   1.000000000000000D+00  
+   9   10     5.022091686198527D-03   7.750731829225274D-02   1.000000000000000D+00  
+  10   11     2.277152808939775D-03   5.032810859286795D-02   1.000000000000000D+00  
+  11   12     6.489384688303218D-04   1.932007150271008D-02   1.000000000000000D+00  
+  12   13     2.075791943844548D-04   6.964319310814364D-03   1.000000000000000D+00  
+  13   14     7.349472666162257D-05   4.017449067849554D-03   1.000000000000000D+00  
+  14   15     2.293617477985237D-05   1.334590390856715D-03   1.000000000000000D+00  
+  15   16     7.683645404048675D-06   6.011057038099201D-04   1.000000000000000D+00  
+@end example
+@end ifnottex
+@tex
+\halign{\hfil\tt#&\quad\hfil\tt#\quad&\tt#\hfil\quad&\tt#\hfil\quad&\tt#\hfil\cr
+I& NFN&   FUNC&                    GNORM&                   STEPLENGTH\cr
+&&&&\cr
+   1&   2&    6.632967565917638D+01&  6.498411132518770D+01&  4.534785987412505D-03\cr
+   2&   3&    4.368890936228036D+01&  3.784147651974131D+01&  1.000000000000000D+00\cr
+   3&   4&    2.685298972775190D+01&  1.640262125898521D+01&  1.000000000000000D+00\cr
+   4&   5&    1.909064767659852D+01&  9.733664001790506D+00&  1.000000000000000D+00\cr
+   5&   6&    1.006493272061515D+01&  6.344808151880209D+00&  1.000000000000000D+00\cr
+   6&   7&    1.215263596054294D+00&  2.204727876126879D+00&  1.000000000000000D+00\cr
+   7&   8&    1.080252896385334D-02&  1.431637116951849D-01&  1.000000000000000D+00\cr
+   8&   9&    8.407195124830908D-03&  1.126344579730013D-01&  1.000000000000000D+00\cr
+   9&  10&    5.022091686198527D-03&  7.750731829225274D-02&  1.000000000000000D+00\cr
+  10&  11&    2.277152808939775D-03&  5.032810859286795D-02&  1.000000000000000D+00\cr
+  11&  12&    6.489384688303218D-04&  1.932007150271008D-02&  1.000000000000000D+00\cr
+  12&  13&    2.075791943844548D-04&  6.964319310814364D-03&  1.000000000000000D+00\cr
+  13&  14&    7.349472666162257D-05&  4.017449067849554D-03&  1.000000000000000D+00\cr
+  14&  15&    2.293617477985237D-05&  1.334590390856715D-03&  1.000000000000000D+00\cr
+  15&  16&    7.683645404048675D-06&  6.011057038099201D-04&  1.000000000000000D+00\cr
+}
+@end tex
+@example
+
+ THE MINIMIZATION TERMINATED WITHOUT DETECTING ERRORS.
+ IFLAG = 0
+(%o4) [a = 5.000086823042934, b = 3.05239542970518, 
+                                           c = 1.927980629919583]
+@end example
+
+@end deffn
+
+
+@defvr {Variable} lbfgs_nfeval_max
+Valor por defecto: 100
+
+La variable @code{lbfgs_nfeval_max} almacena el n@'umero m@'aximo de
+evaluaciones de la funci@'on objetivo en @code{lbfgs}. Cuando se
+alcanza el valor @code{lbfgs_nfeval_max}, @code{lbfgs} devuelve
+el resultado logrado en la @'ultima iteraci@'on exitosa.
+
+@end defvr
+
+@defvr {Variable} lbfgs_ncorrections
+Valor por defecto: 25
+
+La variable @code{lbfgs_ncorrections} almacena el n@'umero de correcciones
+aplicadas a la matriz inversa aproximada del hessiano, la cual es gestionada
+por @code{lbfgs}.
+
+@end defvr

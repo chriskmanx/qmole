@@ -1,0 +1,228 @@
+
+/*
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or
+   (at your option) any later version.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+   
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+   MA 02110-1301, USA.
+   
+   
+**** AES en/decryption *********************************************************
+   
+   Copyright Volker van Nek, 2012
+   
+   
+   Functions in this file work in Maxima version 5.29 or higher.
+   (Or download src/numth.lisp from git and compile and load numth.lisp.)
+   
+   The example at the bottom of this file is taken from the excellent
+   Rijndael_Animation_v4_en.swf
+   http://www.formaestudio.com/rijndaelinspector/
+   which I highly recommend to set next to this code.
+*/
+
+
+(obase:16, ibase:16)$
+
+/* sub_bytes **************************************************************** */
+
+byte_sub[byte] := block([poly, inv, p1, p2],
+   gf_minimal_set(2, x^8+x^4+x^3+x+1),
+   poly : gf_n2p(byte),
+   inv : if poly = 0 then 0 else gf_inv(poly),
+
+   gf_minimal_set(2, x^8+1),
+   p1 : x^4+x^3+x^2+x+1,
+   p2 : x^6+x^5+x+1, 
+   poly : gf_add(gf_mult(p1, inv), p2),
+   gf_p2n(poly) )$
+
+for byte:0 thru 0ff do byte_sub[byte]$
+
+gf_set(2, x^8+x^4+x^3+x+1)$
+
+sub_bytes(state) := matrixmap(lambda([byte], byte_sub[byte]), state)$
+
+
+/* shift_rows *************************************************************** */
+
+rotate(row, i) := append(rest(row, i), rest(row, i-4))$
+
+shift_rows(state) := apply('matrix, makelist(rotate(state[i], i-1), i,1,4))$
+
+
+/* mix_columns ************************************************************** */
+
+mat_n2p(num_mat) := matrixmap(gf_n2p, num_mat)$
+mat_p2n(poly_mat) := matrixmap(gf_p2n, poly_mat)$
+
+MC : mat_n2p( matrix(
+   [2, 3, 1, 1], 
+   [1, 2, 3, 1], 
+   [1, 1, 2, 3], 
+   [3, 1, 1, 2] ))$
+
+mix_columns(state) := block([mixed],
+   state : mat_n2p(state),
+   mixed : matrix(),
+   for i:1 thru 4 do 
+      mixed : addcol(mixed, gf_matmult(MC, col(state, i))),
+   mat_p2n(mixed) )$
+
+
+/* add_round_key ************************************************************ */
+
+add_round_key(state, key) := 
+   mat_p2n( gf_matadd( mat_n2p(state), mat_n2p(key) ))$
+
+
+/* key_expansion ************************************************************ */
+
+rcon : addrow(
+   matrix([1, 2, 4, 8, 10, 20, 40, 80, 1b, 36]),
+   zeromatrix(3, 0a) )$
+
+rot_word(col) := addrow(submatrix(1, col), col[1])$
+
+key_expansion1(col1, col4, i) := block([rcon_col],
+   col1 : mat_n2p(col1),
+   col4 : matrixmap(lambda([byte], byte_sub[byte]), rot_word(col4)),
+   col4 : mat_n2p(col4),
+   rcon_col : mat_n2p(col(rcon, i)),
+   mat_p2n( gf_matadd(col1, col4, rcon_col) ))$
+
+key_expansion2(col_i, col_j) := 
+   mat_p2n( gf_matadd( mat_n2p(col_i), mat_n2p(col_j) ))$
+
+next_round_key(key, nr) := block([new],
+   new : key_expansion1(col(key, 1), col(key, 4), nr),
+   for i:2 thru 4 do
+      new : addcol(new, key_expansion2(col(key, i), col(new, i-1))),
+   new )$
+
+key_expansion(key) := (
+   kill(round_key),
+   round_key[0] : key,
+   for i:1 thru 0a do 
+      round_key[i] : next_round_key(round_key[i-1], i) )$
+
+/* cipher ******************************************************************* */
+
+cipher(state) := (
+   state : add_round_key(state, round_key[0]),
+   
+   for i:1 thru 9 do (
+      state : shift_rows( sub_bytes(state) ), 
+      state : mix_columns(state), 
+      state : add_round_key(state, round_key[i]) ),
+   
+   state : shift_rows( sub_bytes(state) ), 
+   add_round_key(state, round_key[0a]) )$
+
+
+/* inv_shift_rows *********************************************************** */
+
+inv_rotate(row, i) := append(rest(row, 4-i), rest(row, -i))$
+
+inv_shift_rows(M) := apply('matrix, makelist(inv_rotate(M[i], i-1), i,1,4))$
+
+
+/* inv_sub_bytes ************************************************************ */
+
+inv_byte_sub[byte] := block([poly, inv, p1, p2],
+   gf_minimal_set(2, x^8+1),
+   poly : gf_n2p(byte),
+   p1 : x^4+x^3+x^2+x+1,
+   p2 : x^6+x^5+x+1, 
+   poly : gf_div(gf_sub(poly, p2), p1),
+   
+   gf_minimal_set(2, x^8+x^4+x^3+x+1),
+   inv : if poly = 0 then 0 else gf_inv(poly),
+   gf_p2n(inv) )$
+
+for byte:0 thru 0ff do inv_byte_sub[byte]$
+
+gf_set(2, x^8+x^4+x^3+x+1)$
+
+inv_sub_bytes(state) := matrixmap(lambda([byte], inv_byte_sub[byte]), state)$
+
+
+/* inv_mix_columns ********************************************************** */
+
+inv_MC : gf_matinv(MC)$
+
+inv_mix_columns(state) := block([mixed],
+   state : mat_n2p(state),
+   mixed : matrix(),
+   for n:1 thru 4 do 
+      mixed : addcol(mixed, gf_matmult(inv_MC, col(state, n))),
+   mat_p2n(mixed) )$
+
+
+/* inv_cipher *************************************************************** */
+
+inv_cipher(state) := (
+   state : add_round_key(state, round_key[0a]),
+   
+   for n:9 step -1 thru 1 do (
+      state : inv_shift_rows( inv_sub_bytes(state) ), 
+      state : add_round_key(state, round_key[n]),
+      state : inv_mix_columns(state) ),
+   
+   state : inv_shift_rows( inv_sub_bytes(state) ), 
+   add_round_key(state, round_key[0]) )$
+
+
+/* example ****************************************************************** */
+
+state : matrix(
+   [ 32, 88, 31,0e0],
+   [ 43, 5a, 31, 37],
+   [0f6, 30, 98,  7],
+   [0a8, 8d,0a2, 34])$
+
+key : matrix(
+   [2b,  28, 0ab,   9],
+   [7e, 0ae, 0f7, 0cf],
+   [15, 0d2,  15,  4f],
+   [16, 0a6,  88,  3c])$
+
+key_expansion(key)$
+
+/*
+(%i4) state;
+                             [ 32   88  31   0E0 ]
+                             [                   ]
+                             [ 43   5A  31   37  ]
+(%o4)                        [                   ]
+                             [ 0F6  30  98    7  ]
+                             [                   ]
+                             [ 0A8  8D  0A2  34  ]
+(%i5) state : cipher(state);
+                             [ 39   2   0DC  19 ]
+                             [                  ]
+                             [ 25  0DC  11   6A ]
+(%o5)                        [                  ]
+                             [ 84   9   85   0B ]
+                             [                  ]
+                             [ 1D  0FB  97   32 ]
+(%i6) state : inv_cipher(state);
+                             [ 32   88  31   0E0 ]
+                             [                   ]
+                             [ 43   5A  31   37  ]
+(%o6)                        [                   ]
+                             [ 0F6  30  98    7  ]
+                             [                   ]
+                             [ 0A8  8D  0A2  34  ]
+*/
+
+'done$

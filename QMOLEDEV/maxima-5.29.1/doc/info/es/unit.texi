@@ -1,0 +1,716 @@
+@c English version: 2008-12-31
+@menu
+* Introducci@'on a units::       
+* Funciones y variables para units::       
+@end menu
+
+@node Introducci@'on a units, Funciones y variables para units, unit, unit
+@section Introducci@'on a units
+
+El paquete @code{unit} permite al usuario hacer cambios de unidades y
+llevar a cabo el an@'alisis dimensional de las ecuaciones. La forma de operar de
+este paquete es radicalmente diferente de la del paquete original de Maxima;
+mientras que en el paquete original era tan solo una lista de definiciones,
+aqu@'{@dotless{i}} se utiliza un conjunto de reglas que permiten seleccionar al usuario
+en qu@'e unidades debe devolverse la expresi@'on final. 
+
+Junto con el an@'alisis dimensional, el paquete aporta una serie de 
+herramientas para controlar las opciones de conversi@'on y simplificaci@'on.
+Adem@'as de la conversi@'on autom@'atica adaptable a las necesidades del
+usuario, el paquete @code{unit} permite hacer conversiones a la manera
+tradicional.
+
+Nota: Cuando los factores de conversi@'on no son exactos, Maxima los
+transformar@'a a fracciones como consecuencia de la metodolog@'{@dotless{i}}a
+utilizada para simplificar las unidades. Los mensajes de aviso concernientes a
+estas transformaciones est@'an desactivados por defecto en el caso de las
+unidades (lo habitual es que est@'en activados en otros contextos) debido a
+que al ser una operaci@'on muy frecuente, ser@'{@dotless{i}}an un estorbo. 
+El estado previo de la variable @code{ratprint} queda restaurado tras la
+conversi@'on de las unidades, de manera que se mantendr@'a la opci@'on
+seleccionada por el usuario; en caso de que @'este necesite ver dichos 
+avisos, podr@'a hacer la asignaci@'on @code{unitverbose:on} para
+reactivarlos desde el proceso de conversi@'on de unidades.
+
+El paquete @code{unit} se aloja en el directorio @code{share/contrib/unit}
+y se ajusta a las convenciones de Maxima para la carga de paquetes:
+
+@example
+(%i1) load("unit")$
+******************************************************************* 
+*                       Units version 0.50                        * 
+*          Definitions based on the NIST Reference on             * 
+*              Constants, Units, and Uncertainty                  * 
+*       Conversion factors from various sources including         * 
+*                   NIST and the GNU units package                * 
+******************************************************************* 
+ 
+Redefining necessary functions... 
+WARNING: DEFUN/DEFMACRO: 
+         redefining function TOPLEVEL-MACSYMA-EVAL ...
+WARNING: DEFUN/DEFMACRO: redefining function MSETCHK ...
+WARNING: DEFUN/DEFMACRO: redefining function KILL1 ...
+WARNING: DEFUN/DEFMACRO: redefining function NFORMAT ...
+Initializing unit arrays... 
+Done. 
+@end example
+
+Los avisos del tipo @code{WARNING} son normales y no deben interpretarse
+como errores; tan solo indican que el paquete @code{unit} est@'a redefiniendo
+funciones que ya estaban definidas en Maxima. Esto es necesario para que las
+unidades se gestionen de forma correcta. El usuario debe tener en cuenta que si 
+otros paquetes han cambiado las definiciones de estas funciones, tales cambios ser@'an
+ignorados por el proceso de carga de @code{unit}.
+
+El paquete @code{unit} tambi@'en carga el fichero de Lisp @code{unit-functions.lisp},
+el cual contiene las funciones Lisp necesarias.
+
+El autor principal de este paquete es Clifford Yapp, quien ha recibido ayuda
+y asistencia, entre otros, de Barton Willis y Robert Dodier.
+
+@node Funciones y variables para units,  , Introducci@'on a units, unit
+@section Funciones y variables para units
+
+
+@deffn {Funci@'on} setunits (@var{list})
+
+El paquete @code{unit} no utiliza por defecto dimensiones derivadas, pero convierte
+todas las unidades a las siete fundamentales en unidades MKS.
+
+@example
+@group
+(%i2) N;
+                                     kg m
+(%o2)                                ----
+                                       2
+                                      s
+@end group
+@group
+(%i3) dyn;
+                                   1      kg m
+(%o3)                           (------) (----)
+                                 100000     2
+                                           s
+@end group
+@group
+(%i4) g;
+                                    1
+(%o4)                             (----) (kg)
+                                   1000
+@end group
+@group
+(%i5) centigram*inch/minutes^2;
+                                  127        kg m
+(%o5)                       (-------------) (----)
+                             1800000000000     2
+                                              s
+@end group
+@end example
+
+Este es el comportamiento que se desea en ciertos casos. Si
+el usuario necesita utilizar otras unidades, habr@'a de utilizar la
+instrucci@'on @code{setunits}:
+@example
+@group
+(%i6) setunits([centigram,inch,minute]);
+(%o6)                                done
+@end group
+@group
+(%i7) N;
+                            1800000000000   %in cg
+(%o7)                      (-------------) (------)
+                                 127            2
+                                            %min
+@end group
+@group
+(%i8) dyn;
+                               18000000   %in cg
+(%o8)                         (--------) (------)
+                                 127          2
+                                          %min
+@end group
+@group
+(%i9) g;
+(%o9)                             (100) (cg)
+@end group
+@group
+(%i10) centigram*inch/minutes^2;
+                                    %in cg
+(%o10)                              ------
+                                        2
+                                    %min
+@end group
+@end example
+
+La especificaci@'on de las variables es relativamente flexible.
+Por ejemplo, si se quiere volver a utilizar kilogramos, metros y
+segundos como unidades por defecto, podemos hacer:
+@example
+@group
+(%i11) setunits([kg,m,s]);
+(%o11)                               done
+@end group
+@group
+(%i12) centigram*inch/minutes^2;
+                                  127        kg m
+(%o12)                      (-------------) (----)
+                             1800000000000     2
+                                              s
+@end group
+@end example
+
+Las unidades derivadas tambi@'en se controlan con esta misma instrucci@'on:
+@example
+@group
+(%i17) setunits(N);
+(%o17)                               done
+@end group
+@group
+(%i18) N;
+(%o18)                                 N
+@end group
+@group
+(%i19) dyn;
+                                    1
+(%o19)                           (------) (N)
+                                  100000
+@end group
+@group
+(%i20) kg*m/s^2;
+(%o20)                                 N
+@end group
+@group
+(%i21) centigram*inch/minutes^2;
+                                    127
+(%o21)                        (-------------) (N)
+                               1800000000000
+@end group
+@end example
+
+T@'engase en cuenta que el paquete @code{unit} reconoce que la
+combinaci@'on de masa, longitud e inversa del cuadrado del tiempo da
+lugar a una fuerza, convirti@'endola a newtons. Esta es la forma
+general en la que trabaja Maxima. Si el usuario prefiere dinas a newtons,
+tan solo tendr@'a que hacer lo siguiente:
+@example
+@group
+(%i22) setunits(dyn);
+(%o22)                               done
+@end group
+@group
+(%i23) kg*m/s^2;
+(%o23)                          (100000) (dyn)
+@end group
+@group
+(%i24) centigram*inch/minutes^2;
+                                  127
+(%o24)                         (--------) (dyn)
+                                18000000
+@end group
+@end example
+
+Para desactivar una unidad se utiliza la instrucci@'on @code{uforget}:
+@example
+@group
+(%i26) uforget(dyn);
+(%o26)                               false
+@end group
+@group
+(%i27) kg*m/s^2;
+                                     kg m
+(%o27)                               ----
+                                       2
+                                      s
+@end group
+@group
+(%i28) centigram*inch/minutes^2;
+                                  127        kg m
+(%o28)                      (-------------) (----)
+                             1800000000000     2
+                                              s
+@end group
+@end example
+Esto tambi@'en hubiese funcionado con @code{uforget(N)} o
+@code{uforget(%force)}. 
+
+
+V@'ease tambi@'en @code{uforget}. Para hacer uso de esta funci@'on ejec@'utese @code{load("unit")}.
+@end deffn
+
+
+@deffn {Funci@'on} uforget (@var{list})
+Por defecto, el paquete @code{unit} convierte todas las unidades a las
+siete fundamentales del sistema MKS. Este comportamiento puede alterarse
+mediante la instrucci@'on @code{setunits}. Despu@'es, si el usuario quiere
+restaurar el comportamiento por defecto podr@'a hacerlo para una dimensi@'on
+determinada haciendo uso de la instrucci@'on @code{uforget}:
+@example
+@group
+(%i13) setunits([centigram,inch,minute]);
+(%o13)                               done
+@end group
+@group
+(%i14) centigram*inch/minutes^2;
+                                    %in cg
+(%o14)                              ------
+                                        2
+                                    %min
+@end group
+@group
+(%i15) uforget([cg,%in,%min]);
+(%o15)                      [false, false, false]
+@end group
+@group
+(%i16) centigram*inch/minutes^2;
+                                  127        kg m
+(%o16)                      (-------------) (----)
+                             1800000000000     2
+                                              s
+@end group
+@end example
+
+La instrucci@'on @code{uforget} opera
+sobre dimensiones, no sobre unidades, de modo que valdr@'a para
+cualquier unidad de una dimensi@'on concreta. La propia dimensi@'on
+es una argumento v@'alido para esta funci@'on.
+
+V@'ease tambi@'en @code{setunits}. Para hacer uso de esta funci@'on ejec@'utese @code{load("unit")}.
+@end deffn
+
+
+@deffn {Funci@'on} convert (@var{expr}, @var{list})
+La funci@'on @code{convert} permite conversiones de una sola vez sin
+alterar el entorno global de ejecuci@'on. Acepta tanto un @'unico argumento
+como una lista de unidades a utilizar en las conversiones. Cuando se realiza
+una llamada a @code{convert} se ignora el sistema global de evaluaci@'on, con 
+el fin de evitar que el resultado deseado sea nuevamente transformado.
+Como consecuencia de esto, en los c@'alculos con decimales, los avisos de
+tipo @code{rat} se har@'an visibles si la variable global @code{ratprint}
+vale @code{true}. Otra propiedad de @code{convert} es que permite al
+usuario hacer conversiones al sistema fundamental de dimensiones incluso
+cuando el entorno ha sido ajustado para simplificar a una dimensi@'on
+derivada.
+@example
+@group
+(%i2) kg*m/s^2;
+                                     kg m
+(%o2)                                ----
+                                       2
+                                      s
+@end group
+@group
+(%i3) convert(kg*m/s^2,[g,km,s]);
+                                     g km
+(%o3)                                ----
+                                       2
+                                      s
+@end group
+@group
+(%i4) convert(kg*m/s^2,[g,inch,minute]);
+
+`rat' replaced 39.37007874015748 by 5000/127 = 39.37007874015748
+                              18000000000   %in g
+(%o4)                        (-----------) (-----)
+                                  127           2
+                                            %min
+@end group
+@group
+(%i5) convert(kg*m/s^2,[N]);
+(%o5)                                  N
+@end group
+@group
+(%i6) convert(kg*m^2/s^2,[N]);
+(%o6)                                 m N
+@end group
+@group
+(%i7) setunits([N,J]);
+(%o7)                                done
+@end group
+@group
+(%i8) convert(kg*m^2/s^2,[N]);
+(%o8)                                 m N
+@end group
+@group
+(%i9) convert(kg*m^2/s^2,[N,inch]);
+
+`rat' replaced 39.37007874015748 by 5000/127 = 39.37007874015748
+                                 5000
+(%o9)                           (----) (%in N)
+                                 127
+@end group
+@group
+(%i10) convert(kg*m^2/s^2,[J]);
+(%o10)                                 J
+@end group
+@group
+(%i11) kg*m^2/s^2;
+(%o11)                                 J
+@end group
+@group
+(%i12) setunits([g,inch,s]);
+(%o12)                               done
+@end group
+@group
+(%i13) kg*m/s^2;
+(%o13)                                 N
+@end group
+@group
+(%i14) uforget(N);
+(%o14)                               false
+@end group
+@group
+(%i15) kg*m/s^2;
+                                5000000   %in g
+(%o15)                         (-------) (-----)
+                                  127       2
+                                           s
+@end group
+@group
+(%i16) convert(kg*m/s^2,[g,inch,s]);
+
+`rat' replaced 39.37007874015748 by 5000/127 = 39.37007874015748
+                                5000000   %in g
+(%o16)                         (-------) (-----)
+                                  127       2
+                                           s
+@end group
+@end example
+
+V@'eanse tambi@'en @code{setunits} y @code{uforget}.
+Para hacer uso de esta funci@'on ejec@'utese @code{load("unit")}.
+@end deffn
+
+
+@defvr {Variable opcional} usersetunits
+Valor por defecto: ninguno
+
+En caso de que el usuario desee que el comportamiento por defecto del
+paquete @code{unit} sea distinto del descrito, puede hacer uso del
+fichero @code{maxima-init.mac} y de la variable global @code{usersetunits}.
+El paquete @code{unit} comprobar@'a al ser cargado si se le ha dado a esta
+variable una lista de unidades; en caso afirmativo, aplicar@'a @code{setunits}
+a las unidades de esta lista y las utilizar@'a por defecto. Una llamada a la
+funci@'on @code{uforget} permitir@'a retornar al comportamiento establecido
+por defecto por el usuario. Por ejemplo, si en el archivo @code{maxima-init.mac}
+se tiene el siguiente c@'odigo:
+@example
+usersetunits : [N,J];
+@end example
+
+observar@'{@dotless{i}}amos el siguiente comportamiento:
+@example
+@group
+(%i1) load("unit")$
+*******************************************************************
+*                       Units version 0.50                        *
+*          Definitions based on the NIST Reference on             *
+*              Constants, Units, and Uncertainty                  *
+*       Conversion factors from various sources including         *
+*                   NIST and the GNU units package                *
+*******************************************************************
+
+Redefining necessary functions...
+WARNING: DEFUN/DEFMACRO: redefining function
+ TOPLEVEL-MACSYMA-EVAL ...
+WARNING: DEFUN/DEFMACRO: redefining function MSETCHK ...
+WARNING: DEFUN/DEFMACRO: redefining function KILL1 ...
+WARNING: DEFUN/DEFMACRO: redefining function NFORMAT ...
+Initializing unit arrays...
+Done.
+User defaults found...
+User defaults initialized.
+@end group
+@group
+(%i2) kg*m/s^2;
+(%o2)                                  N
+@end group
+@group
+(%i3) kg*m^2/s^2;
+(%o3)                                  J
+@end group
+@group
+(%i4) kg*m^3/s^2;
+(%o4)                                 J m
+@end group
+@group
+(%i5) kg*m*km/s^2;
+(%o5)                             (1000) (J)
+@end group
+@group
+(%i6) setunits([dyn,eV]);
+(%o6)                                done
+@end group
+@group
+(%i7) kg*m/s^2;
+(%o7)                           (100000) (dyn)
+@end group
+@group
+(%i8) kg*m^2/s^2;
+(%o8)                     (6241509596477042688) (eV)
+@end group
+@group
+(%i9) kg*m^3/s^2;
+(%o9)                    (6241509596477042688) (eV m)
+@end group
+@group
+(%i10) kg*m*km/s^2;
+(%o10)                   (6241509596477042688000) (eV)
+@end group
+@group
+(%i11) uforget([dyn,eV]);
+(%o11)                           [false, false]
+@end group
+@group
+(%i12) kg*m/s^2;
+(%o12)                                 N
+@end group
+@group
+(%i13) kg*m^2/s^2;
+(%o13)                                 J
+@end group
+@group
+(%i14) kg*m^3/s^2;
+(%o14)                                J m
+@end group
+@group
+(%i15) kg*m*km/s^2;
+(%o15)                            (1000) (J)
+@end group
+@end example
+
+De no haber hecho uso de @code{usersetunits}, las entradas iniciales hubiesen
+sido convertidas a unidades MKS y cualquier llamada a @code{uforget} hubiese
+retornado tambi@'en a MKS. Sin embargo, las preferencias establecidas por el
+usuario se respetan en ambos casos. Para eliminar las preferencias del usuario
+y volver a utilizar las establecidas por defecto por el paquete @code{unit},
+debe utilizarse la instrucci@'on @code{dontusedimension}. La funci@'on
+@code{uforget} puede restaurar nuevamente las preferencias del usuario, pero
+s@'olo si @code{usedimension} mantiene su valor. Alternativamente, 
+@code{kill(usersetunits)}  eliminar@'a completamente cualquier vestigio de las
+preferencias del usuario durante la sesi@'on actual. V@'eanse a continuaci@'on
+algunos ejemplos de aplicaci@'on de estas opciones:
+@example
+@group
+(%i2) kg*m/s^2;
+(%o2)                                  N
+@end group
+@group
+(%i3) kg*m^2/s^2;
+(%o3)                                  J
+@end group
+@group
+(%i4) setunits([dyn,eV]);
+(%o4)                                done
+@end group
+@group
+(%i5) kg*m/s^2;
+(%o5)                           (100000) (dyn)
+@end group
+@group
+(%i6) kg*m^2/s^2;
+(%o6)                     (6241509596477042688) (eV)
+@end group
+@group
+(%i7) uforget([dyn,eV]);
+(%o7)                          [false, false]
+@end group
+@group
+(%i8) kg*m/s^2;
+(%o8)                                  N
+@end group
+@group
+(%i9) kg*m^2/s^2;
+(%o9)                                  J
+@end group
+@group
+(%i10) dontusedimension(N);
+(%o10)                             [%force]
+@end group
+@group
+(%i11) dontusedimension(J);
+(%o11)                         [%energy, %force]
+@end group
+@group
+(%i12) kg*m/s^2;
+                                     kg m
+(%o12)                               ----
+                                       2
+                                      s
+@end group
+@group
+(%i13) kg*m^2/s^2;
+                                         2
+                                     kg m
+(%o13)                               -----
+                                       2
+                                      s
+@end group
+@group
+(%i14) setunits([dyn,eV]);
+(%o14)                               done
+@end group
+@group
+(%i15) kg*m/s^2;
+                                     kg m
+(%o15)                               ----
+                                       2
+                                      s
+@end group
+@group
+(%i16) kg*m^2/s^2;
+                                         2
+                                     kg m
+(%o16)                               -----
+                                       2
+                                      s
+@end group
+@group
+(%i17) uforget([dyn,eV]);
+(%o17)                         [false, false]
+@end group
+@group
+(%i18) kg*m/s^2;
+                                     kg m
+(%o18)                               ----
+                                       2
+                                      s
+@end group
+@group
+(%i19) kg*m^2/s^2;
+                                         2
+                                     kg m
+(%o19)                               -----
+                                       2
+                                      s
+@end group
+@group
+(%i20) usedimension(N);
+Done.  To have Maxima simplify to this dimension, use
+setunits([unit]) to select a unit.
+(%o20)                               true
+@end group
+@group
+(%i21) usedimension(J);
+Done.  To have Maxima simplify to this dimension, use
+setunits([unit]) to select a unit.
+(%o21)                               true
+@end group
+@group
+(%i22) kg*m/s^2;
+                                     kg m
+(%o22)                               ----
+                                       2
+                                      s
+@end group
+@group
+(%i23) kg*m^2/s^2;
+                                         2
+                                     kg m
+(%o23)                               -----
+                                       2
+                                      s
+@end group
+@group
+(%i24) setunits([dyn,eV]);
+(%o24)                               done
+@end group
+@group
+(%i25) kg*m/s^2;
+(%o25)                          (100000) (dyn)
+@end group
+@group
+(%i26) kg*m^2/s^2;
+(%o26)                    (6241509596477042688) (eV)
+@end group
+@group
+(%i27) uforget([dyn,eV]);
+(%o27)                           [false, false]
+@end group
+@group
+(%i28) kg*m/s^2;
+(%o28)                                 N
+@end group
+@group
+(%i29) kg*m^2/s^2;
+(%o29)                                 J
+@end group
+@group
+(%i30) kill(usersetunits);
+(%o30)                               done
+@end group
+@group
+(%i31) uforget([dyn,eV]);
+(%o31)                          [false, false]
+@end group
+@group
+(%i32) kg*m/s^2;
+                                     kg m
+(%o32)                               ----
+                                       2
+                                      s
+@end group
+@group
+(%i33) kg*m^2/s^2;
+                                         2
+                                     kg m
+(%o33)                               -----
+                                       2
+                                      s
+@end group
+@end example
+
+Desafortunadamente, esta amplia variedad de opciones puede resultar
+confusa en un primer momento, pero una vez se practica un poco con
+ellas, el usuario comprobar@'a que tiene un control absoluto sobre
+su entorno de trabajo.
+
+
+
+@c One other significant customization option available is the @code{setunitprefix}
+@c command.  Normally, abbreviations used in this package are as close to those
+@c used in standard texts as possible.  Some people, however, prefer to use those
+@c symbols for normal work and have units labeled in some other fasion. 
+@c @code{setunitprefix} is provided for this case.  Here is an example of its use:
+
+@end defvr
+
+@deffn {Funci@'on} metricexpandall (@var{x})
+
+Reconstruye autom@'aticamente las listas globales de unidades creando todas
+los m@'ultiplos y subm@'ultiplos m@'etricos necesarios. El argumento num@'erico 
+@var{x} se utiliza para especificar cu@'antos prefijos num@'ericos quiere 
+utilizar el usuario. Los argumentos son los siguientes:
+@example
+@group
+               0 - none. Only base units
+               1 - kilo, centi, milli
+(por defecto)  2 - giga, mega, kilo, hecto, deka, deci, centi,
+                   milli, micro, nano
+               3 - peta, tera, giga, mega, kilo, hecto, deka,
+                   deci, centi, milli, micro, nano, pico, 
+                   femto
+               4 - todos
+@end group
+@end example
+
+Normalmente, Maxima no definir@'a el juego completo de m@'ultiplos y 
+subm@'ultiplos, lo que implica un n@'umero muy grande de unidades, pero
+@code{metricexpandall} puede utilizarse para reconstruir la lista. La
+variable fundamental del paquete @code{unit} es @code{%unitexpand}.
+@end deffn
+
+@defvr {Variable opcional} %unitexpand
+Valor por defecto: @code{2}
+
+Es el valor suministrado a @code{metricexpandall} durante la carga del
+paquete @code{unit}.
+@end defvr
+
+
+@c @deffn {Function} functionname (@var{arg1}, @var{arg2}, ..., @var{argn})
+@c @end deffn
+
+@c @defvr {Variable} variablename
+@c Default value: @code{true}
+@c @end defvr
+

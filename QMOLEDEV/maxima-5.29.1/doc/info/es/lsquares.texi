@@ -1,0 +1,594 @@
+@c English version: 2011-06-07
+@menu
+* Funciones y variables para lsquares::
+@end menu
+
+@node Funciones y variables para lsquares,  , lsquares, lsquares
+@section Funciones y variables para lsquares
+
+
+@deffn {Funci@'on} lsquares_estimates (@var{D}, @var{x}, @var{e}, @var{a})
+@deffnx {Funci@'on} lsquares_estimates (@var{D}, @var{x}, @var{e}, @var{a}, initial = @var{L}, tol = @var{t})
+
+Estima los par@'ametros @var{a} que mejor se ajusten a la ecuaci@'on @var{e}
+de variables @var{x} y @var{a} a los datos @var{D} por el m@'etodo de los
+m@'{@dotless{i}}nimos cuadrados. La funci@'on @code{lsquares_estimates}
+busca primero una soluci@'on exacta, y si no la encuentra, buscar@'a
+una aproximada.
+
+El resultado es una lista de listas de ecuaciones de la forma
+@code{[a = ..., b = ..., c = ...]}. Cada elemento de la lista es un
+m@'{@dotless{i}}nimo diferente de error cuadr@'atico medio.
+
+Los datos deben darse en formato matricial. Cada fila es un dato (el cual suele
+denominarse `registro' o `caso' en ciertos contextos), y las columnas contienen los
+valores para cada una de las variables. La lista de variables @var{x} asigna un nombre
+a cada una de las columnas de @var{D}, incluso a aquellas que no intervienen en el
+an@'alisis. La lista @var{a} asigna nombres a los par@'ametros cuyas estimaciones se
+buscan. El argumento @var{e} es una expresi@'on o ecuaci@'on de variables @var{x} y @var{a};
+si @var{e} no es una ecuaci@'on (es decir, carece de igualdad), se trata como si 
+fuese  @code{@var{e} = 0}.
+
+Se pueden dar argumentos adicionales a @code{lsquares_estimates} en forma de ecuaciones,
+las cuales se pasan tal cual a la funci@'on @code{lbfgs}, que es la que se encarga de
+calcular las estimaciones por el m@'etodo num@'erico cuando no encuentra una
+soluci@'on exacta.
+
+Cuando se pueda encontrar una soluci@'on exacta, mediante @code{solve}, los datos
+en @var{D} pueden contener valores no num@'ericos. Sin embargo, cuando no exista
+soluci@'on exacta, todos los elementos de @var{D} deben ser necesariamente
+num@'ericos, lo cual incluye constantes num@'ericas tales como @code{%pi} o @code{%e}
+y n@'umeros literales (enteros, racionales y decimales en coma flotante, tanto los de doble 
+precisi@'on como los de precisi@'on arbitraria).
+Los c@'alculos num@'ericos se realizan en doble precisi@'on con aritm@'etica de
+punto flotante, por lo que n@'umeros de cualesquiera otro tipo son 
+convenientemente convertidos antes de proceder con los c@'alculos.
+
+Antes de utilizar esta funci@'on ejec@'utese @code{load(lsquares)}.
+
+V@'eanse tambi@'en
+@code{lsquares_estimates_exact},
+@code{lsquares_estimates_approximate},
+@code{lsquares_mse},
+@code{lsquares_residuals}
+y @code{lsquares_residual_mse}.
+
+Ejemplos:
+
+Un problema con soluci@'on exacta.
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c lsquares_estimates (
+@c          M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+        [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                                  [ 1  1  1 ]
+                                  [         ]
+                                  [ 3       ]
+                                  [ -  1  2 ]
+                                  [ 2       ]
+                                  [         ]
+(%o2)                             [ 9       ]
+                                  [ -  2  1 ]
+                                  [ 4       ]
+                                  [         ]
+                                  [ 3  2  2 ]
+                                  [         ]
+                                  [ 2  2  1 ]
+(%i3) lsquares_estimates (
+         M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+                         59        27      10921        107
+(%o3)            [[A = - --, B = - --, C = -----, D = - ---]]
+                         16        16      1024         32
+@end example
+
+un problema para el que no se encuentra soluci@'on exacta,
+por lo que @code{lsquares_estimates} recurre a la aproximaci@'on num@'erica.
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix ([1, 1], [2, 7/4], [3, 11/4], [4, 13/4]);
+@c lsquares_estimates (
+@c   M, [x,y], y=a*x^b+c, [a,b,c], initial=[3,3,3], iprint=[-1,0]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix ([1, 1], [2, 7/4], [3, 11/4], [4, 13/4]);
+                                   [ 1  1  ]
+                                   [       ]
+                                   [    7  ]
+                                   [ 2  -  ]
+                                   [    4  ]
+                                   [       ]
+(%o2)                              [    11 ]
+                                   [ 3  -- ]
+                                   [    4  ]
+                                   [       ]
+                                   [    13 ]
+                                   [ 4  -- ]
+                                   [    4  ]
+(%i3) lsquares_estimates (
+  M, [x,y], y=a*x^b+c, [a,b,c], initial=[3,3,3], iprint=[-1,0]);
+(%o3) [[a = 1.387365874920637, b = .7110956639593767, 
+                                        c = - .4142705622439105]]
+@end example
+
+@end deffn
+
+@deffn {Funci@'on} lsquares_estimates_exact (@var{MSE}, @var{a})
+
+Estima los valores de los par@'ametros @var{a} que minimizan el error
+cuadr@'atico medio @var{MSE} mediante un sistema de ecuaciones que intentar@'a
+resolver simb@'olicamente con @code{solve}. El error cuadr@'atico medio es una
+expresi@'on con par@'ametros @var{a}, como los devueltos por @code{lsquares_mse}.
+
+El valor devuelto por la funci@'on es una lista de listas de ecuaciones de la 
+forma @code{[a = ..., b = ..., c = ...]}. El resultado puede contener cero, uno o
+m@'as elementos. Cuando la respuesta contiene m@'as de una soluci@'on, todas ellas
+representan m@'{@dotless{i}}nimos del error cuadr@'atico medio.
+
+V@'eanse tambi@'en
+@code{lsquares_estimates},
+@code{lsquares_estimates_approximate},
+@code{lsquares_mse},
+@code{lsquares_residuals}
+y @code{lsquares_residual_mse}.
+
+Ejemplo:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+@c lsquares_estimates_exact (mse, [A, B, C, D]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+           5
+          ====
+          \                 2                         2
+           >    ((D + M    )  - C - M     B - M     A)
+          /            i, 1          i, 3      i, 2
+          ====
+          i = 1
+(%o3)     ---------------------------------------------
+                                5
+(%i4) lsquares_estimates_exact (mse, [A, B, C, D]);
+                  59        27      10921        107
+(%o4)     [[A = - --, B = - --, C = -----, D = - ---]]
+                  16        16      1024         32
+@end example
+
+@end deffn
+
+@deffn {Funci@'on} lsquares_estimates_approximate (@var{MSE}, @var{a}, initial = @var{L}, tol = @var{t})
+
+Estima los valores de los par@'ametros @var{a} que minimizan el error
+cuadr@'atico medio @var{MSE} mediante el algoritmo num@'erico @code{lbfgs}.
+El error cuadr@'atico medio es una expresi@'on con par@'ametros @var{a},
+como los devueltos por @code{lsquares_mse}.
+
+La soluci@'on devuelta por la funci@'on es un m@'{@dotless{i}}nimo local
+(posiblemente global) del error cuadr@'atico medio.
+
+Por consistencia con @code{lsquares_estimates_exact}, el valor devuelto
+es una lista anidada con un @'unico elemento, consistente en una lista
+de ecuaciones de la forma @code{[a = ..., b = ..., c = ...]}.
+
+Los argumentos adicionales de @code{lsquares_estimates_approximate}
+se especifican como ecuaciones y se pasan de esta forma a la funci@'on @code{lbfgs}.
+
+@var{MSE} debe devolver un n@'umero cuando a sus par@'ametros se les
+asignen valores num@'ericos, lo cual implica que los datos a partir de los
+cuales se ha generado @var{MSE} contengan @'unicamente constantes num@'ericas 
+tales como @code{%pi} o @code{%e} y n@'umeros literales (enteros, racionales y 
+decimales en coma flotante, tanto los de doble 
+precisi@'on como los de precisi@'on arbitraria).
+Los c@'alculos num@'ericos se realizan en doble precisi@'on con aritm@'etica de
+punto flotante, por lo que n@'umeros de cualesquiera otro tipo son 
+convenientemente convertidos antes de proceder con los c@'alculos.
+
+Antes de utilizar esta funci@'on ejec@'utese @code{load(lsquares)}.
+
+V@'eanse tambi@'en
+@code{lsquares_estimates},
+@code{lsquares_estimates_exact},
+@code{lsquares_mse},
+@code{lsquares_residuals} y @code{lsquares_residual_mse}.
+
+Ejemplo:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+@c lsquares_estimates_approximate (
+@c         mse, [A, B, C, D], iprint = [-1, 0]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+           5
+          ====
+          \                 2                         2
+           >    ((D + M    )  - C - M     B - M     A)
+          /            i, 1          i, 3      i, 2
+          ====
+          i = 1
+(%o3)     ---------------------------------------------
+                                5
+(%i4) lsquares_estimates_approximate (
+              mse, [A, B, C, D], iprint = [-1, 0]);
+(%o4) [[A = - 3.67850494740174, B = - 1.683070351177813, 
+                 C = 10.63469950148635, D = - 3.340357993175206]]
+@end example
+
+@end deffn
+
+@deffn {Funci@'on} lsquares_mse (@var{D}, @var{x}, @var{e})
+
+Devuelve el error medio cuadr@'atico (MSE) para la ecuaci@'on @var{e}
+de variables @var{x} respecto de los datos @var{D}. El resultado devuelto
+es una suma, definida como
+
+@tex
+$${1 \over n} \, \sum_{i=1}^n \left[{\rm lhs}\left(e_i\right) - {\rm rhs}\left(e_i\right)\right]^2,$$
+@end tex
+@ifnottex
+@example
+                    n
+                   ====
+               1   \                        2
+               -    >    (lhs(e ) - rhs(e ))
+               n   /           i         i
+                   ====
+                   i = 1
+@end example
+@end ifnottex
+
+
+siendo @var{n} el n@'umero de datos y @code{@var{e}[i]} es la ecuaci@'on @var{e}
+evaluada cuando a sus variables @var{x} se le asignan los valores asociados
+al dato @code{i}-@'esimo @code{@var{D}[i]}.
+
+Antes de utilizar esta funci@'on ejec@'utese @code{load(lsquares)}.
+
+Ejemplo:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+@c diff (mse, D);
+@c ''mse, nouns;
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+           5
+          ====
+          \                 2                         2
+           >    ((D + M    )  - C - M     B - M     A)
+          /            i, 1          i, 3      i, 2
+          ====
+          i = 1
+(%o3)     ---------------------------------------------
+                                5
+(%i4) diff (mse, D);
+         5
+        ====
+        \                             2
+      4  >    (D + M    ) ((D + M    )  - C - M     B - M     A)
+        /           i, 1         i, 1          i, 3      i, 2
+        ====
+        i = 1
+(%o4) ----------------------------------------------------------
+                                  5
+(%i5) ''mse, nouns;
+               2                 2         9 2               2
+(%o5) (((D + 3)  - C - 2 B - 2 A)  + ((D + -)  - C - B - 2 A)
+                                           4
+           2               2         3 2               2
+ + ((D + 2)  - C - B - 2 A)  + ((D + -)  - C - 2 B - A)
+                                     2
+           2             2
+ + ((D + 1)  - C - B - A) )/5
+@end example
+
+@end deffn
+
+@deffn {Funci@'on} lsquares_residuals (@var{D}, @var{x}, @var{e}, @var{a})
+
+Devuelve los residuos para la ecuaci@'on @var{e} de par@'ametros @var{a}
+y datos @var{D}.
+
+@var{D} es una matriz, @var{x} una lista de variables y @var{e} es una ecuaci@'on
+o expresi@'on general; si @var{e} no es una ecuaci@'on (es decir, carece de igualdad),
+se trata como si fuese  @code{@var{e} = 0}. La lista @var{a} contiene ecuaciones
+que especifican valores para cualesquiera par@'ametros de @var{e} que no est@'en en @var{x}.
+
+Los residuos se definen como
+
+@tex
+$${\rm lhs}\left(e_i\right) - {\rm rhs}\left(e_i\right),$$
+@end tex
+@ifnottex
+@example
+                        lhs(e ) - rhs(e )
+                             i         i
+@end example
+@end ifnottex
+
+siendo @code{@var{e}[i]} la ecuaci@'on @var{e} evaluada cuando las variables @var{x}
+toman los valores asociados al dato @code{i}-@'esimo @code{@var{D}[i]}, y haciendo las
+asignaciones indicadas en @var{a} al resto de variables.
+
+Antes de utilizar esta funci@'on ejec@'utese @code{load(lsquares)}.
+
+Ejemplo:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c a : lsquares_estimates (
+@c           M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+@c lsquares_residuals (
+@c           M, [z,x,y], (z+D)^2 = A*x+B*y+C, first(a));
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                                  [ 1  1  1 ]
+                                  [         ]
+                                  [ 3       ]
+                                  [ -  1  2 ]
+                                  [ 2       ]
+                                  [         ]
+(%o2)                             [ 9       ]
+                                  [ -  2  1 ]
+                                  [ 4       ]
+                                  [         ]
+                                  [ 3  2  2 ]
+                                  [         ]
+                                  [ 2  2  1 ]
+(%i3) a : lsquares_estimates (
+          M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+                         59        27      10921        107
+(%o3)            [[A = - --, B = - --, C = -----, D = - ---]]
+                         16        16      1024         32
+(%i4) lsquares_residuals (
+          M, [z,x,y], (z+D)^2 = A*x+B*y+C, first(a));
+                            13    13    13  13  13
+(%o4)                      [--, - --, - --, --, --]
+                            64    64    32  64  64
+@end example
+
+@end deffn
+
+@deffn {Funci@'on} lsquares_residual_mse (@var{D}, @var{x}, @var{e}, @var{a})
+
+Devuelve el residuo del error cuadr@'atico medio (MSE) de la ecuaci@'on @var{e}
+para los valores par@'ametricos @var{a} y datos @var{D}.
+
+El residuo del error cuadr@'atico medio (MSE) se define como
+
+@tex
+$${1 \over n} \, \sum_{i=1}^n \left[{\rm lhs}\left(e_i\right) - {\rm rhs}\left(e_i\right)\right]^2,$$
+@end tex
+@ifnottex
+@example
+                    n
+                   ====
+               1   \                        2
+               -    >    (lhs(e ) - rhs(e ))
+               n   /           i         i
+                   ====
+                   i = 1
+@end example
+@end ifnottex
+
+
+siendo @code{@var{e}[i]} la ecuaci@'on @var{e} evaluada cuando las variables @var{x}
+toman los valores asociados al dato @code{i}-@'esimo @code{@var{D}[i]}, y haciendo las
+asignaciones indicadas en @var{a} al resto de variables.
+
+Antes de utilizar esta funci@'on ejec@'utese @code{load(lsquares)}.
+
+Ejemplo:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c a : lsquares_estimates (
+@c        M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+@c lsquares_residual_mse (
+@c        M, [z,x,y], (z + D)^2 = A*x + B*y + C, first (a));
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) a : lsquares_estimates (
+             M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+
+                  59        27      10921        107
+(%o3)     [[A = - --, B = - --, C = -----, D = - ---]]
+                  16        16      1024         32
+(%i4) lsquares_residual_mse (
+             M, [z,x,y], (z + D)^2 = A*x + B*y + C, first (a));
+                              169
+(%o4)                         ----
+                              2560
+@end example
+
+@end deffn
+
+
+
+@deffn {Funci@'on} plsquares (@var{Mat},@var{VarList},@var{depvars})
+@deffnx {Funci@'on} plsquares (@var{Mat},@var{VarList},@var{depvars},@var{maxexpon})
+@deffnx {Funci@'on} plsquares (@var{Mat},@var{VarList},@var{depvars},@var{maxexpon},@var{maxdegree})
+
+Ajuste de una funci@'on polin@'omica multivariante a una tabla de datos por el m@'etodo
+de los @i{m@'{@dotless{i}}nimos cuadrados}. @var{Mat} es la matriz con los datos 
+emp@'{@dotless{i}}ricos, @var{VarList} es la lista con los nombres de las variables
+(una por cada columna de @var{Mat}, pero puede usarse @code{-} en lugar de los nombres de
+variables para ignorar las columnas de @var{Mat}), @var{depvars} es el nombre de la
+variable dependiente o una lista con uno o m@'as nombres de variables dependientes
+(cuyos nombres deben estar tambi@'en en @var{VarList}), @var{maxexpon} es un argumento
+opcional para indicar el m@'aximo exponente para cada una de las variables independientes
+(1 por defecto) y  @var{maxdegree} es otro argumento opcional para el grado del polinomio
+(@var{maxexpon} por defecto); n@'otese que la suma de exponentes de cada t@'ermino debe ser
+igual o menor que @var{maxdegree}. Si @code{maxdgree = 0} entonces no se aplicar@'a
+ning@'un l@'{@dotless{i}}mite.
+
+Si @var{depvars} es el nombre de una variable dependiente (no en una lista),
+@code{plsquares} devuelve el polinomio ajustado. Si @var{depvars} es una lista
+de una o m@'as variables dependientes, @code{plsquares} devuelve una lista con
+los polinomios ajustados. Los coeficientes de determinaci@'on se muestran en
+su orden correspondiente para informar sobre la bondad del ajuste. Estos
+valores se almacenan tambi@'en en la variable global @var{DETCOEF} en un
+formato de lista si @var{depvars} es a su vez una lista.
+
+Un ejemplo sencillo de ajuste lineal multivariante:
+
+@example
+(%i1) load("plsquares")$
+
+(%i2) plsquares(matrix([1,2,0],[3,5,4],[4,7,9],[5,8,10]),
+                [x,y,z],z);
+     Determination Coefficient for z = .9897039897039897
+                       11 y - 9 x - 14
+(%o2)              z = ---------------
+                              3
+@end example
+
+El mismo ejemplo sin restricciones en el grado:
+
+@example
+(%i3) plsquares(matrix([1,2,0],[3,5,4],[4,7,9],[5,8,10]),
+                [x,y,z],z,1,0);
+     Determination Coefficient for z = 1.0
+                    x y + 23 y - 29 x - 19
+(%o3)           z = ----------------------
+                              6
+@end example
+
+C@'alculo del n@'umero de diagonales de un pol@'{@dotless{i}}gono de @math{N} lados
+
+@example
+(%i4) plsquares(matrix([3,0],[4,2],[5,5],[6,9],[7,14],[8,20]),
+                [N,diagonals],diagonals,5);
+     Determination Coefficient for diagonals = 1.0
+                                2
+                               N  - 3 N
+(%o4)              diagonals = --------
+                                  2
+(%i5) ev(%, N=9);   /* Testing for a 9 sides polygon */
+(%o5)                 diagonals = 27
+@end example
+
+C@'alculo del n@'umero de formas de colocar dos reinas en un tablero 
+n x n de manera que no se amenacen.
+
+@example
+(%i6) plsquares(matrix([0,0],[1,0],[2,0],[3,8],[4,44]),
+                [n,positions],[positions],4);
+     Determination Coefficient for [positions] = [1.0]
+                         4       3      2
+                      3 n  - 10 n  + 9 n  - 2 n
+(%o6)    [positions = -------------------------]
+                                  6
+(%i7) ev(%[1], n=8); /* Testing for a (8 x 8) chessboard */
+(%o7)                positions = 1288
+@end example
+
+Un ejemplo con seis variables dependientes:
+
+@example
+(%i8) mtrx:matrix([0,0,0,0,0,1,1,1],[0,1,0,1,1,1,0,0],
+                  [1,0,0,1,1,1,0,0],[1,1,1,1,0,0,0,1])$
+(%i8) plsquares(mtrx,[a,b,_And,_Or,_Xor,_Nand,_Nor,_Nxor],
+                     [_And,_Or,_Xor,_Nand,_Nor,_Nxor],1,0);
+      Determination Coefficient for
+[_And, _Or, _Xor, _Nand, _Nor, _Nxor] =
+[1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+(%o2) [_And = a b, _Or = - a b + b + a,
+_Xor = - 2 a b + b + a, _Nand = 1 - a b,
+_Nor = a b - b - a + 1, _Nxor = 2 a b - b - a + 1]
+@end example
+
+Antes de hacer uso de esta funci@'on ejec@'utese  @code{load("plsquares")}.
+@end deffn
+

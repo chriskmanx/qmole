@@ -1,0 +1,329 @@
+@c -----------------------------------------------------------------------------
+@c File     : solve_rec.de.texi
+@c License  : GNU General Public License (GPL)
+@c Original : solve_rec.texi revision 1.13
+@c Date     : 08.11.2010
+@c Revision : 25.03.2011
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Introduction to solve_rec::
+* Functions and Variables for solve_rec::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Introduction to solve_rec, Functions and Variables for solve_rec, solve_rec, solve_rec
+@section Introduction to solve_rec
+@c -----------------------------------------------------------------------------
+
+@code{solve_rec} is a package for solving linear recurrences with polynomial
+coefficients.
+
+A demo is available with @code{demo(solve_rec)}.
+
+Example:
+
+@example
+(%i1) load("solve_rec")$
+@group
+(%i2) solve_rec((n+4)*s[n+2] + s[n+1] - (n+1)*s[n], s[n]);
+                                    n
+                 %k  (2 n + 3) (- 1)          %k
+                   1                            2
+(%o2)       s  = -------------------- + ---------------
+             n     (n + 1) (n + 2)      (n + 1) (n + 2)
+@end group
+@end example
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for solve_rec,  , Introduction to solve_rec, solve_rec
+@section Functions and Variables for solve_rec
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} reduce_order (@var{rec}, @var{sol}, @var{var})
+
+Reduces the order of linear recurrence @var{rec} when a particular solution
+@var{sol} is known.  The reduced reccurence can be used to get other solutions.
+
+Example:
+
+@example
+@group
+(%i3) rec: x[n+2] = x[n+1] + x[n]/n;
+                                      x
+                                       n
+(%o3)               x      = x      + --
+                     n + 2    n + 1   n
+@end group
+@group
+(%i4) solve_rec(rec, x[n]);
+WARNING: found some hypergeometrical solutions! 
+(%o4)                    x  = %k  n
+                          n     1
+@end group
+@group
+(%i5) reduce_order(rec, n, x[n]);
+(%t5)                    x  = n %z
+                          n       n
+
+                           n - 1
+                           ====
+                           \
+(%t6)                %z  =  >     %u
+                       n   /        %j
+                           ====
+                           %j = 0
+
+(%o6)             (- n - 2) %u     - %u
+                              n + 1     n
+@end group
+@group
+(%i6) solve_rec((n+2)*%u[n+1] + %u[n], %u[n]);
+                                     n
+                            %k  (- 1)
+                              1
+(%o6)                 %u  = ----------
+                        n    (n + 1)!
+
+So the general solution is
+
+             n - 1
+             ====        j
+             \      (- 1)
+       %k  n  >    -------- + %k  n
+         2   /     (j + 1)!     1
+             ====
+             j = 0
+@end group
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{simplify_products}
+@defvr {Option variable} simplify_products
+Default value: @code{true}
+
+If @code{simplify_products} is @code{true}, @code{solve_rec} will try to
+simplify products in result.
+
+See also: @code{solve_rec}.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@anchor{simplify_sum}
+@deffn {Function} simplify_sum (@var{expr})
+
+Tries to simplify all sums appearing in @var{expr} to a closed form.
+
+To use this function first load the @code{simplify_sum} package with
+@code{load(simplify_sum)}.
+
+Example:
+
+@example
+(%i1) load("simplify_sum")$
+@group
+(%i2) sum(binom(n+k,k)/2^k, k, 0, n)
+                             + sum(binom(2*n, 2*k), k, 0, n);
+         n                            n
+        ====                         ====
+        \      binomial(n + k, k)    \
+(%o2)    >     ------------------ +   >    binomial(2 n, 2 k)
+        /               k            /
+        ====           2             ====
+        k = 0                        k = 0
+@end group
+@group
+(%i3) simplify_sum(%);
+                               n
+                              4     n
+(%o3)                         -- + 2
+                              2
+@end group
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{solve_rec_function}
+@deffn {Function} solve_rec (@var{eqn}, @var{var}, [@var{init}])
+
+Solves for hypergeometrical solutions to linear recurrence @var{eqn} with
+polynomials coefficient in variable @var{var}.  Optional arguments @var{init}
+are initial conditions.
+
+@code{solve_rec} can solve linear recurrences with constant coefficients,
+finds hypergeometrical solutions to homogeneous linear recurrences with
+polynomial coefficients, rational solutions to linear recurrences with
+polynomial coefficients and can solve Ricatti type recurrences.
+
+Note that the running time of the algorithm used to find hypergeometrical
+solutions is exponential in the degree of the leading and trailing
+coefficient.
+
+To use this function first load the @code{solve_rec} package with
+@code{load(solve_rec);}.
+
+Example of linear recurrence with constant coefficients:
+
+@example
+@group
+(%i2) solve_rec(a[n]=a[n-1]+a[n-2]+n/2^n, a[n]);
+                        n          n
+           (sqrt(5) - 1)  %k  (- 1)
+                            1           n
+(%o2) a  = ------------------------- - ----
+       n               n                  n
+                      2                5 2
+                                                n
+                                   (sqrt(5) + 1)  %k
+                                                    2    2
+                                 + ------------------ - ----
+                                            n              n
+                                           2            5 2
+@end group
+@end example
+
+Example of linear recurrence with polynomial coefficients:
+
+@example
+@group
+(%i7) 2*x*(x+1)*y[x] - (x^2+3*x-2)*y[x+1] + (x-1)*y[x+2];
+                         2
+(%o7) (x - 1) y      - (x  + 3 x - 2) y      + 2 x (x + 1) y
+               x + 2                   x + 1                x
+@end group
+@group
+(%i8) solve_rec(%, y[x], y[1]=1, y[3]=3);
+                              x
+                           3 2    x!
+(%o9)                 y  = ---- - --
+                       x    4     2
+@end group
+@end example
+
+Example of Ricatti type recurrence:
+
+@example
+@group
+(%i2) x*y[x+1]*y[x] - y[x+1]/(x+2) + y[x]/(x-1) = 0;
+                            y         y
+                             x + 1     x
+(%o2)         x y  y      - ------ + ----- = 0
+                 x  x + 1   x + 2    x - 1
+@end group
+(%i3) solve_rec(%, y[x], y[3]=5)$
+@group
+(%i4) ratsimp(minfactorial(factcomb(%)));
+                                   3
+                               30 x  - 30 x
+(%o4) y  = - -------------------------------------------------
+       x        6      5       4       3       2
+             5 x  - 3 x  - 25 x  + 15 x  + 20 x  - 12 x - 1584
+@end group
+@end example
+
+See also: @code{solve_rec_rat}, @code{simplify_products}, and 
+@code{product_use_gamma}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{solve_rec_rat}
+@deffn {Function} solve_rec_rat (@var{eqn}, @var{var}, [@var{init}])
+
+Solves for rational solutions to linear recurrences.  See solve_rec for
+description of arguments.
+
+To use this function first load the @code{solve_rec} package with
+@code{load(solve_rec);}.
+
+Example:
+
+@example
+@group
+(%i1) (x+4)*a[x+3] + (x+3)*a[x+2] - x*a[x+1] + (x^2-1)*a[x];
+(%o1)  (x + 4) a      + (x + 3) a      - x a
+                x + 3            x + 2      x + 1
+                                                   2
+                                               + (x  - 1) a
+                                                            x
+@end group
+@group
+(%i2) solve_rec_rat(% = (x+2)/(x+1), a[x]);
+                       1
+(%o2)      a  = ---------------
+            x   (x - 1) (x + 1)
+@end group
+@end example
+
+See also: @code{solve_rec}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{product_use_gamma}
+@defvr {Option variable} product_use_gamma
+Default value: @code{true}
+
+When simplifying products, @code{solve_rec} introduces gamma function
+into the expression if @code{product_use_gamma} is @code{true}.
+
+See also: @code{simplify_products}, @code{solve_rec}.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@anchor{summand_to_rec}
+@deffn  {Function} summand_to_rec (@var{summand}, @var{k}, @var{n})
+@deffnx {Function} summand_to_rec (@var{summand}, [@var{k}, @var{lo}, @var{hi}], @var{n})
+
+Returns the recurrence sattisfied by the sum
+
+@example
+@group
+     hi
+    ====
+    \
+     >     summand
+    /
+    ====
+  k = lo
+@end group
+@end example
+
+where summand is hypergeometrical in @var{k} and @var{n}.  If @var{lo} and 
+@var{hi} are omited, they are assumed to be @code{lo = -inf} and 
+@code{hi = inf}.
+
+To use this function first load the @code{simplify_sum} package with
+@code{load(simplify_sum)}.
+
+Example:
+
+@example
+(%i1) load("simplify_sum")$
+@group
+(%i2) summand: binom(n,k);
+(%o2)                           binomial(n, k)
+@end group
+@group
+(%i3) summand_to_rec(summand,k,n);
+(%o3)                      2 sm  - sm      = 0
+                               n     n + 1
+@end group
+@group
+(%i7) summand: binom(n, k)/(k+1);
+                                binomial(n, k)
+(%o7)                           --------------
+                                    k + 1
+@end group
+@group
+(%i8) summand_to_rec(summand, [k, 0, n], n);
+(%o8)               2 (n + 1) sm  - (n + 2) sm      = - 1
+                                n             n + 1
+@end group
+@end example
+@end deffn
+
+@c --- End of file solve_rec.de.texi -------------------------------------------
+

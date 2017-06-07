@@ -1,0 +1,918 @@
+@c English version 2011-09-03
+@menu
+* Introducci@'on a la simplificaci@'on::
+* Funciones y variables para simplificaci@'on::  
+@end menu
+
+
+
+@node Introducci@'on a la simplificaci@'on, Funciones y variables para simplificaci@'on, Simplificaci@'on, Simplificaci@'on
+@section Introducci@'on a la simplificaci@'on
+
+Tras la evaluaci@'on de una expresi@'on se procede a su simplificaci@'on. Las
+funciones matem@'aticas que involucran c@'alculos simb@'olicos y las expresiones con
+operadores aritm@'eticos no son evaluadas, sino simplificadas, para lo cual Maxima
+las representa internamente en forma nominal; de ah@'{@dotless{i}} que el 
+c@'alculo num@'erico de una suma o de una multiplicaci@'on no se considera una
+evaluaci@'on, sino una simplificaci@'on. La evaluaci@'on de una expresi@'on
+puede inhibirse con el operador de comilla simple (@code{'}) y su simplificaci@'on
+se puede controlar con el valor asignado a la variable opcional @code{simp}.
+
+En el siguiente ejemplo, se evita la simplificaci@'on con el operador de comilla
+simple, siendo el resultado una expresi@'on nominal. A continuaci@'on, se inhibe la
+simplificaci@'on tras la evaluaci@'on de la derivada, dejando sin reducir el resultado
+a @code{2*x}.
+
+@example
+(%i1) 'diff(x*x,x);
+                             d    2
+(%o1)                        -- (x )
+                             dx
+(%i2) simp:false;
+(%o2)                         false
+(%i3) diff(x*x,x);
+(%o3)                       1 x + 1 x
+@end example
+
+Para cada funci@'on u operador matem@'atico dispone Maxima de una rutina interna
+que ser@'a utilizada para su simplificaci@'on siempre que se la encuentre en una
+expresi@'on. Estas rutinas implementan propiedades sim@'etricas, valores especiales
+de las funciones y otras propiedades y reglas. La gran cantidad de variables
+opcionales permiten mantener bajo control la simplificaci@'on de funciones y
+operadores.
+
+Veamos un ejemplo. La simplificaci@'on de la funci@'on exponencial @code{exp}
+se controla con las siguientes variables opcionales: @code{%enumer}, @code{%emode},
+@code{%e_to_numlog}, @code{code}, @code{logsimp} y @code{demoivre}.
+En el primer caso la expresi@'on con la funci@'on exponencial no se simplifica,
+pero en el segundo se reduce a @code{%i*%pi/2}.
+
+@example
+(%i1) exp(x+%i*%pi/2), %emode:false;
+                                %i %pi
+                            x + ------
+                                  2
+(%o1)                     %e
+(%i2) exp(x+%i*%pi/2), %emode:true;
+                                  x
+(%o2)                        %i %e
+@end example
+
+Junto con la simplificaci@'on aislada de funciones y operadores que Maxima
+realiza de forma autom@'atica, existen tambi@'en funciones como @code{expand}
+o @code{radcan} que realizan sobre las expresiones simplificaciones 
+especiales. Sigue un ejemplo:
+
+@example
+(%i1) (log(x+x^2)-log(x))^a/log(1+x)^(a/2);
+                           2               a
+                     (log(x  + x) - log(x))
+(%o1)                -----------------------
+                                    a/2
+                          log(x + 1)
+(%i2) radcan(%);
+                                    a/2
+(%o2)                     log(x + 1)
+@end example
+
+A un operador o funci@'on se le pueden asignar propiedades tales como la 
+linealidad, la simetr@'{@dotless{i}}a u otras. Maxima tiene en cuenta
+estas propiedades durante la simplificaci@'on. Por ejemplo, la instrucci@'on
+@code{declare(f, oddfun)} declara la funci@'on como impar, con lo que
+Maxima sabr@'a que las formas @code{f(-x)} y @code{-f(x)} son equivalentes,
+llevando a cabo la reducci@'on oportuna. 
+
+Las siguientes propiedades est@'an en la lista @code{opproperties} y controlan
+la simplificaci@'on de funciones y operadores:
+
+@verbatim
+   additive        lassociative     oddfun
+   antisymmetric   linear           outative
+   commutative     multiplicative   rassociative
+   evenfun         nary             symmetric
+@end verbatim
+
+Tanto las propiedades como los hechos (o hip@'otesis) establecidos por el
+usuario dentro de un contexto influyen sobre el proceso de simplificaci@'on.
+Para m@'as detalles v@'ease el cap@'{@dotless{i}}tulo sobre la base de datos
+de Maxima.
+
+La funci@'on seno reduce los m@'ultiplos enteros de @code{%pi} al valor cero.
+En este ejemplo se muestra c@'omo al dotar al s@'{@dotless{i}}mbolo
+@code{n} de la propiedad de ser entero, la funci@'on se simplifica de la forma
+apropiada.
+
+@example
+(%i1) sin(n*%pi);
+(%o1)                      sin(%pi n)
+(%i2) declare(n, integer);
+(%o2)                         done
+(%i3) sin(n*%pi);
+(%o3)                           0
+@end example
+
+Si las t@'ecnicas anteriores no devuelven el resultado esperado por el usuario,
+@'este puede extender a voluntad las reglas que pueda aplicar Maxima; para m@'as
+informaci@'on al respecto, v@'ease el cap@'{@dotless{i}}tulo dedicado a las
+reglas y patrones.
+
+
+
+
+
+
+
+
+
+
+
+@node Funciones y variables para simplificaci@'on,  , Introducci@'on a la simplificaci@'on, Simplificaci@'on
+@section Funciones y variables para simplificaci@'on
+
+
+@defvr {Propiedad} additive
+Si @code{declare(f,additive)} ha sido ejecutado, entonces: 
+
+(1) Si @code{f} es univariado, cada vez que el simplificador encuentre
+@code{f} aplicada a una suma, @code{f} ser@'a distribuida bajo esta suma. Por ejemplo, @code{f(x+y)} se simplificar@'a a @code{f(x)+f(y)}. 
+
+(2) Si @code{f} es una funci@'on de 2 o m@'as argumentos, aditivamente es definida como aditiva en el primer argumento de @code{f}, como en el caso de @code{sum} o @code{integrate}. Por ejemplo, @code{f(h(x)+g(x),x)} se simplificar@'a a @code{f(h(x),x)+f(g(x),x)}. Esta simplificaci@'on no ocurre cuando @code{f} se aplica a expresiones de la forma @code{sum(x[i],i,lower-limit,upper-limit)}.
+
+Ejemplo:
+
+@c ===beg===
+@c F3 (a + b + c);
+@c declare (F3, additive);
+@c F3 (a + b + c);
+@c ===end===
+@example
+(%i1) F3 (a + b + c);
+(%o1)                     F3(c + b + a)
+(%i2) declare (F3, additive);
+(%o2)                         done
+(%i3) F3 (a + b + c);
+(%o3)                 F3(c) + F3(b) + F3(a)
+@end example
+@end defvr
+
+
+@defvr {Propiedad} antisymmetric
+Si @code{declare(h,antisymmetric)} es ejecutado, esto dice al 
+simplificador que @code{h} es antisim@'etrico. E.g. @code{h(x,z,y)} ser@'a 
+simplificado a @code{-h(x,y,z)}. Que es, el producto de (-1)^n por el resultado 
+dado por @code{symmetric} o @code{commutative}, donde n es el n@'umero de intercambios 
+necesarios de dos argumentos para convertirle a esta forma.  
+
+Ejemplos:
+
+@c ===beg===
+@c S (b, a);
+@c declare (S, symmetric);
+@c S (b, a);
+@c S (a, c, e, d, b);
+@c T (b, a);
+@c declare (T, antisymmetric);
+@c T (b, a);
+@c T (a, c, e, d, b);
+@c ===end===
+@example
+(%i1) S (b, a);
+(%o1)                        S(b, a)
+(%i2) declare (S, symmetric);
+(%o2)                         done
+(%i3) S (b, a);
+(%o3)                        S(a, b)
+(%i4) S (a, c, e, d, b);
+(%o4)                   S(a, b, c, d, e)
+(%i5) T (b, a);
+(%o5)                        T(b, a)
+(%i6) declare (T, antisymmetric);
+(%o6)                         done
+(%i7) T (b, a);
+(%o7)                       - T(a, b)
+(%i8) T (a, c, e, d, b);
+(%o8)                   T(a, b, c, d, e)
+@end example
+@end defvr
+
+
+@deffn {Funci@'on} combine (@var{expr})
+Simplifica la suma @var{expr} combinando t@'erminos de con igual denominador reduci@'endolos a un @'unico t@'ermino.
+
+@end deffn
+
+
+
+@defvr {Propiedad} commutative
+Si @code{declare(h,commutative)} es ejecutado, le dice al simplificador
+que @code{h} es una funci@'on conmutaiva. Por ejemplo, @code{h(x,z,y)} se simplificar@'a a @code{h(x,y,z)}. Esto es lo mismo que @code{symmetric}. 
+
+@end defvr
+
+
+@deffn {Funci@'on} demoivre (@var{expr})
+@deffnx {Variable opcional} demoivre
+
+La funci@'on @code{demoivre (expr)} convierte una expresi@'on sin modificar la variable global @code{demoivre}.
+
+Cuando @code{demoivre} vale @code{true}, los exponenciales complejos se convierten en expresiones equivalentes pero en t@'erminos de las funciones trigonom@'etricas:
+@code{exp (a + b*%i)} se reduce a @code{%e^a * (cos(b) + %i*sin(b))}
+si @code{b} no contiene a @code{%i}. Las expresiones @code{a} y @code{b} no se expanden.
+
+El valor por defecto de @code{demoivre} es @code{false}.
+
+La funci@'on @code{exponentialize} convierte funciones trigonom@'etricas e hiperb@'olicas a la forma exponencial, por lo que  @code{demoivre} y @code{exponentialize} no pueden valer @code{true} al mismo tiempo.
+
+@end deffn
+
+
+@deffn {Funci@'on} distrib (@var{expr})
+Distribuye sumas sobre productos. Difiere de @code{expand}
+en que trabaja s@'olo al nivel superior de una expresi@'on, siendo m@'as r@'apida que @code{expand}.  Difiere de  @code{multthru} en que expande todas las sumas del nivel superior.
+
+Ejemplos:
+
+@example
+(%i1) distrib ((a+b) * (c+d));
+(%o1)                 b d + a d + b c + a c
+(%i2) multthru ((a+b) * (c+d));
+(%o2)                 (b + a) d + (b + a) c
+(%i3) distrib (1/((a+b) * (c+d)));
+                                1
+(%o3)                    ---------------
+                         (b + a) (d + c)
+(%i4) expand (1/((a+b) * (c+d)), 1, 0);
+                                1
+(%o4)                 ---------------------
+                      b d + a d + b c + a c
+@end example
+
+@end deffn
+
+
+
+@defvr {Variable opcional} distribute_over
+Valor por defecto: @code{true}
+
+@code{distribute_over} controla la distribuci@'on de funciones sobre
+estructuras como listas, matrices y ecuaciones. Actualmente, no todas
+las funciones de Maxima tienen esta propiedad. Es posible consultar si
+una funci@'on tiene esta propiedad con la instrucci@'on @code{properties}.
+
+La propiedad distributiva se desactiva asign@'andole a @code{distribute_over}
+el valor @code{false}.
+
+Ejemplos:
+
+La funci@'on @code{sin} se distribuye sobre una lista:
+
+@c ===beg===
+@c sin([x,1,1.0]);
+@c ===end===
+@example
+(%i1) sin([x,1,1.0]);
+(%o1)                 [sin(x), sin(1), .8414709848078965]
+@end example
+
+@code{mod} es una funci@'on de dos argumentos que se distribuye sobre listas.
+La distribuci@'on sobre listas anidadas tambi@'en es posible.
+
+@c ===beg===
+@c mod([x,11,2*a],10);
+@c mod([[x,y,z],11,2*a],10);
+@c ===end===
+@example
+(%i2) mod([x,11,2*a],10);
+(%o2)                    [mod(x, 10), 1, 2 mod(a, 5)]
+(%i3) mod([[x,y,z],11,2*a],10);
+(%o3)       [[mod(x, 10), mod(y, 10), mod(z, 10)], 1, 2 mod(a, 5)]
+@end example
+
+Distribuci@'on de la funci@'on @code{floor} sobre una matriz y una
+ecuaci@'on.
+
+@c ===beg===
+@c floor(matrix([a,b],[c,d]));
+@c floor(a=b);
+@c ===end===
+@example
+(%i4) floor(matrix([a,b],[c,d]));
+                            [ floor(a)  floor(b) ]
+(%o4)                       [                    ]
+                            [ floor(c)  floor(d) ]
+(%i5) floor(a=b);
+(%o5)                         floor(a) = floor(b)
+@end example
+
+Funciones con m@'as de un argumento se distribuyen sobre cualquiera
+de sus argumentos, o sobre todos ellos.
+
+@c ===beg===
+@c expintegral_e([1,2],[x,y]);
+@c ===end===
+@example
+(%i6) expintegral_e([1,2],[x,y]);
+(%o6) [[expintegral_e(1, x), expintegral_e(1, y)], 
+       [expintegral_e(2, x), expintegral_e(2, y)]]
+@end example
+
+Comprueba si una funci@'on tiene la propiedad @code{distribute_over}:
+
+@c ===beg===
+@c properties(abs);
+@c ===end===
+@example
+(%i7) properties(abs);
+(%o7) [integral, distributes over bags, noun, rule, gradef]
+@end example
+@end defvr
+
+
+@defvr {Variable opcional} domain
+Valor por defecto: @code{real}
+
+Si @code{domain} vale @code{complex}, @code{sqrt (x^2)} permanecer@'a como
+@code{sqrt (x^2)} en lugar de devolver @code{abs(x)}.
+
+@c PRESERVE EDITORIAL COMMENT -- MAY HAVE SOME SIGNIFICANCE NOT YET UNDERSTOOD !!!
+@c The notion of a "domain" of simplification is still in its infancy,
+@c and controls little more than this at the moment.
+
+@end defvr
+
+
+@defvr  {Propiedad} evenfun
+@defvrx {Propiedad} oddfun
+
+@code{declare(f, evenfun} o @code{declare(f, oddfun} indican a Maxima que reconozca
+la funci@'on @code{f} como par o impar, respectivamente.
+
+Ejemplos:
+
+@example
+(%i1) o (- x) + o (x);
+(%o1)                     o(x) + o(- x)
+(%i2) declare (o, oddfun);
+(%o2)                         done
+(%i3) o (- x) + o (x);
+(%o3)                           0
+(%i4) e (- x) - e (x);
+(%o4)                     e(- x) - e(x)
+(%i5) declare (e, evenfun);
+(%o5)                         done
+(%i6) e (- x) - e (x);
+(%o6)                           0
+@end example
+@end defvr
+
+
+
+
+@deffn {Funci@'on} expand (@var{expr})
+@deffnx {Funci@'on} expand (@var{expr}, @var{p}, @var{n})
+Expande la expresi@'on @var{expr}. Los productos de sumas y de sumas con exponentes se multiplican, los numeradores de las expresiones racionales que son sumas se separan en sus respectivos t@'erminos, y las multiplicaciones (tanto las que son conmutativas como las que no) se distribuyen sobre las sumas en todos los niveles de @var{expr}.
+
+En el caso de los polinomios es m@'as aconsejable utilizar @code{ratexpand}, que utiliza un algoritmo m@'as eficiente.
+
+Las variables @code{maxnegex} y @code{maxposex} controlan los m@'aximos exponentes negativos y positivos que se van a expandir.
+
+La llamada @code{expand (@var{expr}, @var{p}, @var{n})} expande @var{expr} asignando a @code{maxposex} el valor @var{p} y a @code{maxnegex} el @var{n}. Esto es @'util para expandir s@'olo parte de la expresi@'on.
+
+La variable @code{expon} guarda el mayor exponente negativo que ser@'a expandido autom@'aticamente, independientemente de @code{expand}. Por ejemplo, si @code{expon} vale 4 entonces @code{(x+1)^(-5)} no se expandir@'a autom@'aticamente.
+
+La variable @code{expop} guarda el mayor exponente positivo que ser@'a expandido autom@'aticamente.  As@'{@dotless{i}}, @code{(x+1)^3} se expandir@'a autom@'aticamente s@'olo si @code{expop} es mayor o igual que 3. Si se quiere expandir @code{(x+1)^n}, siendo @code{n} mayor que @code{expop}, entonces @code{expand ((x+1)^n)} se desarrollar@'a s@'olo si @code{maxposex} no es menor que @code{n}.
+
+@code{expand(expr, 0, 0)} provoca que se vuelva a simplificar @code{expr}.
+@code{expr} no se vuelve a evaluar. A diferencia de @code{ev(expr, noeval)},
+se elimina la representaci@'on can@'onica de la expresi@'on. 
+V@'ease tambi@'en @code{ev}.
+
+La variable @code{expand} utilizada con @code{ev} provocar@'a una expansi@'on.
+
+El fichero @file{share/simplification/facexp.mac}
+contiene algunas funciones relacionadas con @code{expand} (en concreto, @code{facsum}, @code{factorfacsum}
+y @code{collectterms}, que se cargan autom@'aticamente) y variables (@code{nextlayerfactor}
+y @code{facsum_combine}) que permiten al usuario estructurar las expresiones controlando la expansi@'on.
+@c MERGE share/simplification/facexp.usg INTO THIS FILE OR CREATE NEW FILE facexp.texi
+En  @file{simplification/facexp.usg} se pueden encontrar breves descripciones de estas funciones.
+Se acceder@'a a una demostraci@'on con la instrucci@'on @code{demo("facexp")}.
+
+Ejemplo:
+
+@c ===beg===
+@c expr:(x+1)^2*(y+1)^3;
+@c expand(expr);
+@c expand(expr,2);
+@c expr:(x+1)^-2*(y+1)^3;
+@c expand(expr);
+@c expand(expr,2,2);
+@c ===end===
+@example
+(%i1) expr:(x+1)^2*(y+1)^3;
+                                      2        3
+(%o1)                          (x + 1)  (y + 1)
+(%i2) expand(expr);
+       2  3        3    3      2  2        2      2      2
+(%o2) x  y  + 2 x y  + y  + 3 x  y  + 6 x y  + 3 y  + 3 x  y
+                                                 2
+                                + 6 x y + 3 y + x  + 2 x + 1
+
+(%i3) expand(expr,2);
+                      2        3              3          3
+(%o3)                x  (y + 1)  + 2 x (y + 1)  + (y + 1)
+
+(%i4) expr:(x+1)^-2*(y+1)^3;
+                                          3
+                                   (y + 1)
+(%o4)                              --------
+                                          2
+                                   (x + 1)
+(%i5) expand(expr);
+                 3               2
+                y             3 y            3 y             1
+(%o5)      ------------ + ------------ + ------------ + ------------
+            2              2              2              2
+           x  + 2 x + 1   x  + 2 x + 1   x  + 2 x + 1   x  + 2 x + 1
+
+(%i6) expand(expr,2,2);
+                                          3
+                                   (y + 1)
+(%o6)                            ------------
+                                  2
+                                 x  + 2 x + 1
+@end example
+
+Vuelve a simplificar una expresi@'on pero sin expansi@'on:
+
+@c ===beg===
+@c expr:(1+x)^2*sin(x);
+@c exponentialize:true;
+@c expand(expr,0,0);
+@c ===end===
+@example
+(%i7) expr:(1+x)^2*sin(x);
+                                       2
+(%o7)                           (x + 1)  sin(x)
+(%i8) exponentialize:true;
+(%o8)                                true
+(%i9) expand(expr,0,0);
+                                   2    %i x     - %i x
+                         %i (x + 1)  (%e     - %e      )
+(%o9)                  - -------------------------------
+                                        2
+@end example
+@end deffn
+
+
+
+@deffn {Funci@'on} expandwrt (@var{expr}, @var{x_1}, ..., @var{x_n})
+Expande la expresi@'on @code{expr} con respecto a las variables @var{x_1}, ..., @var{x_n}.
+Todos los productos que contengan a las variables aparecen expl@'{@dotless{i}}citamente. El resultado que se obtenga no tendr'a productos de sumas de expresiones que contengan a las variables. Los argumentos  @var{x_1}, ..., @var{x_n}
+pueden ser variables, operadores o expresiones.
+
+Por defecto, no se expanden los denominadores, pero esto puede cambiarse mediante el uso de la variable @code{expandwrt_denom}.
+
+Esta funci@'on se carga autom@'aticamente de @file{simplification/stopex.mac}.
+
+@end deffn
+
+
+@defvr {Variable opcional} expandwrt_denom
+Valor por defecto: @code{false}
+
+La variable @code{expandwrt_denom} controla el tratamiento de las expresiones racinales por parte de @code{expandwrt}. Si vale @code{true}, se expandir@'an tanto el numerador como el denominador de la expresi@'on respecto de los argumentos de @code{expandwrt}, pero si @code{expandwrt_denom} vale @code{false}, s@'olo se expandir@'a el numerador.
+
+@end defvr
+
+
+@deffn {Funci@'on} expandwrt_factored (@var{expr}, @var{x_1}, ..., @var{x_n})
+Es similar a @code{expandwrt}, pero trata a las expresiones que son productos de una forma algo diferente. La funci@'on
+@code{expandwrt_factored} expande s@'olo aquellos factores de @code{expr} que contienen a las variables @var{x_1}, ..., @var{x_n}.
+
+@c NOT SURE WHY WE SHOULD MENTION THIS HERE
+Esta funci@'on se carga autom@'aticamente de @file{simplification/stopex.mac}.
+
+@end deffn
+
+
+@defvr {Variable opcional} expon
+Valor por defecto: 0
+
+La variable @code{expon} guarda el mayor exponente negativo que ser@'a expandido autom@'aticamente, independientemente de @code{expand}. Por ejemplo, si @code{expon} vale 4 entonces @code{(x+1)^(-5)} no se expandir@'a autom@'aticamente.
+
+@end defvr
+
+
+
+@deffn {Funci@'on} exponentialize (@var{expr})
+@deffnx {Variable opcional} exponentialize
+
+La funci@'on @code{exponentialize (expr)} convierte las funciones trigonom@'etricas e hiperb@'olicas de @var{expr} a exponenciales, sin alterar la variable global @code{exponentialize}.
+
+Cuando la variable @code{exponentialize} vale @code{true}, todas las funciones trigonom@'etricas e hiperb@'olicas se convierten a forma exponencial. El valor por defecto es @code{false}.
+
+La funci@'on @code{demoivre} convierte funciones trigonom@'etricas e hiperb@'olicas a la forma exponencial, por lo que  @code{demoivre} y @code{exponentialize} no pueden valer @code{true} al mismo tiempo.
+
+@end deffn
+
+
+
+@defvr {Variable opcional} expop
+Valor por defecto: 0
+
+La variable @code{expop} guarda el mayor exponente positivo que ser@'a expandido autom@'aticamente.  As@'{@dotless{i}}, @code{(x+1)^3} se expandir@'a autom@'aticamente s@'olo si @code{expop} es mayor o igual que 3. Si se quiere expandir @code{(x+1)^n}, siendo @code{n} mayor que @code{expop}, entonces @code{expand ((x+1)^n)} se desarrollar@'a s@'olo si @code{maxposex} no es menor que @code{n}.
+
+@end defvr
+
+
+@defvr {Propiedad} lassociative
+La instrucci@'on @code{declare (g, lassociative)} le indica al simplificador de Maxima que @code{g} es asociativo por la izquierda.  Por ejemplo, @code{g (g (a, b), g (c, d))}se reduce a @code{g (g (g (a, b), c), d)}.
+
+@end defvr
+
+
+@defvr {Propiedad} linear
+Es una de las propiedades de operadores de Maxima. Si la funci@'on 
+univariante @code{f} se declara lineal, la expansi@'on de  @code{f(x + y)} 
+produce @code{f(x) + f(y)}, @code{f(a*x)} produce @code{a*f(x)} si @code{a} 
+es una constante.  Si la funci@'on tiene dos o m@'as argumentos, la linealidad 
+se interpreta como la de @code{sum} o @code{integrate}, esto es, 
+@code{f (a*x + b, x)} produce @code{a*f(x,x) + b*f(1,x)} si @code{a} y @code{b} 
+no contienen a @code{x}.
+
+@code{linear} equivale a @code{additive} y @code{outative}.
+V@'ease tambi@'en @code{opproperties}.
+
+Ejemplo:
+
+@c ===beg===
+@c 'sum (F(k) + G(k), k, 1, inf);
+@c declare (nounify (sum), linear);
+@c 'sum (F(k) + G(k), k, 1, inf);
+@c ===end===
+@example
+(%i1) 'sum (F(k) + G(k), k, 1, inf);
+                       inf
+                       ====
+                       \
+(%o1)                   >    (G(k) + F(k))
+                       /
+                       ====
+                       k = 1
+(%i2) declare (nounify (sum), linear);
+(%o2)                         done
+(%i3) 'sum (F(k) + G(k), k, 1, inf);
+@group
+                     inf          inf
+                     ====         ====
+                     \            \
+(%o3)                 >    G(k) +  >    F(k)
+                     /            /
+                     ====         ====
+                     k = 1        k = 1
+@end group
+@end example
+@end defvr
+
+
+@defvr {Variable opcional} maxnegex
+Valor por defecto: 1000
+
+La variable @code{maxnegex} es el mayor exponente negativo que expandir@'a la funci@'on @code{expand}. V@'ease tambi@'en @code{maxposex}.
+
+@end defvr
+
+
+
+@defvr {Variable opcional} maxposex
+Valor por defecto: 1000
+
+La variable @code{maxposex} es el mayor exponenteque expandir@'a la funci@'on @code{expand}. V@'ease tambi@'en @code{maxnegex}.
+
+@end defvr
+
+
+
+@defvr {Propiedad} multiplicative
+La instrucci@'on @code{declare (f, multiplicative)} indica al simplificador de Maxima que @code{f} is multiplicativa.
+
+@enumerate
+@item
+Si @code{f} es univariante, cada vez que el simplificador encuentre a @code{f} aplicad a un producto, @code{f} se distribuir@'a sobre ese producto.  Por ejemplo, @code{f(x*y)} se reducir@'{@dotless{i}}a a @code{f(x)*f(y)}.
+@item
+Si @code{f} es una funci@'on de 2 o m@'as argumentos, la multiplicabilidad se define como multiplicabilidad para el primer argumento de @code{f}, de modo que @code{f (g(x) * h(x), x)} se reducir@'{@dotless{i}}a a @code{f (g(x) ,x) * f (h(x), x)}.
+@end enumerate
+
+Esta transformaci@'on no se realiza cuando @code{f} se aplica a expresiones de la forma @code{product (x[i], i, m, n)}.
+
+Ejemplo:
+
+@c ===beg===
+@c F2 (a * b * c);
+@c declare (F2, multiplicative);
+@c F2 (a * b * c);
+@c ===end===
+@example
+(%i1) F2 (a * b * c);
+(%o1)                       F2(a b c)
+(%i2) declare (F2, multiplicative);
+(%o2)                         done
+(%i3) F2 (a * b * c);
+(%o3)                   F2(a) F2(b) F2(c)
+@end example
+@end defvr
+
+
+
+
+@deffn {Funci@'on} multthru (@var{expr})
+@deffnx {Funci@'on} multthru (@var{expr_1}, @var{expr_2})
+Multiplica un factor (que deber@'{@dotless{i}}a ser una suma) de @var{expr} por los otros factores de @var{expr}.  Esto es, @var{expr} es @code{@var{f_1} @var{f_2} ... @var{f_n}}, donde al menos un factor, por ejemplo @var{f_i}, es una suma de t@'erminos.  Cada t@'ermino en esta suma se multiplica por los otros factores del producto, excepto el propio @var{f_i}. La funci@'on  @code{multthru} no expande sumas elevadas a exponentes, siendo el m@'etodo m@'as r@'apido para distribuir productos (sean o no conmutativos) sobre sumas. Puesto que los cocientes se representan como productos, puede utilizarse@code{multthru} para dividir sumas entre productos.
+
+La llamada @code{multthru (@var{expr_1}, @var{expr_2})} multiplica cada t@'ermino de @var{expr_2} (que deber@'{@dotless{i}}a ser una suma o una ecuaci@'on) por @var{expr_1}.  Si @var{expr_1} no es ella misma una suma, entonces la llamada es equivalente a @code{multthru (@var{expr_1}*@var{expr_2})}.
+
+@example
+(%i1) x/(x-y)^2 - 1/(x-y) - f(x)/(x-y)^3;
+                      1        x         f(x)
+(%o1)             - ----- + -------- - --------
+                    x - y          2          3
+                            (x - y)    (x - y)
+(%i2) multthru ((x-y)^3, %);
+                           2
+(%o2)             - (x - y)  + x (x - y) - f(x)
+(%i3) ratexpand (%);
+                           2
+(%o3)                   - y  + x y - f(x)
+(%i4) ((a+b)^10*s^2 + 2*a*b*s + (a*b)^2)/(a*b*s^2);
+                        10  2              2  2
+                 (b + a)   s  + 2 a b s + a  b
+(%o4)            ------------------------------
+                                  2
+                             a b s
+(%i5) multthru (%);  /* note that this does not expand (b+a)^10 */
+                                        10
+                       2   a b   (b + a)
+(%o5)                  - + --- + ---------
+                       s    2       a b
+                           s
+(%i6) multthru (a.(b+c.(d+e)+f));
+(%o6)            a . f + a . c . (e + d) + a . b
+(%i7) expand (a.(b+c.(d+e)+f));
+(%o7)         a . f + a . c . e + a . c . d + a . b
+@end example
+
+@end deffn
+
+
+@defvr {Propiedad} nary
+
+@code{declare(f, nary)} le indica a Maxima que reconozca la funci@'on @code{f}
+como n-aria.
+
+La declaraci@'on @code{nary} no equivale a invocar la funci@'on 
+@code{function_nary, nary}. El @'unico efecto de @code{declare(f, nary)} 
+es indicar al simplificador de Maxima que aplane expresiones anidadas,
+como simplificar @code{foo(x, foo(y, z))} a @code{foo(x, y, z)}.
+V@'ease tambi@'en @code{declare}.
+
+Ejemplo:
+
+@example
+(%i1) H (H (a, b), H (c, H (d, e)));
+(%o1)               H(H(a, b), H(c, H(d, e)))
+(%i2) declare (H, nary);
+(%o2)                         done
+(%i3) H (H (a, b), H (c, H (d, e)));
+(%o3)                   H(a, b, c, d, e)
+@end example
+@end defvr
+
+
+
+@defvr {Variable opcional} negdistrib
+Valor por defecto: @code{true}
+
+Si @code{negdistrib} vale @code{true}, -1 se distribuye sobre una expresi@'on.  Por ejemplo, @code{-(x + y)} se transforma en @code{- y - x}.  D@'andole el valor @code{false} se mostrar@'a @code{- (x + y)} tal cual. Esto puede ser @'util, pero tambi@'en peligroso; al igual que el indicador @code{simp}, no conviene asignarle el valor @code{false}.
+
+@end defvr
+
+
+@defvr {Variable del sistema} opproperties
+
+La variable @code{opproperties} es la lista con las propiedades especiales de los operadores reconocidas por el simplificador de Maxima:
+@code{linear}, @code{additive}, @code{multiplicative}, @code{outative}, @code{evenfun},
+@code{oddfun}, @code{commutative}, @code{symmetric}, @code{antisymmetric}, @code{nary}, 
+@code{lassociative}, @code{rassociative}.
+
+@end defvr
+
+
+
+@defvr {Propiedad} outative
+La instrucci@'on @code{declare (f, outative)} le indica al simplificador de Maxima 
+que los factores constantes del argumento de la funci@'on @code{f} pueden ser 
+extra@'{@dotless{i}}dos.
+
+@enumerate
+@item
+Si @code{f} es univariante, cada vez que el simplificador se encuentra con @code{f} 
+aplicada a un producto, @'este ser@'a particionado en factores que son constantes y 
+factores que no lo son, siendo entonces los constantes extra@'{@dotless{i}}dos de la 
+funci@'on.  Por ejemplo, @code{f(a*x)} se reducir@'a a @code{a*f(x)} siendo @code{a} 
+una constante. Las constantes no at@'omicas no ser@'an extra@'{@dotless{i}}das.
+@item
+Si @code{f} es una funci@'on de 2 o m@'as argumentos, esta propiedad se define como 
+en  @code{sum} o @code{integrate}, esto es, @code{f (a*g(x), x)} se reducir@'a a 
+@code{a * f(g(x), x)} si @code{a} no contiene a @code{x}.
+@end enumerate
+
+Las funciones @code{sum}, @code{integrate} y @code{limit} han sido todas declaradas 
+con la propiedad @code{outative}.
+
+Ejemplo:
+
+@c ===beg===
+@c F1 (100 * x);
+@c declare (F1, outative);
+@c F1 (100 * x);
+@c declare (zz, constant);
+@c F1 (zz * y);
+@c ===end===
+@example
+(%i1) F1 (100 * x);
+(%o1)                       F1(100 x)
+(%i2) declare (F1, outative);
+(%o2)                         done
+(%i3) F1 (100 * x);
+(%o3)                       100 F1(x)
+(%i4) declare (zz, constant);
+(%o4)                         done
+(%i5) F1 (zz * y);
+(%o5)                       zz F1(y)
+@end example
+@end defvr
+
+
+
+@deffn {Funci@'on} radcan (@var{expr})
+Simplifica la expresi@'on @var{expr}, que puede contener logaritmos, exponenciales y
+radicales, convirti@'endola a una forma can@'onica, lo que significa que todas las expresiones funcionalmente equivalentes
+se reducen a una forma @'unica.  Ciertas expresiones, sin embargo, son reducidas por @code{radcan} a una forma regular, lo que significa que dos expresiones equivalentes no tienen necesariamente el mismo aspecto, pero su diferencia puede ser reducida por @code{radcan} a cero.
+
+Con algunas expresiones @code{radcan} puede consunir mucho tiempo. Este es el coste por explorar ciertas relaciones entre las componentes de la expresi@'on para simplificaciones basadas en factorizaciones y expansiones parciales de fracciones de exponentes.  
+
+Ejemplos:
+
+@c ===beg===
+@c radcan((log(x+x^2)-log(x))^a/log(1+x)^(a/2));
+@c radcan((log(1+2*a^x+a^(2*x))/log(1+a^x)));
+@c radcan((%e^x-1)/(1+%e^(x/2)));
+@c ===end===
+@example
+(%i1) radcan((log(x+x^2)-log(x))^a/log(1+x)^(a/2));
+                                           a/2
+(%o1)                            log(x + 1)
+
+(%i2) radcan((log(1+2*a^x+a^(2*x))/log(1+a^x)));
+(%o2)                                  2
+
+(%i3) radcan((%e^x-1)/(1+%e^(x/2)));
+                                     x/2
+(%o3)                              %e    - 1
+@end example
+
+@end deffn
+
+
+
+@defvr {Variable opcional} radexpand
+Valor por defecto: @code{true}
+
+La variable @code{radexpand} controla algunas simplificaciones de radicales.
+
+Si @code{radexpand} vale @code{all}, las ra@'{@dotless{i}}ces @var{n}-@'esimas de los factores de un producto que sean potencias de @var{n} se extraen del s@'{@dotless{i}}mbolo radical. Por ejemplo, si @code{radexpand} vale @code{all}, @code{sqrt (16*x^2)} se reduce a @code{4*x}.
+
+@c EXPRESS SIMPLIFICATON RULES IN GENERAL CASE, NOT SPECIAL CASE
+M@'as concretamente, consid@'erese @code{sqrt (x^2)}.
+@itemize @bullet
+@item
+Si @code{radexpand} vale @code{all} o se ha ejecutado @code{assume (x > 0)}, 
+@code{sqrt(x^2)} se reduce a @code{x}.
+@item
+Si @code{radexpand} vale @code{true} y @code{domain} es @code{real} (su valor por defecto), 
+@code{sqrt(x^2)} se reduce a @code{abs(x)}.
+@item
+Si @code{radexpand} vale @code{false} o @code{radexpand} vale @code{true} y @code{domain} es @code{complex}, 
+@code{sqrt(x^2)} no se simplifica.
+@end itemize
+
+@c CORRECT STATEMENT HERE ???
+N@'otese que  @code{domain} s@'olo se tiene en cuenta si @code{radexpand} vale @code{true}.
+
+@end defvr
+
+
+
+@defvr {Propiedad} rassociative
+La instrucci@'on @code{declare (g, rassociative)} le indica al simplificador de Maxima que @code{g} es asociativa por la derecha.  Por ejemplo, @code{g(g(a, b), g(c, d))} se reduce a @code{g(a, g(b, g(c, d)))}.
+
+@end defvr
+
+
+@deffn {Funci@'on} scsimp (@var{expr}, @var{rule_1}, ..., @var{rule_n})
+Es el "Sequential Comparative Simplification" (m@'etodo debido a Stoute).
+La funci@'on @code{scsimp} intenta simplificar @var{expr} de acuerdo con las reglas @var{rule_1}, ..., @var{rule_n}.
+Si se obtiene una expresi@'on m@'as peque@~na, el proceso se repite. En caso contrario, despu@'es de que se hayan intentado todas las simplificaciones, devuelve la respuesta original.
+
+La instrucci@'on @code{example (scsimp)} muestra algunos ejemplos.
+
+@end deffn
+
+
+
+@defvr {Variable opcional} simp
+Valor por defecto: @code{true}
+
+La variable @code{simp} activa y desactiva la simplificaci@'on.
+La simplificaci@'on est@'a activada por defecto. La variable @code{simp}
+tambi@'en es reconocida por la funci@'on @code{ev} como variable de entorno.
+V@'ease tambi@'en @code{ev}.
+
+Cuando @code{simp} se utiliza en un entorno @code{ev} con el valor @code{false},
+la simplificaci@'on se evita s@'olo durante la fase de evaluaci@'on de una
+expresi@'on. La variable no evita la simplificaci@'on que sigue a la fase de
+evaluaci@'on.
+
+Ejemplos:
+
+La simplificaci@'on se suspende globalmente. La expresi@'on @code{sin(1.0)}
+no se simplifica a su valor num@'erico. La variable de entorno @code{simp}
+conmuta el estado de la simplificaci@'on.
+
+@c ===beg===
+@c simp:false;
+@c sin(1.0);
+@c sin(1.0),simp;
+@c ===end===
+@example
+(%i1) simp:false;
+(%o1)                                false
+(%i2) sin(1.0);
+(%o2)                              sin(1.0)
+(%i3) sin(1.0),simp;
+(%o3)                          .8414709848078965
+@end example
+
+La simplificaci@'on se vuelve a activar. La variable de entorno @code{simp}
+no puede suprimir totalmente la simplificaci@'on. El resultado muestra una
+expresi@'on simplificada, pero la variable @code{x} guarda como valor una
+expresi@'on sin simplificar, porque la asignaci@'on se realiz@'o durante 
+la fase de evaluaci@'on de la expresi@'on.
+
+@c ===beg===
+@c simp:true;
+@c x:sin(1.0),simp:false;
+@c :lisp $x
+@c ===end===
+@example
+(%i4) simp:true;
+(%o4)                                true
+(%i5) x:sin(1.0),simp:false;
+(%o5)                          .8414709848078965
+(%i6) :lisp $X
+((%SIN) 1.0)
+@end example
+@end defvr
+
+
+
+@defvr {Propiedad} symmetric
+La instrucci@'on @code{declare (h, symmetric)} le indica al simplificador de  Maxima que @code{h} es una funci@'on sim@'etrica.  Por ejemplo, @code{h (x, z, y)}  se reduce a @code{h (x, y, z)}.
+
+El nombre @code{commutative} es sin@'onimo de @code{symmetric}.
+
+@end defvr
+
+
+
+@deffn {Funci@'on} xthru (@var{expr})
+Combina todos los t@'erminos de @var{expr} (la cual debe ser una suma) sobre un com@'un denominador sin expandir productos ni sumas elevadas a exponentes al modo que lo hace @code{ratsimp}. La funci@'on @code{xthru} cancela factores comunes en el numerador y denominador de expresiones racionales, pero s@'olo si los factores son expl@'{@dotless{i}}citos.
+
+En ocasiones puede ser @'util el uso de @code{xthru} antes de la llamada a @code{ratsimp} a fin de cancelar factores expl@'{@dotless{i}}citos del m@'aximo com@'un divisor del numerador y denominador y as@'{@dotless{i}} simplificar la expresi@'on a la que se va a aplicar @code{ratsimp}.
+
+@c ===beg===
+@c ((x+2)^20 - 2*y)/(x+y)^20 + (x+y)^(-19) - x/(x+y)^20;
+@c xthru (%);
+@c ===end===
+@example
+(%i1) ((x+2)^20 - 2*y)/(x+y)^20 + (x+y)^(-19) - x/(x+y)^20;
+ xthru (%);
+                                20
+                 1       (x + 2)   - 2 y       x
+(%o1)        --------- + --------------- - ---------
+                    19             20             20
+             (y + x)        (y + x)        (y + x)
+@end example
+
+@end deffn
+

@@ -1,0 +1,194 @@
+@c English version: 2008-03-28
+@menu
+* Funciones y variables para romberg::
+@end menu
+
+@node Funciones y variables para romberg, , Top, Top
+@section Funciones y variables para romberg
+
+@deffn {Funci@'on} romberg (@var{expr}, @var{x}, @var{a}, @var{b})
+@deffnx {Funci@'on} romberg (@var{F}, @var{a}, @var{b})
+
+Integra num@'ericamente por el m@'etodo de Romberg.
+
+La llamada @code{romberg(@var{expr}, @var{x}, @var{a}, @var{b})}
+devuelve una estimaci@'on de la integral @code{integrate(@var{expr}, @var{x}, @var{a}, @var{b})}.
+El argumento @var{expr} debe ser una expresi@'on reducible a un valor decimal
+en coma flotante cuando @var{x} es a su vez un n@'umero decimal.
+
+La llamada @code{romberg(@var{F}, @var{a}, @var{b})} devuelve una estimaci@'on
+de la integral @code{integrate(@var{F}(x), x, @var{a}, @var{b})}, siendo
+@code{x} el @'unico argumento de @var{F}. El argumento @var{F} debe ser 
+una funci@'on en Lisp o en Maxima que devuelva un valor decimal
+en coma flotante cuando @var{x} es a su vez un n@'umero decimal; @var{F}
+puede ser el nombre de una funci@'on de Maxima traducida o compilada.
+
+La exactitud de @code{romberg} se controla con las variables globales 
+@code{rombergabs} y @code{rombergtol}. La funci@'on @code{romberg}
+termina con @'exito su c@'alculo cuando la diferencia absoluta entre
+sucesivas aproximaciones es menor que @code{rombergabs},
+o cuando la diferencia relativa de sucesivas aproximaciones es menor que
+@code{rombergtol}. As@'{@dotless{i}}, cuando @code{rombergabs} vale 0.0
+(su valor por defecto) s@'olo tiene efecto el test del error relativo basado
+en @code{romberg}.
+
+La funci@'on @code{romberg} reduce a mitades sucesivas la amplitud del paso un m@'aximo de
+@code{rombergit} veces antes de abandonar el c@'omputo; el n@'umero m@'aximo de 
+evaluaciones del integrando es, por consiguiente, igual a @code{2^rombergit}.
+De no satisfacerse el criterio de error establecido por @code{rombergabs} y
+@code{rombergtol},  @code{romberg} devuelve un mensaje de error.
+La funci@'on @code{romberg} hace siempre al menos @code{rombergmin}
+iteraciones; se trata de una heur@'{@dotless{i}}stica para evitar
+la finalizaci@'on prematura cuando el integrando oscila mucho.
+
+La funci@'on @code{romberg} eval@'ua el integrando repetidamente tras asignarle
+a la variable de integraci@'on un valor espec@'{@dotless{i}}fico. Este criterio
+permite anidar llamadas a @code{romberg} para calcular integrales m@'ultiples.
+Sin embargo, los errores de c@'alculo no tienen en cuenta los errores de 
+las integraciones anidadas, por lo que tales errores pueden subestimarse.
+Por otro lado, m@'etodos especialmente desarrollados para integraciones
+m@'ultiples pueden dar la misma exactitud con menos evaluaciones
+del integrando.
+
+Para hacer uso de esta funci@'on ejec@'utese primero @code{load(romberg)}.
+
+V@'ease tambi@'en @code{QUADPACK}, un conjunto de funciones para 
+integraci@'on num@'erica.
+
+Ejemplos:
+
+Una integraci@'on unidimensional.
+@c ===beg===
+@c load (romberg);
+@c f(x) := 1/((x - 1)^2 + 1/100) + 1/((x - 2)^2 + 1/1000)
+@c             + 1/((x - 3)^2 + 1/200);
+@c rombergtol : 1e-6;
+@c rombergit : 15;
+@c estimate : romberg (f(x), x, -5, 5);
+@c exact : integrate (f(x), x, -5, 5);
+@c abs (estimate - exact) / exact, numer;
+@c ===end===
+
+@example
+(%i1) load (romberg);
+(%o1)    /usr/share/maxima/5.11.0/share/numeric/romberg.lisp
+(%i2) f(x) := 1/((x - 1)^2 + 1/100) + 1/((x - 2)^2 + 1/1000)
+                + 1/((x - 3)^2 + 1/200);
+                    1                 1                1
+(%o2) f(x) := -------------- + --------------- + --------------
+                     2    1           2    1            2    1
+              (x - 1)  + ---   (x - 2)  + ----   (x - 3)  + ---
+                         100              1000              200
+(%i3) rombergtol : 1e-6;
+(%o3)                 9.9999999999999995E-7
+(%i4) rombergit : 15;
+(%o4)                          15
+(%i5) estimate : romberg (f(x), x, -5, 5);
+(%o5)                   173.6730736617464
+(%i6) exact : integrate (f(x), x, -5, 5);
+(%o6) 10 sqrt(10) atan(70 sqrt(10))
+ + 10 sqrt(10) atan(30 sqrt(10)) + 10 sqrt(2) atan(80 sqrt(2))
+ + 10 sqrt(2) atan(20 sqrt(2)) + 10 atan(60) + 10 atan(40)
+(%i7) abs (estimate - exact) / exact, numer;
+(%o7)                7.5527060865060088E-11
+@end example
+
+Una integraci@'on bidimensional, implementada mediante llamadas anidadas a @code{romberg}.
+@c ===beg===
+@c load (romberg);
+@c g(x, y) := x*y / (x + y);
+@c rombergtol : 1e-6;
+@c estimate : romberg (romberg (g(x, y), y, 0, x/2), x, 1, 3);
+@c assume (x > 0);
+@c integrate (integrate (g(x, y), y, 0, x/2), x, 1, 3);
+@c exact : radcan (%);
+@c abs (estimate - exact) / exact, numer;
+@c ===end===
+
+@example
+(%i1) load (romberg);
+(%o1)    /usr/share/maxima/5.11.0/share/numeric/romberg.lisp
+(%i2) g(x, y) := x*y / (x + y);
+                                    x y
+(%o2)                   g(x, y) := -----
+                                   x + y
+(%i3) rombergtol : 1e-6;
+(%o3)                 9.9999999999999995E-7
+(%i4) estimate : romberg (romberg (g(x, y), y, 0, x/2), x, 1, 3);
+(%o4)                   0.81930239628356
+(%i5) assume (x > 0);
+(%o5)                        [x > 0]
+(%i6) integrate (integrate (g(x, y), y, 0, x/2), x, 1, 3);
+                                          3
+                                    2 log(-) - 1
+                    9                     2        9
+(%o6)       - 9 log(-) + 9 log(3) + ------------ + -
+                    2                    6         2
+(%i7) exact : radcan (%);
+                    26 log(3) - 26 log(2) - 13
+(%o7)             - --------------------------
+                                3
+(%i8) abs (estimate - exact) / exact, numer;
+(%o8)                1.3711979871851024E-10
+@end example
+
+@end deffn
+
+@defvr {Variable opcional} rombergabs
+Valor por defecto: 0.0
+
+La exactitud de @code{romberg} se controla con las variables globales 
+@code{rombergabs} y @code{rombergtol}. La funci@'on @code{romberg}
+termina con @'exito su c@'alculo cuando la diferencia absoluta entre
+sucesivas aproximaciones es menor que @code{rombergabs},
+o cuando la diferencia relativa de sucesivas aproximaciones es menor que
+@code{rombergtol}. As@'{@dotless{i}}, cuando @code{rombergabs} vale 0.0
+(su valor por defecto) s@'olo tiene efecto el test del error relativo basado
+en @code{romberg}.
+
+V@'eanse tambi@'en @code{rombergit} y @code{rombergmin}.
+
+@end defvr
+
+@defvr {Variable opcional} rombergit
+Valor por defecto: 11
+
+La funci@'on @code{romberg} reduce a mitades sucesivas la amplitud del paso un m@'aximo de
+@code{rombergit} veces antes de abandonar el c@'omputo; el n@'umero m@'aximo de 
+evaluaciones del integrando es, por consiguiente, igual a @code{2^rombergit}.
+La funci@'on @code{romberg} hace siempre al menos @code{rombergmin}
+iteraciones; se trata de una heur@'{@dotless{i}}stica para evitar
+la finalizaci@'on prematura cuando el integrando oscila mucho.
+
+
+V@'eanse tambi@'en @code{rombergabs} y @code{rombergtol}.
+
+@end defvr
+
+@defvr {Variable opcional} rombergmin
+Valor por defecto: 0
+
+La funci@'on @code{romberg} hace siempre al menos @code{rombergmin}
+iteraciones; se trata de una heur@'{@dotless{i}}stica para evitar
+la finalizaci@'on prematura cuando el integrando oscila mucho.
+
+V@'eanse tambi@'en @code{rombergit}, @code{rombergabs} y @code{rombergtol}.
+
+@end defvr
+
+@defvr {Variable opcional} rombergtol
+Valor por defecto: 1e-4
+
+La exactitud de @code{romberg} se controla con las variables globales 
+@code{rombergabs} y @code{rombergtol}. La funci@'on @code{romberg}
+termina con @'exito su c@'alculo cuando la diferencia absoluta entre
+sucesivas aproximaciones es menor que @code{rombergabs},
+o cuando la diferencia relativa de sucesivas aproximaciones es menor que
+@code{rombergtol}. As@'{@dotless{i}}, cuando @code{rombergabs} vale 0.0
+(su valor por defecto) s@'olo tiene efecto el test del error relativo basado
+en @code{romberg}.
+
+V@'eanse tambi@'en @code{rombergit} y @code{rombergmin}.
+
+@end defvr
+

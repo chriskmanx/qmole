@@ -1,0 +1,302 @@
+@menu
+* Introduction to atensor::
+* Functions and Variables for atensor::
+@end menu
+
+@node Introduction to atensor, Functions and Variables for atensor, atensor, atensor
+@section Introduction to atensor
+
+@code{atensor} is an algebraic tensor manipulation package. To use @code{atensor},
+type @code{load(atensor)}, followed by a call to the @code{init_atensor}
+function.
+
+The essence of @code{atensor} is a set of simplification rules for the
+noncommutative (dot) product operator ("@code{.}"). @code{atensor} recognizes
+several algebra types; the corresponding simplification rules are put
+into effect when the @code{init_atensor} function is called.
+
+The capabilities of @code{atensor} can be demonstrated by defining the
+algebra of quaternions as a Clifford-algebra Cl(0,2) with two basis
+vectors. The three quaternionic imaginary units are then the two
+basis vectors and their product, i.e.:
+
+@example
+    i = v     j = v     k = v  . v
+         1         2         1    2
+@end example
+
+Although the @code{atensor} package has a built-in definition for the
+quaternion algebra, it is not used in this example, in which we
+endeavour to build the quaternion multiplication table as a matrix:
+
+@example
+(%i1) load(atensor);
+(%o1)       /share/tensor/atensor.mac
+(%i2) init_atensor(clifford,0,0,2);
+(%o2)                                done
+(%i3) atensimp(v[1].v[1]);
+(%o3)                                 - 1
+(%i4) atensimp((v[1].v[2]).(v[1].v[2]));
+(%o4)                                 - 1
+(%i5) q:zeromatrix(4,4);
+                                [ 0  0  0  0 ]
+                                [            ]
+                                [ 0  0  0  0 ]
+(%o5)                           [            ]
+                                [ 0  0  0  0 ]
+                                [            ]
+                                [ 0  0  0  0 ]
+(%i6) q[1,1]:1;
+(%o6)                                  1
+(%i7) for i thru adim do q[1,i+1]:q[i+1,1]:v[i];
+(%o7)                                done
+(%i8) q[1,4]:q[4,1]:v[1].v[2];
+(%o8)                               v  . v
+                                     1    2
+(%i9) for i from 2 thru 4 do for j from 2 thru 4 do
+      q[i,j]:atensimp(q[i,1].q[1,j]);
+(%o9)                                done
+(%i10) q;
+@group
+                   [    1        v         v      v  . v  ]
+                   [              1         2      1    2 ]
+                   [                                      ]
+                   [   v         - 1     v  . v    - v    ]
+                   [    1                 1    2      2   ]
+(%o10)             [                                      ]
+                   [   v      - v  . v     - 1      v     ]
+                   [    2        1    2              1    ]
+                   [                                      ]
+                   [ v  . v      v        - v       - 1   ]
+                   [  1    2      2          1            ]
+@end group
+@end example
+
+@code{atensor} recognizes as base vectors indexed symbols, where the symbol
+is that stored in @code{asymbol} and the index runs between 1 and @code{adim}.
+For indexed symbols, and indexed symbols only, the bilinear forms
+@code{sf}, @code{af}, and @code{av} are evaluated. The evaluation
+substitutes the value of @code{aform[i,j]} in place of @code{fun(v[i],v[j])}
+where @code{v} represents the value of @code{asymbol} and @code{fun} is
+either @code{af} or @code{sf}; or, it substitutes @code{v[aform[i,j]]}
+in place of @code{av(v[i],v[j])}.
+
+Needless to say, the functions @code{sf}, @code{af} and @code{av}
+can be redefined.
+
+When the @code{atensor} package is loaded, the following flags are set:
+
+@example
+dotscrules:true;
+dotdistrib:true;
+dotexptsimp:false;
+@end example
+
+If you wish to experiment with a nonassociative algebra, you may also
+consider setting @code{dotassoc} to @code{false}. In this case, however,
+@code{atensimp} will not always be able to obtain the desired
+simplifications.
+
+@opencatbox
+@category{Tensors} @category{Share packages} @category{Package atensor}
+@closecatbox
+
+@c end concepts atensor
+@node Functions and Variables for atensor,  , Introduction to atensor, atensor
+
+@section Functions and Variables for atensor
+
+@deffn {Function} init_atensor (@var{alg_type}, @var{opt_dims})
+@deffnx {Function} init_atensor (@var{alg_type})
+
+Initializes the @code{atensor} package with the specified algebra type. @var{alg_type}
+can be one of the following:
+
+@code{universal}: The universal algebra has no commutation rules.
+
+@code{grassmann}: The Grassman algebra is defined by the commutation
+relation @code{u.v+v.u=0}.
+
+@code{clifford}: The Clifford algebra is defined by the commutation
+relation @code{u.v+v.u=-2*sf(u,v)} where @code{sf} is a symmetric
+scalar-valued function. For this algebra, @var{opt_dims} can be up
+to three nonnegative integers, representing the number of positive,
+degenerate, and negative dimensions of the algebra, respectively. If
+any @var{opt_dims} values are supplied, @code{atensor} will configure the
+values of @code{adim} and @code{aform} appropriately. Otherwise,
+@code{adim} will default to 0 and @code{aform} will not be defined.
+
+@code{symmetric}: The symmetric algebra is defined by the commutation
+relation @code{u.v-v.u=0}.
+
+@code{symplectic}: The symplectic algebra is defined by the commutation
+relation @code{u.v-v.u=2*af(u,v)} where @code{af} is an antisymmetric
+scalar-valued function. For the symplectic algebra, @var{opt_dims} can
+be up to two nonnegative integers, representing the nondegenerate and
+degenerate dimensions, respectively. If any @var{opt_dims} values are
+supplied, @code{atensor} will configure the values of @code{adim} and @code{aform}
+appropriately. Otherwise, @code{adim} will default to 0 and @code{aform}
+will not be defined.
+
+@code{lie_envelop}: The algebra of the Lie envelope is defined by the
+commutation relation @code{u.v-v.u=2*av(u,v)} where @code{av} is
+an antisymmetric function.
+
+The @code{init_atensor} function also recognizes several predefined
+algebra types:
+
+@code{complex} implements the algebra of complex numbers as the
+Clifford algebra Cl(0,1). The call @code{init_atensor(complex)} is
+equivalent to @code{init_atensor(clifford,0,0,1)}.
+
+@code{quaternion} implements the algebra of quaternions. The call
+@code{init_atensor (quaternion)} is equivalent to
+@code{init_atensor (clifford,0,0,2)}.
+
+@code{pauli} implements the algebra of Pauli-spinors as the Clifford-algebra
+Cl(3,0). A call to @code{init_atensor(pauli)} is equivalent to
+@code{init_atensor(clifford,3)}.
+
+@code{dirac} implements the algebra of Dirac-spinors as the Clifford-algebra
+Cl(3,1). A call to @code{init_atensor(dirac)} is equivalent to
+@code{init_atensor(clifford,3,0,1)}.
+
+@opencatbox
+@category{Package atensor}
+@closecatbox
+@end deffn
+
+
+@deffn {Function} atensimp (@var{expr})
+
+Simplifies an algebraic tensor expression @var{expr} according to the rules
+configured by a call to @code{init_atensor}. Simplification includes
+recursive application of commutation relations and resolving calls
+to @code{sf}, @code{af}, and @code{av} where applicable. A
+safeguard is used to ensure that the function always terminates, even
+for complex expressions.
+
+@opencatbox
+@category{Package atensor} @category{Simplification functions}
+@closecatbox
+
+@end deffn
+
+@deffn {Function} alg_type
+
+The algebra type. Valid values are @code{universal}, @code{grassmann},
+@code{clifford}, @code{symmetric}, @code{symplectic} and @code{lie_envelop}.
+
+@opencatbox
+@category{Package atensor}
+@closecatbox
+
+@end deffn
+
+@defvr {Variable} adim
+Default value: 0
+
+The dimensionality of the algebra. @code{atensor} uses the value of @code{adim}
+to determine if an indexed object is a valid base vector.  See @code{abasep}.
+
+@opencatbox
+@category{Package atensor} @category{Global variables}
+@closecatbox
+
+@end defvr
+
+@defvr {Variable} aform
+Default value: @code{ident(3)}
+
+Default values for the bilinear forms @code{sf}, @code{af}, and
+@code{av}. The default is the identity matrix @code{ident(3)}.
+
+@opencatbox
+@category{Package atensor} @category{Global variables}
+@closecatbox
+
+@end defvr
+
+@defvr {Variable} asymbol
+Default value: @code{v}
+
+The symbol for base vectors.
+
+@opencatbox
+@category{Package atensor} @category{Global variables}
+@closecatbox
+
+@end defvr
+
+@deffn {Function} sf (@var{u}, @var{v})
+
+A symmetric scalar function that is used in commutation relations.
+The default implementation checks if both arguments are base vectors
+using @code{abasep} and if that is the case, substitutes the
+corresponding value from the matrix @code{aform}.
+
+@opencatbox
+@category{Package atensor}
+@closecatbox
+
+@end deffn
+
+@deffn {Function} af (@var{u}, @var{v})
+
+An antisymmetric scalar function that is used in commutation relations.
+The default implementation checks if both arguments are base vectors
+using @code{abasep} and if that is the case, substitutes the
+corresponding value from the matrix @code{aform}.
+
+@opencatbox
+@category{Package atensor}
+@closecatbox
+
+@end deffn
+
+@deffn {Function} av (@var{u}, @var{v})
+
+An antisymmetric function that is used in commutation relations.
+The default implementation checks if both arguments are base vectors
+using @code{abasep} and if that is the case, substitutes the
+corresponding value from the matrix @code{aform}.
+
+For instance:
+
+@example
+(%i1) load(atensor);
+(%o1)       /share/tensor/atensor.mac
+(%i2) adim:3;
+(%o2)                                  3
+(%i3) aform:matrix([0,3,-2],[-3,0,1],[2,-1,0]);
+                               [  0    3   - 2 ]
+                               [               ]
+(%o3)                          [ - 3   0    1  ]
+                               [               ]
+                               [  2   - 1   0  ]
+(%i4) asymbol:x;
+(%o4)                                  x
+(%i5) av(x[1],x[2]);
+(%o5)                                 x
+                                       3
+@end example
+
+@opencatbox
+@category{Package atensor}
+@closecatbox
+
+@end deffn
+
+
+@deffn {Function} abasep (@var{v})
+
+Checks if its argument is an @code{atensor} base vector. That is, if it is
+an indexed symbol, with the symbol being the same as the value of
+@code{asymbol}, and the index having a numeric value between 1
+and @code{adim}.
+
+@opencatbox
+@category{Package atensor} @category{Predicate functions}
+@closecatbox
+
+@end deffn

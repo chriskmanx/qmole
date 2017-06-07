@@ -1,0 +1,615 @@
+@c -----------------------------------------------------------------------------
+@c File     : lsquares.de.texi
+@c License  : GNU General Public License (GPL)
+@c Language : German
+@c Original : lsquares.texi revision 1.8
+@c Date     : 08.11.2010
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Introduction to lsquares::
+* Functions and Variables for lsquares::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Introduction to lsquares, Functions and Variables for lsquares, lsquares, lsquares
+@section Introduction to lsquares
+
+@code{lsquares} is a collection of functions to implement the method of least squares
+to estimate parameters for a model from numerical data.
+
+@c @opencatbox
+@c @category{Statistical estimation} @category{Share packages} @category{Package lsquares}
+@c @closecatbox
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for lsquares,  , Introduction to lsquares, lsquares
+@section Functions and Variables for lsquares
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} lsquares_estimates (@var{D}, @var{x}, @var{e}, @var{a})
+@deffnx {Function} lsquares_estimates (@var{D}, @var{x}, @var{e}, @var{a}, initial = @var{L}, tol = @var{t})
+
+Estimate parameters @var{a} to best fit the equation @var{e}
+in the variables @var{x} and @var{a} to the data @var{D},
+as determined by the method of least squares.
+@code{lsquares_estimates} first seeks an exact solution,
+and if that fails, then seeks an approximate solution.
+
+The return value is a list of lists of equations of the form @code{[a = ..., b = ..., c = ...]}.
+Each element of the list is a distinct, equivalent minimum of the mean square error.
+
+The data @var{D} must be a matrix.
+Each row is one datum (which may be called a `record' or `case' in some contexts),
+and each column contains the values of one variable across all data.
+The list of variables @var{x} gives a name for each column of @var{D},
+even the columns which do not enter the analysis.
+The list of parameters @var{a} gives the names of the parameters for which
+estimates are sought.
+The equation @var{e} is an expression or equation in the variables @var{x} and @var{a};
+if @var{e} is not an equation, it is treated the same as @code{@var{e} = 0}.
+
+Additional arguments to @code{lsquares_estimates}
+are specified as equations and passed on verbatim to the function @code{lbfgs}
+which is called to find estimates by a numerical method
+when an exact result is not found.
+
+If some exact solution can be found (via @code{solve}),
+the data @var{D} may contain non-numeric values.
+However, if no exact solution is found,
+each element of @var{D} must have a numeric value.
+This includes numeric constants such as @code{%pi} and @code{%e} as well as literal numbers
+(integers, rationals, ordinary floats, and bigfloats).
+Numerical calculations are carried out with ordinary floating-point arithmetic,
+so all other kinds of numbers are converted to ordinary floats for calculations.
+
+@code{load(lsquares)} loads this function.
+
+See also
+@flushleft
+@code{lsquares_estimates_exact}, @code{lsquares_estimates_approximate},
+@code{lsquares_mse}, @code{lsquares_residuals}, and @code{lsquares_residual_mse}.
+@end flushleft
+
+Examples:
+
+A problem for which an exact solution is found.
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c lsquares_estimates (
+@c          M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+        [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@group
+                                  [ 1  1  1 ]
+                                  [         ]
+                                  [ 3       ]
+                                  [ -  1  2 ]
+                                  [ 2       ]
+                                  [         ]
+(%o2)                             [ 9       ]
+                                  [ -  2  1 ]
+                                  [ 4       ]
+                                  [         ]
+                                  [ 3  2  2 ]
+                                  [         ]
+                                  [ 2  2  1 ]
+@end group
+(%i3) lsquares_estimates (
+         M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+                         59        27      10921        107
+(%o3)            [[A = - --, B = - --, C = -----, D = - ---]]
+                         16        16      1024         32
+@end example
+
+A problem for which no exact solution is found,
+so @code{lsquares_estimates} resorts to numerical approximation.
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix ([1, 1], [2, 7/4], [3, 11/4], [4, 13/4]);
+@c lsquares_estimates (
+@c   M, [x,y], y=a*x^b+c, [a,b,c], initial=[3,3,3], iprint=[-1,0]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix ([1, 1], [2, 7/4], [3, 11/4], [4, 13/4]);
+                                   [ 1  1  ]
+                                   [       ]
+                                   [    7  ]
+                                   [ 2  -  ]
+                                   [    4  ]
+                                   [       ]
+(%o2)                              [    11 ]
+                                   [ 3  -- ]
+                                   [    4  ]
+                                   [       ]
+                                   [    13 ]
+                                   [ 4  -- ]
+                                   [    4  ]
+(%i3) lsquares_estimates (
+  M, [x,y], y=a*x^b+c, [a,b,c], initial=[3,3,3], iprint=[-1,0]);
+(%o3) [[a = 1.387365874920637, b = .7110956639593767, 
+                                        c = - .4142705622439105]]
+@end example
+
+@c @opencatbox
+@c @category{Package lsquares} @category{Numerical methods}
+@c @closecatbox
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} lsquares_estimates_exact (@var{MSE}, @var{a})
+
+Estimate parameters @var{a} to minimize the mean square error @var{MSE},
+by constructing a system of equations and attempting to solve them symbolically via @code{solve}.
+The mean square error is an expression in the parameters @var{a},
+such as that returned by @code{lsquares_mse}.
+
+The return value is a list of lists of equations of the form @code{[a = ..., b = ..., c = ...]}.
+The return value may contain zero, one, or two or more elements.
+If two or more elements are returned,
+each represents a distinct, equivalent minimum of the mean square error.
+
+See also
+@code{lsquares_estimates},
+@code{lsquares_estimates_approximate},
+@code{lsquares_mse},
+@code{lsquares_residuals},
+and @code{lsquares_residual_mse}.
+
+Example:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+@c lsquares_estimates_exact (mse, [A, B, C, D]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+           5
+          ====
+          \                 2                         2
+           >    ((D + M    )  - C - M     B - M     A)
+          /            i, 1          i, 3      i, 2
+          ====
+          i = 1
+(%o3)     ---------------------------------------------
+                                5
+(%i4) lsquares_estimates_exact (mse, [A, B, C, D]);
+                  59        27      10921        107
+(%o4)     [[A = - --, B = - --, C = -----, D = - ---]]
+                  16        16      1024         32
+@end example
+
+@c @opencatbox
+@c @category{Package lsquares}
+@c @closecatbox
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} lsquares_estimates_approximate (@var{MSE}, @var{a}, initial = @var{L}, tol = @var{t})
+
+Estimate parameters @var{a} to minimize the mean square error @var{MSE},
+via the numerical minimization function @code{lbfgs}.
+The mean square error is an expression in the parameters @var{a},
+such as that returned by @code{lsquares_mse}.
+
+The solution returned by @code{lsquares_estimates_approximate} is a local (perhaps global) minimum
+of the mean square error.
+For consistency with @code{lsquares_estimates_exact},
+the return value is a nested list which contains one element,
+namely a list of equations of the form @code{[a = ..., b = ..., c = ...]}.
+
+Additional arguments to @code{lsquares_estimates_approximate}
+are specified as equations and passed on verbatim to the function @code{lbfgs}.
+
+@var{MSE} must evaluate to a number when the parameters are assigned numeric values.
+This requires that the data from which @var{MSE} was constructed
+comprise only numeric constants such as @code{%pi} and @code{%e} and literal numbers
+(integers, rationals, ordinary floats, and bigfloats).
+Numerical calculations are carried out with ordinary floating-point arithmetic,
+so all other kinds of numbers are converted to ordinary floats for calculations.
+
+@code{load(lsquares)} loads this function.
+
+See also
+@flushleft
+@code{lsquares_estimates}, @code{lsquares_estimates_exact},
+@code{lsquares_mse}, @code{lsquares_residuals}, and @code{lsquares_residual_mse}.
+@end flushleft
+
+Example:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+@c lsquares_estimates_approximate (
+@c         mse, [A, B, C, D], iprint = [-1, 0]);
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+           5
+          ====
+          \                 2                         2
+           >    ((D + M    )  - C - M     B - M     A)
+          /            i, 1          i, 3      i, 2
+          ====
+          i = 1
+(%o3)     ---------------------------------------------
+                                5
+(%i4) lsquares_estimates_approximate (
+              mse, [A, B, C, D], iprint = [-1, 0]);
+(%o4) [[A = - 3.67850494740174, B = - 1.683070351177813, 
+                 C = 10.63469950148635, D = - 3.340357993175206]]
+@end example
+
+@c @opencatbox
+@c @category{Package lsquares} @category{Numerical methods}
+@c @closecatbox
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} lsquares_mse (@var{D}, @var{x}, @var{e})
+
+Returns the mean square error (MSE), a summation expression, for the equation @var{e}
+in the variables @var{x}, with data @var{D}.
+
+The MSE is defined as:
+
+@tex
+$${1 \over n} \, \sum_{i=1}^n \left[{\rm lhs}\left(e_i\right) - {\rm rhs}\left(e_i\right)\right]^2,$$
+@end tex
+@ifnottex
+@example
+                    n
+                   ====
+               1   \                        2
+               -    >    (lhs(e ) - rhs(e ))
+               n   /           i         i
+                   ====
+                   i = 1
+@end example
+@end ifnottex
+
+where @var{n} is the number of data and @code{@var{e}[i]} is the equation @var{e}
+evaluated with the variables in @var{x} assigned values from the @code{i}-th datum, @code{@var{D}[i]}.
+
+@code{load(lsquares)} loads this function.
+
+Example:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+@c diff (mse, D);
+@c ''mse, nouns;
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) mse : lsquares_mse (M, [z, x, y], (z + D)^2 = A*x + B*y + C);
+           5
+          ====
+          \                 2                         2
+           >    ((D + M    )  - C - M     B - M     A)
+          /            i, 1          i, 3      i, 2
+          ====
+          i = 1
+(%o3)     ---------------------------------------------
+                                5
+(%i4) diff (mse, D);
+         5
+        ====
+        \                             2
+      4  >    (D + M    ) ((D + M    )  - C - M     B - M     A)
+        /           i, 1         i, 1          i, 3      i, 2
+        ====
+        i = 1
+(%o4) ----------------------------------------------------------
+                                  5
+(%i5) ''mse, nouns;
+               2                 2         9 2               2
+(%o5) (((D + 3)  - C - 2 B - 2 A)  + ((D + -)  - C - B - 2 A)
+                                           4
+           2               2         3 2               2
+ + ((D + 2)  - C - B - 2 A)  + ((D + -)  - C - 2 B - A)
+                                     2
+           2             2
+ + ((D + 1)  - C - B - A) )/5
+@end example
+
+@c @opencatbox
+@c @category{Package lsquares}
+@c @closecatbox
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} lsquares_residuals (@var{D}, @var{x}, @var{e}, @var{a})
+
+Returns the residuals for the equation @var{e}
+with specified parameters @var{a} and data @var{D}.
+
+@var{D} is a matrix, @var{x} is a list of variables,
+@var{e} is an equation or general expression;
+if not an equation, @var{e} is treated as if it were @code{@var{e} = 0}.
+@var{a} is a list of equations which specify values for any free parameters in @var{e} aside from @var{x}.
+
+The residuals are defined as:
+
+@tex
+$${\rm lhs}\left(e_i\right) - {\rm rhs}\left(e_i\right),$$
+@end tex
+@ifnottex
+@example
+                        lhs(e ) - rhs(e )
+                             i         i
+@end example
+@end ifnottex
+
+where @code{@var{e}[i]} is the equation @var{e}
+evaluated with the variables in @var{x} assigned values from the @code{i}-th datum, @code{@var{D}[i]},
+and assigning any remaining free variables from @var{a}.
+
+@code{load(lsquares)} loads this function.
+
+Example:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c a : lsquares_estimates (
+@c           M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+@c lsquares_residuals (
+@c           M, [z,x,y], (z+D)^2 = A*x+B*y+C, first(a));
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                                  [ 1  1  1 ]
+                                  [         ]
+                                  [ 3       ]
+                                  [ -  1  2 ]
+                                  [ 2       ]
+                                  [         ]
+(%o2)                             [ 9       ]
+                                  [ -  2  1 ]
+                                  [ 4       ]
+                                  [         ]
+                                  [ 3  2  2 ]
+                                  [         ]
+                                  [ 2  2  1 ]
+(%i3) a : lsquares_estimates (
+          M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+                         59        27      10921        107
+(%o3)            [[A = - --, B = - --, C = -----, D = - ---]]
+                         16        16      1024         32
+(%i4) lsquares_residuals (
+          M, [z,x,y], (z+D)^2 = A*x+B*y+C, first(a));
+                            13    13    13  13  13
+(%o4)                      [--, - --, - --, --, --]
+                            64    64    32  64  64
+@end example
+
+@c @opencatbox
+@c @category{Package lsquares}
+@c @closecatbox
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} lsquares_residual_mse (@var{D}, @var{x}, @var{e}, @var{a})
+
+Returns the residual mean square error (MSE) for the equation @var{e}
+with specified parameters @var{a} and data @var{D}.
+
+The residual MSE is defined as:
+
+@tex
+$${1 \over n} \, \sum_{i=1}^n \left[{\rm lhs}\left(e_i\right) - {\rm rhs}\left(e_i\right)\right]^2,$$
+@end tex
+@ifnottex
+@example
+                    n
+                   ====
+               1   \                        2
+               -    >    (lhs(e ) - rhs(e ))
+               n   /           i         i
+                   ====
+                   i = 1
+@end example
+@end ifnottex
+
+where @code{@var{e}[i]} is the equation @var{e}
+evaluated with the variables in @var{x} assigned values from the @code{i}-th datum, @code{@var{D}[i]},
+and assigning any remaining free variables from @var{a}.
+
+@code{load(lsquares)} loads this function.
+
+Example:
+
+@c ===beg===
+@c load (lsquares)$
+@c M : matrix (
+@c          [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+@c a : lsquares_estimates (
+@c        M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+@c lsquares_residual_mse (
+@c        M, [z,x,y], (z + D)^2 = A*x + B*y + C, first (a));
+@c ===end===
+@example
+(%i1) load (lsquares)$
+(%i2) M : matrix (
+         [1,1,1], [3/2,1,2], [9/4,2,1], [3,2,2], [2,2,1]);
+                           [ 1  1  1 ]
+                           [         ]
+                           [ 3       ]
+                           [ -  1  2 ]
+                           [ 2       ]
+                           [         ]
+(%o2)                      [ 9       ]
+                           [ -  2  1 ]
+                           [ 4       ]
+                           [         ]
+                           [ 3  2  2 ]
+                           [         ]
+                           [ 2  2  1 ]
+(%i3) a : lsquares_estimates (
+             M, [z,x,y], (z+D)^2 = A*x+B*y+C, [A,B,C,D]);
+
+                  59        27      10921        107
+(%o3)     [[A = - --, B = - --, C = -----, D = - ---]]
+                  16        16      1024         32
+(%i4) lsquares_residual_mse (
+             M, [z,x,y], (z + D)^2 = A*x + B*y + C, first (a));
+                              169
+(%o4)                         ----
+                              2560
+@end example
+
+@c @opencatbox
+@c @category{Package lsquares}
+@c @closecatbox
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} plsquares (@var{Mat},@var{VarList},@var{depvars})
+@deffnx {Function} plsquares (@var{Mat},@var{VarList},@var{depvars},@var{maxexpon})
+@deffnx {Function} plsquares (@var{Mat},@var{VarList},@var{depvars},@var{maxexpon},@var{maxdegree})
+Multivariable polynomial adjustment of a data table by the "least squares"
+method. @var{Mat} is a matrix containing the data, @var{VarList} is a list of variable names (one for each Mat column, but use "-" instead of varnames to ignore Mat columns), @var{depvars} is the name of a dependent variable or a list with one or more names of dependent variables (which names should be in @var{VarList}), @var{maxexpon} is the optional maximum exponent for each independent variable (1 by default), and @var{maxdegree} is the optional maximum polynomial degree (@var{maxexpon} by default); note that the sum of exponents of each term must be equal or smaller than @var{maxdegree}, and if @code{maxdgree = 0} then no limit is applied.
+
+If @var{depvars} is the name of a dependent variable (not in a list), @code{plsquares} returns the adjusted polynomial. If @var{depvars} is a list of one or more dependent variables, @code{plsquares} returns a list with the adjusted polynomial(s). The Coefficients of Determination  are displayed in order to inform about the goodness of fit, which ranges from 0 (no correlation) to 1 (exact correlation). These values are also stored in the global variable @var{DETCOEF} (a list if @var{depvars} is a list).
+
+A simple example of multivariable linear adjustment:
+@example
+(%i1) load("plsquares")$
+
+(%i2) plsquares(matrix([1,2,0],[3,5,4],[4,7,9],[5,8,10]),
+                [x,y,z],z);
+     Determination Coefficient for z = .9897039897039897
+                       11 y - 9 x - 14
+(%o2)              z = ---------------
+                              3
+@end example
+
+The same example without degree restrictions:
+@example
+(%i3) plsquares(matrix([1,2,0],[3,5,4],[4,7,9],[5,8,10]),
+                [x,y,z],z,1,0);
+     Determination Coefficient for z = 1.0
+                    x y + 23 y - 29 x - 19
+(%o3)           z = ----------------------
+                              6
+@end example
+
+How many diagonals does a N-sides polygon have? What polynomial degree should be used?
+@example
+(%i4) plsquares(matrix([3,0],[4,2],[5,5],[6,9],[7,14],[8,20]),
+                [N,diagonals],diagonals,5);
+     Determination Coefficient for diagonals = 1.0
+                                2
+                               N  - 3 N
+(%o4)              diagonals = --------
+                                  2
+(%i5) ev(%, N=9);   /* Testing for a 9 sides polygon */
+(%o5)                 diagonals = 27
+@end example
+
+How many ways do we have to put two queens without they are threatened into a n x n chessboard?
+@example
+(%i6) plsquares(matrix([0,0],[1,0],[2,0],[3,8],[4,44]),
+                [n,positions],[positions],4);
+     Determination Coefficient for [positions] = [1.0]
+                         4       3      2
+                      3 n  - 10 n  + 9 n  - 2 n
+(%o6)    [positions = -------------------------]
+                                  6
+(%i7) ev(%[1], n=8); /* Testing for a (8 x 8) chessboard */
+(%o7)                positions = 1288
+@end example
+
+An example with six dependent variables:
+@example
+(%i8) mtrx:matrix([0,0,0,0,0,1,1,1],[0,1,0,1,1,1,0,0],
+                  [1,0,0,1,1,1,0,0],[1,1,1,1,0,0,0,1])$
+(%i8) plsquares(mtrx,[a,b,_And,_Or,_Xor,_Nand,_Nor,_Nxor],
+                     [_And,_Or,_Xor,_Nand,_Nor,_Nxor],1,0);
+      Determination Coefficient for
+[_And, _Or, _Xor, _Nand, _Nor, _Nxor] =
+[1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+(%o2) [_And = a b, _Or = - a b + b + a,
+_Xor = - 2 a b + b + a, _Nand = 1 - a b,
+_Nor = a b - b - a + 1, _Nxor = 2 a b - b - a + 1]
+@end example
+
+To use this function write first @code{load("lsquares")}.
+
+@c @opencatbox
+@c @category{Package lsquares} @category{Numerical methods}
+@c @closecatbox
+@end deffn
+
+@c --- End of file lsquares.de.texi --------------------------------------------
+

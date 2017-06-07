@@ -1,0 +1,612 @@
+@c -----------------------------------------------------------------------------
+@c File     : grobner.de.texi
+@c License  : GNU General Public License (GPL)
+@c Language : German
+@c Original : grobner.texi revision 03.07.2011
+@c Date     : 08.11.2010
+@c Revision : 03.07.2011
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Introduction to grobner ::
+* Functions and Variables for grobner ::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Introduction to grobner, Functions and Variables for grobner, Top, Top
+@section Introduction to grobner
+@c -----------------------------------------------------------------------------
+
+@code{grobner} is a package for working with Groebner bases in Maxima.
+
+A tutorial on @emph{Groebner Bases} can be found at@*
+@url{http://www.geocities.com/CapeCanaveral/Hall/3131/}
+
+To use the following functions you must load the @file{grobner.lisp} package.
+
+@example
+load(grobner);
+@end example
+
+A demo can be started by 
+@example
+demo("grobner.demo");
+@end example
+
+or
+@example
+batch("grobner.demo")
+@end example
+
+Some of the calculation in the demo will take a lot of time therefore the output
+@file{grobner-demo.output} of the demo can be found in the same directory as the
+demo file.
+
+@c -----------------------------------------------------------------------------
+@subsection Notes on the grobner package
+@c -----------------------------------------------------------------------------
+
+The package was written by Marek Rychlik @url{http://alamos.math.arizona.edu}
+and is released 2002-05-24 under the terms of the General Public License(GPL)
+(see file @file{grobner.lisp}.  This documentation was extracted from the files
+@flushleft
+@file{README}, @file{grobner.lisp}, @file{grobner.demo}, @file{grobner-demo.output}
+@end flushleft
+by G@"unter Nowak.  Suggestions for improvement of the documentation can be
+discussed at the @emph{maxima}-mailing-list @email{maxima@@math.utexas.edu}.
+The code is a little bit out of date now.  Modern implementation use the fast
+@emph{F4} algorithm described in "A new efficient algorithm for computing
+Gr@"obner bases (F4)", Jean-Charles Faug@`ere, LIP6/CNRS Universit@'e Paris VI,
+January 20, 1999.
+
+@c -----------------------------------------------------------------------------
+@subsection Implementations of admissible monomial orders in grobner
+@c -----------------------------------------------------------------------------
+
+@itemize @bullet
+@item @code{lex}
+pure lexicographic,
+default order for monomial comparisons
+
+@item @code{grlex}
+total degree order, ties broken by lexicographic
+
+@item @code{grevlex}
+total degree, ties broken by reverse lexicographic
+
+@item @code{invlex}
+inverse lexicographic order
+@end itemize
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for grobner, , Introduction to grobner, Top
+@section Functions and Variables for grobner
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@subsection Global switches for grobner
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_monomial_order
+Default value: @code{lex}
+
+This global switch controls which monomial order is used in polynomial and
+Groebner Bases calculations.  If not set, @code{lex} will be used.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_coefficient_ring
+Default value: @code{expression_ring}
+
+This switch indicates the coefficient ring of the polynomials that will be used
+in grobner calculations.  If not set, @emph{maxima's} general expression ring
+will be used.  This variable may be set to @code{ring_of_integers} if desired.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_primary_elimination_order
+Default value: @code{false}
+
+Name of the default order for eliminated variables in elimination-based
+functions.  If not set, @code{lex} will be used.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_secondary_elimination_order
+Default value: @code{false}
+
+Name of the default order for kept variables in elimination-based functions.
+If not set, @code{lex} will be used.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_elimination_order
+Default value: @code{false}
+
+Name of the default elimination order used in elimination calculations.  If set,
+it overrides the settings in variables @code{poly_primary_elimination_order} and
+@code{poly_secondary_elimination_order}.  The user must ensure that this is a
+true elimination order valid for the number of eliminated variables.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_return_term_list
+Default value: @code{false}
+
+If set to @code{true}, all functions in this package will return each polynomial
+as a list of terms in the current monomial order rather than a @emph{maxima}
+general expression.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_grobner_debug
+Default value: @code{false}
+
+If set to @code{true}, produce debugging and tracing output.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_grobner_algorithm
+Default value: @code{buchberger}
+
+Possible values: 
+@itemize
+@item @code{buchberger}
+@item @code{parallel_buchberger}
+@item @code{gebauer_moeller}
+@end itemize
+
+The name of the algorithm used to find the Groebner Bases.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@defvr {Option variable} poly_top_reduction_only
+Default value: @code{false}
+
+If not @code{false}, use top reduction only whenever possible.  Top reduction
+means that division algorithm stops after the first reduction.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@subsection Simple operators in grobner
+
+@code{poly_add}, @code{poly_subtract}, @code{poly_multiply} and @code{poly_expt}
+are the arithmetical operations on polynomials.  These are performed using the
+internal representation, but the results are converted back to the @emph{maxima}
+general form.
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_add (@var{poly1}, @var{poly2}, @var{varlist})
+
+Adds two polynomials @var{poly1} and @var{poly2}.
+
+@example
+(%i1) poly_add(z+x^2*y,x-z,[x,y,z]);
+                                    2
+(%o1)                              x  y + x
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_subtract (@var{poly1}, @var{poly2}, @var{varlist})
+
+Subtracts a polynomial @var{poly2} from @var{poly1}.
+
+@example
+(%i1) poly_subtract(z+x^2*y,x-z,[x,y,z]);
+                                      2
+(%o1)                          2 z + x  y - x
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_multiply (@var{poly1}, @var{poly2}, @var{varlist})
+
+Returns the product of polynomials @var{poly1} and @var{poly2}.
+
+@example
+(%i1) poly_multiply(z+x^2*y,x-z,[x,y,z])-(z+x^2*y)*(x-z),expand;
+(%o1)                                  0
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_s_polynomial (@var{poly1}, @var{poly2}, @var{varlist})
+
+Returns the @emph{syzygy polynomial} (@emph{S-polynomial}) of two polynomials
+@var{poly1} and @var{poly2}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_primitive_part (@var{poly1}, @var{varlist})
+
+Returns the polynomial @var{poly} divided by the GCD of its coefficients.
+
+@example
+(%i1) poly_primitive_part(35*y+21*x,[x,y]);
+(%o1)                              5 y + 3 x
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_normalize (@var{poly}, @var{varlist})
+
+Returns the polynomial @var{poly} divided by the leading coefficient.  It
+assumes that the division is possible, which may not always be the case in rings
+which are not fields.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@subsection Other functions in grobner
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_expand (@var{poly}, @var{varlist})
+
+This function parses polynomials to internal form and back.  It is equivalent
+to @code{expand(@var{poly})} if @var{poly} parses correctly to a polynomial.
+If the representation is not compatible with a polynomial in variables
+@var{varlist}, the result is an error.  It can be used to test whether an
+expression correctly parses to the internal representation.  The following
+examples illustrate that indexed and transcendental function variables are
+allowed.
+
+@example
+(%i1) poly_expand((x-y)*(y+x),[x,y]);
+                                     2    2
+(%o1)                               x  - y
+(%i2) poly_expand((y+x)^2,[x,y]);
+                                2            2
+(%o2)                          y  + 2 x y + x
+(%i3) poly_expand((y+x)^5,[x,y]);
+                  5      4         2  3       3  2      4      5
+(%o3)            y  + 5 x y  + 10 x  y  + 10 x  y  + 5 x  y + x
+(%i4) poly_expand(-1-x*exp(y)+x^2/sqrt(y),[x]);
+                                          2
+                                  y      x
+(%o4)                       - x %e  + ------- - 1
+                                       sqrt(y)
+
+(%i5) poly_expand(-1-sin(x)^2+sin(x),[sin(x)]);
+                                2
+(%o5)                      - sin (x) + sin(x) - 1
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_expt (@var{poly}, @var{number}, @var{varlist})
+
+exponentitates @var{poly} by a positive integer @var{number}.  If @var{number}
+is not a positive integer number an error will be raised.
+
+@example
+(%i1) poly_expt(x-y,3,[x,y])-(x-y)^3,expand;
+(%o1)                                  0
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_content (@var{poly}, @var{varlist})
+
+@code{poly_content} extracts the GCD of its coefficients
+
+@example
+(%i1) poly_content(35*y+21*x,[x,y]);
+(%o1)                                  7
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_pseudo_divide (@var{poly}, @var{polylist}, @var{varlist})
+
+Pseudo-divide a polynomial @var{poly} by the list of @math{n} polynomials
+@var{polylist}.  Return multiple values.  The first value is a list of quotients
+@math{a}.  The second value is the remainder @math{r}.  The third argument is a
+scalar coefficient @math{c}, such that @math{c*poly} can be divided by
+@var{polylist} within the ring of coefficients, which is not necessarily a
+field.  Finally, the fourth value is an integer count of the number of
+reductions performed.  The resulting objects satisfy the equation:
+
+@iftex
+@tex
+$$c*poly=\sum_{i=1}^{n}({a}_{i}*{polylist}_{i})+r$$
+@end tex
+@end iftex
+@ifnottex
+@math{c*poly=sum(a[i]*polylist[i],i=1...n)+r}.
+@end ifnottex
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_exact_divide (@var{poly1}, @var{poly2}, @var{varlist})
+
+Divide a polynomial @var{poly1} by another polynomial @var{poly2}.  Assumes
+that exact division with no remainder is possible.  Returns the quotient.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_normal_form (@var{poly}, @var{polylist}, @var{varlist})
+
+@code{poly_normal_form} finds the normal form of a polynomial @var{poly} with
+respect to a set of polynomials @var{polylist}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_buchberger_criterion (@var{polylist}, @var{varlist})
+
+Returns @code{true} if @var{polylist} is a Groebner basis with respect to the
+current term order, by using the Buchberger criterion: for every two polynomials
+@math{h1} and @math{h2} in @var{polylist} the S-polynomial @math{S(h1,h2)}
+reduces to 0 @math{modulo} @var{polylist}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_buchberger (@var{polylist_fl} @var{varlist})
+
+@code{poly_buchberger} performs the Buchberger algorithm on a list of
+polynomials and returns the resulting Groebner basis.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@subsection Standard postprocessing of Groebner Bases
+
+@iftex
+@tex
+The \emph{k-th elimination ideal} $I_k$ of an ideal $I$ over 
+$K [ x_1, ...,x_1 ]$ is $I \cap K [ x_{k + 1}, ..., x_n ]$.
+
+\noindent
+The \emph{colon ideal} $I : J$ is the ideal $\{ h|\forall w \in J : wh \in
+I \}$.@*
+
+\noindent
+The ideal $I : p^{\infty}$ is the ideal $\{ h|\exists n \in N : p^n h \in I \}$.@*
+
+\noindent
+The ideal $I : J^{\infty}$ is the ideal $\{ h|\exists n \in N, \exists p \in J: p^n h \in I \}$.@*
+
+\noindent
+The \emph{radical ideal} $\sqrt{I}$ is the ideal $\{ h| \exists n \in N :
+h^n \in I \}$.@*
+
+@end tex
+@end iftex
+
+@ifnottex
+The @emph{k-th elimination Ideal} @math{I_k} of an Ideal @math{I} over
+@math{K[ x[1],...,x[n] ]} is the ideal
+@math{intersect(I, K[ x[k+1],...,x[n] ])}.@*
+The @emph{colon ideal} @math{I:J} is the ideal
+@math{@{h|for all w in J: w*h in I@}}.@*
+The ideal @math{I:p^inf} is the ideal
+@math{@{h| there is a n in N: p^n*h in I@}}.@*
+The ideal @math{I:J^inf} is the ideal
+@math{@{h| there is a n in N and a p in J: p^n*h in I@}}.@*
+The @emph{radical ideal} @math{sqrt(I)} is the ideal 
+@math{@{h| there is a n in N : h^n in I @}}.
+@end ifnottex
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_reduction (@var{polylist}, @var{varlist})
+
+@code{poly_reduction} reduces a list of polynomials @var{polylist}, so that
+each polynomial is fully reduced with respect to the other polynomials.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_minimization (@var{polylist}, @var{varlist})
+
+Returns a sublist of the polynomial list @var{polylist} spanning the same
+monomial ideal as @var{polylist} but minimal, i.e. no leading monomial of a
+polynomial in the sublist divides the leading monomial of another polynomial.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_normalize_list (@var{polylist}, @var{varlist})
+
+@code{poly_normalize_list} applies @code{poly_normalize} to each polynomial in
+the list.  That means it divides every polynomial in a list @var{polylist} by
+its leading coefficient.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_grobner (@var{polylist}, @var{varlist})
+
+Returns a Groebner basis of the ideal span by the polynomials @var{polylist}.
+Affected by the global flags.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_reduced_grobner (@var{polylist}, @var{varlist})
+
+Returns a reduced Groebner basis of the ideal span by the polynomials
+@var{polylist}.  Affected by the global flags.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_depends_p (@var{poly}, @var{var}, @var{varlist})
+
+@code{poly_depends} tests whether a polynomial depends on a variable @var{var}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_elimination_ideal (@var{polylist}, @var{number}, @var{varlist})
+
+@code{poly_elimination_ideal} returns the grobner basis of the @math{number}-th
+elimination ideal of an ideal specified as a list of generating polynomials
+(not necessarily Groebner basis).
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_colon_ideal (@var{polylist1}, @var{polylist2}, @var{varlist})
+
+Returns the reduced Groebner basis of the colon ideal 
+
+@math{I(polylist1):I(polylist2)}
+
+where @math{polylist1} and @math{polylist2} are two lists of polynomials.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_ideal_intersection (@var{polylist1}, @var{polylist2}, @var{varlist})
+
+@code{poly_ideal_intersection} returns the intersection of two ideals.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_lcm (@var{poly1}, @var{poly2}, @var{varlist})
+
+Returns the lowest common multiple of @var{poly1} and @var{poly2}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{poly_gcd}
+@deffn {Function} poly_gcd (@var{poly1}, @var{poly2}, @var{varlist})
+
+Returns the greatest common divisor of @var{poly1} and @var{poly2}.
+
+See also @mrefcomma{ezgcd} @mrefcomma{gcd} @mrefcomma{gcdex} and
+@mrefdot{gcdivide}
+
+Example:
+
+@example
+(%i1) p1:6*x^3+19*x^2+19*x+6; 
+                        3       2
+(%o1)                6 x  + 19 x  + 19 x + 6
+(%i2) p2:6*x^5+13*x^4+12*x^3+13*x^2+6*x;
+                  5       4       3       2
+(%o2)          6 x  + 13 x  + 12 x  + 13 x  + 6 x
+(%i3) poly_gcd(p1, p2, [x]);
+                            2
+(%o3)                    6 x  + 13 x + 6
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_grobner_equal (@var{polylist1}, @var{polylist2}, @var{varlist})
+
+@code{poly_grobner_equal} tests whether two Groebner Bases generate the same
+ideal.  Returns @code{true} if two lists of polynomials @var{polylist1} and
+@var{polylist2}, assumed to be Groebner Bases, generate the same ideal, and
+@code{false} otherwise.  This is equivalent to checking that every polynomial
+of the first basis reduces to 0 modulo the second basis and vice versa.  Note
+that in the example below the first list is not a Groebner basis, and thus the
+result is @code{false}.
+
+@example
+(%i1) poly_grobner_equal([y+x,x-y],[x,y],[x,y]);
+(%o1)                         false
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_grobner_subsetp (@var{polylist1}, @var{polylist2}, @var{varlist})
+
+@code{poly_grobner_subsetp} tests whether an ideal generated by @var{polylist1}
+is contained in the ideal generated by @var{polylist2}.  For this test to always
+succeed, @var{polylist2} must be a Groebner basis.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_grobner_member (@var{poly}, @var{polylist}, @var{varlist})
+
+Returns @code{true} if a polynomial @var{poly} belongs to the ideal generated by
+the polynomial list @var{polylist}, which is assumed to be a Groebner basis.
+Returns @code{false} otherwise.
+
+@code{poly_grobner_member} tests whether a polynomial belongs to an ideal
+generated by a list of polynomials, which is assumed to be a Groebner basis.
+Equivalent to @code{normal_form} being 0.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_ideal_saturation1 (@var{polylist}, @var{poly}, @var{varlist})
+
+Returns the reduced Groebner basis of the saturation of the ideal
+@iftex
+@tex
+$$I(polylist):poly^\infty$$
+@end tex
+@end iftex
+
+@ifnottex
+I(polylist):poly^inf
+@end ifnottex
+
+Geometrically, over an algebraically closed field, this is the set of
+polynomials in the ideal generated by @var{polylist} which do not identically
+vanish on the variety of @var{poly}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_ideal_saturation (@var{polylist1}, @var{polylist2}, @var{varlist})
+
+Returns the reduced Groebner basis of the saturation of the ideal
+@iftex
+@tex
+$$I(polylist1):I(polylist2)^\infty$$
+@end tex
+@end iftex
+
+@ifnottex
+I(polylist1):I(polylist2)^inf
+@end ifnottex
+
+Geometrically, over an algebraically closed field, this is the set of
+polynomials in the ideal generated by @var{polylist1} which do not identically
+vanish on the variety of @var{polylist2}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_ideal_polysaturation1 (@var{polylist1}, @var{polylist2}, @var{varlist})
+
+@var{polylist2} ist a list of n polynomials @code{[poly1,...,polyn]}.
+Returns the reduced Groebner basis of the ideal
+@iftex
+@tex
+$$I(polylist):poly1^\infty:...:polyn^\infty$$
+@end tex
+@end iftex
+
+@ifnottex
+I(polylist):poly1^inf:...:polyn^inf
+@end ifnottex
+
+obtained by a sequence of successive saturations in the polynomials of the
+polynomial list @var{polylist2} of the ideal generated by the polynomial list
+@var{polylist1}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_ideal_polysaturation (@var{polylist}, @var{polylistlist}, @var{varlist})
+
+@var{polylistlist} is a list of n list of polynomials
+@code{[polylist1,...,polylistn]}.  Returns the reduced Groebner basis of the
+saturation of the ideal
+@iftex
+@tex
+$$I(polylist):I(polylist_1)^\infty:...:I(polylist_n)^\infty$$
+@end tex
+@end iftex
+
+@ifnottex
+I(polylist):I(polylist_1)^inf:...:I(polylist_n)^inf
+@end ifnottex
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_saturation_extension (@var{poly}, @var{polylist}, @var{varlist1}, @var{varlist2})
+
+@code{poly_saturation_extension} implements the famous Rabinowitz trick.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@deffn {Function} poly_polysaturation_extension (@var{poly}, @var{polylist}, @var{varlist1}, @var{varlist2})
+@end deffn
+
+@c --- End of file grobner.de.texi ---------------------------------------------
+

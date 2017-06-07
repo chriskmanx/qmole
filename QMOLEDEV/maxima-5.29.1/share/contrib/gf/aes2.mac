@@ -1,0 +1,335 @@
+
+/*
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or
+   (at your option) any later version.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+   
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+   MA 02110-1301, USA.
+   
+   
+**** AES en/decryption 2 (byte version) ****************************************
+   
+   Copyright Volker van Nek, 2012
+   
+   
+   This is an alternative to share/contrib/gf/aes.mac. It works at byte level 
+   and shows how to use precomputed lookup tables. It also shows a quite concise 
+   description of the mix_columns operation by using matrix-dot-multiplication 
+   controled by Maxima's global variables matrix_element_add and _mult.
+*/
+
+
+/* GF arithmetic by lookup tables ******************************************* */
+
+gf_set(2, x^8+x^4+x^3+x+1)$
+
+gf_make_arrays()$
+
+mult_by_table(a, b) := 
+   if a = 0 or b = 0 then 0
+   else gf_powers[ ?mod(gf_logs[a] + gf_logs[b], 255) ]$
+
+inv_by_table(a) := 
+   if a = 0 then 0 
+   else gf_powers[255 - gf_logs[a]]$
+
+
+/* sub_bytes **************************************************************** */
+
+byte_sub : make_array(fixnum, 256)$
+
+bit_lrot(b, n) := 
+   ?logior(?logand(?ash(b, n), 255), ?ash(b, n-8))$
+
+for byte : 0 thru 255 do 
+   byte_sub[byte] : 
+      block([s, x],
+         x : inv_by_table(byte),
+         s : [x, 99],
+         for n thru 4 do 
+            s : cons(bit_lrot(x, n), s),
+         apply('?logxor, s) )$
+
+print_byte_sub() := 
+   printf(true, "~{~16@{~2,'0x ~}~%~}", listarray(byte_sub))$
+
+sub_bytes(state) := 
+   for i:0 thru 3 do
+      for j:0 thru 3 do
+         state[i, j] : byte_sub[state[i, j]] $
+
+/* inv_sub_bytes ************************************************************ */
+
+inv_byte_sub : make_array(fixnum, 256)$
+
+for byte : 0 thru 255 do 
+   inv_byte_sub[byte] : 
+      block([s, x],
+         x : ?logxor(byte, 99),
+         s : [bit_lrot(x, 1), bit_lrot(x, 3), bit_lrot(x, 6)],
+         inv_by_table( apply('?logxor, s) ) )$
+
+print_inv_byte_sub() := 
+   printf(true, "~{~16@{~2,'0x ~}~%~}", listarray(inv_byte_sub))$
+
+inv_sub_bytes(state) := 
+   for r:0 thru 3 do
+      for c:0 thru 3 do
+         state[r, c] : inv_byte_sub[state[r, c]] $
+
+/* shift_rows *************************************************************** */
+
+rotate1(state, r) := block([sr0 : state[r, 0]],
+   for c:0 thru 2 do
+      state[r, c] : state[r, c+1],
+   state[r, 3] : sr0 )$
+
+rotate2(state) := block([s],
+   s : state[2, 0], state[2, 0] : state[2, 2], state[2, 2] : s,
+   s : state[2, 1], state[2, 1] : state[2, 3], state[2, 3] : s )$
+
+inv_rotate1(state, r) := block([sr3 : state[r, 3]],
+   for c:3 step -1 thru 1 do
+      state[r, c] : state[r, c-1],
+   state[r, 0] : sr3 )$
+
+shift_rows(state) := (
+   rotate1(state, 1), rotate2(state), inv_rotate1(state, 3) )$
+
+
+/* inv_shift_rows *********************************************************** */
+
+inv_shift_rows(state) := (
+   rotate1(state, 3), rotate2(state), inv_rotate1(state, 1) )$
+
+
+/* mix_columns ************************************************************** */
+
+matrix_element_add : ?logxor $
+
+matrix_element_mult : mult_by_table $
+
+MIX : matrix(
+   [2, 3, 1, 1], 
+   [1, 2, 3, 1], 
+   [1, 1, 2, 3], 
+   [3, 1, 1, 2] )$
+
+mix_columns(state) := block([mat],
+   mat : genmatrix(state, 3,3,0,0),
+   mat : MIX . mat,
+   fillarray(state, flatten(args(mat))) )$
+
+
+/* inv_mix_columns ********************************************************** */
+
+INV_MIX : matrixmap('gf_p2n, gf_matinv( matrixmap('gf_n2p, MIX) ) )$
+
+inv_mix_columns(state) := block([mat],
+   mat : genmatrix(state, 3,3,0,0),
+   mat : INV_MIX . mat,
+   fillarray(state, flatten(args(mat))) )$
+
+
+/* add_round_key ************************************************************ */
+
+add_round_key(state, _key) := 
+   for r:0 thru 3 do
+      for c:0 thru 3 do
+         state[r, c] : ?logxor(state[r, c], _key[r, c])$
+
+
+/* key_expansion ************************************************************ */
+
+define_variable(rcon, make_array(fixnum, 4, 10), any_check)$
+
+fillarray(rcon, [1, 2, 4, 8, 16, 32, 64, 128, 27, 54, 0])$
+
+rot_word(key, new) := (
+   new[3, 0] : key[0, 3],
+   for r:0 thru 2 do
+      new[r, 0] : key[r+1, 3] )$
+
+key_expansion1(key, new, n) := (
+   rot_word(key, new),
+   for r:0 thru 3 do 
+      new[r, 0] : byte_sub[new[r, 0]],
+   for r:0 thru 3 do 
+      new[r, 0] : ?logxor(key[r, 0], new[r, 0], rcon[r, n-1]) )$
+
+key_expansion2(key, new) := 
+   for c:1 thru 3 do 
+      for r:0 thru 3 do
+         new[r, c] : ?logxor(new[r, c-1], key[r, c])$
+
+define_variable(round_key, make_array(any, 11), any_check)$
+
+make_round_key(n) := (
+   round_key[n] : make_array(fixnum, 4, 4),
+   key_expansion1(round_key[n-1], round_key[n], n),
+   key_expansion2(round_key[n-1], round_key[n]) )$
+
+key_expansion(key) := (
+   round_key[0] : key,
+   for n:1 thru 10 do make_round_key(n) )$
+
+
+/* cipher ******************************************************************* */
+
+cipher(state) := (
+   add_round_key(state, round_key[0]),
+   
+   for n:1 thru 9 do (
+      sub_bytes(state),
+      shift_rows(state), 
+      mix_columns(state), 
+      add_round_key(state, round_key[n]) ),
+   
+   sub_bytes(state),
+   shift_rows(state), 
+   add_round_key(state, round_key[10]) )$
+
+
+/* inv_cipher *************************************************************** */
+
+inv_cipher(state) := (
+   add_round_key(state, round_key[10]),
+   
+   for n:9 step -1 thru 1 do (
+      inv_shift_rows(state), 
+      inv_sub_bytes(state),
+      add_round_key(state, round_key[n]),
+      inv_mix_columns(state) ),
+   
+   inv_sub_bytes(state),
+   inv_shift_rows(state), 
+   add_round_key(state, round_key[0]) )$
+
+
+/* user in/output *********************************************************** */
+
+mat2state(mat) := block([state],
+   state : make_array(fixnum, 4, 4),
+   fillarray(state, flatten(args(mat))) )$
+   
+state2mat(state) := genmatrix(state, 3, 3, 0, 0)$
+
+print_block(block) := 
+   printf(true, "~{~4@{~2,'0x ~}~%~}", listarray(block))$
+
+string2state(string) := block([state, chars],
+   chars : map('cint, charlist(string)),
+   state : make_array(fixnum, 4, 4),
+   for c:0 thru 3 do
+      for r:3 step -1 thru 0 do (
+         state[r, c] : first(chars),
+         chars : rest(chars) ),
+   state )$
+
+state2string(state) := block([bytes:[]],
+   for c:0 thru 3 do
+      for r:3 step -1 thru 0 do 
+         bytes : cons(state[r, c], bytes),
+   simplode(map('ascii, reverse(bytes))) )$
+
+
+/* compilation ************************************************************** */
+
+define_variable(old_io, ?\*standard\-output\*, any_check)$
+define_variable(redirection, make_string_output_stream(), any_check)$
+?\*standard\-output\* : redirection$
+
+/* compile(all)$ */
+compile(
+   mult_by_table, inv_by_table, 
+   bit_lrot, sub_bytes, inv_sub_bytes, 
+   rotate1, rotate2, inv_rotate1, shift_rows, inv_shift_rows, 
+   mix_columns, inv_mix_columns, 
+   add_round_key, 
+   rot_word, key_expansion1, key_expansion2, make_round_key, key_expansion, 
+   cipher, inv_cipher,
+   mat2state, state2mat, string2state, state2string )$
+
+?\*standard\-output\* : old_io$
+close(redirection)$
+
+/* example ****************************************************************** */
+
+state : mat2state(matrix(
+   [ 50,136, 49,224],
+   [ 67, 90, 49, 55],
+   [246, 48,152,  7],
+   [168,141,162, 52]) )$
+
+key : mat2state( matrix(
+   [ 43, 40,171,  9],
+   [126,174,247,207],
+   [ 21,210, 21, 79],
+   [ 22,166,136, 60]) )$
+
+key_expansion(key)$
+
+
+
+/*
+(%i3) print_block(key)$
+2B 28 AB 09 
+7E AE F7 CF 
+15 D2 15 4F 
+16 A6 88 3C 
+(%i4) print_block(state)$
+32 88 31 E0 
+43 5A 31 37 
+F6 30 98 07 
+A8 8D A2 34 
+(%i5) cipher(state)$
+
+(%i6) print_block(state)$
+39 02 DC 19 
+25 DC 11 6A 
+84 09 85 0B 
+1D FB 97 32 
+(%i7) inv_cipher(state)$
+
+(%i8) print_block(state)$
+32 88 31 E0 
+43 5A 31 37 
+F6 30 98 07 
+A8 8D A2 34 
+*/
+
+
+/*
+(%i10) state : string2state("Computer Algebra");
+(%o10) {Lisp Array: #2A((112 114 103 97) (109 101 108 114) (111 116 65 98)
+                 (67 117 32 101))}
+
+(%i11) matrixmap(ascii, state2mat(state));
+                                [ p  r  g  a ]
+                                [            ]
+                                [ m  e  l  r ]
+(%o11)                          [            ]
+                                [ o  t  A  b ]
+                                [            ]
+                                [ C  u     e ]
+
+(%i12) state2string(state);
+(%o12)                         Computer Algebra
+*/
+
+
+'done$
+
+
+
+
+

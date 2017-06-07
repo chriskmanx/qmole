@@ -1,0 +1,888 @@
+@c English version 2011-07-25
+@menu
+* Lisp y Maxima::
+* Recolector de basura::
+* Introducci@'on a la programaci@'on::  
+* Funciones y variables para la programaci@'on::  
+@end menu
+
+@node Lisp y Maxima, Recolector de basura, Programaci@'on, Programaci@'on
+@section Lisp y Maxima
+
+Maxima fue escrito en Lisp, y es muy f@'acil tener acceso a funciones y variables Lisp desde Maxima y viceversa. 
+Los s@'{@dotless{i}}mbolos Lisp y los s@'{@dotless{i}}mblos Maxima est@'an claramente diferenciados por medio de una convenci@'on de nombres. 
+Un s@'{@dotless{i}}mblo Lisp el cual comienza con un signo pesos @code{$} corresponde a un s@'{@dotless{i}}mbolo Maxima sin el signo pesos. 
+Un s@'{@dotless{i}}mbolo Maxima el cual comienza con un signo de cierre de interrogaci@'on @code{?} corresponde a un s@'{@dotless{i}}mbolo Lisp sin dicho signo.
+Por ejemplo, el s@'{@dotless{i}}mbolo Maxima @code{foo} corresponde a el s@'{@dotless{i}}mbolo Lisp @code{$FOO}, 
+mientras que el s@'{@dotless{i}}mbolo Maxima @code{?foo} corresponde a el s@'{@dotless{i}}mbolo Lisp @code{FOO}, 
+tenga en cuenta que @code{?foo} esta escrito sin espacio entre @code{?} y @code{foo}; 
+de otra manera se estar@'{@dotless{i}}a invocando a @code{describe ("foo")}. 
+
+El gui@'on @code{-}, asterisco @code{*}, u otros car@'acteres especiales en s@'imbolos Lisp deben ser escritos mediante un backslash @code{\} si aparecen en c@'odigo Maxima. 
+Por ejemplo, el identificador Lisp @code{*foo-bar*} se debe escribir @code{?\*foo\-bar\*} en Maxima. 
+
+Se puede ejecutar c@'odigo Lisp desde una sesi@'on de Maxima. 
+Una l@'{@dotless{i}}nea Lisp (que contenga una o m@'as formas) puede ser ejecutada
+por medio de un comando especial @code{:lisp}. Por ejemplo, 
+
+@example
+(%i1) :lisp (foo $x $y)
+@end example
+
+@noindent
+se llama a la funci@'on Lisp @code{foo} con variables Maxima @code{x} y
+@code{y} como argumentos. 
+La instrucci@'on @code{:lisp} puede aparecer en el prompt interactivo
+o en un archivo que sea procesado por @code{batch} o @code{demo}, pero no
+en un archivo que sea procesado por @code{load}, @code{batchload}, @code{translate_file} o @code{compile_file}. 
+
+La funci@'on @code{to_lisp()} abre una sesi@'on interactiva con el interprete Lisp. 
+Escribiendo @code{(to-maxima)} se cierra la sesi@'on con Lisp y se retorna a Maxima. 
+
+@c I DON'T EVEN WANT TO MENTION USING CTRL-C TO OPEN A LISP SESSION.
+@c (1) IT TAKES EXTRA SET UP TO GET STARTED NAMELY :lisp (setq *debugger-hook* nil)
+@c (2) IT GETS SCREWED UP EASILY -- TYPE SOMETHING WRONG AND YOU CAN'T GET BACK TO MAXIMA
+@c (3) IT DOESN'T OFFER FUNCTIONALITY NOT PRESENT IN THE to_lisp() SESSION
+
+Las funciones y variables Lisp las cuales esten para ser visibles en Maxima como funciones y variables con nombres oridinarios (sin una puntuaci@'on especial), deben tener nombres tipo Lisp que comiencen con el signo pesos 
+@code{$}. 
+
+Maxima distingue entre letras min@'usculas y may@'usculas en identificadores. 
+Existen algunas reglas que gobiernan la traducci@'on de nombres entre Lisp y Maxima. 
+
+@enumerate
+@item
+Un identificador Lisp que no se encuentra encerrado en barras verticales
+corresponde a un identificador Maxima en min@'uscula. 
+Que el idenficador Lisp est@'e en may@'uscula, min@'uscula o una combinaci@'on
+de ambas, no afecta en nada. 
+Por ejemplo, los identificadores Lisp @code{$foo}, @code{$FOO}, y @code{$Foo},
+todos corresponden al identificador Maxima @code{foo}. Esto es as@'{@dotless{i}}
+porque @code{$foo}, @code{$FOO} y  @code{$Foo} se convierten por defecto al
+s@'{@dotless{i}}mbolo @code{$FOO} de Lisp.
+
+@item
+Un identificador Lisp el cual se encuentre todo en may@'uscula o todo en min@'uscula y encerrado entre barras verticales corresponde a un identicador Maxima con el caso contrario. 
+Esto es, de may@'usculas cambia a min@'usculas y de min@'usculas cambia a may@'usculas. 
+E.g., el identificador Lisp @code{|$FOO|} y @code{|$foo|}
+corresponden los identificadores Maxima @code{foo} y @code{FOO}, respectivamente. 
+@item
+Un identificador Lisp el cual esta escrito mezclando letras may@'usculas y min@'usculas y se encuentra entre barras verticales corresponde a un identificador Maxima con la misma escritura. 
+E.g., el identificador Lisp @code{|$Foo|} corresponde a el identificador Maxima @code{Foo}. 
+@end enumerate
+
+La macro Lisp @code{#$} permite el uso de expresiones Maxima dentro de c@'odigo Lisp. @code{#$@var{expr}$} extiende a una expresi@'on Lisp equivalente a la expresi@'on Maxima @var{expr}.   
+
+@example
+(msetq $foo #$[x, y]$)
+@end example
+
+@noindent
+Esto tiene el mismo efecto que: 
+
+@example
+(%i1) foo: [x, y];
+@end example
+
+@noindent
+La funci@'on Lisp @code{displa} imprime una expresi@'on en formato Maxima.
+
+@example
+(%i1) :lisp #$[x, y, z]$ 
+((MLIST SIMP) $X $Y $Z)
+(%i1) :lisp (displa '((MLIST SIMP) $X $Y $Z))
+[x, y, z]
+NIL
+@end example
+
+Las funciones definidas en Maxima no son funciones Lisp ordinarias. 
+La funci@'on Lisp @code{mfuncall} llama a una funci@'on Maxima. 
+Por ejemplo: 
+
+@example
+(%i1) foo(x,y) := x*y$
+(%i2) :lisp (mfuncall '$foo 'a 'b)
+((MTIMES SIMP) A B)
+@end example
+
+Algunas funciones Lisp son compartidas en el paquete Maxima, las cuales se listan a continuaci@'on: 
+
+@code{complement},
+@code{continue},
+@code{//},
+@code{float},
+@code{functionp},
+@code{array},
+@code{exp},
+@code{listen},
+@code{signum},
+@code{atan},
+@code{asin},
+@code{acos},
+@code{asinh},
+@code{acosh},
+@code{atanh},
+@code{tanh},
+@code{cosh},
+@code{sinh},
+@code{tan},
+@code{break},
+y @code{gcd}.
+
+
+
+
+
+
+@node Recolector de basura, Introducci@'on a la programaci@'on, Lisp y Maxima, Programaci@'on
+@section Recolector de basura
+
+La computaci@'on simb@'olica tiende a crear una buena cantidad de basura
+(resultados temporales que ya no ser@'an utilizados),
+y un manejo efectivo de esto puede ser crucial para el t@'ermino exitoso de
+algunos programas. 
+
+Bajo GCL (GNU Common Lisp), en aquellos sistemas UNIX donde la llamada al sistema
+mprotect est@'a disponible (incluyendo SUN OS 4.0 y algunas variantes de BSD)
+se dispone de un recolector de basura estratificado. V@'ease la documentaci@'on
+de GCL para ALLOCATE y GBC. A nivel Lisp, ejecutando (setq si::*notify-gbc* t) 
+pemitir@'a determinar qu@'e @'areas necesitan m@'as espacio.
+
+En cuanto al resto de Lisps bajo los que funciona Maxima, se remite
+al lector a la documentaci@'on correspondiente para controlar la
+recolecci@'on de basura.
+
+
+
+
+
+
+@node Introducci@'on a la programaci@'on, Funciones y variables para la programaci@'on, Recolector de basura, Programaci@'on
+@section Introducci@'on a la programaci@'on
+
+Maxima dispone de los bucles @code{do} para hacer iteraciones, as@'{@dotless{i}} como estructuras m@'as primitivas del estilo de @code{go}.
+
+
+@node Funciones y variables para la programaci@'on,  , Introducci@'on a la programaci@'on, Programaci@'on
+@section Funciones y variables para la programaci@'on
+
+@deffn {Funci@'on} backtrace ()
+@deffnx {Funci@'on} backtrace (@var{n})
+Devuelve la pila de llamadas, esto es, la lista de funciones que han llamado a la funci@'on actualmente activa.
+
+La llamada a @code{backtrace()} devuelve la pila completa de llamadas.
+
+Ejemplos:
+
+@example
+(%i1) h(x) := g(x/7)$
+(%i2) g(x) := f(x-11)$
+(%i3) f(x) := e(x^2)$
+(%i4) e(x) := (backtrace(), 2*x + 13)$
+(%i5) h(10);
+#0: e(x=4489/49)
+#1: f(x=-67/7)
+#2: g(x=10/7)
+#3: h(x=10)
+                              9615
+(%o5)                         ----
+                               49
+@end example
+
+La llamada @code{backtrace (@var{n})} devuelve las @var{n} funciones m@'as recientes, incluyendo a la funci@'on actualmente activa.
+
+Ejemplos:
+
+@example
+(%i1) h(x) := (backtrace(1), g(x/7))$
+(%i2) g(x) := (backtrace(1), f(x-11))$
+(%i3) f(x) := (backtrace(1), e(x^2))$
+(%i4) e(x) := (backtrace(1), 2*x + 13)$
+(%i5) h(10);
+#0: h(x=10)
+#0: g(x=10/7)
+#0: f(x=-67/7)
+#0: e(x=4489/49)
+                              9615
+(%o5)                         ----
+                               49
+@end example
+
+@end deffn
+
+@deffn {Operador especial} do
+La sentencia @code{do} se utiliza para realizar iteraciones.  Debido a su generalidad la sentencia @code{do} se describir@'a en dos partes. En primer lugar se mostrar@'a su forma m@'as usual, an@'aloga a la de otros lenguajes de programaci@'on (Fortran, Algol, PL/I, etc.); despu@'es se mencionar@'an otras formas de uso.
+
+Hay tres variantes de esta sentencia que se diferencian entre s@'{@dotless{i}} @'unicamente por las condiciones de fin de bucle. Son las siguientes:
+
+@itemize @bullet
+@item
+@code{for @var{variable}: @var{valor_inicial} step @var{incremento}
+      thru @var{l@'{@dotless{i}}mite} do @var{cuerpo}}
+@item
+@code{for @var{variable}: @var{valor_inicial} step @var{incremento}
+      while @var{condici@'on} do @var{cuerpo}}
+@item
+@code{for @var{variable}: @var{valor_inicial} step @var{incremento}
+      unless @var{condici@'on} do @var{cuerpo}}
+@end itemize
+
+El @var{valor_inicial}, el @var{incremento}, el @var{l@'{@dotless{i}}mite} y el @var{cuerpo} pueden ser cualquier tipo de expresi@'on v@'alida de Maxima. Si el incremento es igual a la unidad (1) entonces "@code{step 1}" puede omitirse.
+
+La ejecuci@'on de la sentencia @code{do} se realiza asignando el valor_inicial a la variable (llamada de aqu@'{@dotless{i}} en adelante variable-control). A continuaci@'on: (1) si la variable-control ha excedido el l@'{@dotless{i}}mite de la especificaci@'on dada por un @code{thru}, o si la condici@'on impuesta por @code{unless} es verdadera (@code{true}), o si la condici@'on dada por @code{while} es falsa (@code{false}) entonces la iteraci@'on @code{do} termina. (2) El cuerpo se eval@'ua.  (3) El incremento es sumado a la variable-control. El proceso de (1) a (3) se repite hasta que la condici@'on de fin de iteraci@'on se satisfaga. Tambi@'en es posible especificar varias condiciones de terminaci@'on del bucle, en cuyo caso @code{do} terminar@'a cuando se satisfaga alguna de ellas.
+
+En general la condici@'on @code{thru} se satisfar@'a cuando la variable-control sea mayor que el l@'{@dotless{i}}mite si el incremento es no negativo, o cuando la variable-control sea menor que el l@'{@dotless{i}}mite cuando el incremento es negativo. El incremento y el l@'{@dotless{i}}mite pueden ser expresiones no num@'ericas, tanto en cuanto esta desigualdad pueda quedar determinada. Sin embargo, a menos que el incremento sea un n@'umero negativo en el momento de comenzar el c@'omputo de @code{do}, Maxima supondr@'a que se evaluar@'a a una cantidad positiva. En caso de no ser efectivamente positivo, la sentencia @code{do} puede dar un resultado inesperado.
+
+N@'otese que el l@'{@dotless{i}}mite, el incremento y la condici@'on de terminaci@'on se eval@'uan en cada iteraci@'on del bucle. As@'{@dotless{i}}, si alguna de expresiones necesitan de muchos c@'alculos y devuelven un resultado que no va a cambiar durante toda la ejecuci@'on del cuerpo, ser@'a m@'as eficiente dar este valor a una variable antes de comenzar la sentencia @code{do} y utilizarla luego durante su ejecuci@'on.
+
+El valor que habitualmente devuelva la sentencia @code{do} ser@'a el @'atomo @code{done}. Sin embargo, la funci@'on @code{return} puede usarse dentro del cuerpo para salir de @code{do} de forma prematura retornando un valor determinado.
+N@'otese no obstante que un @code{return} dentro de un @code{do} que est@'a dentro de un bloque (@code{block}) provocar@'a una salida de @code{do} pero no de @code{block}. Rep@'arese tambi@'en en que la funci@'on @code{go} no puede usarse para salir de @code{do} e ir a alg@'un lugar de @code{block}.
+
+La variable-control es siempre local respecto de @code{do}, por lo que se puede utilizar cualquier nombre de variable sin afectar el valor de cualquier otra variable externa a @code{do} y que tenga el mismo nombre. La variable-control no tendr@'a asignado ning@'un valor una vez se haya concluido el @code{do}.
+
+@example
+(%i1) for a:-3 thru 26 step 7 do display(a)$
+                             a = - 3
+
+                              a = 4
+
+                             a = 11
+
+                             a = 18
+
+                             a = 25
+@end example
+
+@example
+(%i1) s: 0$
+(%i2) for i: 1 while i <= 10 do s: s+i;
+(%o2)                         done
+(%i3) s;
+(%o3)                          55
+@end example
+
+
+N@'otese que la condici@'on @code{while i <= 10} es equivalente a @code{unless i > 10} y a @code{thru 10}.
+
+@example
+(%i1) series: 1$
+(%i2) term: exp (sin (x))$
+(%i3) for p: 1 unless p > 7 do
+          (term: diff (term, x)/p, 
+           series: series + subst (x=0, term)*x^p)$
+(%i4) series;
+                  7    6     5    4    2
+                 x    x     x    x    x
+(%o4)            -- - --- - -- - -- + -- + x + 1
+                 90   240   15   8    2
+@end example
+
+lo que da ocho t@'erminos del desarrollo de Taylor de la funci@'on @code{e^sin(x)}.
+
+@example
+(%i1) poly: 0$
+(%i2) for i: 1 thru 5 do
+          for j: i step -1 thru 1 do
+              poly: poly + i*x^j$
+(%i3) poly;
+                  5      4       3       2
+(%o3)          5 x  + 9 x  + 12 x  + 14 x  + 15 x
+(%i4) guess: -3.0$
+(%i5) for i: 1 thru 10 do
+          (guess: subst (guess, x, 0.5*(x + 10/x)),
+           if abs (guess^2 - 10) < 0.00005 then return (guess));
+(%o5)                  - 3.162280701754386
+@end example
+
+Este ejemplo calcula la ra@'{@dotless{i}}z cuadrada negativa de 10 haciendo 10 iteraciones del m@'etodo de Newton-Raphson. De no haberse alcanzado el criterio de convergencia el valor devuelto hubiese sido @code{done}.
+
+En lugar de a@~nadir siempre una cantidad a la variable-control a veces se puede querer que cambie en cada iteraci@'on siguiendo alg@'un otro criterio. En tal caso se puede hacer uso de @code{next @var{expresi@'on}} en lugar de @code{step @var{incremento}}. Esto har@'a que a la variable-control se le asigne el resultado de evaluar la expresi@'on en cada iteraci@'on del bucle.
+
+@example
+(%i6) for count: 2 next 3*count thru 20 do display (count)$
+                            count = 2
+
+                            count = 6
+
+                           count = 18
+@end example
+
+En ocasiones puede interesar realizar una iteraci@'on en la que la variable-control no se utilice nunca. Se podr@'a entonces dar @'unicamente las condiciones de terminaci@'on del bucle omitiendo la inicializaci@'on y actualizando la informaci@'on, tal como se hace en el siguiente ejemplo para calcular la ra@'{@dotless{i}}z cuadrada de 5 utilizando un valor inicial alejado de la soluci@'on.
+
+@example
+(%i1) x: 1000$
+(%i2) thru 20 do x: 0.5*(x + 5.0/x)$
+(%i3) x;
+(%o3)                   2.23606797749979
+(%i4) sqrt(5), numer;
+(%o4)                   2.23606797749979
+@end example
+
+Si as@'{@dotless{i}} se quiere, incluso es posible omitir las condiciones de terminaci@'on completamente y escribir @'unicamente @code{do @var{body}}, lo que provocar@'a entrar en un bucle infinito. En tal caso, deber@'{@dotless{i}}a usarse la funci@'on @code{return} a fin de terminar con la ejecuci@'on de @code{do}.
+
+@example
+(%i1) newton (f, x):= ([y, df, dfx], df: diff (f ('x), 'x),
+          do (y: ev(df), x: x - f(x)/y, 
+              if abs (f (x)) < 5e-6 then return (x)))$
+(%i2) sqr (x) := x^2 - 5.0$
+(%i3) newton (sqr, 1000);
+(%o3)                   2.236068027062195
+@end example
+
+(En este ejemplo, cuando se ejecuta @code{return} obliga a que sea @code{x} el valor devuelto por @code{do}. Al salirse del bloque, @code{x} es tambi@'en el valor que devuelve @code{block} por ser @code{do} la @'ultima sentencia del bloque.)
+
+Hay todav@'{@dotless{i}}a otra forma de @code{do} en Maxima. Su sintaxis es:
+
+@example
+for @var{variable} in @var{lista} @var{test_de_parada} do @var{cuerpo}
+@end example
+
+Los elementos de @var{list} son cualesquiera expresiones que se ir@'an asignando sucesivamente a la variable en cada repetici@'on del cuerpo. El test de parada @var{end_tests} (que es opcional) puede usarse para terminar la ejecuci@'on de @code{do}; de otro modo las iteraciones se parar@'an cuando la lista se haya agotado o cuando se ejecute un @code{return} dentro del cuerpo.  (De hecho, la lista puede ser cualquier expresi@'on no at@'omica, de la cual se ir@'an extrayendo de forma sucesiva sus diferentes partes.)
+
+@example
+(%i1)  for f in [log, rho, atan] do ldisp(f(1))$
+(%t1)                                  0
+(%t2)                                rho(1)
+                                     %pi
+(%t3)                                 ---
+                                      4
+(%i4) ev(%t3,numer);
+(%o4)                             0.78539816
+@end example
+
+@end deffn
+
+
+
+@deffn {Funci@'on} errcatch (@var{expr_1}, ..., @var{expr_n})
+Eval@'ua las expresiones @var{expr_1}, ..., @var{expr_n} una a una y devuelve @code{[@var{expr_n}]} (una lista) en caso de que no ocurra ning@'un error. En caso de aparecer alg@'un error durante el c@'alculo de alguno de los argumentos, @code{errcatch} evita que el error se propague y devuelve la lista vac@'{@dotless{i}}a @code{[]} sin evaluar m@'as argumentos.
+
+La funci@'on @code{errcatch} es @'util en ficheros @code{batch} donde se sospeche que pueda aparecer alg@'un error, el cual provocar@'{@dotless{i}}a la terminaci@'on de la ejecuci@'on del @code{batch} de no ser previamente detectado.
+
+@end deffn
+
+@deffn {Funci@'on} error (@var{expr_1}, ..., @var{expr_n})
+@deffnx {Variable del sistema} error
+Calcula y devuelve @var{expr_1}, ..., @var{expr_n}, enviando posteriormente una se@~al de error a Maxima o al @code{errcatch} m@'as cercano. 
+
+A la variable @code{error} se le asigna una lista con la descripci@'on del error. El primer elemento de @code{error} es una cadena de formato, la cual une todas las cadenas de los argumentos @var{expr_1}, ..., @var{expr_n}, siendo los dem@'as elementos de la lista los valores de los argumentos que no son cadenas.
+
+La llamada a @code{errormsg()} formatea e imprime @code{error}. Se reimprime as@'{@dotless{i}} el mensaje de error m@'as reciente.
+
+@end deffn
+
+
+
+@defvr {Variable opcional} error_size
+Valor por defecto: 10
+
+La variable @code{error_size} modifica los mensajes de error de acuerdo con el tama@~no de las expresiones que aparecen en @'el. Si el tama@~no de una expresi@'on (tal como lo determina la funci@'on Lisp @code{ERROR-SIZE})
+es mayor que @code{error_size}, la expresi@'on se reemplaza en el mensaje por un s@'{@dotless{i}}mbolo, asign@'andole a @'este una expresi@'on. Los s@'{@dotless{i}}mbolos se toman de la lista @code{error_syms}.
+
+En caso contrario, si la expresi@'on es menor que @code{error_size}, la expresi@'on se muestra en el propio mensaje.
+
+V@'eanse tambi@'en @code{error} y @code{error_syms}.
+
+Ejemplo:
+@c OUTPUT GENERATED BY THE FOLLOWING
+@c U: (C^D^E + B + A)/(cos(X-1) + 1)$
+@c error_size: 20$
+@c error ("Example expression is", U);
+@c errexp1;
+@c error_size: 30$
+@c error ("Example expression is", U);
+
+El tama@~no de @code{U}, tal como lo determina @code{ERROR-SIZE}, es 24.
+
+@example
+(%i1) U: (C^D^E + B + A)/(cos(X-1) + 1)$
+
+(%i2) error_size: 20$
+
+(%i3) error ("Example expression is", U);
+
+Example expression is errexp1
+ -- an error.  Quitting.  To debug this try debugmode(true);
+(%i4) errexp1;
+                            E
+                           D
+                          C   + B + A
+(%o4)                    --------------
+                         cos(X - 1) + 1
+(%i5) error_size: 30$
+
+(%i6) error ("Example expression is", U);
+
+                         E
+                        D
+                       C   + B + A
+Example expression is --------------
+                      cos(X - 1) + 1
+ -- an error.  Quitting.  To debug this try debugmode(true);
+@end example
+
+@end defvr
+
+
+
+@defvr {Variable opcional} error_syms
+Valor por defecto: @code{[errexp1, errexp2, errexp3]}
+
+En los mensajes de error, las expresiones mayores que @code{error_size} son reemplazadas por s@'{@dotless{i}}mbolos a los cuales se les asignas estas expresiones.  Los s@'{@dotless{i}}mbolos se toman de la lista @code{error_syms}. La primera expresi@'on que resulte ser demasiado larga se reemplaza por @code{error_syms[1]}, la segunda por @code{error_syms[2]} y as@'{@dotless{i}} sucesivamente.
+
+Si hay m@'as expresiones largas que elementos en @code{error_syms}, los s@'{@dotless{i}}mbolos se construyen autom@'aticamente, siendo el @var{n}-@'esimo s@'{@dotless{i}}mbolo equivalente a @code{concat ('errexp, @var{n})}.
+
+V@'eanse tambi@'en @code{error} y @code{error_size}.
+
+@end defvr
+
+
+
+@deffn {Funci@'on} errormsg ()
+
+Reimprime el mensaje de error m@'as reciente. La variable @code{error} guarda el mensaje y @code{errormsg} lo formatea e imprime.
+
+@end deffn
+
+
+
+@defvr {Variable opcional} errormsg
+Valor por defecto: @code{true}
+
+Cuando @code{errormsg} vale @code{false} se suprimen los contenidos
+de los mensajes de error.
+
+La variable @code{errormsg} no se puede asignar a un valor local dentro
+de un bloque. El valor global de @code{errormsg} est@'a siempre presente.
+
+Ejemplos:
+
+@c ===beg===
+@c errormsg;
+@c sin(a,b);
+@c errormsg:false;
+@c sin(a,b);
+@c ===end===
+@example
+(%i1) errormsg;
+(%o1)                                true
+(%i2) sin(a,b);
+Wrong number of arguments to sin
+ -- an error. To debug this try: debugmode(true);
+(%i3) errormsg:false;
+(%o3)                                false
+(%i4) sin(a,b);
+
+ -- an error. To debug this try: debugmode(true);
+@end example
+
+La variable @code{errormsg} no se puede asignar a un valor local dentro
+de un bloque.
+
+@c ===beg===
+@c f(bool):=block([errormsg:bool], print ("value of errormsg is",errormsg))$
+@c errormsg:true;
+@c f(false);
+@c errormsg:false;
+@c f(true);
+@c ===end===
+@example
+(%i1) f(bool):=block([errormsg:bool], 
+                     print ("value of errormsg is",errormsg))$
+(%i2) errormsg:true;
+(%o2)                                true
+(%i3) f(false);
+value of errormsg is true 
+(%o3)                                true
+(%i4) errormsg:false;
+(%o4)                                false
+(%i5) f(true);
+value of errormsg is false 
+(%o5)                                false
+@end example
+@end defvr
+
+
+
+@deffn {Operador especial} for
+Utilizado en las iteraciones. V@'ease @code{do} para una descripci@'on de las t@'ecnicas de iteraci@'on en Maxima.
+
+@end deffn
+
+@deffn {Funci@'on} go (@var{etiqueta})
+Se utiliza dentro de un bloque (@code{block}) para transferir el control a la sentencia del bloque que est@'e etiquetada con el argumento de @code{go}. Una sentencia queda etiquetada cuando est@'a precedida por un argumento de tipo @'atomo como cualquier otra sentencia de @code{block}.  Por ejemplo:
+
+@example
+block ([x], x:1, tururu, x+1, ..., go(tururu), ...)
+@end example
+
+El argumento de @code{go} debe ser el nombre de una etiqueta que aparezca en el mismo bloque (@code{block}). No se puede utilizar @code{go} para transferir el control a un bloque que no sea aquel que contenga la sentencia @code{go}.
+
+@end deffn
+
+@deffn {Operador especial} if
+Evaluaci@'on condicionada. Se reconocen varias formas de expresiones @code{if}.
+
+La expresi@'on @code{if @var{cond_1} then @var{expr_1} else @var{expr_0}}
+devuelve @var{expr_1} si @var{cond_1} vale @code{true},
+en caso contrario la respuesta es @code{expr_0}.
+
+La expresi@'on @code{if @var{cond_1} then @var{expr_1} elseif @var{cond_2}
+then @var{expr_2} elseif ... else @var{expr_0}}
+devuelve @var{expr_k} si @var{cond_k} vale @code{true} y todas las
+condiciones anteriores toman el valor @code{false}.
+Si ninguna de las condiciones vale @code{true}, la respuesta es @code{expr_0}.
+
+La falta de un @code{else} final se interpreta como un @code{else false};
+esto es, la expresi@'on @code{if @var{cond_1} then @var{expr_1}}
+equivale a @code{if @var{cond_1} then @var{expr_1} else false},
+y @code{if @var{cond_1} then @var{expr_1} elseif ... elseif @var{cond_n} then @var{expr_n}}
+equivale a su vez a
+@code{if @var{cond_1} then @var{expr_1} elseif ... elseif @var{cond_n} then @var{expr_n} else false}.
+
+Las alternativas @var{expr_0}, ..., @var{expr_n} pueden ser expresiones
+v@'alidas de Maxima, incluidas expresiones @code{if} anidadas.
+Las alternativas ni se simplifican ni se eval@'uan, a menos que su
+condici@'on asociada valga @code{true}.
+
+Las condiciones @var{cond_1}, ..., @var{cond_n} deben ser expresiones 
+capaces de dar como resultado @code{true} o @code{false} al ser
+evaluadas. Si en un momento dado una condici@'on no da como resultado 
+un valor de verdad (@code{true} o @code{false}), el comportamiento de @code{if} se controla
+con la variable global @code{prederror}. Si @code{prederror} vale @code{true},
+se considera un error que la condici@'on evaluada no d@'e como resultado
+un valor de verdad; en caso contrario, las condiciones que no
+den como resultado un valor de verdad se aceptan, d@'andose el
+resultado como una expresi@'on condicional.
+
+Las condiciones pueden contener operadores l@'ogicos y relacionales, 
+as@'{@dotless{i}} como otros elementos, tal como se indica a continuaci@'on:
+
+
+@example
+Operaci@'on               S@'{@dotless{i}}mbolo     Tipo
+ 
+menor que               <           operador relacional infijo
+menor o igual que       <=          operador relacional infijo
+igualdad (sint@'actica)   =           operador relacional infijo
+negaci@'on de =           #           operador relacional infijo
+igualdad (por valor)    equal       operador relacional infijo
+negaci@'on de equal       notequal    operador relacional infijo
+mayor o igual que       >=          operador relacional infijo
+mayor que               >           operador relacional infijo
+y                       and         operador l@'ogico infijo
+o                       or          operador l@'ogico infijo
+no                      not         operador l@'ogico prefijo
+@end example
+
+@end deffn
+
+@deffn {Funci@'on} map (@var{f}, @var{expr_1}, ..., @var{expr_n})
+Devuelve una expresi@'on cuyo operador principal es el mismo 
+que aparece en las expresiones @var{expr_1}, ..., @var{expr_n} 
+pero cuyas subpartes son los resultados de aplicar @var{f} 
+a cada una de las subpartes de las expresiones;  @var{f} puede ser 
+tanto el nombre de una funci@'on de @math{n} argumentos como
+una expresi@'on @code{lambda} de @math{n} argumentos.
+
+Uno de los usos que tiene @code{map} es la de aplicar (o mapear)
+una funci@'on (por ejemplo, @code{partfrac}) sobre cada t@'ermino
+de una expresi@'on extensa en la que normalmente no se 
+podr@'{@dotless{i}}a utilizar la funci@'on debido a insuficiencias 
+en el espacio de almacenamiento durante el curso de un c@'alculo.
+
+@example
+(%i1) map(f,x+a*y+b*z);
+(%o1)                        f(b z) + f(a y) + f(x)
+(%i2) map(lambda([u],partfrac(u,x)),x+1/(x^3+4*x^2+5*x+2));
+                           1       1        1
+(%o2)                     ----- - ----- + -------- + x
+                         x + 2   x + 1          2
+                                         (x + 1)
+(%i3) map(ratsimp, x/(x^2+x)+(y^2+y)/y);
+                                      1
+(%o3)                            y + ----- + 1
+                                    x + 1
+(%i4) map("=",[a,b],[-0.5,3]);
+(%o4)                          [a = - 0.5, b = 3]
+@end example
+
+V@'ease tambi@'en @code{maperror} .
+@end deffn
+
+@deffn {Funci@'on} mapatom (@var{expr})
+Devuelve @code{true} si y s@'olo @var{expr} es tratado por las rutinas de mapeo como un @'atomo.
+@end deffn
+
+@defvr {Variable opcional} maperror
+Valor por defecto: @code{true}
+
+Cuando @code{maperror} toma el valor @code{false}, 
+hace que todas las funciones de mapeo, como por ejemplo
+
+@example
+map (f, @var{expr_1}, @var{expr_2}, ...)
+@end example
+
+(1) paren cuando hayan terminado de procesar la @var{expr_i} m@'as corta,
+a menos que todas ellas sean del mismo tama@~no y (2) apliquen  @code{f}
+a @code{[expr_1, expr_2, ...]} si es el caso que las @code{expr_i}
+no son todas del mismo tipo de objeto.
+
+Cuando @code{maperror} toma el valor @code{true} entonces se emite un mensaje de error cuando se presenta cualquiera de los dos casos anteriores.
+
+@end defvr
+
+
+
+@defvr {Variable opcional} mapprint
+Valor por defecto: @code{true}
+
+Si @code{mapprint} vale @code{true}, se producir@'an ciertos mensajes
+por parte de las funciones @code{map}, @code{mapl} y @code{fullmap}
+en determinadas situaciones, como cuando @code{map} hace uso de
+@code{apply}.
+
+Si @code{mapprint} vale @code{false}, no se emitir@'an tales mensajes.
+@end defvr
+
+
+
+@deffn {Funci@'on} maplist (@var{f}, @var{expr_1}, ..., @var{expr_n})
+Devuelve una lista con las aplicaciones de @var{f} a las partes de las expresiones @var{expr_1}, ..., @var{expr_n}; @var{f} es el nombre de una funci@'on ou una expresi@'on lambda.
+
+La funci@'on @code{maplist} difiere de @code{map (@var{f}, @var{expr_1}, ..., @var{expr_n})}, la cual devuelve una expresi@'on con el mismo operador principal que tenga @var{expr_i}, excepto en simplificaciones y en el caso en el que @code{map} hace un @code{apply}.
+
+@end deffn
+
+@defvr {Variable opcional} prederror
+Valor por defecto: @code{false}
+
+Cuando @code{prederror} toma el valor @code{true}, se emite un mensaje de error siempre que el predicado de una sentencia  @code{if} o de una funci@'on @code{is} no se pueda evaluar ni a verdadero (@code{true}) ni  a falso (@code{false}).
+
+Si toma el valor @code{false}, se devuelve bajo las mismas circunstancias anteriores el valor @code{unknown}. El modo @code{prederror: false} no est@'a soportado en el c@'odigo traducido; sin embargo, @code{maybe} est@'a soportado en c@'odigo traducido.
+
+V@'eanse tambi@'en @code{is} y @code{maybe}.
+
+@end defvr
+
+@deffn {Funci@'on} return (valor)
+Puede utilizarse para salir de un bloque, devolviendo su argumento.
+V@'ease @code{block} para m@'as informaci@'on.
+
+@end deffn
+
+@deffn {Funci@'on} scanmap (@var{f}, @var{expr})
+@deffnx {Funci@'on} scanmap (@var{f}, @var{expr}, bottomup)
+Aplica recursivamente @var{f} sobre @var{expr}, de arriba hacia abajo. Esto es m@'as @'util cuando se busca una factorizaci@'on completa, por ejemplo:
+
+@example
+(%i1) exp:(a^2+2*a+1)*y + x^2$
+(%i2) scanmap(factor,exp);
+                                    2      2
+(%o2)                         (a + 1)  y + x
+@end example
+
+N@'otese que c@'omo @code{scanmap} aplica la funci@'on dada @code{factor} a las subexpresiones que forman a @var{expr}; si se presenta otra forma de @var{expr} a @code{scanmap} entonces el resultado puede ser diferente. As@'{@dotless{i}}, @code{%o2} no se restaura cuando @code{scanmap} se aplica a la forma expandida de exp:
+
+@example
+(%i3) scanmap(factor,expand(exp));
+                           2                  2
+(%o3)                      a  y + 2 a y + y + x
+@end example
+
+Aqu@'{@dotless{i}} hay otro ejemplo de la forma en que @code{scanmap} aplica recursivamente una funci@'on dada a todas las subexpresiones, incluyendo exponentes:
+
+@example
+(%i4) expr : u*v^(a*x+b) + c$
+(%i5) scanmap('f, expr);
+                    f(f(f(a) f(x)) + f(b))
+(%o5) f(f(f(u) f(f(v)                      )) + f(c))
+@end example
+
+@code{scanmap (@var{f}, @var{expr}, bottomup)} aplica @var{f} a @var{expr} de abajo hacia arriba. Por ejemplo, para @code{f} no definida,
+
+@example
+scanmap(f,a*x+b) ->
+   f(a*x+b) -> f(f(a*x)+f(b)) -> f(f(f(a)*f(x))+f(b))
+scanmap(f,a*x+b,bottomup) -> f(a)*f(x)+f(b)
+    -> f(f(a)*f(x))+f(b) ->
+     f(f(f(a)*f(x))+f(b))
+@end example
+
+En este caso se obtiene la misma respuesta por cualquiera de los dos m@'etodos.
+
+@end deffn
+
+@deffn {Funci@'on} throw (@var{expr})
+Eval@'ua @var{expr} y devuelve el valor del @code{catch} m@'as reciente. La funci@'on @code{throw} se utiliza junto con @code{catch} como un mecanismo de retorno no local.
+
+@end deffn
+
+
+@deffn {Operador especial} while
+@deffnx {Operador especial} unless
+
+V@'ease @code{do}.
+
+@end deffn
+
+
+@deffn {Funci@'on} outermap (@var{f}, @var{a_1}, ..., @var{a_n})
+Aplica la funci@'on @var{f} a cada uno de los elementos del producto vectorial @var{a_1} por @var{a_2} ... por @var{a_n}.
+
+El argumento @var{f} debe ser el nombre de una funci@'on de @math{n} argumentos,
+o una expresi@'on lambda de @math{n} argumentos.
+Cada uno de los argumentos @var{a_k} puede ser una lista, una lista anidada, 
+una matriz o cualquier otro tipo de expresi@'on.
+
+El valor devuelto por @code{outermap} es una estructura anidada. Si @var{x} es la
+respuesta dada por @code{outermap}, entonces tiene la misma estructura que la primera lista,
+lista anidada o matriz, @code{@var{x}[i_1]...[i_m]} tiene la misma estructura que la
+segunda lista, lista anidada o matriz, @code{@var{x}[i_1]...[i_m][j_1]...[j_n]} tiene 
+la misma estructura que la tercera lista, lista anidada o matriz, y as@'{@dotless{i}}
+sucesivamente, siendo @var{m}, @var{n}, ... los n@'umeros @'{@dotless{i}}ndice
+necesarios para acceder a los elementos de cada argumento: uno para las listas,
+dos para las matrices y uno o m@'as para las listas anidadas. 
+Aquellos argumentos que no sean listas ni matrices no tienen efecto alguno sobre
+la estructura del valor retornado.
+
+N@'otese que el efecto producido por @code{outermap} es diferente del que
+se obtiene al aplicar @var{f} a cada uno de los elementos del producto
+devuelto por @code{cartesian_product}. La funci@'on @code{outermap}
+mantiene la estructura de los argumentos en la respuesta, miemtras que
+@code{cartesian_product} no lo hace.
+
+La funci@'on @code{outermap} eval@'ua sus argumentos.
+
+V@'eanse tambi@'en @code{map}, @code{maplist} y @code{apply}.
+
+Ejemplos:
+
+Ejemplos elementales de uso de @code{outermap}.
+Con el fin de mostrar con mayor claridad las combinaciones del argumento,
+se mantiene sin definir @code{F}.
+
+
+@c ===beg===
+@c outermap (F, [a, b, c], [1, 2, 3]);
+@c outermap (F, matrix ([a, b], [c, d]), matrix ([1, 2], [3, 4]));
+@c outermap (F, [a, b], x, matrix ([1, 2], [3, 4]));
+@c outermap (F, [a, b], matrix ([1, 2]), matrix ([x], [y]));
+@c outermap ("+", [a, b, c], [1, 2, 3]);
+@c ===end===
+@example
+(%i1) outermap (F, [a, b, c], [1, 2, 3]);
+(%o1) [[F(a, 1), F(a, 2), F(a, 3)], [F(b, 1), F(b, 2), F(b, 3)], 
+                                     [F(c, 1), F(c, 2), F(c, 3)]]
+(%i2) outermap (F, matrix ([a, b], [c, d]), matrix ([1, 2], [3, 4]));
+         [ [ F(a, 1)  F(a, 2) ]  [ F(b, 1)  F(b, 2) ] ]
+         [ [                  ]  [                  ] ]
+         [ [ F(a, 3)  F(a, 4) ]  [ F(b, 3)  F(b, 4) ] ]
+(%o2)    [                                            ]
+         [ [ F(c, 1)  F(c, 2) ]  [ F(d, 1)  F(d, 2) ] ]
+         [ [                  ]  [                  ] ]
+         [ [ F(c, 3)  F(c, 4) ]  [ F(d, 3)  F(d, 4) ] ]
+(%i3) outermap (F, [a, b], x, matrix ([1, 2], [3, 4]));
+       [ F(a, x, 1)  F(a, x, 2) ]  [ F(b, x, 1)  F(b, x, 2) ]
+(%o3) [[                        ], [                        ]]
+       [ F(a, x, 3)  F(a, x, 4) ]  [ F(b, x, 3)  F(b, x, 4) ]
+(%i4) outermap (F, [a, b], matrix ([1, 2]), matrix ([x], [y]));
+       [ [ F(a, 1, x) ]  [ F(a, 2, x) ] ]
+(%o4) [[ [            ]  [            ] ], 
+       [ [ F(a, 1, y) ]  [ F(a, 2, y) ] ]
+                              [ [ F(b, 1, x) ]  [ F(b, 2, x) ] ]
+                              [ [            ]  [            ] ]]
+                              [ [ F(b, 1, y) ]  [ F(b, 2, y) ] ]
+(%i5) outermap ("+", [a, b, c], [1, 2, 3]);
+(%o5) [[a + 1, a + 2, a + 3], [b + 1, b + 2, b + 3], 
+                                           [c + 1, c + 2, c + 3]]
+@end example
+
+El siguiente ejemplo permite hacer un an@'alisis m@'as profundo del valor
+retornado por @code{outermap}.
+Los tres primeros argumentos son una matriz, una lista y otra matriz, en este
+orden. El valor devuelto es una matriz, cuyos elementos son listas y
+cada elemento de cada una de estas listas es a su vez una matriz.
+
+@c ===beg===
+@c arg_1 :  matrix ([a, b], [c, d]);
+@c arg_2 : [11, 22];
+@c arg_3 : matrix ([xx, yy]);
+@c xx_0 : outermap (lambda ([x, y, z], x / y + z), arg_1, 
+@c                                                    arg_2, arg_3);
+@c xx_1 : xx_0 [1][1];
+@c xx_2 : xx_0 [1][1] [1];
+@c xx_3 : xx_0 [1][1] [1] [1][1];
+@c [op (arg_1), op (arg_2), op (arg_3)];
+@c [op (xx_0), op (xx_1), op (xx_2)];
+@c ===end===
+@example
+(%i1) arg_1 :  matrix ([a, b], [c, d]);
+                            [ a  b ]
+(%o1)                       [      ]
+                            [ c  d ]
+(%i2) arg_2 : [11, 22];
+(%o2)                       [11, 22]
+(%i3) arg_3 : matrix ([xx, yy]);
+(%o3)                      [ xx  yy ]
+(%i4) xx_0 : outermap(lambda([x, y, z], x / y + z), arg_1,
+                                                   arg_2, arg_3);
+               [  [      a        a  ]  [      a        a  ]  ]
+               [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+               [  [      11       11 ]  [      22       22 ]  ]
+(%o4)  Col 1 = [                                              ]
+               [  [      c        c  ]  [      c        c  ]  ]
+               [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+               [  [      11       11 ]  [      22       22 ]  ]
+                 [  [      b        b  ]  [      b        b  ]  ]
+                 [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+                 [  [      11       11 ]  [      22       22 ]  ]
+         Col 2 = [                                              ]
+                 [  [      d        d  ]  [      d        d  ]  ]
+                 [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+                 [  [      11       11 ]  [      22       22 ]  ]
+(%i5) xx_1 : xx_0 [1][1];
+           [      a        a  ]  [      a        a  ]
+(%o5)     [[ xx + --  yy + -- ], [ xx + --  yy + -- ]]
+           [      11       11 ]  [      22       22 ]
+(%i6) xx_2 : xx_0 [1][1] [1];
+                      [      a        a  ]
+(%o6)                 [ xx + --  yy + -- ]
+                      [      11       11 ]
+(%i7) xx_3 : xx_0 [1][1] [1] [1][1];
+                                  a
+(%o7)                        xx + --
+                                  11
+(%i8) [op (arg_1), op (arg_2), op (arg_3)];
+(%o8)                  [matrix, [, matrix]
+(%i9) [op (xx_0), op (xx_1), op (xx_2)];
+(%o9)                  [matrix, [, matrix]
+@end example
+
+La funci@'on @code{outermap} mantiene la estructura de los argumentos en su respuesta,
+mientras que @code{cartesian_product} no lo hace.
+
+@c ===beg===
+@c outermap (F, [a, b, c], [1, 2, 3]);
+@c setify (flatten (%));
+@c map (lambda ([L], apply (F, L)), cartesian_product ({a, b, c}, {1, 2, 3}));
+@c is (equal (%, %th (2)));
+@c ===end===
+@example
+(%i1) outermap (F, [a, b, c], [1, 2, 3]);
+(%o1) [[F(a, 1), F(a, 2), F(a, 3)], [F(b, 1), F(b, 2), F(b, 3)], 
+                                     [F(c, 1), F(c, 2), F(c, 3)]]
+(%i2) setify (flatten (%));
+(%o2) @{F(a, 1), F(a, 2), F(a, 3), F(b, 1), F(b, 2), F(b, 3), 
+                                       F(c, 1), F(c, 2), F(c, 3)@}
+(%i3) map (lambda ([L], apply (F, L)), cartesian_product (@{a, b, c@}, @{1, 2, 3@}));
+(%o3) @{F(a, 1), F(a, 2), F(a, 3), F(b, 1), F(b, 2), F(b, 3), 
+                                       F(c, 1), F(c, 2), F(c, 3)@}
+(%i4) is (equal (%, %th (2)));
+(%o4)                         true
+@end example
+
+@end deffn
+
+

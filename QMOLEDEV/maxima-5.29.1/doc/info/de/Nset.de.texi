@@ -1,0 +1,1943 @@
+@c -----------------------------------------------------------------------------
+@c File        : Nset.de.texi
+@c License     : GNU General Public License (GPL)
+@c Language    : German
+@c Original    : Nset.texi revision 08.07.2011
+@c Translation : Dr. Dieter Kaiser
+@c Date        : 14.11.2010
+@c Revision    : 09.07.2011
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Einf@"uhrung in Mengen::
+* Funktionen und Variablen f@"ur Mengen::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Einf@"uhrung in Mengen, Funktionen und Variablen f@"ur Mengen, Mengen, Mengen
+@section Einf@"uhrung in Mengen
+@c -----------------------------------------------------------------------------
+
+Maxima hat Funktionen wie den Schnitt und die Vereinigung von endlichen Mengen,
+die durch eine explizite Aufz@"ahlung definiert werden k@"onnen.  Listen und
+Mengen sind in Maxima unterschiedliche Objekte und k@"onnen selbst Elemente von
+Mengen sein.  Siehe auch @ref{Listen}.
+
+Neben den Funktionen f@"ur Mengen, enth@"alt dieses Kapitel weitere Funktionen
+der Kombinatorik.  Darunter die Stirling-Zahlen der ersten und zweiten Art, die
+Bellschen Zahlen, Multinomialverteilungen, Partitionsfunktionen oder die
+Kronecker-Delta-Funktion.
+
+@c -----------------------------------------------------------------------------
+@subsection Anwendung
+
+Mit @code{set(a_1, ..., a_n)} oder @code{@{a_1, ..., a_n@}} wird eine Menge
+mit den Elementen @code{a_1, ..., a_n} konstruiert.  Die leere Menge
+wird mit @code{set()} oder @code{@{@}} angegeben.  Mengen werden immer mit
+geschweiften Klammern angezeigt.  Werden Elemente mehrmals angegeben, werden
+die doppelten Elemente aus der Menge entfernt.
+
+Beispiele:
+
+@example
+(%i1) set();
+(%o1)                          @{@}
+(%i2) set(a, b, a);
+(%o2)                        @{a, b@}
+(%i3) set(a, set(b));
+(%o3)                       @{a, @{b@}@}
+(%i4) set(a, [b]);
+(%o4)                       @{a, [b]@}
+(%i5) @{@};
+(%o5)                          @{@}
+(%i6) @{a, b, a@};
+(%o6)                        @{a, b@}
+(%i7) @{a, @{b@}@};
+(%o7)                       @{a, @{b@}@}
+(%i8) @{a, [b]@};
+(%o8)                       @{a, [b]@}
+@end example
+
+Zwei Elemente @var{x} und @var{y} werden als gleich angesehen, wenn
+@code{is(@var{x} = @var{y})} das Ergebnis @code{true} hat.  Die Elemente sind
+dann syntaktisch gleich.  Es ist zu beachten, dass @code{is(equal(@var{x},
+@var{y}))} das Ergebnis @code{true} haben kann, jedoch der Ausdruck
+@code{is(@var{x} = @var{y})} das Ergebnis @code{false} liefert.
+
+@example
+(%i1) x: a/c + b/c;
+                              b   a
+(%o1)                         - + -
+                              c   c
+(%i2) y: a/c + b/c;
+@group
+                              b   a
+(%o2)                         - + -
+                              c   c
+@end group
+(%i3) z: (a + b)/c;
+                              b + a
+(%o3)                         -----
+                                c
+(%i4) is (x = y);
+(%o4)                         true
+(%i5) is (y = z);
+(%o5)                         false
+(%i6) is (equal (y, z));
+(%o6)                         true
+(%i7) y - z;
+                           b + a   b   a
+(%o7)                    - ----- + - + -
+                             c     c   c
+(%i8) ratsimp (%);
+(%o8)                           0
+(%i9) @{x, y, z@};
+                          b + a  b   a
+(%o9)                    @{-----, - + -@}
+                            c    c   c
+@end example
+
+Mit der Funktion @mref{setify} kann eine Menge aus einer Liste konstruiert
+werden.
+
+@example
+(%i1) setify ([b, a]);
+(%o1)                        @{a, b@}
+@end example
+
+Die Elemente @code{x} und @code{y} einer Menge sind gleich, wenn der Ausdruck
+@code{is(x = y)} das Ergebnis @code{true} hat.  Daher werden zum Beispiel
+@code{rat(x)} und @code{x} als gleich betrachtet.
+
+@example
+(%i1) @{x, rat(x)@};
+(%o1)                          @{x@}
+@end example
+
+Da der Ausdruck @code{is((x - 1)*(x + 1) = x^2 - 1)} das Ergebnis @code{false}
+hat, werden @code{(x - 1)*(x + 1)} und @code{x^2 - 1} als verschiedene Elemente
+angenommen.
+
+@example
+(%i1) @{(x - 1)*(x + 1), x^2 - 1@};
+                                       2
+(%o1)               @{(x - 1) (x + 1), x  - 1@}
+@end example
+
+Um die Menge des letzten Beispiels auf ein Element zu reduzieren, kann die
+Funktion @mref{rat} auf die Elemente der Menge angewendet werden.
+
+@example
+(%i1) @{(x - 1)*(x + 1), x^2 - 1@};
+                                       2
+(%o1)               @{(x - 1) (x + 1), x  - 1@}
+(%i2) map (rat, %);
+                              2
+(%o2)/R/                    @{x  - 1@}
+@end example
+
+Um redundante Elemente von Mengen zu entfernen, k@"onnen Funktionen f@"ur die
+Vereinfachung von Ausdr@"ucken angewendet werden.  In diesem Beispiel wird
+die Funktion @mref{trigsimp} auf die Elemente der Menge angewendet.
+
+@example
+(%i1) @{1, cos(x)^2 + sin(x)^2@};
+@group
+                            2         2
+(%o1)                @{1, sin (x) + cos (x)@}
+@end group
+(%i2) map (trigsimp, %);
+(%o2)                          @{1@}
+@end example
+
+Hat eine Menge redundante Elemente, wird sie vereinfacht und sortiert.  Die
+Ordnung der Elemente wird von der Funktion @mref{orderlessp} bestimmt.  Einige
+Operationen auf Mengen, wie zum Beispiel Substitutionen erzwingen die
+Vereinfachung von Mengen.
+
+@example
+(%i1) s: @{a, b, c@}$
+(%i2) subst (c=a, s);
+(%o2)                        @{a, b@}
+(%i3) subst ([a=x, b=x, c=x], s);
+(%o3)                          @{x@}
+(%i4) map (lambda ([x], x^2), set (-1, 0, 1));
+(%o4)                        @{0, 1@}
+@end example
+
+Maxima behandelt Listen und Mengen als verschiedene Objekte.  Funktionen wie
+@mref{union} oder @mref{intersection} geben eine Fehlermeldung, wenn die
+Argumente keine Mengen sind.  Um eine Funktion f@"ur Mengen auf eine Liste
+anzuwenden, kann diese mit der Funktion @mref{setify} in eine Menge
+umgewandelt werden.
+
+@example
+(%i1) union ([1, 2], @{a, b@});
+Function union expects a set, instead found [1,2]
+ -- an error.  Quitting.  To debug this try debugmode(true);
+(%i2) union (setify ([1, 2]), @{a, b@});
+(%o2)                     @{1, 2, a, b@}
+@end example
+
+Mit der Funktion @mref{subset} kann eine Teilmenge ermittelt werden, deren
+Elemente f@"ur eine Aussagefunktion das Ergebnis @code{true} haben.  Um die
+Gleichungen einer Menge zu finden, die nicht von der Variablen @code{z}
+abh@"angen, wird im Folgenden die Aussagefunktion @mref{freeof} verwendet.
+
+@example
+(%i1) subset (@{x + y + z, x - y + 4, x + y - 5@},
+                                    lambda ([e], freeof (z, e)));
+(%o1)               @{- y + x + 4, y + x - 5@}
+@end example
+
+In @ref{Funktionen und Variablen f@"ur Mengen} sind die Funktionen dokumentiert,
+die Maxima f@"ur Mengen kennt.
+
+@c -----------------------------------------------------------------------------
+@subsection Iteration @"uber Mengen
+
+Es gibt zwei M@"oglichkeiten, @"uber die Elemente einer Menge zu iterieren.
+Im ersten Fall wird die Funktion @mref{map} genutzt.
+
+@example
+(%i1) map (f, @{a, b, c@});
+(%o1)                  @{f(a), f(b), f(c)@}
+@end example
+
+Eine weitere M@"oglichkeit ist, eine @mref{for}-Schleife einzusetzen.
+
+@example
+(%i1) s: @{a, b, c@};
+(%o1)                       @{a, b, c@}
+(%i2) for si in s do print (concat (si, 1));
+a1 
+b1 
+c1 
+(%o2)                         done
+@end example
+
+Die Funktionen @mref{first} und @mref{rest} funktionieren auch f@"ur Mengen.
+Wird die Funktion @code{first} auf eine Menge angewendet, ist das Ergebnis
+das erste Element, wie es in der Anzeige erscheint.  Ist @code{s} eine Menge,
+dann ist der Ausdruck @code{rest(s)} @"aquivalent zu
+@code{disjoin(first(s), s)}.  Siehe die Funktion @mrefdot{disjoin}
+
+@c -----------------------------------------------------------------------------
+@subsection Programmfehler
+
+Die M@"oglichkeit mit den Funktionen @mref{orderless} und @mref{ordergreat}@w{}
+eine neue Ordnung f@"ur Variablen zu definieren, ist nicht kompatibel mit den
+Funktionen f@"ur Mengen.  Wird eine der Funktionen @code{orderless} oder
+@code{ordergreat} ben@"otigt, sollten diese vor der Konstruktion der ersten
+Menge ausgef@"uhrt werden.  Die Funktion @mref{unorder} sollte nicht
+ausgef@"uhrt werden.
+
+@c -----------------------------------------------------------------------------
+@subsection Autoren
+
+Stavros Macrakis aus Cambridge, Massachusetts und Barton Willis von der
+Universit@"at Nebraska in Kearney (UNK) haben die Funktionen und die
+Dokumentation f@"ur Mengen geschrieben.
+
+@c -----------------------------------------------------------------------------
+@node Funktionen und Variablen f@"ur Mengen,  , Einf@"uhrung in Mengen, Mengen
+@section Funktionen und Variablen f@"ur Mengen
+@c -----------------------------------------------------------------------------
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{adjoin}
+@deffn {Funktion} adjoin (@var{x}, @var{a})
+
+Vereinigt die Menge @var{a} mit @code{@{@var{x}@}} und gibt die vereinigte
+Menge als Ergebnis zur@"uck.
+
+@code{adjoin} gibt eine Fehlermeldung, wenn das Argument @var{a} keine Menge
+ist.
+
+@code{adjoin(@var{x}, @var{a})} und @code{union(set(@var{x}), @var{a})} sind
+@"aquivalent.  Die Funktion @code{adjoin} kann etwas schneller als die Funktion
+@mref{union} sein.
+
+Siehe auch die Funktion @mrefdot{disjoin}
+
+Beispiele:
+
+@example
+(%i1) adjoin (c, @{a, b@});
+(%o1)                       @{a, b, c@}
+(%i2) adjoin (a, @{a, b@});
+(%o2)                        @{a, b@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{belln}
+@deffn {Funktion} belln (@var{n})
+
+Repr@"asentiert die @math{n}-te Bellsche Zahl.
+
+Ist das Argument @var{n} eine nicht-negative ganze Zahl, vereinfacht
+@code{belln(@var{n})} zu der @math{n}-ten Bellschen Zahl.  F@"ur andere
+Argumente vereinfacht die Funktion @code{belln} nicht.
+
+Ist das Argument der Funktion @code{belln} eine Liste, Menge, Matrix oder
+eine Gleichung, wird die Funktion auf die Elemente oder beide Seiten der
+Gleichung angewendet.
+
+@need 600
+Beispiele:
+
+Anwendung der Funktion @code{belln} auf nicht-negative ganze Zahlen.
+
+@example
+(%i1) makelist (belln (i), i, 0, 6);
+(%o1)               [1, 1, 2, 5, 15, 52, 203]
+(%i2) is (cardinality (set_partitions (@{@})) = belln (0));
+(%o2)                         true
+(%i3) is (cardinality (set_partitions (@{1, 2, 3, 4, 5, 6@})) =
+                       belln (6));
+(%o3)                         true
+@end example
+
+Anwendung der Funktion @code{belln} auf andere Argumente als nicht-negative
+ganze Zahlen.
+
+@example
+(%i1) [belln (x), belln (sqrt(3)), belln (-9)];
+(%o1)        [belln(x), belln(sqrt(3)), belln(- 9)]
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{cardinality}
+@deffn {Funktion} cardinality (@var{a})
+
+Gibt die M@"achtigkeit (Kardinalit@"at) einer Menge zur@"uck.  F@"ur endliche
+Mengen ist die M@"achtigkeit die Anzahl der Elemente der Menge.
+
+Die Funktion @code{cardinality} ignoriert redundante Elemente einer Menge auch
+dann, wenn die Vereinfachung abgeschaltet ist.
+
+Beispiele:
+
+@example
+(%i1) cardinality (@{@});
+(%o1)                           0
+(%i2) cardinality (@{a, a, b, c@});
+(%o2)                           3
+(%i3) simp : false;
+(%o3)                         false
+(%i4) cardinality (@{a, a, b, c@});
+(%o4)                           3
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{cartesian_product}
+@deffn {Funktion} cartesian_product (@var{b_1}, @dots{}, @var{b_n})
+
+Gibt das kartesische Produkt der Mengen @var{b_1}, @dots{}, @var{b_n} zur@"uck.
+Das kartesische Produkt ist die Menge der geordneten Paare.
+
+Das Ergebnis ist eine Menge mit Listen der Form @code{[@var{x_1}, ...,
+@var{x_n}]}, wobei @var{x_1}, @dots{}, @var{x_n} die Elemente der Mengen
+@var{b_1}, @dots{}, @var{b_n} sind.
+
+Die Funktion @code{cartesian_product} gibt eine Fehlermeldung, wenn eines
+der Argumente keine Menge ist.
+
+Beispiele:
+
+@example
+(%i1) cartesian_product (@{0, 1@});
+(%o1)                      @{[0], [1]@}
+(%i2) cartesian_product (@{0, 1@}, @{0, 1@});
+(%o2)           @{[0, 0], [0, 1], [1, 0], [1, 1]@}
+(%i3) cartesian_product (@{x@}, @{y@}, @{z@});
+(%o3)                      @{[x, y, z]@}
+(%i4) cartesian_product (@{x@}, @{-1, 0, 1@});
+(%o4)              @{[x, - 1], [x, 0], [x, 1]@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{disjoin}
+@deffn {Funktion} disjoin (@var{x}, @var{a})
+
+Entfernt das Element @var{x} aus der Menge @var{a} und gibt das Ergebnis
+zur@"uck.
+
+@code{disjoin} gibt eine Fehlermeldung, wenn das Argument @var{a} keine Menge
+ist.
+
+Die Ausdr@"ucke @code{disjoin(@var{x}, @var{a})}, @code{delete(@var{x},
+@var{a})} und @code{setdifference(@var{a}, set(@var{x}))} sind @"aquivalent.
+Von diesen M@"oglichkeiten ist im Allgemeinen die Funktion @code{disjoin} am 
+schnellsten.
+
+Siehe auch die Funktion @mref{adjoin} sowie die Funktionen @mref{delete} und
+@mrefdot{setdifference}
+
+Beispiele:
+
+@example
+(%i1) disjoin (a, @{a, b, c, d@});
+(%o1)                       @{b, c, d@}
+(%i2) disjoin (a + b, @{5, z, a + b, %pi@});
+(%o2)                      @{5, %pi, z@}
+(%i3) disjoin (a - b, @{5, z, a + b, %pi@});
+(%o3)                  @{5, %pi, b + a, z@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{disjointp}
+@deffn {Funktion} disjointp (@var{a}, @var{b})
+
+@code{disjointp} hat das Ergebnis @code{true}, wenn die Mengen @var{a} und
+@var{b} disjunkt sind.  Zwei Mengen sind disjunkt, wenn sie kein gemeinsames
+Element besitzen.
+
+@code{disjointp} gibt eine Fehlermeldung, wenn eines der Argumente keine
+Menge ist.
+
+Beispiele:
+
+@example
+(%i1) disjointp (@{a, b, c@}, @{1, 2, 3@});
+(%o1)                         true
+(%i2) disjointp (@{a, b, 3@}, @{1, 2, 3@});
+(%o2)                         false
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{divisors}
+@deffn {Funktion} divisors (@var{n})
+
+Gibt die Menge der Teiler der Zahl @var{n} zur@"uck.
+
+Ist das Argument @var{n} eine von Null verschiedene ganze Zahl, vereinfacht
+@code{divisors(@var{n})} zu einer Menge mit ganzen Zahlen, die Teiler des
+Argumentes @var{n} sind.  Ist das Argument @var{n} eine negative Zahl wird
+der Betrag des Argumentes genommen.  Das Ergebnis enth@"alt die Elemente
+@var{1} und @var{n}.
+
+Ist das Argument der Funktion @code{divisors} eine Liste, Menge, Matrix oder
+eine Gleichung, wird die Funktion auf die Elemente oder beide Seiten der
+Gleichung angewendet.
+
+Beispiele:
+
+Das Beispiel zeigt, dass 28 eine perfekte Zahl ist, die gleich die Summe
+ihrer Teiler au@ss{}er sich selbst ist.
+
+@example
+(%i1) s: divisors(28);
+(%o1)                 @{1, 2, 4, 7, 14, 28@}
+(%i2) lreduce ("+", args(s)) - 28;
+(%o2)                          28
+@end example
+
+@code{divisors} ist eine vereinfachende Funktion.  In diesem Beispiel braucht
+daher der Ausdruck nach der Substitution nicht erneut ausgewertet werden.
+
+@example
+(%i1) divisors (a);
+(%o1)                      divisors(a)
+(%i2) subst (8, a, %);
+(%o2)                     @{1, 2, 4, 8@}
+@end example
+
+Anwendung der Funktion @code{divisors} auf Gleichungen, Listen, Matrizen oder
+Mengen.
+
+@example
+(%i1) divisors (a = b);
+(%o1)               divisors(a) = divisors(b)
+(%i2) divisors ([a, b, c]);
+(%o2)        [divisors(a), divisors(b), divisors(c)]
+(%i3) divisors (matrix ([a, b], [c, d]));
+                  [ divisors(a)  divisors(b) ]
+(%o3)             [                          ]
+                  [ divisors(c)  divisors(d) ]
+(%i4) divisors (@{a, b, c@});
+(%o4)        @{divisors(a), divisors(b), divisors(c)@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{elementp}
+@deffn {Funktion} elementp (@var{x}, @var{a})
+
+Gibt @code{true} zur@"uck, wenn das Argument @var{x} Element der Menge @var{a}
+ist.
+
+@code{elementp} gibt eine Fehlermeldung, wenn das Argument @var{a} keine
+Menge ist.
+
+Beispiele:
+
+@example
+(%i1) elementp (sin(1), @{sin(1), sin(2), sin(3)@});
+(%o1)                         true
+(%i2) elementp (sin(1), @{cos(1), cos(2), cos(3)@});
+(%o2)                         false
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{emptyp}
+@deffn {Funktion} emptyp (@var{a})
+
+Gibt @code{true} zur@"uck, wenn das Argument @var{a} die leere Menge oder eine
+leere Liste ist.
+
+Beispiele:
+
+@example
+(%i1) map (emptyp, [@{@}, []]);
+(%o1)                     [true, true]
+(%i2) map (emptyp, [a + b, @{@{@}@}, %pi]);
+(%o2)                 [false, false, false]
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{equiv_classes}
+@deffn {Funktion} equiv_classes (@var{s}, @var{F})
+
+Gibt die Menge der @"Aquivalenzklassen der Menge @var{s} f@"ur die
+@"Aquivalenzrelation @code{F} zur@"uck.
+
+Die @"Aquivalenzrelation @code{F} ist eine Funktion mit zwei Argumenten
+definiert auf dem Kartesischen Produkt der Menge @var{s} mit @var{s}.  Die
+R@"uckgabe der Funktion @code{F} ist @code{true} oder @code{false} oder ein
+Ausdruck @var{expr}, so dass @code{is(@var{expr})} das Ergebnis @code{true}
+oder @code{false} hat.
+
+Ist @var{F} keine @"Aquivalenzrelation, wird die Funktion von
+@code{equiv_classes} ohne Fehlermeldung akzeptiert.  Das Ergebnis ist jedoch
+im Allgemeinen nicht korrekt.
+
+Beispiele:
+
+Die @"Aquivalenzrelation ist ein Lambda-Ausdruck mit den Ergebnissen
+@code{true} oder @code{false}.
+
+@example
+(%i1) equiv_classes (@{1, 1.0, 2, 2.0, 3, 3.0@},
+                        lambda ([x, y], is (equal (x, y))));
+(%o1)            @{@{1, 1.0@}, @{2, 2.0@}, @{3, 3.0@}@}
+@end example
+
+Die @"Aquivalenzrelation ist der Name einer relationalen Funktion, die von
+@code{is} zu @code{true} oder @code{false} ausgewertet wird.
+
+@example
+(%i1) equiv_classes (@{1, 1.0, 2, 2.0, 3, 3.0@}, equal);
+(%o1)            @{@{1, 1.0@}, @{2, 2.0@}, @{3, 3.0@}@}
+@end example
+
+Die @"Aquivalenzklassen sind Mengen mit Zahlen, die sich um ein Vielfaches von
+3 voneinander unterscheiden.
+
+@example
+(%i1) equiv_classes (@{1, 2, 3, 4, 5, 6, 7@},
+                     lambda ([x, y], remainder (x - y, 3) = 0));
+(%o1)              @{@{1, 4, 7@}, @{2, 5@}, @{3, 6@}@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{every}
+@deffn  {Funktion} every (@var{f}, @var{s})
+@deffnx {Funktion} every (@var{f}, @var{L_1}, @dots{}, @var{L_n})
+
+Gibt das Ergebnis @code{true} zur@"uck, wenn die Aussage @code{f} das Ergebnis
+@code{true} f@"ur alle Elemente der Menge @var{s} hat.
+
+Ist das zweite Argument eine Menge, dann gibt @code{every(@var{f}, @var{s})}
+den Wert @code{true} zur@"uck, wenn @code{is(@var{f}(@var{a_i}))} das Ergebnis
+@code{true} f@"ur alle Elemente @var{a_i} der Menge @var{s} hat.  @code{every}
+wertet @var{f} nicht notwendigerweise f@"ur alle Elemente @var{a_i} aus, wenn
+das Ergebnis bereits feststeht.  Da Mengen nicht geordnet sind, kann die
+Funktion @code{every} die Ausdr@"ucke @code{@var{f}(@var{a_i})} in irgendeiner
+Reihenfolge auswerten.
+
+Sind die Argumente eine oder mehrere Listen, dann gibt
+@code{every(@var{f}, @var{L_1}, ..., @var{L_n})} den Wert @code{true} zur@"uck,
+wenn @code{is(@var{f}(@var{x_1}, ..., @var{x_n}))} das Ergebnis @code{true}
+f@"ur alle @var{x_1}, @dots{}, @var{x_n} der Listen @var{L_1}, @dots{},
+@var{L_n} hat.  @code{every} wertet @var{f} wird nicht notwendigerweise f@"ur 
+alle Kombinationen @var{x_1}, @dots{}, @var{x_n} aus, wenn das Ergebnis bereits
+feststeht.  @code{every} wertet die Listen in der Reihenfolge des steigenden
+Index aus.
+
+Ist die leere Menge oder leere Liste ein Argument der Funktion @code{every},
+dann ist das Ergebnis immer @code{false}.
+
+Hat die Optionsvariable @mref{maperror} den Wert @code{true}, m@"ussen alle
+Listen @var{L_1}, @dots{}, @var{L_n} die gleiche L@"ange haben.  Hat die
+Optionsvariable @code{maperror} den Wert @code{false}, werden die Listen auf
+die L@"ange der k@"urzesten Liste abgeschnitten.
+
+Kann die Aussagefunktion @var{f} von der Funktion @code{is} nicht zu @code{true}
+oder @code{false} ausgewertet werden, h@"angt das Ergebnis von der
+Optionsvariablen @mref{prederror} ab.  Hat die Optionsvariable @code{prederror}
+den Wert @code{true}, werden solche Werte als @code{false} behandelt und die
+Funktion @code{every} hat das Ergebnis @code{false}.  Hat @code{prederror}
+den Wert @code{false}, werden solche Werte als @code{unknown} behandelt und die
+Funktion @code{every} hat das Ergebnis @code{unknown}.
+
+Beispiele:
+
+@code{every} angewendet auf eine Menge.  Die Aussagefunktion hat ein Argument.
+
+@example
+(%i1) every (integerp, @{1, 2, 3, 4, 5, 6@});
+(%o1)                         true
+(%i2) every (atom, @{1, 2, sin(3), 4, 5 + y, 6@});
+(%o2)                         false
+@end example
+
+@code{every} angewendet auf zwei Listen.  Die Aussagefunktion hat zwei
+Argumente entsprechend der Anzahl der Listen.
+
+@example
+(%i1) every ("=", [a, b, c], [a, b, c]);
+(%o1)                         true
+(%i2) every ("#", [a, b, c], [a, b, c]);
+(%o2)                         false
+@end example
+
+Kann die Aussagefunktion @var{f} nicht zu @code{true} oder @code{false}
+ausgewertet werden, h@"angt das Ergebnis von @code{every} von der 
+Optionsvariablen @code{prederror} ab.
+
+@example
+(%i1) prederror : false;
+(%o1)                         false
+(%i2) map (lambda ([a, b], is (a < b)), [x, y, z],
+                   [x^2, y^2, z^2]);
+(%o2)              [unknown, unknown, unknown]
+(%i3) every ("<", [x, y, z], [x^2, y^2, z^2]);
+(%o3)                        unknown
+(%i4) prederror : true;
+(%o4)                         true
+(%i5) every ("<", [x, y, z], [x^2, y^2, z^2]);
+(%o5)                         false
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{extremal_subset}
+@deffn  {Funktion} extremal_subset (@var{s}, @var{f}, max)
+@deffnx {Funktion} extremal_subset (@var{s}, @var{f}, min)
+
+Gibt die Teilmenge von @var{s} zur@"uck, f@"ur die die Funktion @var{f} maximale
+oder minimale Ergebnisse hat.
+
+@code{extremal_subset(@var{s}, @var{f}, max)} gibt die Teilmenge der Liste oder
+Menge @var{s} zur@"uck, f@"ur die die Funktion @var{f} ihre maximalen Werte
+annimmt.
+
+@code{extremal_subset(@var{s}, @var{f}, min)} gibt die Teilmenge der Liste oder
+Menge @var{s} zur@"uck, f@"ur die die Funktion @var{f} ihre minimalen Werte
+annimmt.
+
+Beispiele:
+
+@example
+(%i1) extremal_subset (@{-2, -1, 0, 1, 2@}, abs, max);
+(%o1)                       @{- 2, 2@}
+(%i2) extremal_subset (@{sqrt(2), 1.57, %pi/2@}, sin, min);
+(%o2)                       @{sqrt(2)@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{flatten}
+@deffn {Funktion} flatten (@var{expr})
+
+Sammelt die Argumente von allen Teilausdr@"ucken, die denselben Operator wie
+der Ausdruck @var{expr} haben und konstruiert einen Ausdruck mit dem Operator
+des Ausdrucks @var{expr} und den Argumenten.  Ein einfaches Beispiel ist eine
+verschachtelte Liste.  @code{flatten} konstruiert in diesem Fall eine Liste
+aus den Elementen aller Teillisten.
+
+Teilausdr@"ucke, deren Operator sich von dem Hauptoperator des Ausdrucks
+@var{expr} unterscheidet, werden als ein Argument betrachtet, auch wenn der
+Teilausdr@"uck wiederum Teilausdr@"ucke des Hauptoperators enth@"alt.
+
+Es ist m@"oglich, dass @code{flatten} Ausdr@"ucke konstruiert, in denen die
+Anzahl der Argumente nicht der erforderlichen Anzahl an Argumenten des Operators
+entspricht.  Dies kann zu Fehlermeldungen bei der Auswertung oder Vereinfachung
+f@"uhren.  @code{flatten} kontrolliert nicht, ob die konstruierten Ausdr@"ucke
+g@"ultig sind.
+
+Ausdr@"ucke mit speziellen Darstellungen, wie zum Beispiel CRE-Ausdr@"ucke,
+k@"onnen von @code{flatten} nicht verarbeitet werden.  In diesem F@"allen gibt
+@code{flatten} das Argument unver@"andert zur@"uck.
+
+Beispiele:
+
+Wird @code{flatten} auf eine Liste angewendet, werden die Elemente aller
+Teillisten zu einer Liste zusammengef@"ugt.
+
+@example
+(%i1) flatten ([a, b, [c, [d, e], f], [[g, h]], i, j]);
+(%o1)            [a, b, c, d, e, f, g, h, i, j]
+@end example
+
+Wird @code{flatten} auf eine Menge angewendet, werden die Elemente aller
+Teilmengen zu einer Menge zusammengef@"ugt.
+
+@example
+(%i1) flatten (@{a, @{b@}, @{@{c@}@}@});
+(%o1)                       @{a, b, c@}
+(%i2) flatten (@{a, @{[a], @{a@}@}@});
+(%o2)                       @{a, [a]@}
+@end example
+
+Die Funktionsweise von @code{flatten} ist vergleichbar mit der Deklaration eines
+Operators als ein N-ary-Operator.  Im Unterschied zu einer Deklaration hat 
+@code{flatten} keinen Einfluss auf Teilausdr@"ucke, die einen vom Hauptoperator
+verschiedenen Operator haben.
+
+@example
+(%i1) expr: flatten (f (g (f (f (x)))));
+(%o1)                     f(g(f(f(x))))
+(%i2) declare (f, nary);
+(%o2)                         done
+(%i3) ev (expr);
+(%o3)                      f(g(f(x)))
+@end example
+
+@code{flatten} kann Ausdr@"ucke mit indizierte Funktionen vereinfachen.
+
+@example
+(%i1) flatten (f[5] (f[5] (x, y), z));
+(%o1)                      f (x, y, z)
+                            5
+@end example
+
+Es ist m@"oglich, dass @code{flatten} einen Ausdruck konstruiert, der nicht die
+korrekte Anzahl an Argumenten eines Operators enth@"alt.
+
+@example
+(%i1) 'mod (5, 'mod (7, 4));
+(%o1)                   mod(5, mod(7, 4))
+(%i2) flatten (%);
+(%o2)                     mod(5, 7, 4)
+(%i3) ''%, nouns;
+Wrong number of arguments to mod
+ -- an error.  Quitting.  To debug this try debugmode(true);
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{full_listify}
+@deffn {Funktion} full_listify (@var{a})
+
+Ersetzt jedes Auftreten des Operators f@"ur Mengen in dem Ausdruck @var{a}
+durch den Operator f@"ur Listen.  Die Ersetzung wird auch in verschachtelten
+Teilausdr@"ucken ausgef@"uhrt, deren Operator nicht der Operator f@"ur Mengen
+ist.
+
+Die Funktion @mref{listify} ersetzt nur den Hauptoperator eines Ausdrucks.
+
+@need 800
+Beispiele:
+
+@example
+(%i1) full_listify (@{a, b, @{c, @{d, e, f@}, g@}@});
+(%o1)               [a, b, [c, [d, e, f], g]]
+(%i2) full_listify (F (G (@{a, b, H(@{c, d, e@})@})));
+(%o2)              F(G([a, b, H([c, d, e])]))
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{fullsetify}
+@deffn {Funktion} fullsetify (@var{a})
+
+Ist @var{a} eine Liste, wird der Operator f@"ur Listen durch den Operator f@"ur
+Mengen ersetzt.  Dann wird @code{fullsetify} auf alle Argumente der Liste
+angewendet.  Ist ein Argument keine Liste, wenn das Argument unver@"andert
+zur@"uckgegeben.
+
+Die Funktion @mref{setify} ersetzt nur den Hauptoperator eines Ausdrucks.
+
+Beispiele:
+
+Im zweiten Beispiel wird das Argument der Funktion @code{f} nicht in eine
+Menge konvertiert, da der Operator des Teilausdrucks keine Liste ist.
+
+@example
+(%i1) fullsetify ([a, [a]]);
+(%o1)                       @{a, @{a@}@}
+(%i2) fullsetify ([a, f([b])]);
+(%o2)                      @{a, f([b])@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{identity}
+@deffn {Funktion} identity (@var{x})
+
+Gibt f@"ur jedes Argument @var{x} das Argument selbst zur@"uck.
+
+Beispiele:
+
+@code{identity} kann als eine Aussagefunktion genutzt werden, wenn die Argumente
+boolesche Werte sind.
+
+@example
+(%i1) every (identity, [true, true]);
+(%o1)                         true
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{integer_partitions}
+@deffn  {Funktion} integer_partitions (@var{n})
+@deffnx {Funktion} integer_partitions (@var{n}, @var{len})
+
+Ermittelt die Zerlegung einer ganzen Zahl @var{n} in ganze Zahlen, die
+@var{n} als Summe haben.
+
+@code{integer_partitions(@var{n})} gibt eine Menge aller Zerlegungen der ganzen
+Zahl @var{n} zur@"uck.  Jede Zerlegung ist eine Liste mit den ganzen Zahlen, die
+@var{n} als Summe haben.  Die Listen sind nach der Gr@"o@ss{}e sortiert.
+
+@code{integer_partitions(@var{n}, @var{len})} gibt eine Menge aller Zerlegungen
+der ganzen Zahl @var{n} zur@"uck, deren Listen @code{len} oder weniger Elemente
+haben.  Listen die weniger als @code{len} Elemente haben, werden mit Nullen
+aufgef@"ullt.
+
+Siehe auch die Funktionen @mref{num_partitions} und
+@mrefdot{num_distinct_partitions}
+
+Beispiele:
+
+@example
+(%i1) integer_partitions (3);
+(%o1)               @{[1, 1, 1], [2, 1], [3]@}
+(%i2) s: integer_partitions (25)$
+(%i3) cardinality (s);
+(%o3)                         1958
+(%i4) map (lambda ([x], apply ("+", x)), s);
+(%o4)                         @{25@}
+(%i5) integer_partitions (5, 3);
+(%o5) @{[2, 2, 1], [3, 1, 1], [3, 2, 0], [4, 1, 0], [5, 0, 0]@}
+(%i6) integer_partitions (5, 2);
+(%o6)               @{[3, 2], [4, 1], [5, 0]@}
+@end example
+
+Um alle Zerlegungen zu finden, die eine Bedingung erf@"ullen, kann die Funktion
+@mref{subset} genutzt werden.  In diesem Beispiel werden alle Zerlegungen
+der Zahl 10 ermittelt, die nur Primzahlen enthalten.
+
+@example
+(%i1) s: integer_partitions (10)$
+(%i2) cardinality (s);
+(%o2)                          42
+(%i3) xprimep(x) := integerp(x) and (x > 1) and primep(x)$
+(%i4) subset (s, lambda ([x], every (xprimep, x)));
+(%o4) @{[2, 2, 2, 2, 2], [3, 3, 2, 2], [5, 3, 2], [5, 5], [7, 3]@}
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{intersect}
+@deffn {Funktion} intersect (@var{a_1}, @dots{}, @var{a_n})
+
+@code{intersect} ist identisch mit der Funktion @mrefdot{intersection}
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{intersection}
+@deffn {Funktion} intersection (@var{a_1}, @dots{}, @var{a_n})
+
+Gibt die Schnittmenge der Mengen @var{a_1}, @dots{}, @var{a_n} zur@"uck.  Die
+Schnittmenge enth@"alt die Elemente, die den Mengen gemeinsam sind.
+
+@code{intersection} gibt eine Fehlermeldung, wenn eines der Argumente
+keine Menge ist.
+
+Beispiele:
+
+@example
+(%i1) S_1 : @{a, b, c, d@};
+(%o1)                     @{a, b, c, d@}
+(%i2) S_2 : @{d, e, f, g@};
+(%o2)                     @{d, e, f, g@}
+(%i3) S_3 : @{c, d, e, f@};
+(%o3)                     @{c, d, e, f@}
+(%i4) S_4 : @{u, v, w@};
+(%o4)                       @{u, v, w@}
+(%i5) intersection (S_1, S_2);
+(%o5)                          @{d@}
+(%i6) intersection (S_2, S_3);
+(%o6)                       @{d, e, f@}
+(%i7) intersection (S_1, S_2, S_3);
+(%o7)                          @{d@}
+(%i8) intersection (S_1, S_2, S_3, S_4);
+(%o8)                          @{@}
+@end example
+@end deffn
+
+@c --- 09.07.2011 DK -----------------------------------------------------------
+@anchor{kron_delta}
+@deffn {Funktion} kron_delta (@var{x_1}, @var{x_2}, @dots{}, @var{x_p})
+
+Ist die Kronecker-Delta-Funktion.
+
+@c @code{kron_delta} simplifies to 1 when @var{xi} and @var{yj} are equal
+@c for all pairs of arguments, and it simplifies to 0 when @var{xi} and
+@c @var{yj} are not equal for some pair of arguments. Equality is
+@c determined using @code{is(equal(xi,xj))} and inequality by
+@c @code{is(notequal(xi,xj))}. For exactly one argument, @code{kron_delta}
+@c signals an error.
+
+@code{kron_delta} vereinfacht zu @code{1}, wenn die Argumente @var{x_i} und
+@var{y_i} f@"ur alle Paare gleich sind, und zu @code{0}, wenn @var{x_i} und 
+@var{y_i} nicht gleich sind f@"ur irgendein Paar der Argumente.  Die Gleichheit
+wird festgestellt mit @code{is(equal(xi,xj))} und die Ungleichheit mit
+@code{is(notequal(xi,xj))}.  Wird nur ein Argument angegeben, signalisiert
+die Funktion @code{kron_delta} einen Fehler.
+
+Beispiele:
+
+@example
+(%i1) kron_delta(a,a);
+(%o1)                                  1
+(%i2) kron_delta(a,b,a,b);
+(%o2)                          kron_delta(a, b)
+(%i3) kron_delta(a,a,b,a+1);
+(%o3)                                  0
+(%i4) assume(equal(x,y));
+(%o4)                            [equal(x, y)]
+(%i5) kron_delta(x,y);
+(%o5)                                  1
+@end example
+@end deffn
+
+@c --- 24.04.2011 DK -----------------------------------------------------------
+@anchor{listify}
+@deffn {Funktion} listify (@var{a})
+
+Ist das Argument @var{a} eine Menge, werden die Elemente der Menge als eine
+Liste zur@"uckgegeben.  Ansonsten wird @var{a} zur@"uckgegeben.
+
+Siehe die Funktion @mrefcomma{full_listify} um auch Mengen in Teilausdr@"ucken
+von @var{a} durch Listen zu ersetzen.
+
+Beispiele:
+
+@example
+(%i1) listify (@{a, b, c, d@});
+(%o1)                     [a, b, c, d]
+(%i2) listify (F (@{a, b, c, d@}));
+(%o2)                    F(@{a, b, c, d@})
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{lreduce}
+@deffn  {Funktion} lreduce (@var{F}, @var{s})
+@deffnx {Funktion} lreduce (@var{F}, @var{s}, @var{s_0})
+
+Wendet eine Funktion @var{F}, die zwei Argumente hat, auf die Elemente einer
+Liste @var{s} an, indem die Funktionsaufrufe verkettet werden.
+
+Das Kommando @code{lreduce(@var{F}, @var{s})} bildet den Ausdruck
+@code{F(... F(F(s_1, s_2), s_3), ... s_n)}.  Ist das optionale Argument
+@var{s_0} vorhanden, dann ist das Ergebnis @"aquivalent zu
+@code{lreduce(@var{F}, cons(@var{s_0}, @var{s}))}.
+
+Siehe auch @mrefcomma{rreduce} @mref{xreduce} und @mrefdot{tree_reduce}
+
+@need 600
+Beispiele:
+
+@code{lreduce} ohne das optionale Argument.
+
+@example
+(%i1) lreduce (f, [1, 2, 3]);
+(%o1)                     f(f(1, 2), 3)
+(%i2) lreduce (f, [1, 2, 3, 4]);
+(%o2)                  f(f(f(1, 2), 3), 4)
+@end example
+
+@code{lreduce} mit dem optionalen Argument.
+
+@example
+(%i1) lreduce (f, [1, 2, 3], 4);
+(%o1)                  f(f(f(4, 1), 2), 3)
+@end example
+
+@code{lreduce} mit den bin@"aren Operatoren der Exponentiation "^" und der
+Division "/".
+
+@example
+(%i1) lreduce ("^", args (@{a, b, c, d@}));
+                               b c d
+(%o1)                       ((a ) )
+(%i2) lreduce ("/", args (@{a, b, c, d@}));
+                                a
+(%o2)                         -----
+                              b c d
+@end example
+@end deffn
+
+@c --- 05.05.2011 DK -----------------------------------------------------------
+@anchor{makeset}
+@deffn {Funktion} makeset (@var{expr}, @var{x}, @var{s})
+
+Generiert eine Menge, indem der Ausdruck @var{expr} ausgewertet wird, wobei das
+Argument @var{x} eine Liste mit Variablen des Ausdrucks und @var{s} eine
+Menge oder eine Liste mit Listen ist.  Ein Element der Menge wird generiert,
+indem die Variablen in @var{x} nacheinander an die Elemente in @var{s}
+gebunden werden.
+
+Jedes Element des Argumentes @var{s} muss dieselbe L@"ange wie @var{x} haben.
+Die Liste der Variablen @var{x} muss eine List mit Symbolen sein.  Indizierte
+Variablen sind nicht m@"oglich.  Auch wenn nur eine Variable angegeben wird,
+muss diese Element einer Liste sein und jedes Element von @var{s} muss eine
+Liste mit einem Element sein.
+
+Siehe auch die Funktion @mrefcomma{makelist} um eine Liste zu generieren.
+
+Beispiele:
+
+@example
+(%i1) makeset (i/j, [i, j], [[1, a], [2, b], [3, c], [4, d]]);
+                           1  2  3  4
+(%o1)                     @{-, -, -, -@}
+                           a  b  c  d
+(%i2) S : @{x, y, z@}$
+(%i3) S3 : cartesian_product (S, S, S);
+(%o3) @{[x, x, x], [x, x, y], [x, x, z], [x, y, x], [x, y, y], 
+[x, y, z], [x, z, x], [x, z, y], [x, z, z], [y, x, x], 
+[y, x, y], [y, x, z], [y, y, x], [y, y, y], [y, y, z], 
+[y, z, x], [y, z, y], [y, z, z], [z, x, x], [z, x, y], 
+[z, x, z], [z, y, x], [z, y, y], [z, y, z], [z, z, x], 
+[z, z, y], [z, z, z]@}
+(%i4) makeset (i + j + k, [i, j, k], S3);
+(%o4) @{3 x, 3 y, y + 2 x, 2 y + x, 3 z, z + 2 x, z + y + x, 
+                                       z + 2 y, 2 z + x, 2 z + y@}
+(%i5) makeset (sin(x), [x], @{[1], [2], [3]@});
+(%o5)               @{sin(1), sin(2), sin(3)@}
+@end example
+@end deffn
+
+@c --- 05.05.2011 DK -----------------------------------------------------------
+@anchor{moebius}
+@deffn {Funktion} moebius (@var{n})
+
+Ist die M@"obiusfunktion.
+
+Ist die nat@"urliche Zahl @var{n} quadratfrei, dann vereinfacht die
+M@"obiusfunktion zu @code{-1^k}, wobei @var{k} die Anzahl der Primfaktoren der
+Zahl @var{n} ist.  Eine Zahl ist quadratfrei, wenn sie nur voneinander
+verschiedene Primfaktoren hat.  F@"ur @code{@var{n} = 1} vereinfacht die
+M@"obiusfunktion zu @code{1} und f@"ur alle anderen positiven ganzen Zahlen zum
+Wert @code{0}.  F@"ur andere Argumente wird eine Substantivform als Ergebnis
+zur@"uckgegeben.
+
+Ist das Argument der Funktion @code{moebius} eine Liste, Menge, Matrix oder
+eine Gleichung, wird die Funktion auf die Elemente oder beide Seiten der
+Gleichung angewendet.
+
+Beispiele:
+
+@example
+(%i1) moebius (1);
+(%o1)                           1
+(%i2) moebius (2 * 3 * 5);
+(%o2)                          - 1
+(%i3) moebius (11 * 17 * 29 * 31);
+(%o3)                           1
+(%i4) moebius (2^32);
+(%o4)                           0
+(%i5) moebius (n);
+(%o5)                      moebius(n)
+(%i6) moebius (n = 12);
+(%o6)                    moebius(n) = 0
+(%i7) moebius ([11, 11 * 13, 11 * 13 * 15]);
+(%o7)                      [- 1, 1, 1]
+(%i8) moebius (matrix ([11, 12], [13, 14]));
+                           [ - 1  0 ]
+(%o8)                      [        ]
+                           [ - 1  1 ]
+(%i9) moebius (@{21, 22, 23, 24@});
+(%o9)                      @{- 1, 0, 1@}
+@end example
+@end deffn
+
+@c --- 05.05.2011 DK -----------------------------------------------------------
+@anchor{multinomial_coeff}
+@deffn  {Funktion} multinomial_coeff (@var{a_1}, @dots{}, @var{a_n})
+@deffnx {Funktion} multinomial_coeff ()
+
+Gibt den Multinomialkoeffizienten zur@"uck.  Im Spezialfall @code{@var{k} = 2}
+ergibt sich die Binomialverteilung.  Siehe @mrefdot{binomial}
+
+Enth@"alt das Ergebnis Fakult@"aten, kann das Ergebnis m@"oglicherweise mit der
+Funktion @mref{minfactorial} weiter vereinfacht werden.
+
+Beispiele:
+
+@example
+(%i1) multinomial_coeff (1, 2, x);
+                            (x + 3)!
+(%o1)                       --------
+                              2 x!
+(%i2) minfactorial (%);
+                     (x + 1) (x + 2) (x + 3)
+(%o2)                -----------------------
+                                2
+(%i3) multinomial_coeff (-6, 2);
+                             (- 4)!
+(%o3)                       --------
+                            2 (- 6)!
+(%i4) minfactorial (%);
+(%o4)                          10
+@end example
+@end deffn
+
+@c --- 05.05.2011 DK -----------------------------------------------------------
+@anchor{num_distinct_partitions}
+@deffn  {Funktion} num_distinct_partitions (@var{n})
+@deffnx {Funktion} num_distinct_partitions (@var{n}, list)
+
+Gibt die Anzahl der M@"oglichkeiten an, eine nat@"urliche Zahl @var{n} in
+Summanden zu zerlegen, wobei jeder Summand nur einmal vorkommt.  Ist @var{n}
+keine nat@"urliche Zahl wird eine Substantivform als Ergebnis zur@"uckgegeben.
+
+@code{num_distinct_partitions(@var{n}, list)} gibt eine Liste mit der Anzahl
+der voneinander verschiedenen Partitionen der nat@"urlichen Zahlen 1, 2, 3,
+@dots{}, @var{n} zur@"uck.
+
+Siehe auch die Funktionen @mref{num_partitions} und @mrefdot{integer_partitions}
+
+Beispiele:
+
+@example
+(%i1) num_distinct_partitions (12);
+(%o1)                          15
+(%i2) num_distinct_partitions (12, list);
+(%o2)      [1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 10, 12, 15]
+(%i3) num_distinct_partitions (n);
+(%o3)              num_distinct_partitions(n)
+@end example
+@end deffn
+
+@c --- 05.05.2011 DK -----------------------------------------------------------
+@anchor{num_partitions}
+@deffn  {Funktion} num_partitions (@var{n})
+@deffnx {Funktion} num_partitions (@var{n}, list)
+
+Gibt die Anzahl der M@"oglichkeiten an, eine nat@"urliche Zahl @var{n} in
+Summanden zu zerlegen.  Ist @var{n} keine nat@"urliche Zahl wird eine
+Substantivform als Ergebnis zur@"uckgegeben.
+
+@code{num_partitions(@var{n}, list)} gibt eine Liste mit der Anzahl
+der Partitionen der nat@"urlichen Zahlen 1, 2, 3, @dots{}, @var{n} zur@"uck.
+
+Das Kommando @code{num_partitions(@var{n})} ist f@"ur eine nat@"urliche Zahl
+@var{n} @"aquivalent zu @code{cardinality(integer_partitions(@var{n}))}.
+Da die Funktion @code{num_partitions} die Menge nicht konstruiert, ist diese
+Funktion deutlich schneller.
+
+Siehe auch die Funktionen @mref{num_distinct_partitions} und
+@mrefdot{integer_partitions}
+
+Beispiele:
+
+@example
+(%i1) num_partitions (5) = cardinality (integer_partitions (5));
+(%o1)                         7 = 7
+(%i2) num_partitions (8, list);
+(%o2)            [1, 1, 2, 3, 5, 7, 11, 15, 22]
+(%i3) num_partitions (n);
+(%o3)                   num_partitions(n)
+@end example
+@end deffn
+
+@c --- 05.05.2011 DK -----------------------------------------------------------
+@anchor{partition_set}
+@deffn {Funktion} partition_set (@var{a}, @var{f})
+
+Zerlegt eine Menge @var{a} mit der Aussagefunktion @var{f}.
+
+@code{partition_set} gibt eine Liste mit zwei Elementen zur@"uck.  Das erste
+Element ist die Menge der Elemente, f@"ur die die Aussagefunktion @var{f} zu
+@code{false} ausgewertet wird.  Das zweite Element ist die Menge aller anderen
+Elemente.  @code{partition_set} wendet nicht die Funktion @code{is} auf das
+Ergebnis der Aussagefunktion @var{f} an.
+
+@code{partition_set} gibt eine Fehlermeldung, wenn @var{a} keine Menge ist.
+
+Siehe auch die Funktion @mrefdot{subset}
+
+Beispiele:
+
+@example
+(%i1) partition_set (@{2, 7, 1, 8, 2, 8@}, evenp);
+(%o1)                   [@{1, 7@}, @{2, 8@}]
+(%i2) partition_set (@{x, rat(y), rat(y) + z, 1@},
+                     lambda ([x], ratp(x)));
+(%o2)/R/              [@{1, x@}, @{y, y + z@}]
+@end example
+@end deffn
+
+@c --- 06.05.2011 DK -----------------------------------------------------------
+@anchor{permutations}
+@deffn {Funktion} permutations (@var{a})
+
+Gibt eine Menge mit allen voneinander verschiedenen Permutationen der Elemente
+der Liste oder Menge @var{a} zur@"uck.  Die Permutationen sind Listen.
+
+Ist das Argument @var{a} eine Liste, werden auch doppelte Elemente in die
+m@"oglichen Permutationen eingeschlossen.
+
+@code{permutations} gibt eine Fehlermeldung, wenn @var{a} keine Liste oder
+Menge ist.
+
+Siehe auch die Funktion @mrefdot{random_permutation}
+
+Beispiele:
+
+@example
+(%i1) permutations ([a, a]);
+(%o1)                       @{[a, a]@}
+(%i2) permutations ([a, a, b]);
+(%o2)           @{[a, a, b], [a, b, a], [b, a, a]@}
+@end example
+@end deffn
+
+@c --- 06.05.2011 DK -----------------------------------------------------------
+@anchor{powerset}
+@deffn  {Funktion} powerset (@var{a})
+@deffnx {Funktion} powerset (@var{a}, @var{n})
+
+Gibt die Menge aller Teilmengen der Menge @var{a} oder eine Teilmenge dieser
+Menge zur@"uck.
+
+@code{powerset(@var{a})} gibt die Menge aller Teilmengen der Menge @var{a}
+zur@"uck.  Die Ergebnismenge hat @code{2^cardinality(@var{a})} Elemente.
+
+@code{powerset(@var{a}, @var{n})} gibt die Menge aller Teilmengen der Menge
+@var{a} zur@"uck, die die M@"achtigkeit @var{n} haben.
+
+@code{powerset} gibt eine Fehlermeldung, wenn @var{a} keine Menge oder @var{n}
+keine nat@"urliche Zahl ist.
+
+Beispiele:
+
+@example
+(%i1) powerset (@{a, b, c@});
+(%o1) @{@{@}, @{a@}, @{a, b@}, @{a, b, c@}, @{a, c@}, @{b@}, @{b, c@}, @{c@}@}
+(%i2) powerset (@{w, x, y, z@}, 4);
+(%o2)                    @{@{w, x, y, z@}@}
+(%i3) powerset (@{w, x, y, z@}, 3);
+(%o3)     @{@{w, x, y@}, @{w, x, z@}, @{w, y, z@}, @{x, y, z@}@}
+(%i4) powerset (@{w, x, y, z@}, 2);
+(%o4)   @{@{w, x@}, @{w, y@}, @{w, z@}, @{x, y@}, @{x, z@}, @{y, z@}@}
+(%i5) powerset (@{w, x, y, z@}, 1);
+(%o5)                 @{@{w@}, @{x@}, @{y@}, @{z@}@}
+(%i6) powerset (@{w, x, y, z@}, 0);
+(%o6)                         @{@{@}@}
+@end example
+@end deffn
+
+@c --- 06.05.2011 DK -----------------------------------------------------------
+@anchor{random_permutation}
+@deffn {Funktion} random_permutation (@var{a})
+
+Gibt eine zuf@"allige Permutation der Menge oder Liste @var{a} zur@"uck, die mit
+dem Knuth-Misch-Algorithmus generiert wird.
+
+Die R@"uckgabe ist eine neue Liste, die verschieden vom Argument @var{a}.
+Jedoch werden nicht die Elemente kopiert.
+
+Beispiele:
+
+@example
+(%i1) random_permutation ([a, b, c, 1, 2, 3]);
+(%o1)                  [c, 1, 2, 3, a, b]
+(%i2) random_permutation ([a, b, c, 1, 2, 3]);
+(%o2)                  [b, 3, 1, c, a, 2]
+(%i3) random_permutation (@{x + 1, y + 2, z + 3@});
+(%o3)                 [y + 2, z + 3, x + 1]
+(%i4) random_permutation (@{x + 1, y + 2, z + 3@});
+(%o4)                 [x + 1, y + 2, z + 3]
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{rreduce}
+@deffn  {Funktion} rreduce (@var{F}, @var{s})
+@deffnx {Funktion} rreduce (@var{F}, @var{s}, @var{s_@{n + 1@}})
+
+Wendet eine Funktion @var{F}, die zwei Argumente hat, auf die Elemente einer
+Liste @var{s} an, indem die Funktionsaufrufe verkettet werden.
+
+Das Kommando @code{rreduce(@var{F}, @var{s})} bildet den Ausdruck
+@code{F(s_1, ... F(s_@{n - 2@}, F(s_@{n - 1@}, s_n)))}.  Ist das optionale
+Argument @var{s_0} vorhanden, dann ist das Ergebnis @"aquivalent zu
+@code{rreduce(@var{F}, endcons(@var{s_@{n + 1@}}, @var{s}))}.
+
+Siehe auch @mrefcomma{lreduce} @mref{xreduce} und @mrefdot{tree_reduce}
+
+Beispiele:
+
+@code{rreduce} ohne das optionale Argument.
+
+@example
+(%i1) rreduce (f, [1, 2, 3]);
+(%o1)                     f(1, f(2, 3))
+(%i2) rreduce (f, [1, 2, 3, 4]);
+(%o2)                  f(1, f(2, f(3, 4)))
+@end example
+
+@code{rreduce} mit dem optionalen Argument.
+
+@example
+(%i1) rreduce (f, [1, 2, 3], 4);
+(%o1)                  f(1, f(2, f(3, 4)))
+@end example
+
+@code{rreduce} mit den bin@"aren Operatoren der Exponentiation "^" und der
+Division "/".
+
+@example
+(%i1) rreduce ("^", args (@{a, b, c, d@}));
+                                 d
+                                c
+                               b
+(%o1)                         a
+(%i2) rreduce ("/", args (@{a, b, c, d@}));
+                               a c
+(%o2)                          ---
+                               b d
+@end example
+@end deffn
+
+@c --- 06.05.2011 DK -----------------------------------------------------------
+@anchor{setdifference}
+@deffn {Funktion}  setdifference (@var{a}, @var{b})
+
+Gibt eine Menge mit den Elementen zur@"uck, die in der Menge @var{a}, aber nicht
+in der Menge @var{b} enthalten sind.
+
+@code{setdifference} gibt eine Fehlermeldung, wenn die Argumente @var{a} oder
+@var{b} keine Mengen sind.
+
+Beispiele:
+
+@example
+(%i1) S_1 : @{a, b, c, x, y, z@};
+(%o1)                  @{a, b, c, x, y, z@}
+(%i2) S_2 : @{aa, bb, c, x, y, zz@};
+(%o2)                 @{aa, bb, c, x, y, zz@}
+(%i3) setdifference (S_1, S_2);
+(%o3)                       @{a, b, z@}
+(%i4) setdifference (S_2, S_1);
+(%o4)                     @{aa, bb, zz@}
+(%i5) setdifference (S_1, S_1);
+(%o5)                          @{@}
+(%i6) setdifference (S_1, @{@});
+(%o6)                  @{a, b, c, x, y, z@}
+(%i7) setdifference (@{@}, S_1);
+(%o7)                          @{@}
+@end example
+@end deffn
+
+@c --- 06.05.2011 DK -----------------------------------------------------------
+@anchor{setequalp}
+@deffn {Funktion} setequalp (@var{a}, @var{b})
+
+Gibt das Ergebnis @code{true} zur@"uck, wenn die Mengen @var{a} und @var{b}
+dieselbe Anzahl an Elementen haben und der Ausdruck @code{is(@var{x} = @var{y})}
+das Ergebnis @code{true} f@"ur alle Elemente @var{x} der Menge @var{a} und
+@var{y} der Menge @var{b} hat.  Dabei haben die Elemente eine Ordnung wie sie
+von der Funktion @code{listify} generiert wird.  Ansonsten ist das Ergebnis
+@code{false}.
+
+Beispiele:
+
+@example
+(%i1) setequalp (@{1, 2, 3@}, @{1, 2, 3@});
+(%o1)                         true
+(%i2) setequalp (@{a, b, c@}, @{1, 2, 3@});
+(%o2)                         false
+(%i3) setequalp (@{x^2 - y^2@}, @{(x + y) * (x - y)@});
+(%o3)                         false
+@end example
+@end deffn
+
+@c --- 06.05.2011 DK -----------------------------------------------------------
+@anchor{setify}
+@deffn {Funktion} setify (@var{a})
+
+Konstruiert eine Menge aus den Elementen der Liste @var{a}.  Doppelte Elemente
+der Liste @var{a} werden entfernt und die Elemente werden mit der
+Aussagefunktion @mref{orderlessp} sortiert.
+
+@code{setify} gibt eine Fehlermeldung, wenn @var{a} keine Liste ist.
+
+Beispiele:
+
+@example
+(%i1) setify ([1, 2, 3, a, b, c]);
+(%o1)                  @{1, 2, 3, a, b, c@}
+(%i2) setify ([a, b, c, a, b, c]);
+(%o2)                       @{a, b, c@}
+(%i3) setify ([7, 13, 11, 1, 3, 9, 5]);
+(%o3)                @{1, 3, 5, 7, 9, 11, 13@}
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{setp}
+@deffn {Funktion} setp (@var{a})
+
+Gibt das Ergebnis @code{true} zur@"uck, wenn das Argument @var{a} eine Menge
+ist.
+
+@code{setp} gibt @code{true} auch f@"ur Mengen zur@"uck, die noch nicht
+vereinfacht sind, also m@"oglicherweise doppelte Elemente enthalten.
+
+@code{setp} ist @"aquivalent zu dem Kommando @code{setp(a) := not atom(a)
+and op(a) = 'set}.
+
+Beispiele:
+
+@example
+(%i1) simp : false;
+(%o1)                         false
+(%i2) @{a, a, a@};
+(%o2)                       @{a, a, a@}
+(%i3) setp (%);
+(%o3)                         true
+@end example
+@end deffn
+
+@c --- 09.05.2011 DK -----------------------------------------------------------
+@anchor{set_partitions}
+@deffn  {Funktion} set_partitions (@var{a})
+@deffnx {Funktion} set_partitions (@var{a}, @var{n})
+
+Gibt die Menge aller Partitionen der Menge @var{a} oder eine Teilmenge
+dieser Menge zur@"uck.
+
+@code{set_partitions(@var{a}, @var{n})} gibt eine Menge aller Zerlegungen der
+Menge @var{a} in @var{n} nicht-leere voneinander disjunkte Teilmengen zur@"uck.
+
+@code{set_partitions(@var{a})} gibt die Menge aller Zerlegungen zur@"uck.
+
+@mref{stirling2} gibt die M@"achtigkeit einer Menge zur@"uck, die alle
+Zerlegungen einer Menge enth@"alt.
+
+Eine Menge mit Zerlegungen @math{P} ist eine Zerlegung der Menge @math{S}, wenn
+
+@enumerate
+@item
+jedes Elemente der Menge @math{P} eine nicht-leere Menge ist,
+@item
+verschiedene Elemente der Menge @math{P} voneinander disjunkt sind,
+@item
+die Vereinigung von Elementen der Menge @math{P} gleich der Menge @math{S} ist.
+@end enumerate
+
+Beispiele:
+
+Die leere Menge ist eine Zerlegung von sich selbst.
+
+@example
+(%i1) set_partitions (@{@});
+(%o1)                         @{@{@}@}
+@end example
+
+Die M@"achtigkeit der Menge der Zerlegungen einer Menge kann mit der Funktion
+@code{stirling2} ermittelt werden.
+
+@example
+(%i1) s: @{0, 1, 2, 3, 4, 5@}$
+(%i2) p: set_partitions (s, 3)$ 
+(%i3) cardinality(p) = stirling2 (6, 3);
+(%o3)                        90 = 90
+@end example
+
+Jedes Element der Menge @code{p} hat 3 Elemente.
+
+@example
+(%i1) s: @{0, 1, 2, 3, 4, 5@}$
+(%i2) p: set_partitions (s, 3)$ 
+(%i3) map (cardinality, p);
+(%o3)                          @{3@}
+@end example
+
+F@"ur jedes Element der Menge @code{p}, ist die Vereinigung ihrer Elemente
+gleich der Menge @code{s}.
+
+@example
+(%i1) s: @{0, 1, 2, 3, 4, 5@}$
+(%i2) p: set_partitions (s, 3)$ 
+(%i3) map (lambda ([x], apply (union, listify (x))), p);
+(%o3)                 @{@{0, 1, 2, 3, 4, 5@}@}
+@end example
+@end deffn
+
+@c --- 09.05.20111 DK ----------------------------------------------------------
+@anchor{some}
+@deffn  {Funktion} some (@var{f}, @var{a})
+@deffnx {Funktion} some (@var{f}, @var{L_1}, @dots{}, @var{L_n})
+
+Gibt das Ergebnis @code{true} zur@"uck, wenn die Aussage @var{f} das Ergebnis
+@code{true} f@"ur eines oder mehrere Argumente hat.
+
+Ist eine Menge @var{a} als Argument gegeben, gibt @code{some(@var{f}, @var{s})}
+das Ergebnis @code{true} zur@"uck, wenn @code{is(@var{f}(@var{a_i}))} das Ergebnis
+@code{true} f@"ur eines oder mehrere Elemente @var{a_i} der Menge @var{a} hat.
+@code{some} wertet @var{f} nicht notwendigerweise f@"ur alle Elemente @var{a_i}
+aus, wenn das Ergebnis bereits feststeht.  Da Mengen nicht geordnet sind, kann
+die Funktion @code{some} die Ausdr@"ucke @code{@var{f}(@var{a_i})} in
+irgendeiner Reihenfolge auswerten.
+
+Sind die Argumente eine oder mehrere Listen, dann gibt
+@code{some(@var{f}, @var{L_1}, ..., @var{L_n})} den Wert @code{true} zur@"uck,
+wenn @code{is(@var{f}(@var{x_1}, ..., @var{x_n}))} das Ergebnis @code{true}
+f@"ur eines oder mehrere Elemente @var{x_1}, @dots{}, @var{x_n} der Listen
+@var{L_1}, @dots{}, @var{L_n} hat.  @code{some} wertet @var{f} wird nicht
+notwendigerweise f@"ur alle Kombinationen @var{x_1}, @dots{}, @var{x_n} aus,
+wenn das Ergebnis bereits feststeht.  @code{some} wertet die Listen in der
+Reihenfolge des steigenden Index aus.
+
+Ist die leere Menge @code{@{@}} oder die leere Liste  @code{[]} unter den 
+Argumenten, ist das Ergebnis immer @code{false}.
+
+Hat die Optionsvariable @mref{maperror} den Wert @code{true}, m@"ussen alle
+Listen @var{L_1}, @dots{}, @var{L_n} die gleiche L@"ange haben.  Hat die
+Optionsvariable @code{maperror} den Wert @code{false}, werden Listen auf die
+L@"ange der k@"urzesten Liste abgeschnitten.
+
+Kann die Aussagefunktion @var{f} von der Funktion @code{is} nicht zu @code{true}
+oder @code{false} ausgewertet werden, h@"angt das Ergebnis von der
+Optionsvariablen @mref{prederror} ab.  Hat die Optionsvariable @code{prederror}
+den Wert @code{true}, werden solche Werte als @code{false} behandelt.  Hat
+@code{prederror} den Wert @code{false}, werden solche Werte als @code{unknown}
+behandelt.
+
+Beispiele:
+
+@code{some} f@"ur eine Menge als Argument.  Die Aussage ist eine Funktion mit
+einem Argument.
+
+@example
+(%i1) some (integerp, @{1, 2, 3, 4, 5, 6@});
+(%o1)                         true
+(%i2) some (atom, @{1, 2, sin(3), 4, 5 + y, 6@});
+(%o2)                         true
+@end example
+
+@code{some} angewendet auf zwei Listen.  Die Aussage ist eine Funktion mit
+zwei Argumenten.
+
+@example
+(%i1) some ("=", [a, b, c], [a, b, c]);
+(%o1)                         true
+(%i2) some ("#", [a, b, c], [a, b, c]);
+(%o2)                         false
+@end example
+
+Ergebnisse der Aussage @var{f}, die zu einem Ergebnis verschieden von
+@code{true} oder @code{false} auswerten,  werden von der Optionsvariablen
+@code{prederror} kontrolliert.
+
+@example
+(%i1) prederror : false;
+(%o1)                         false
+(%i2) map (lambda ([a, b], is (a < b)), [x, y, z],
+           [x^2, y^2, z^2]);
+(%o2)              [unknown, unknown, unknown]
+(%i3) some ("<", [x, y, z], [x^2, y^2, z^2]);
+(%o3)                        unknown
+(%i4) some ("<", [x, y, z], [x^2, y^2, z + 1]);
+(%o4)                         true
+(%i5) prederror : true;
+(%o5)                         true
+(%i6) some ("<", [x, y, z], [x^2, y^2, z^2]);
+(%o6)                         false
+(%i7) some ("<", [x, y, z], [x^2, y^2, z + 1]);
+(%o7)                         true
+@end example
+@end deffn
+
+@c --- 09.05.2011 DK -----------------------------------------------------------
+@anchor{stirling1}
+@deffn {Funktion} stirling1 (@var{n}, @var{m})
+
+Berechnet Stirling-Zahlen der ersten Art.
+
+Sind die Argumente @var{n} und @var{m} nat@"urliche Zahlen, ist der Wert von
+@code{stirling1(@var{n}, @var{m})} die Anzahl der Permutationen einer Menge
+mit @var{n} Elementen, die @var{m} Zyklen hat.  F@"ur Details siehe Graham,
+Knuth und Patashnik in @i{Conrecte Mathematics}.  Maxima nutzt eine Rekursion,
+um @code{stirling1(@var{n}, @var{m})} f@"ur @var{m} kleiner als @code{0} zu
+berechnen.  Die Funktion ist nicht definiert f@"ur @code{n} kleiner als @code{0}
+und f@"ur Argumente die keine ganze Zahlen sind.
+
+@code{stirling1} ist eine vereinfachende Funktion.  Maxima kennt die folgenden
+Beziehungen (siehe [1]).
+
+@itemize
+@item
+@code{stirling1(0, n) = kron_delta(0, n)}
+@item
+@code{stirling1(n, n) = 1}
+@item
+@code{stirling1(n, n - 1) = binomial(n, 2)}
+@item
+@code{stirling1(n + 1, 0) = 0}
+@item
+@code{stirling1(n + 1, 1) = n!}
+@item
+@code{stirling1(n + 1, 2) = 2^n  - 1}
+@end itemize
+
+Diese Beziehungen werden angewendet, wenn die Argumente ganze Zahlen oder
+Symbole sind, die als ganze Zahlen deklariert sind, und das erste Argument
+keine negative Zahl ist.  @code{stirling1} vereinfacht nicht f@"ur Argumente,
+die keine ganzen Zahlen sind.
+
+Referenz:
+
+[1] Donald Knuth, @i{The Art of Computer Programming,}
+third edition, Volume 1, Section 1.2.6, Equations 48, 49, and 50.
+
+Beispiele:
+
+@example
+(%i1) declare (n, integer)$
+(%i2) assume (n >= 0)$
+(%i3) stirling1 (n, n);
+(%o3)                           1
+@end example
+
+@code{stirling1} vereinfacht nicht f@"ur Argumente, die keine ganzen Zahlen
+sind.
+
+@example
+(%i1) stirling1 (sqrt(2), sqrt(2));
+(%o1)              stirling1(sqrt(2), sqrt(2))
+@end example
+
+Maxima kennt Vereinfachungen der Funktion @code{stirling1}.
+
+@example
+(%i1) declare (n, integer)$
+(%i2) assume (n >= 0)$
+(%i3) stirling1 (n + 1, n);
+                            n (n + 1)
+(%o3)                       ---------
+                                2
+(%i4) stirling1 (n + 1, 1);
+(%o4)                          n!
+@end example
+@end deffn
+
+@c --- 09.05.2011 DK -----------------------------------------------------------
+@anchor{stirling2}
+@deffn {Funktion} stirling2 (@var{n}, @var{m})
+
+Berechnet Stirling-Zahlen der zweiten Art.
+
+Sind die Argumente @var{n} und @var{m} nat@"urliche Zahlen, ist der Wert von
+@code{stirling2(@var{n}, @var{m})} die Anzahl der M@"oglichkeiten, mit der eine
+Menge der M@"achtigkeit @var{n} in @var{m} disjunkte Mengen zerlegt werden kann.
+Maxima nutzt eine Rekursion, um @code{stirling2(@var{n}, @var{m})} f@"ur @var{m}
+kleiner als @code{0} zu berechnen.  Die Funktion ist nicht definiert f@"ur
+@code{n} kleiner als @code{0} und f@"ur Argumente, die keine ganze Zahlen sind.
+
+@code{stirling2} ist eine vereinfachende Funktion.  Maxima kennt die folgenden
+Beziehungen (siehe [1], [2], [3]).
+
+@itemize
+@item
+@code{stirling2(0, n) = kron_delta(0, n)}
+@item
+@code{stirling2(n, n) = 1}
+@item
+@code{stirling2(n, n - 1) = binomial(n, 2)}
+@item
+@code{stirling2(n + 1, 1) = 1}
+@item
+@code{stirling2(n + 1, 2) = 2^n  - 1}
+@item
+@code{stirling2(n, 0) = kron_delta(n, 0)}
+@item
+@code{stirling2(n, m) = 0} f@"ur @code{m > n}
+@item
+@code{stirling2(n, m) = sum((-1)^(m - k) binomial(m k) k^n,i,1,m) / m!}, wenn
+@math{m} und @math{n} ganze Zahlen und @math{n} eine nat@"urliche Zahl ist.
+@end itemize
+
+Diese Beziehungen werden angewendet, wenn die Argumente ganze Zahlen oder
+Symbole sind, die als ganze Zahlen deklariert sind, und das erste Argument
+keine negative Zahl ist.  @code{stirling2} vereinfacht nicht f@"ur Argumente,
+die keine ganzen Zahlen sind.
+
+Referenzen:
+
+[1] Donald Knuth.  @i{The Art of Computer Programming},
+    third edition, Volume 1, Section 1.2.6, Equations 48, 49, and 50.
+
+[2] Graham, Knuth, and Patashnik.  @i{Concrete Mathematics}, Table 264.
+
+[3] Abramowitz and Stegun.  @i{Handbook of Mathematical Functions},
+    Section 24.1.4.
+
+Beispiele:
+
+@example
+(%i1) declare (n, integer)$
+(%i2) assume (n >= 0)$
+(%i3) stirling2 (n, n);
+(%o3)                           1
+@end example
+
+@code{stirling2} vereinfacht nicht, wenn die Argumente keine ganze Zahlen sind.
+
+@example
+(%i1) stirling2 (%pi, %pi);
+(%o1)                  stirling2(%pi, %pi)
+@end example
+
+Maxima kennt Vereinfachungen der Funktion @code{stirling2}.
+
+@example
+(%i1) declare (n, integer)$
+(%i2) assume (n >= 0)$
+(%i3) stirling2 (n + 9, n + 8);
+                         (n + 8) (n + 9)
+(%o3)                    ---------------
+                                2
+(%i4) stirling2 (n + 1, 2);
+                              n
+(%o4)                        2  - 1
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{subset}
+@deffn {Funktion} subset (@var{a}, @var{f})
+
+Gibt eine Teilmenge der Menge @var{a} zur@"uck, deren Elemente der Bedingung
+@var{f} gen@"ugen.
+
+@code{subset} gibt eine Menge zur@"uck, die alle Elemente der Menge @var{a}
+enth@"alt, die f@"ur die Bedingung @var{f} ein von @code{false} verschiedenes
+Ergebnis haben.  @code{subset} wendet nicht die Funktion @code{is} auf das
+Ergebnis der Bedingung @code{f} an.
+
+@code{subset} gibt eine Fehlermeldung, wenn das Argument @var{a} keine Menge
+ist.
+
+Siehe auch die Funktion @mrefdot{partition_set}
+
+Beispiele:
+
+@example
+(%i1) subset (@{1, 2, x, x + y, z, x + y + z@}, atom);
+(%o1)                     @{1, 2, x, z@}
+(%i2) subset (@{1, 2, 7, 8, 9, 14@}, evenp);
+(%o2)                      @{2, 8, 14@}
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{subsetp}
+@deffn {Funktion} subsetp (@var{a}, @var{b})
+
+Gibt das Ergebnis @code{true} zur@"uck, wenn die Menge @var{a} einer Teilmenge
+der Menge @var{b} ist.
+
+@code{subsetp} gibt eine Fehlermeldung, wenn eines der Argumente keine Menge
+ist.
+
+Beispiele:
+
+@example
+(%i1) subsetp (@{1, 2, 3@}, @{a, 1, b, 2, c, 3@});
+(%o1)                         true
+(%i2) subsetp (@{a, 1, b, 2, c, 3@}, @{1, 2, 3@});
+(%o2)                         false
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{symmdifference}
+@deffn {Funktion} symmdifference (@var{a_1}, @dots{}, @var{a_n})
+
+Gibt die symmetrische Differenz der Mengen @code{@var{a_1}, ..., @var{a_n}}
+zur@"uck.  F@"ur zwei Argumente ist die symmetrische Differenz @"aquivalent zu
+@code{union(setdifference(@var{a}, @var{b}), setdifference(@var{b}, @var{a}))}.
+
+@code{symmdifference} gibt eine Fehlermeldung, wenn eines der Argumente keine
+Menge ist.
+
+Beispiele:
+
+@example
+(%i1) S_1 : @{a, b, c@};
+(%o1)                       @{a, b, c@}
+(%i2) S_2 : @{1, b, c@};
+(%o2)                       @{1, b, c@}
+(%i3) S_3 : @{a, b, z@};
+(%o3)                       @{a, b, z@}
+(%i4) symmdifference ();
+(%o4)                          @{@}
+(%i5) symmdifference (S_1);
+(%o5)                       @{a, b, c@}
+(%i6) symmdifference (S_1, S_2);
+(%o6)                        @{1, a@}
+(%i7) symmdifference (S_1, S_2, S_3);
+(%o7)                        @{1, b, z@}
+(%i8) symmdifference (@{@}, S_1, S_2, S_3);
+(%o8)                        @{1,b, z@}
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{tree_reduce}
+@deffn  {Funktion} tree_reduce (@var{F}, @var{s})
+@deffnx {Funktion} tree_reduce (@var{F}, @var{s}, @var{s_0})
+
+Wendet eine Funktion @var{F}, die zwei Argumente hat, auf die Elemente einer
+Liste oder Menge @var{s} an, indem die Funktionsaufrufe verkettet werden.
+
+@code{tree_reduce} f@"uhrt folgende Operationen aus: Die Funktion @var{F} wird
+auf Paare von Elementen der Liste @var{s} angewendet, wodurch die neue Liste
+@code{[@var{F}(@var{s_1}, @var{s_2}), @var{F}(@var{s_3}, @var{s_4}), ...]}
+entsteht.  Hat die Liste eine ungerade Anzahl an Elementen, bleibt das letzte
+Element unver@"andert.  Dann wird das Verfahren solange wiederholt, bis nur noch
+ein einziges Element @"ubrig ist.  Dieses wird als Ergebnis zur@"uckgegeben.
+
+Ist das optionale Argument @var{s_0} vorhanden, dann ist das Ergebnis 
+@"aquivalent zu @code{tree_reduce(@var{F}, cons(@var{s_0}, @var{s})}.
+
+Werden Gleitkommazahlen addiert, dann kann @code{tree_reduce} ein Ergebnis
+mit einem kleineren Rundungsfehler als @mref{lreduce} oder @mref{rreduce}@w{}
+liefern.
+
+Siehe auch @mrefcomma{lreduce} @mref{rreduce} und @mrefdot{xreduce}
+
+Beispiele:
+
+@code{tree_reduce} angewendet auf eine Liste mit einer geraden Anzahl an
+Elementen.
+
+@example
+(%i1) tree_reduce (f, [a, b, c, d]);
+(%o1)                  f(f(a, b), f(c, d))
+@end example
+
+@code{tree_reduce} angewendet auf eine List mit einer ungeraden Anzahl an
+Elementen.
+
+@example
+(%i1) tree_reduce (f, [a, b, c, d, e]);
+(%o1)               f(f(f(a, b), f(c, d)), e)
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{union}
+@deffn {Funktion} union (@var{a_1}, @dots{}, @var{a_n})
+
+Gibt die Vereinigung der Mengen @var{a_1}, @dots{}, @var{a_n} zur@"uck.  Wird
+@code{union} ohne ein Argument aufgerufen, wird die leere Menge zur@"uckgegeben.
+
+@code{union} gibt eine Fehlermeldung, wenn eines der Argumente keine Menge ist.
+
+Beispiele:
+
+@example
+(%i1) S_1 : @{a, b, c + d, %e@};
+(%o1)                   @{%e, a, b, d + c@}
+(%i2) S_2 : @{%pi, %i, %e, c + d@};
+(%o2)                 @{%e, %i, %pi, d + c@}
+(%i3) S_3 : @{17, 29, 1729, %pi, %i@};
+(%o3)                @{17, 29, 1729, %i, %pi@}
+(%i4) union ();
+(%o4)                          @{@}
+(%i5) union (S_1);
+(%o5)                   @{%e, a, b, d + c@}
+(%i6) union (S_1, S_2);
+(%o6)              @{%e, %i, %pi, a, b, d + c@}
+(%i7) union (S_1, S_2, S_3);
+(%o7)       @{17, 29, 1729, %e, %i, %pi, a, b, d + c@}
+(%i8) union (@{@}, S_1, S_2, S_3);
+(%o8)       @{17, 29, 1729, %e, %i, %pi, a, b, d + c@}
+@end example
+@end deffn
+
+@c --- 25.04.2011 DK -----------------------------------------------------------
+@anchor{xreduce}
+@deffn  {Funktion} xreduce (@var{F}, @var{s})
+@deffnx {Funktion} xreduce (@var{F}, @var{s}, @var{s_0})
+
+Wendet eine Funktion @var{F}, die zwei Argumente hat, auf die Elemente einer
+Liste oder Menge @var{s} an, indem die Funktionsaufrufe verkettet werden.  Ist
+die Funktion eine N-ary-Funktion wird die Funktion @var{F} auf die Liste
+angewendet.  Ist die Funktion @var{F} keine N-ary_Funktion ist @code{xreduce}
+@"aquivalent zu @mrefdot{lreduce}
+
+Folgende N-ary-Funktionen und Operatoren kennt @code{xreduce}:
+Addition @code{"+"}, Multiplikation @code{"*"}, @code{and}, @code{or},
+@code{max}, @code{min} und @code{append}.  Funktionen und Operatoren k@"onnen
+mit der Funktion @mref{declare} als @mref{nary} deklariert werden.  F@"ur diese
+Funktionen ist @code{xreduce} schneller als @mref{lreduce} oder
+@mrefdot{rreduce}
+
+Ist das optionale Argument @var{s_0} vorhanden, dann ist das Ergebnis 
+@"aquivalent zu @code{xreduce(@var{s}, cons(@var{s_0}, @var{s}))}.
+
+Siehe auch @mrefcomma{lreduce} @mref{rreduce} und @mrefdot{tree_reduce}
+
+Beispiele:
+
+@code{xreduce} angewendet mit einer N-ary-Funktion.  @code{F} wird einmal mit
+allen Argumenten aufgerufen.
+
+@example
+(%i1) declare (F, nary);
+(%o1)                         done
+(%i2) F ([L]) := L;
+(%o2)                      F([L]) := L
+(%i3) xreduce (F, [a, b, c, d, e]);
+(%o3)         [[[[[("[", simp), a], b], c], d], e]
+@end example
+
+@code{xreduce} angewendet mit einer Funktion, die nicht die Eigenschaft 
+@code{nary} hat.
+
+@example
+(%i1) G ([L]) := L;
+(%o1)                      G([L]) := L
+(%i2) xreduce (G, [a, b, c, d, e]);
+(%o2)         [[[[[("[", simp), a], b], c], d], e]
+(%i3) lreduce (G, [a, b, c, d, e]);
+(%o3)                 [[[[a, b], c], d], e]
+@end example
+@end deffn
+
+@c --- End of file Nset.de.texi ------------------------------------------------
+

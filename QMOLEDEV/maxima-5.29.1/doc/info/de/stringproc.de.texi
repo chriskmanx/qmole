@@ -1,0 +1,957 @@
+@c -----------------------------------------------------------------------------
+@c File     : stringproc.de.texi
+@c License  : GNU General Public License (GPL)
+@c Language : German
+@c Original : stringproc.texi revision 31.05.2011
+@c Date     : 08.11.2010
+@c Revision : 18.08.2011
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Introduction to string processing::
+* Functions and Variables for input and output::
+* Functions and Variables for characters::
+* Functions and Variables for strings::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Introduction to string processing, Functions and Variables for input and output, stringproc, stringproc
+@section Introduction to string processing
+@c -----------------------------------------------------------------------------
+
+@code{stringproc.lisp} enlarges Maximas capabilities of working with strings 
+and adds some useful functions for file in/output.
+
+For questions and bugs please mail to van.nek at arcor.de .
+
+In Maxima a string is easily constructed by typing "text".
+@mref{stringp} tests for strings.
+
+@example
+(%i1) m: "text";
+(%o1)                         text
+(%i2) stringp(m);
+(%o2)                         true
+@end example
+
+Characters are represented as strings of length 1.
+These are not Lisp characters.
+Tests can be done with @mref{charp} (respectively @mref{lcharp}@w{}
+and conversion from Lisp to Maxima characters with @mref{cunlisp}).
+
+@example
+(%i1) c: "e";
+(%o1)                           e
+(%i2) [charp(c),lcharp(c)];
+(%o2)                     [true, false]
+(%i3) supcase(c);
+(%o3)                           E
+(%i4) charp(%);
+(%o4)                         true
+@end example
+
+All functions in @code{stringproc.lisp} that return characters, return 
+Maxima characters.  Due to the fact, that the introduced characters are strings 
+of length 1, you can use a lot of string functions also for characters.
+As seen, @mref{supcase} is one example.
+
+It is important to know, that the first character in a Maxima string is at 
+position 1.  This is designed due to the fact that the first element in a 
+Maxima list is at position 1 too.  See definitions of @mref{charat} and
+@mref{charlist} for examples.
+
+In applications string functions are often used when working with files.
+You will find some useful stream and print functions in @code{stringproc.lisp}.
+The following example shows some of the here introduced functions at work.
+
+Example: 
+
+@mref{openw} returns an output stream to a file, @code{printf} then allows
+formatted writing to this file.  See @mref{printf} for details.
+
+@example
+(%i1) s: openw("E:/file.txt");
+(%o1)                    #<output stream E:/file.txt>
+(%i2) for n:0 thru 10 do printf( s, "~d ", fib(n) );
+(%o2)                                done
+(%i3) printf( s, "~%~d ~f ~a ~a ~f ~e ~a~%", 
+              42,1.234,sqrt(2),%pi,1.0e-2,1.0e-2,1.0b-2 );
+(%o3)                                false
+(%i4) close(s);
+(%o4)                                true
+@end example
+
+After closing the stream you can open it again, this time with input direction.
+@mref{readline} returns the entire line as one string.  The @code{stringproc}
+package now offers a lot of functions for manipulating strings.  Tokenizing can 
+be done by @mref{split} or @mrefdot{tokens}
+
+@example
+(%i5) s: openr("E:/file.txt");
+(%o5)                     #<input stream E:/file.txt>
+(%i6) readline(s);
+(%o6)                     0 1 1 2 3 5 8 13 21 34 55 
+(%i7) line: readline(s);
+(%o7)               42 1.234 sqrt(2) %pi 0.01 1.0E-2 1.0b-2
+(%i8) list: tokens(line);
+(%o8)           [42, 1.234, sqrt(2), %pi, 0.01, 1.0E-2, 1.0b-2]
+(%i9) map( parse_string, list );
+(%o9)            [42, 1.234, sqrt(2), %pi, 0.01, 0.01, 1.0b-2]
+(%i10) float(%);
+(%o10) [42.0, 1.234, 1.414213562373095, 3.141592653589793, 0.01,
+                                                     0.01, 0.01]
+(%i11) readline(s);
+(%o11)                               false
+(%i12) close(s)$
+@end example
+
+@code{readline} returns @code{false} when the end of file occurs.
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for input and output, Functions and Variables for characters, Introduction to string processing, stringproc
+@section Functions and Variables for input and output
+@c -----------------------------------------------------------------------------
+
+Example: 
+
+@example
+(%i1) s: openw("E:/file.txt");
+(%o1)                     #<output stream E:/file.txt>
+(%i2) control: 
+"~2tAn atom: ~20t~a~%~2tand a list: ~20t~@{~r ~@}~%~2t\
+and an integer: ~20t~d~%"$
+(%i3) printf( s,control, 'true,[1,2,3],42 )$
+(%o3)                                false
+(%i4) close(s);
+(%o4)                                true
+(%i5) s: openr("E:/file.txt");
+(%o5)                     #<input stream E:/file.txt>
+(%i6) while stringp( tmp:readline(s) ) do print(tmp)$
+  An atom:          true 
+  and a list:       one two three  
+  and an integer:   42 
+(%i7) close(s)$
+@end example
+
+@c -----------------------------------------------------------------------------
+@anchor{close}
+@deffn {Function} close (@var{stream}) 
+
+Closes @var{stream} and returns @code{true} if @var{stream} had been open.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{flength}
+@deffn {Function} flength (@var{stream})
+
+Returns the number of elements in @var{stream}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{fposition}
+@deffn  {Function} fposition (@var{stream})
+@deffnx {Function} fposition (@var{stream}, @var{pos})
+
+Returns the current position in @var{stream}, if @var{pos} is not used.  If 
+@var{pos} is used, @code{fposition} sets the position in @var{stream}.
+@var{pos} has to be a positive number, the first element in @var{stream} is in 
+position 1.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{freshline}
+@deffn  {Function} freshline () 
+@deffnx {Function} freshline (@var{stream})
+
+Writes a new line (to @var{stream}), if the position is not at the beginning of 
+a line.  See also @mrefdot{newline}
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{newline}
+@deffn  {Function} newline () 
+@deffnx {Function} newline (@var{stream})
+
+Writes a new line (to @var{stream}).  See @mref{sprint} for an example of using
+@code{newline()}.  Note that there are some cases, where @code{newline()} does 
+not work as expected.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{opena}
+@deffn {Function} opena (@var{file})
+
+Returns an output stream to @var{file}.
+If an existing file is opened, @code{opena} appends elements at the end of file.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{openr}
+@deffn {Function} openr (@var{file})
+
+Returns an input stream to @var{file}.  If @var{file} does not exist, it will 
+be created.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{openw}
+@deffn {Function} openw (@var{file})
+
+Returns an output stream to @var{file}.
+If @var{file} does not exist, it will be created.
+If an existing file is opened, @code{openw} destructively modifies @var{file}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{printf}
+@deffn  {Function} printf (@var{dest}, @var{string})
+@deffnx {Function} printf (@var{dest}, @var{string}, @var{expr_1}, @dots{}, @var{expr_n})
+
+Makes the Common Lisp function FORMAT available in Maxima.
+(From gcl.info: "format produces formatted output by outputting the characters
+of control-string string and observing that a tilde introduces a directive.
+The character after the tilde, possibly preceded by prefix parameters and 
+modifiers, specifies what kind of formatting is desired.  Most directives use 
+one or more elements of args to create their output.")
+
+The following description and the examples may give an idea of using 
+@code{printf}.  See a Lisp reference for more information.
+
+@example
+   ~%       new line
+   ~&       fresh line
+   ~t       tab
+   ~$       monetary
+   ~d       decimal integer
+   ~b       binary integer
+   ~o       octal integer
+   ~x       hexadecimal integer
+   ~br      base-b integer
+   ~r       spell an integer
+   ~p       plural
+   ~f       floating point
+   ~e       scientific notation
+   ~g       ~f or ~e, depending upon magnitude
+   ~h       bigfloat
+   ~a       uses Maxima function string
+   ~s       like ~a, but output enclosed in "double quotes"
+   ~~       ~
+   ~<       justification, ~> terminates
+   ~(       case conversion, ~) terminates 
+   ~[       selection, ~] terminates 
+   ~@{       iteration, ~@} terminates
+@end example
+
+Note that the selection directive @code{~[} is zero indexed.
+Also note that the directive ~* is not supported.
+
+@example
+(%i1) printf( false, "~a ~a ~4f ~a ~@@r", 
+              "String",sym,bound,sqrt(12),144), bound = 1.234;
+(%o1)                 String sym 1.23 2*sqrt(3) CXLIV
+(%i2) printf( false,"~@{~a ~@}",["one",2,"THREE"] );
+(%o2)                          one 2 THREE 
+(%i3) printf(true,"~@{~@{~9,1f ~@}~%~@}",mat ),
+          mat = args(matrix([1.1,2,3.33],[4,5,6],[7,8.88,9]))$
+      1.1       2.0       3.3 
+      4.0       5.0       6.0 
+      7.0       8.9       9.0 
+(%i4) control: "~:(~r~) bird~p ~[is~;are~] singing."$
+(%i5) printf( false,control, n,n,if n=1 then 0 else 1 ), n=2;
+(%o5)                    Two birds are singing.
+@end example
+
+If @var{dest} is a stream or @code{true}, then @code{printf} returns
+@code{false}.  Otherwise, @code{printf} returns a string containing the output.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{readline}
+@deffn {Function} readline (@var{stream})
+
+Returns a string containing the characters from the current position in 
+@var{stream} up to the end of the line or @var{false} if the end of the file 
+is encountered.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sprint}
+@deffn {Function} sprint (@var{expr_1}, @dots{}, @var{expr_n})
+
+Evaluates and displays its arguments one after the other `on a line' starting 
+at the leftmost position.  The numbers are printed with the '-' right next to 
+the number, and it disregards line length.  @code{newline()}, which will be 
+autoloaded from @code{stringproc.lisp} might be useful, if you whish to place 
+intermediate line breaking.
+
+Examples:
+
+@example
+(%i1) for n:0 thru 19 do sprint( fib(n) )$
+0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 610 987 1597 2584 4181
+(%i2) for n:0 thru 22 do ( 
+         sprint(fib(n)), if mod(n,10)=9 then newline() )$
+0 1 1 2 3 5 8 13 21 34 
+55 89 144 233 377 610 987 1597 2584 4181 
+6765 10946 17711 
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for characters, Functions and Variables for strings, Functions and Variables for input and output, stringproc
+@section Functions and Variables for characters
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@anchor{alphacharp}
+@deffn {Function} alphacharp (@var{char})
+
+Returns @code{true} if @var{char} is an alphabetic character.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{alphanumericp}
+@deffn {Function} alphanumericp (@var{char})
+
+Returns @code{true} if @var{char} is an alphabetic character or a digit.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{ascii}
+@deffn {Function} ascii (@var{int})
+
+Returns the character corresponding to the ASCII number @var{int}.
+( -1 < int < 256 )
+
+Examples:
+
+@example
+(%i1) for n from 0 thru 255 do ( 
+   tmp: ascii(n), if alphacharp(tmp) then sprint(tmp),
+      if n=96 then newline() )$
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{cequal}
+@deffn {Function} cequal (@var{char_1}, @var{char_2})
+
+Returns @code{true} if @var{char_1} and @var{char_2} are the same.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{cequalignore}
+@deffn {Function} cequalignore (@var{char_1}, @var{char_2})
+
+Like @mref{cequal} but ignores case.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{cgreaterp}
+@deffn {Function} cgreaterp (@var{char_1}, @var{char_2})
+
+Returns @code{true} if the ASCII number of @var{char_1} is greater than the 
+number of @var{char_2}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{cgreaterpignore}
+@deffn {Function} cgreaterpignore (@var{char_1}, @var{char_2})
+
+Like @mref{cgreaterp} but ignores case.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{charp}
+@deffn {Function} charp (@var{obj})
+
+Returns @code{true} if @var{obj} is a Maxima character.
+See introduction for example.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{cint}
+@deffn {Function} cint (@var{char})
+
+Returns the ASCII number of @var{char}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{clessp}
+@deffn {Function} clessp (@var{char_1}, @var{char_2})
+
+Returns @code{true} if the ASCII number of @var{char_1} is less than the number 
+of @var{char_2}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{clesspignore}
+@deffn {Function} clesspignore (@var{char_1}, @var{char_2})
+
+Like @mref{clessp} but ignores case.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{constituent}
+@deffn {Function} constituent (@var{char})
+
+Returns @code{true} if @var{char} is a graphic character and not the space 
+character.  A graphic character is a character one can see, plus the space 
+character.  (@code{constituent} is defined by Paul Graham, ANSI Common Lisp, 
+1996, page 67.)
+
+Example:
+
+@example
+(%i1) for n from 0 thru 255 do ( 
+tmp: ascii(n), if constituent(tmp) then sprint(tmp) )$
+! " #  %  ' ( ) * + , - . / 0 1 2 3 4 5 6 7 8 9 : ; < = > ? @@ A B
+C D E F G H I J K L M N O P Q R S T U V W X Y Z [ \ ] ^ _ ` a b c
+d e f g h i j k l m n o p q r s t u v w x y z @{ | @} ~
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{cunlisp}
+@deffn {Function} cunlisp (@var{lisp_char})
+
+Converts a Lisp character into a Maxima character.
+(You won't need it.)
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{digitcharp}
+@deffn {Function} digitcharp (@var{char})
+
+Returns @code{true} if @var{char} is a digit.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{lcharp}
+@deffn {Function} lcharp (@var{obj})
+
+Returns @code{true} if @var{obj} is a Lisp character.
+(You won't need it.)
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{lowercasep}
+@deffn {Function} lowercasep (@var{char})
+
+Returns @code{true} if @var{char} is a lowercase character.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{newline_variable}
+@defvr {Variable} newline
+
+The newline character.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@anchor{space}
+@defvr {Variable} space
+
+The space character.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@anchor{tab}
+@defvr {Variable} tab
+
+The tab character.
+@end defvr
+
+@c -----------------------------------------------------------------------------
+@anchor{uppercasep}
+@deffn {Function} uppercasep (@var{char})
+
+Returns @code{true} if @var{char} is an uppercase character.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@node Functions and Variables for strings,  , Functions and Variables for characters, stringproc
+@section Functions and Variables for strings
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@anchor{stringp}
+@deffn {Function} stringp (@var{obj})
+
+Returns @code{true} if @var{obj} is a string.
+See introduction for example.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{charat}
+@deffn {Function} charat (@var{string}, @var{n})
+
+Returns the @var{n}-th character of @var{string}.
+The first character in @var{string} is returned with @var{n} = 1.
+
+Example:
+
+@example
+(%i1) charat("Lisp",1);
+(%o1)                           L
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{charlist}
+@deffn {Function} charlist (@var{string})
+
+Returns the list of all characters in @var{string}.
+
+Example:
+
+@example
+(%i1) charlist("Lisp");
+(%o1)                     [L, i, s, p]
+(%i2) %[1];
+(%o2)                           L
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{eval_string}
+@deffn {Function} eval_string (@var{str})
+
+Parse the string @var{str} as a Maxima expression and evaluate it.  The string
+@var{str} may or may not have a terminator (dollar sign @code{$} or semicolon 
+@code{;}).  Only the first expression is parsed and evaluated, if there is more 
+than one.
+
+Complain if @var{str} is not a string.
+
+See also @mrefdot{parse_string}
+
+Examples:
+
+@example
+(%i1) eval_string ("foo: 42; bar: foo^2 + baz");
+(%o1)                       42
+(%i2) eval_string ("(foo: 42, bar: foo^2 + baz)");
+(%o2)                   baz + 1764
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{parse_string}
+@deffn {Function} parse_string (@var{str})
+
+Parse the string @var{str} as a Maxima expression (do not evaluate it).  The 
+string @var{str} may or may not have a terminator (dollar sign @code{$} or 
+semicolon @code{;}).  Only the first expression is parsed, if there is more 
+than one.
+
+Complain if @var{str} is not a string.
+
+See also @mrefdot{eval_string}
+
+Examples:
+
+@example
+(%i1) parse_string ("foo: 42; bar: foo^2 + baz");
+(%o1)                    foo : 42
+(%i2) parse_string ("(foo: 42, bar: foo^2 + baz)");
+                                   2
+(%o2)          (foo : 42, bar : foo  + baz)
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{scopy}
+@deffn {Function} scopy (@var{string})
+
+Returns a copy of @var{string} as a new string.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sdowncase}
+@deffn  {Function} sdowncase (@var{string}) 
+@deffnx {Function} sdowncase (@var{string}, @var{start}) 
+@deffnx {Function} sdowncase (@var{string}, @var{start}, @var{end})
+
+Like @mrefcomma{supcase} but uppercase characters are converted to lowercase.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sequal}
+@deffn {Function} sequal (@var{string_1}, @var{string_2})
+
+Returns @code{true} if @var{string_1} and @var{string_2} are the same length 
+and contain the same characters.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sequalignore}
+@deffn {Function} sequalignore (@var{string_1}, @var{string_2})
+
+Like @mref{sequal} but ignores case.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sexplode}
+@deffn {Function} sexplode (@var{string})
+
+@code{sexplode} is an alias for function @mrefdot{charlist}
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{simplode}
+@deffn  {Function} simplode (@var{list})  
+@deffnx {Function} simplode (@var{list}, @var{delim})
+
+@code{simplode} takes a list of expressions and concatenates them into a string.
+If no delimiter @var{delim} is specified, @code{simplode} uses no delimiter.
+@var{delim} can be any string.
+
+Examples:
+
+@example
+(%i1) simplode(["xx[",3,"]:",expand((x+y)^3)]);
+(%o1)             xx[3]:y^3+3*x*y^2+3*x^2*y+x^3
+(%i2) simplode( sexplode("stars")," * " );
+(%o2)                   s * t * a * r * s
+(%i3) simplode( ["One","more","coffee."]," " );
+(%o3)                   One more coffee.
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sinsert}
+@deffn {Function} sinsert (@var{seq}, @var{string}, @var{pos})
+
+Returns a string that is a concatenation of @code{substring (@var{string}, 
+1, @var{pos} - 1)}, the string @var{seq} and @code{substring (@var{string}, 
+@var{pos})}.  Note that the first character in @var{string} is in position 1.
+
+Examples:
+
+@example
+(%i1) s: "A submarine."$
+(%i2) concat( substring(s,1,3),"yellow ",substring(s,3) );
+(%o2)                  A yellow submarine.
+(%i3) sinsert("hollow ",s,3);
+(%o3)                  A hollow submarine.
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sinvertcase}
+@deffn  {Function} sinvertcase (@var{string})  
+@deffnx {Function} sinvertcase (@var{string}, @var{start})  
+@deffnx {Function} sinvertcase (@var{string}, @var{start}, @var{end})
+
+Returns @var{string} except that each character from position @var{start} to 
+@var{end} is inverted.  If @var{end} is not given, all characters from 
+@var{start} to the end of @var{string} are replaced.
+
+Examples:
+
+@example
+(%i1) sinvertcase("sInvertCase");
+(%o1)                      SiNVERTcASE
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{slength}
+@deffn {Function} slength (@var{string})
+
+Returns the number of characters in @var{string}.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{smake}
+@deffn {Function} smake (@var{num}, @var{char})
+
+Returns a new string with a number of @var{num} characters @var{char}.
+
+Example:
+
+@example
+(%i1) smake(3,"w");
+(%o1)                          www
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{smismatch}
+@deffn  {Function} smismatch (@var{string_1}, @var{string_2}) 
+@deffnx {Function} smismatch (@var{string_1}, @var{string_2}, @var{test})
+
+Returns the position of the first character of @var{string_1} at which 
+@var{string_1} and @var{string_2} differ or @code{false}.  Default test function
+for matching is @mrefdot{sequal}  If @code{smismatch} should ignore case, use 
+@mref{sequalignore} as test.
+
+Example:
+
+@example
+(%i1) smismatch("seven","seventh");
+(%o1)                           6
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{split}
+@deffn  {Function} split (@var{string})  
+@deffnx {Function} split (@var{string}, @var{delim})  
+@deffnx {Function} split (@var{string}, @var{delim}, @var{multiple})
+
+Returns the list of all tokens in @var{string}.
+Each token is an unparsed string.
+@code{split} uses @var{delim} as delimiter.
+If @var{delim} is not given, the space character is the default delimiter.
+@var{multiple} is a boolean variable with @code{true} by default.
+Multiple delimiters are read as one.
+This is useful if tabs are saved as multiple space characters.
+If @var{multiple} is set to @code{false}, each delimiter is noted.
+
+Examples:
+
+@example
+(%i1) split("1.2   2.3   3.4   4.5");
+(%o1)                 [1.2, 2.3, 3.4, 4.5]
+(%i2) split("first;;third;fourth",";",false);
+(%o2)               [first, , third, fourth]
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sposition}
+@deffn {Function} sposition (@var{char}, @var{string})
+
+Returns the position of the first character in @var{string} which matches 
+@var{char}.  The first character in @var{string} is in position 1.
+For matching characters ignoring case see @mrefdot{ssearch}
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sremove}
+@deffn  {Function} sremove (@var{seq}, @var{string})  
+@deffnx {Function} sremove (@var{seq}, @var{string}, @var{test})  
+@deffnx {Function} sremove (@var{seq}, @var{string}, @var{test}, @var{start})  
+@deffnx {Function} sremove (@var{seq}, @var{string}, @var{test}, @var{start}, @var{end})
+ 
+Returns a string like @var{string} but without all substrings matching 
+@var{seq}.  Default test function for matching is @mrefdot{sequal}  If 
+@code{sremove} should ignore case while searching for @var{seq}, use 
+@mref{sequalignore} as test.  Use @var{start} and @var{end} to limit searching.
+Note that the first character in @var{string} is in position 1.
+
+Examples:
+
+@example
+(%i1) sremove("n't","I don't like coffee.");
+(%o1)                   I do like coffee.
+(%i2) sremove ("DO ",%,'sequalignore);
+(%o2)                    I like coffee.
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sremovefirst}
+@deffn  {Function} sremovefirst (@var{seq}, @var{string})  
+@deffnx {Function} sremovefirst (@var{seq}, @var{string}, @var{test})  
+@deffnx {Function} sremovefirst (@var{seq}, @var{string}, @var{test}, @var{start})  
+@deffnx {Function} sremovefirst (@var{seq}, @var{string}, @var{test}, @var{start}, @var{end})
+
+Like @code{sremove} except that only the first substring that matches @code{seq}
+is removed.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{sreverse}
+@deffn {Function} sreverse (@var{string}) 
+
+Returns a string with all the characters of @var{string} in reverse order.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{ssearch}
+@deffn  {Function} ssearch (@var{seq}, @var{string})  
+@deffnx {Function} ssearch (@var{seq}, @var{string}, @var{test})  
+@deffnx {Function} ssearch (@var{seq}, @var{string}, @var{test}, @var{start})  
+@deffnx {Function} ssearch (@var{seq}, @var{string}, @var{test}, @var{start}, @var{end})
+
+Returns the position of the first substring of @var{string} that matches the 
+string @var{seq}.  Default test function for matching is @mrefdot{sequal}  If
+@code{ssearch} should ignore case, use @mref{sequalignore} as test.  Use
+@var{start} and @var{end} to limit searching.  Note that the first character in 
+@var{string} is in position 1.
+
+Example:
+
+@example
+(%i1) ssearch("~s","~@{~S ~@}~%",'sequalignore);
+(%o1)                                  4
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{ssort}
+@deffn  {Function} ssort (@var{string}) 
+@deffnx {Function} ssort (@var{string}, @var{test}) 
+
+Returns a string that contains all characters from @var{string} in an order such
+there are no two successive characters @var{c} and @var{d} such that
+@code{test (@var{c}, @var{d})} is @code{false} and @code{test (@var{d}, 
+@var{c})} is @code{true}.  Default test function for sorting is
+@mrefdot{clessp}  The set of test functions is @code{@{@mrefcomma{clessp}@w{}
+@mrefcomma{clesspignore} @mrefcomma{cgreaterp} @mrefcomma{cgreaterpignore}@w{}
+@mrefcomma{cequal} @mref{cequalignore}@}}.
+
+Example:
+
+@example
+(%i1) ssort("I don't like Mondays.");
+(%o1)                    '.IMaddeiklnnoosty
+(%i2) ssort("I don't like Mondays.",'cgreaterpignore);
+(%o2)                 ytsoonnMlkIiedda.'   
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{ssubst}
+@deffn  {Function} ssubst (@var{new}, @var{old}, @var{string}) 
+@deffnx {Function} ssubst (@var{new}, @var{old}, @var{string}, @var{test}) 
+@deffnx {Function} ssubst (@var{new}, @var{old}, @var{string}, @var{test}, @var{start}) 
+@deffnx {Function} ssubst (@var{new}, @var{old}, @var{string}, @var{test}, @var{start}, @var{end}) 
+
+Returns a string like @var{string} except that all substrings matching @var{old}
+are replaced by @var{new}.  @var{old} and @var{new} need not to be of the same 
+length.  Default test function for matching is @mrefdot{sequal}  If
+@code{ssubst} should ignore case while searching for old, use 
+@mref{sequalignore} as test.  Use @var{start} and @var{end} to limit searching.
+Note that the first character in @var{string} is in position 1.
+
+Examples:
+
+@example
+(%i1) ssubst("like","hate","I hate Thai food. I hate green tea.");
+(%o1)          I like Thai food. I like green tea.
+(%i2) ssubst("Indian","thai",%,'sequalignore,8,12);
+(%o2)         I like Indian food. I like green tea.
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{ssubstfirst}
+@deffn  {Function} ssubstfirst (@var{new}, @var{old}, @var{string}) 
+@deffnx {Function} ssubstfirst (@var{new}, @var{old}, @var{string}, @var{test}) 
+@deffnx {Function} ssubstfirst (@var{new}, @var{old}, @var{string}, @var{test}, @var{start}) 
+@deffnx {Function} ssubstfirst (@var{new}, @var{old}, @var{string}, @var{test}, @var{start}, @var{end}) 
+
+Like @mref{subst} except that only the first substring that matches @var{old}
+is replaced.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{strim}
+@deffn {Function} strim (@var{seq},@var{string}) 
+
+Returns a string like @var{string}, but with all characters that appear in 
+@var{seq} removed from both ends.
+
+Examples:
+
+@example
+(%i1) "/* comment */"$
+(%i2) strim(" /*",%);
+(%o2)                        comment
+(%i3) slength(%);
+(%o3)                           7
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{striml}
+@deffn {Function} striml (@var{seq}, @var{string}) 
+
+Like @mref{strim} except that only the left end of @var{string} is trimmed.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{strimr}
+@deffn {Function} strimr (@var{seq}, @var{string}) 
+
+Like @mref{strim} except that only the right end of string is trimmed.
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{substring}
+@deffn  {Function} substring (@var{string}, @var{start})
+@deffnx {Function} substring (@var{string}, @var{start}, @var{end}) 
+
+Returns the substring of @var{string} beginning at position @var{start} and 
+ending at position @var{end}.  The character at position @var{end} is not 
+included.  If @var{end} is not given, the substring contains the rest of the 
+string.  Note that the first character in @var{string} is in position 1.
+
+Examples:
+
+@example
+(%i1) substring("substring",4);
+(%o1)                        string
+(%i2) substring(%,4,6);
+(%o2)                          in
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{supcase}
+@deffn  {Function} supcase (@var{string}) 
+@deffnx {Function} supcase (@var{string}, @var{start}) 
+@deffnx {Function} supcase (@var{string}, @var{start}, @var{end}) 
+
+Returns @var{string} except that lowercase characters from position @var{start} 
+to @var{end} are replaced by the corresponding uppercase ones.  If @var{end} is 
+not given, all lowercase characters from @var{start} to the end of @var{string} 
+are replaced.
+
+Example:
+
+@example
+(%i1) supcase("english",1,2);
+(%o1)                        English
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@anchor{tokens}
+@deffn  {Function} tokens (@var{string}) 
+@deffnx {Function} tokens (@var{string}, @var{test}) 
+
+@c TODO: IM ORIGINAL WIRD NOCH DIE FUNKTION CHARACTERP GENANNT.
+
+Returns a list of tokens, which have been extracted from the argument
+@var{string}.  The tokens are substrings, whose characters satisfy a certain
+test function.  If the argument @var{test} is not given, the test
+@code{constituent} is used as the default test.  The set of test functions is
+@code{@{@mrefcomma{constituent} @mrefcomma{alphacharp}@w{}
+@mrefcomma{digitcharp} @mrefcomma{lowercasep} @mrefcomma{uppercasep}@w{}
+@mrefcomma{charp} @mref{alphanumericp}@}}.
+(The Lisp-version of @code{tokens} is written by Paul Graham.
+ANSI Common Lisp, 1996, page 67.)
+
+Examples:
+
+@example
+(%i1) tokens("24 October 2005");
+(%o1)                  [24, October, 2005]
+(%i2) tokens("05-10-24",'digitcharp);
+(%o2)                     [05, 10, 24]
+(%i3) map(parse_string,%);
+(%o3)                      [5, 10, 24]
+@end example
+@end deffn
+
+@c --- End of file stringproc.de.texi ------------------------------------------
+

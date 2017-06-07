@@ -1,0 +1,1558 @@
+@c -----------------------------------------------------------------------------
+@c File        : Function.de.texi
+@c License     : GNU General Public License (GPL)
+@c Language    : German
+@c Original    : Function.texi revision 14.03.2011
+@c Translation : Dr. Dieter Kaiser
+@c Date        : 14.11.2010
+@c Revision    : 04.12.2011
+@c 
+@c This file is part of Maxima -- GPL CAS based on DOE-MACSYMA
+@c -----------------------------------------------------------------------------
+
+@menu
+* Funktionen::
+* Makros::
+* Funktionen und Variablen f@"ur Funktionsdefinitionen::
+@end menu
+
+@c -----------------------------------------------------------------------------
+@node Funktionen, Makros, Funktionsdefinitionen, Funktionsdefinitionen
+@section Funktionen
+@c -----------------------------------------------------------------------------
+
+@c -----------------------------------------------------------------------------
+@subsection Gew@"ohnliche Funktionen
+
+Eine Maxima-Funktion wird mit dem Operator @mref{:=} oder der Funktion
+@mref{define} definiert.  Im folgenden wird die Funktion @code{f} mit
+dem Operator @code{:=} definiert:
+
+@example
+f(x) := sin(x)
+@end example
+
+Funktionen, die mit der Funktion @mref{lambda} definiert werden, sind anonyme 
+Funktionen, die keinen Namen haben.  Diese werden auch @code{lambda}-Ausdr@"ucke
+genannt:
+
+@example
+lambda ([i, j], ...)
+@end example
+
+Anonyme Funktionen k@"onnen @"uberall dort verwendet werden, wo eine Funktion 
+als Argument erwartet wird.  Das folgende Beispiel gibt eine Liste zur@"uck,
+bei der jedes Element der Liste @code{L} mit 1 addiert wird:
+
+@example
+map (lambda ([i], i+1), L)
+@end example
+
+Ist das letzte oder einzige Argument einer Funktion eine Liste mit einem 
+Element, kann eine variable Anzahl an Argumenten an die Funktion @"ubergeben 
+werden:
+
+@example
+(%i1) f ([u]) := u;
+(%o1)                      f([u]) := u
+(%i2) f (1, 2, 3, 4);
+(%o2)                     [1, 2, 3, 4]
+(%i3) f (a, b, [u]) := [a, b, u];
+(%o3)               f(a, b, [u]) := [a, b, u]
+(%i4) f (1, 2, 3, 4, 5, 6);
+(%o4)                 [1, 2, [3, 4, 5, 6]]
+@end example
+
+Die rechte Seite einer Funktionsdefinition ist ein Ausdruck.  Mehrere
+Ausdr@"ucke werden durch Kommata getrennt und mit Klammern umgeben.  Das
+Ergebnis der Funktion ist der Wert des letzten Ausdrucks @code{exprn}:
+
+@example
+f(x) := (expr1, expr2, ...., exprn);
+@end example
+
+Ein R@"ucksprung mit der Anweisung @mref{return} aus einer Funktion ist 
+m@"oglich, wenn die Definition der Funktion in einen Block eingef@"ugt wird.
+Ein Block wird mit der @mref{block}-Anweisung definiert.  Das folgende Beispiel 
+hat entweder den Wert @code{a} oder den Wert des Ausdrucks @var{exprn} als 
+Ergebnis:
+
+@example
+block ([], expr1, ..., if (a > 10) then return(a), ..., exprn)
+@end example
+
+Das erste paar Klammern @code{[]} in einem Block enth@"alt die Definition von 
+lokalen Variablen wie zum Beispiel @code{[a: 3, b, c: []]}.  Die Variablen sind 
+au@ss{}erhalb des Blocks nicht sichtbar.  Die Werte von globalen Variablen 
+werden von den lokalen Werten @"uberschrieben.  Au@ss{}erhalb des Blocks haben 
+die Variablen, wenn vorhanden, wieder ihre alten Werte.  Die Zuweisung der Werte
+an die lokalen Variablen wird parallel ausgef@"uhrt.
+
+Im folgenden Beispiel wird der Wert der globalen Variablen @var{a} der lokalen 
+Variablen @var{a} zugewiesen.  @"Anderungen von @var{a} im Block wirken sich 
+nicht auf den globalen Wert der Variablen aus.
+
+@example
+block ([a: a], expr1, ... a: a+3, ..., exprn)
+@end example
+
+Die Anweisung @code{block ([x], ...)} bewirkt, dass @code{x} als lokale Variable
+ohne einen Wert verwendet werden kann.
+
+Die Argumente einer Funktion werden in gleicher Weise wie lokal definierte
+Variable behandelt.  Die folgende Definition
+
+@example
+f(x) := (expr1, ..., exprn);
+@end example
+
+mit
+
+@example
+f(1);
+@end example
+
+hat denselben Effekt wie der folgende Block:
+
+@example
+block ([x: 1], expr1, ..., exprn)
+@end example
+
+Soll die rechte Seite einer Funktionsdefinition ausgewertet werden,
+kann die Funktionen @mref{define} f@"ur die Definition der Funktion verwendet
+werden.  Mit der Funktion @mref{buildq} kann die Definition einer Funktion
+konstruiert werden, wobei die Auswertung gezielt kontrolliert werden kann.
+
+@c -----------------------------------------------------------------------------
+@anchor{Array-Funktionen}
+@subsection Array-Funktionen
+
+Eine Array-Funktion speichert bei dem ersten Aufruf den Funktionswert zu dem 
+Argument.  Wird die Array-Funktion mit demselben Argument aufgerufen, wird der
+gespeicherte Wert zur@"uckgeben, ohne diesen neu zu berechnen.  Dies wird auch
+Memoisation genannt.
+
+Beispiel:
+
+Das folgende Beispiel zeigt die Definition einer Array-Funktion @code{f}, die
+die Fakult@"at einer Zahl faktorisiert.  Im ersten Aufruf der Funktion mit dem
+Argument @code{25000} wird eine Rechenzeit von etwa 24 Sekunden ben@"otigt.
+Der zweite Aufruf mit demselben Argument gibt sofort den abgespeicherten Wert
+zur@"uck.
+
+@example
+(%i1) f[x]:=factor(x!);
+(%o1)                   f  := factor(x!)
+                         x
+(%i2) showtime:true;
+Evaluation took 0.0000 seconds (0.0000 elapsed) using 0 bytes.
+(%o2)                         true
+(%i3) f[25000]$
+Evaluation took 23.9250 seconds (26.0790 elapsed) using 3829.778 MB.
+(%i4) f[25000]$
+Evaluation took 0.0000 seconds (0.0000 elapsed) using 0 bytes. 
+@end example
+
+Die Namen der Array-Funktionen werden in die Informationsliste @mref{arrays}@w{}
+und nicht in die Liste @mref{functions} eingetragen.  @mref{arrayinfo} gibt eine
+Liste der Argumente zur@"uck, f@"ur die Werte gespeichert sind und 
+@mref{listarray} gibt die Werte zur@"uck.  Die Funktionen @mref{dispfun} und
+@mref{fundef} geben die Definition der Array-Funktion zur@"uck.
+
+Beispiele:
+
+Mit dem obigen Beispiel werden die folgenden Ergebnisse ausgegeben.
+
+@example
+(%i5) arrays;
+(%o5)                          [f]
+(%i6) arrayinfo(f);
+(%o6)                 [hashed, 1, [25000]]
+(%i7) dispfun(f);
+(%t7)                   f  := factor(x!)
+                         x
+(%o7)                         [%t7]
+@end example
+
+@mref{arraymake} erzeugt den Aufruf einer Array-Funktion.  Dies ist analog zu
+der Funktion @mref{funmake} f@"ur gew@"ohnliche Funktionen.
+@mref{arrayapply} wendet eine Array-Funktion auf die Argumente an.  Dies
+entspricht der Funktion @mref{apply} f@"ur gew@"ohnliche Funktionen.  Die
+Funktion @mref{map} hat keine Entsprechung f@"ur Array-Funktionen.
+Vergleichbare Konstruktionen sind
+@code{map(lambda([@var{x}], @var{a}[@var{x}]), @var{L})} oder 
+@code{makelist(@var{a}[@var{x}], @var{x}, @var{L})}, wobei @var{L} eine Liste
+ist.
+
+@mref{remarray} entfernt die Definition einer Array-Funktion einschlie@ss{}lich 
+der gespeicherten Werte.  Dies entspricht @mref{remfunction} f@"ur gew@"ohnliche
+Funktionen.
+
+@code{kill(@var{a}[@var{x}])} entfernt den f@"ur das Argument @var{x} 
+gespeicherten Wert einer Array-Funktion @var{a}.  Beim n@"achsten Aufruf von 
+@var{a} mit dem Argument @var{x} wird der Funktionswert neu berechnet.  Es gibt
+keine M@"oglichkeit, alle gespeicherten Werte zu l@"oschen, ohne dass die
+Definition der Funktion entfernt wird.  Die Kommandos @code{kill(@var{a})} und
+@code{remarray(@var{a})} l@"oschen alle Werte einschlie@ss{}lich der Definition
+der Funktion.
+
+@c -----------------------------------------------------------------------------
+@node Makros, Funktionen und Variablen f@"ur Funktionsdefinitionen, Funktionen, Funktionsdefinitionen
+@section Makros
+@c -----------------------------------------------------------------------------
+
+@c --- 02.12.2010 DK -----------------------------------------------------------
+@anchor{buildq}
+@deffn {Funktion} buildq (@var{L}, @var{expr})
+
+Die Variablen der Liste @var{L} werden in den Ausdruck @var{expr} substituiert.
+Die Substitution wird parallel ausgef@"uhrt.  Das Ergebnis der Substitution wird
+vereinfacht, aber nicht ausgewertet.
+
+Die Elemente der Liste @var{L} sind Symbole oder Zuweisungen der Form
+@code{@var{symbol}: @var{value}}.  Die Zuweisungen werden parallel ausgewertet.
+Der Wert einer Variablen auf der rechten Seite einer Zuweisung ist der globale
+Wert in dem Kontext in dem @code{buildq} aufgerufen wird und nicht der lokale
+Wert einer vorhergehenden Zuweisung.  Erh@"alt eine Variable keinen Wert, dann 
+beh@"alt die Variable den globalen Wert.
+
+Dann werden die in der Liste @var{L} enthaltenen Variablen parallel in den 
+Ausdruck @var{expr} substituiert.
+
+Enth@"alt @var{expr} Ausdr@"ucke der Form @code{splice(@var{x})}, muss die 
+Variable @var{x} eine Liste sein.  Die Liste wird in den Ausdruck eingef@"ugt.
+Siehe auch @mrefdot{splice}
+
+Variablen in in dem Ausdruck @var{expr}, die nicht in @var{L} enthalten sind,
+werden nicht durch einen Wert ersetzt, auch wenn es eine globale Variable mit
+demselben Namen gibt, da der Ausdruck nicht ausgewertet wird.
+
+Beispiele:
+
+Der Variablen @code{a} wird der Wert zugewiesen.  Die Variable @code{b} erh@"alt
+den globalen Wert.  Die Variable @code{c} hat keinen Wert.  Das Ergebnis ist
+ein nicht ausgewerteter Ausdruck.  Die Auswertung wird mit dem 
+@nxref{'', Quote-Quote-Operator} @code{''} erzwungen.
+
+@example
+(%i1) (a: 17, b: 29, c: 1729)$
+(%i2) buildq ([a: x, b], a + b + c);
+(%o2)                      x + c + 29
+(%i3) ''%;
+(%o3)                       x + 1758
+@end example
+
+@code{e} ist eine Liste, die einmal als Argument der Funktion @code{foo}
+vorliegt und zum anderen in die Argumentliste der Funktion @code{bar} 
+eingef@"ugt wird.
+
+@example
+(%i1) buildq ([e: [a, b, c]], foo (x, e, y));
+(%o1)                 foo(x, [a, b, c], y)
+(%i2) buildq ([e: [a, b, c]], bar (x, splice (e), y));
+(%o2)                  bar(x, a, b, c, y)
+@end example
+
+Das Ergebnis wird nach der Substitution vereinfacht, ansonsten h@"atten die
+beiden folgenden Beispiele dasselbe Ergebnis.
+
+@example
+(%i1) buildq ([e: [a, b, c]], splice (e) + splice (e));
+(%o1)                    2 c + 2 b + 2 a
+(%i2) buildq ([e: [a, b, c]], 2 * splice (e));
+(%o2)                        2 a b c
+@end example
+
+Die Variablen der Liste @var{L} erhalten ihren Wert parallel, ansonsten w@"are
+das erste Ergebnis @code{foo(b,b)}.  Substitutionen werden parallel 
+ausgef@"uhrt.  Im Gegensatz dazu werden die Substitutionen mit der Funktion 
+@mref{subst} nacheinander ausgef@"uhrt.
+
+@example
+(%i1) buildq ([a: b, b: a], foo (a, b));
+(%o1)                       foo(b, a)
+(%i2) buildq ([u: v, v: w, w: x, x: y, y: z, z: u],
+              bar (u, v, w, x, y, z));
+(%o2)                 bar(v, w, x, y, z, u)
+(%i3) subst ([u=v, v=w, w=x, x=y, y=z, z=u],
+             bar (u, v, w, x, y, z));
+(%o3)                 bar(u, u, u, u, u, u)
+@end example
+
+Konstruktion einer Liste mit Gleichungen mit Variablen oder Ausdr@"ucken auf 
+der linken Seite und deren Werten auf der rechten Seite.  Die Funktion
+@mref{macroexpand} expandiert das Makro @code{show_values}.
+
+@example
+(%i1) show_values ([L]) ::= buildq ([L], map ("=", 'L, L))$
+(%i2) (a: 17, b: 29, c: 1729)$
+(%i3) show_values (a, b, c - a - b);
+(%o3)          [a = 17, b = 29, c - b - a = 1683]
+(%i4) macroexpand (show_values (a, b, c - a - b));
+(%o4)    map(=, '([a, b, c - b - a]), [a, b, c - b - a])
+@end example
+
+Konstruktion einer Funktion.
+
+@example
+(%i1) curry (f, [a]) :=
+        buildq ([f, a], lambda ([[x]], apply (f, append (a, x))))$
+(%i2) by3 : curry ("*", 3);
+(%o2)        lambda([[x]], apply(*, append([3], x)))
+(%i3) by3 (a + b);
+(%o3)                       3 (b + a)
+@end example
+@end deffn
+
+@c --- 04.12 2011 DK -----------------------------------------------------------
+@anchor{macroexpand}
+@deffn {Funktion} macroexpand (@var{expr})
+
+Ist das Argument @var{expr} ein Makro, wird das Makro expandiert, ohne dass es 
+ausgewertet wird.  Ansonsten wird @var{expr} zur@"uckgegeben.
+
+Ist die Expansion des Makros selbst ein Makro, wird dieses Makro wiederholt
+expandiert.
+
+@code{macroexpand} wertet das Argument @var{expr} nicht aus.  Hat die Expansion
+des Makros Seiteneffekte, dann werden diese ausgef@"uhrt.
+
+Siehe auch @mref{::=} und @mrefdot{macroexpand1}
+
+Beispiele:
+
+@example
+(%i1) g (x) ::= x / 99;
+                                    x
+(%o1)                      g(x) ::= --
+                                    99
+(%i2) h (x) ::= buildq ([x], g (x - a));
+(%o2)            h(x) ::= buildq([x], g(x - a))
+(%i3) a: 1234;
+(%o3)                         1234
+(%i4) macroexpand (h (y));
+                              y - a
+(%o4)                         -----
+                               99
+(%i5) h (y);
+                            y - 1234
+(%o5)                       --------
+                               99
+@end example
+@end deffn
+
+@c --- 04.12.2010 DK -----------------------------------------------------------
+@anchor{macroexpand1}
+@deffn {Funktion} macroexpand1 (@var{expr})
+
+Gibt die Makro-Expansion von @var{expr} zur@"uck, ohne das Ergebnis auszuwerten.
+Ist @var{expr} keine Makro-Funktion gibt @code{macroexpand1} das Argument
+@var{expr} zur@"uck.
+
+@code{macroexpand1} wertet das Argument nicht aus.  Hat die Expansion des Makros
+Seiteneffekte, dann werden diese ausgef@"uhrt.
+
+Enth@"alt die Expansion @var{expr} wiederum Makros, werden diese im Unterschied
+zur Funktion @code{macroexpand} nicht expandiert.
+
+Siehe auch @mref{::=} und @mrefdot{macroexpand}
+
+Beispiele:
+
+@example
+(%i1) g (x) ::= x / 99;
+                                    x
+(%o1)                      g(x) ::= --
+                                    99
+(%i2) h (x) ::= buildq ([x], g (x - a))$
+(%i3) a: 1234;
+(%o3)                         1234
+(%i4) macroexpand1 (h (y));
+(%o4)                       g(y - a)
+(%i5) h (y);
+                            y - 1234
+(%o5)                       --------
+                               99
+@end example
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@defvr {Optionsvariable} macroexpansion
+Standardwert: @code{false}
+
+@code{macroexpansion} kontrolliert die Expansion von Makros.
+
+@table @code
+@item false
+Die Expansion des Makros wird nicht f@"ur die aufrufende Funktion ersetzt.
+
+@item expand
+Wird die Makro-Funktion das erste Mal ausgewertet, wird die Expansion des Makros
+gespeichert.  Weitere Aufrufe werten das Makro nicht erneut aus.  Seiteneffekte,
+wie Zuweisungen an globale Variablen, werden nur bei der ersten Auswertung 
+wirksam.  Die Expansion des Makros beeinflusst nicht andere Ausdr@"ucke, die das
+Makro ebenfalls aufrufen.
+
+@item displace
+Wird die Makro-Funktion das erste mal ausgewertet, wird die Expansion des Makros
+in den aufrufenden Ausdruck eingesetzt.  Weitere Aufrufe werten das Makro nicht
+erneut aus.  Seiteneffekte, wie Zuweisungen an globale Variablen, werden nur bei
+der ersten Auswertung wirksam.  Die Expansion des Makros beeinflusst nicht 
+andere Ausdr@"ucke, die das Makro ebenfalls aufrufen.
+@end table
+
+Beispiele:
+
+Hat @code{macroexpansion} den Wert @code{false}, wird eine Makro-Funktion
+jedes mal aufgerufen, wenn der aufrufende Ausdruck ausgewertet wird.  Der
+aufrufende Ausdruck wird nicht modifiziert.
+
+@example
+(%i1) f (x) := h (x) / g (x);
+                                  h(x)
+(%o1)                     f(x) := ----
+                                  g(x)
+@group
+(%i2) g (x) ::= block (print ("x + 99 is equal to", x),
+                       return (x + 99));
+@end group
+(%o2) g(x) ::= block(print("x + 99 is equal to", x), 
+                                                  return(x + 99))
+(%i3) h (x) ::= block (print ("x - 99 is equal to", x),
+                       return (x - 99));
+(%o3) h(x) ::= block(print("x - 99 is equal to", x), 
+                                                  return(x - 99))
+(%i4) macroexpansion: false;
+(%o4)                         false
+(%i5) f (a * b);
+x - 99 is equal to x 
+x + 99 is equal to x 
+                            a b - 99
+(%o5)                       --------
+                            a b + 99
+(%i6) dispfun (f);
+                                  h(x)
+(%t6)                     f(x) := ----
+                                  g(x)
+
+(%o6)                         done
+(%i7) f (a * b);
+x - 99 is equal to x 
+x + 99 is equal to x 
+                            a b - 99
+(%o7)                       --------
+                            a b + 99
+@end example
+
+Hat @code{macroexpansion} den Wert @code{expand}, wird eine Makro-Funktion nur
+einmal aufgerufen.  Der aufrufende Ausdruck wird nicht modifiziert.
+
+@example
+(%i1) f (x) := h (x) / g (x);
+                                  h(x)
+(%o1)                     f(x) := ----
+                                  g(x)
+(%i2) g (x) ::= block (print ("x + 99 is equal to", x),
+                       return (x + 99));
+(%o2) g(x) ::= block(print("x + 99 is equal to", x), 
+                                                  return(x + 99))
+(%i3) h (x) ::= block (print ("x - 99 is equal to", x),
+                       return (x - 99));
+(%o3) h(x) ::= block(print("x - 99 is equal to", x), 
+                                                  return(x - 99))
+(%i4) macroexpansion: expand;
+(%o4)                        expand
+(%i5) f (a * b);
+x - 99 is equal to x 
+x + 99 is equal to x
+@group 
+                            a b - 99
+(%o5)                       --------
+                            a b + 99
+@end group
+(%i6) dispfun (f);
+                                  h(x)
+(%t6)                     f(x) := ----
+                                  g(x)
+
+(%o6)                         done
+(%i7) f (a * b);
+                            a b - 99
+(%o7)                       --------
+                            a b + 99
+@end example
+
+Hat @code{macroexpansion} den Wert @code{displace}, wird eine Makro-Funktion
+nur einmal aufgerufen.  Der aufrufende Ausdruck wird modifiziert.
+
+@example
+(%i1) f (x) := h (x) / g (x);
+                                  h(x)
+(%o1)                     f(x) := ----
+                                  g(x)
+(%i2) g (x) ::= block (print ("x + 99 is equal to", x),
+                       return (x + 99));
+(%o2) g(x) ::= block(print("x + 99 is equal to", x), 
+                                                  return(x + 99))
+(%i3) h (x) ::= block (print ("x - 99 is equal to", x),
+                       return (x - 99));
+(%o3) h(x) ::= block(print("x - 99 is equal to", x), 
+                                                  return(x - 99))
+(%i4) macroexpansion: displace;
+(%o4)                       displace
+(%i5) f (a * b);
+x - 99 is equal to x 
+x + 99 is equal to x 
+                            a b - 99
+(%o5)                       --------
+                            a b + 99
+(%i6) dispfun (f);
+                                 x - 99
+(%t6)                    f(x) := ------
+                                 x + 99
+
+(%o6)                         done
+(%i7) f (a * b);
+                            a b - 99
+(%o7)                       --------
+                            a b + 99
+@end example
+@end defvr
+
+@c --- 04.12.2011 DK -----------------------------------------------------------
+@anchor{macros}
+@defvr {Systemvariable} macros
+Standardwert: @code{[]}
+
+Die Systemvariable @code{macros} ist eine Informationsliste, die die vom Nutzer
+mit dem Operator @mref{::=} definierten Makros enth@"alt.  Wird das Makro mit
+einer der Funktionen @mrefcomma{kill} @mref{remove} oder @mref{remfunction}
+gel@"oscht, wird der Eintrag aus der Informationsliste entfernt.  Siehe auch die
+Systemvariable @mrefdot{infolists}
+@end defvr
+
+@c --- 04.12.2010 DK -----------------------------------------------------------
+@anchor{splice}
+@deffn {Funktion} splice (@var{a})
+
+Die Funktion @code{splice} kann nur im Zusammenhang mit der Funktion 
+@mref{buildq} verwendet werden.  Das Argument @var{a} bezeichnet eine Liste, die
+an Stelle von @code{splice(a)} in einen Ausdruck eingef@"ugt wird.  @var{a} kann
+nicht selbst eine Liste oder ein Ausdruck sein, der zu einer Liste auswertet.
+
+Beispiele:
+
+@example
+(%i1) buildq ([x: [1, %pi, z - y]], foo (splice (x)) / length (x));
+                       foo(1, %pi, z - y)
+(%o1)                -----------------------
+                     length([1, %pi, z - y])
+(%i2) buildq ([x: [1, %pi]], "/" (splice (x)));
+                                1
+(%o2)                          ---
+                               %pi
+(%i3) matchfix ("<>", "<>");
+(%o3)                          <>
+(%i4) buildq ([x: [1, %pi, z - y]], "<>" (splice (x)));
+(%o4)                   <>1, %pi, z - y<>
+@end example
+@end deffn
+
+@c -----------------------------------------------------------------------------
+@node Funktionen und Variablen f@"ur Funktionsdefinitionen, , Makros, Funktionsdefinitionen
+@section Funktionen und Variablen f@"ur Funktionsdefinitionen
+@c -----------------------------------------------------------------------------
+
+@c --- 04.12.2010 DK -----------------------------------------------------------
+@anchor{apply}
+@deffn {Funktion} apply (@var{F}, [@var{x_1}, @dots{}, @var{x_n}])
+
+Konstruiert den Ausdruck @code{@var{F}(@var{arg_1}, ..., @var{arg_n})} und 
+wertet diesen aus.
+
+@code{apply} versucht nicht Array-Funktionen von gew@"ohnlichen Funktionen zu
+unterscheiden.  Ist @var{F} der Name eine Array-Funktion, wertet @code{apply}
+den Ausdruck @code{@var{F}(...)} aus.  @mref{arrayapply} entspricht der 
+Funktion @code{apply}, wenn @var{F} eine Array-Funktion ist.
+
+Beispiele:
+
+@code{apply} wertet die Argumente aus.  In diesem Beispiel wird die Funktion
+@mref{min} auf die Liste @code{L} angewendet.
+
+@example
+(%i1) L : [1, 5, -10.2, 4, 3];
+(%o1)                 [1, 5, - 10.2, 4, 3]
+(%i2) apply (min, L);
+(%o2)                        - 10.2
+@end example
+
+@code{apply} wertet die Argumente auch dann aus, wenn die Funktion @code{F}
+die Auswertung ihrer Argumente unterdr@"uckt.
+
+@example
+(%i1) F (x) := x / 1729;
+@group
+                                   x
+(%o1)                     F(x) := ----
+                                  1729
+@end group
+(%i2) fname : F;
+(%o2)                           F
+(%i3) dispfun (F);
+                                   x
+(%t3)                     F(x) := ----
+                                  1729
+
+(%o3)                         [%t3]
+(%i4) dispfun (fname);
+fname is not the name of a user function.
+ -- an error.  Quitting.  To debug this try debugmode(true);
+(%i5) apply (dispfun, [fname]);
+                                   x
+(%t5)                     F(x) := ----
+                                  1729
+
+(%o5)                         [%t5]
+@end example
+
+@code{apply} wertet den Namen der Funktion @var{F} aus.  Mit dem
+@nxref{', Quote-Operator} @code{'} wird die Auswertung unterdr@"uckt.
+@mref{demoivre} ist der Name einer globalen Optionsvariable und einer Funktion.
+
+@example
+(%i1) demoivre;
+(%o1)                         false
+(%i2) demoivre (exp (%i * x));
+(%o2)                  %i sin(x) + cos(x)
+(%i3) apply (demoivre, [exp (%i * x)]);
+demoivre evaluates to false
+Improper name or value in functional position.
+ -- an error.  Quitting.  To debug this try debugmode(true);
+(%i4) apply ('demoivre, [exp (%i * x)]);
+(%o4)                  %i sin(x) + cos(x)
+@end example
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{define}
+@deffn  {Funktion} define (@var{f}(@var{x_1}, @dots{}, @var{x_n}), @var{expr})
+@deffnx {Funktion} define (@var{f}[@var{x_1}, @dots{}, @var{x_n}], @var{expr})
+@deffnx {Funktion} define (funmake (@var{f}, [@var{x_1}, @dots{}, @var{x_n}]), @var{expr})
+@deffnx {Funktion} define (arraymake (@var{f}, [@var{x_1}, @dots{}, @var{x_n}]), @var{expr})
+@deffnx {Funktion} define (ev (@var{expr_1}), @var{expr_2})
+
+Definiert eine Funktion mit dem Namen @var{f} und den Argumenten @var{x1}, 
+@dots{}, @var{x_n} und der Funktionsdefinition @var{expr}.  @code{define}
+wertet das zweite Argument immer aus.
+
+Ist das letzte oder einzige Argument @var{x_n} eine Liste mit einem Element, 
+dann akzeptiert die Funktion eine variable Anzahl an Argumenten.  Die Argumente
+der Funktion werden nacheinander den Variablen @var{x_1}, @dots{}, @var{x_(n-1)}
+zugewiesen.  Sind weitere Argumente vorhanden, werden diese als Liste der
+Variablen @var{x_n} zugewiesen.
+
+Ist das erste Argument der Funktion @code{define} ein Ausdruck der Form
+@code{@var{f}(@var{x_1}, ..., @var{x_n})} oder @code{@var{f}[@var{x_1}, ...,
+@var{x_n}]} werden die Argumente der Funktion ausgewertet, aber nicht die
+Funktion @var{f} selbst.  @var{f} wird auch dann nicht ausgewertet, wenn es
+bereits eine Funktion mit dem Namen @var{f} gibt.
+
+Das erste Argument wird dann ausgewertet, wenn es ein Ausdruck mit den 
+Funktionen @mrefcomma{funmake} @mref{arraymake} oder @mref{ev} ist.
+
+Alle Funktionsdefinitionen treten in demselben Namensraum auf.  Die Definition
+einer Funktion @code{g} innerhalb einer Funktion @code{f} f@"uhrt nicht 
+automatisch zu einer lokalen Definition.  Um eine lokale Funktion zu erhalten,
+kann @code{lokal(g)} innerhalb der Funktion @code{f} ausgef@"uhrt werden.
+Siehe auch @mrefdot{local}
+
+Ist eines der Argumente @var{x_k} nach der Auswertung ein quotiertes Symbol,
+wertet die mit @code{define} definierte Funktion das Argument nicht aus.
+Alle weiteren Argumente der Funktion werden ausgewertet.
+
+Siehe auch @mref{:=} und @mrefdot{::=}
+
+Beispiele:
+
+@code{define} wertet das zweite Argument aus.
+
+@example
+(%i1) expr : cos(y) - sin(x);
+(%o1)                    cos(y) - sin(x)
+(%i2) define (F1 (x, y), expr);
+(%o2)              F1(x, y) := cos(y) - sin(x)
+(%i3) F1 (a, b);
+(%o3)                    cos(b) - sin(a)
+(%i4) F2 (x, y) := expr;
+(%o4)                   F2(x, y) := expr
+(%i5) F2 (a, b);
+(%o5)                    cos(y) - sin(x)
+@end example
+
+
+Mit @code{define} k@"onnen gew@"ohnliche Maxima-Funktionen und Array-Funktionen 
+definiert werden.
+
+@example
+(%i1) define (G1 (x, y), x.y - y.x);
+(%o1)               G1(x, y) := x . y - y . x
+(%i2) define (G2 [x, y], x.y - y.x);
+(%o2)                G2     := x . y - y . x
+                       x, y
+@end example
+
+Ist das letzte oder einzige Argument @var{x_n} eine Liste mit einem Element,
+akzeptiert die mit @code{define} definierte Funktion eine variable Anzahl an
+Argumenten.
+
+@example
+(%i1) define (H ([L]), '(apply ("+", L)));
+(%o1)                H([L]) := apply("+", L)
+(%i2) H (a, b, c);
+(%o2)                       c + b + a
+@end example
+
+Ist das erste Argument ein Ausdruck mit den Funktionen @code{funmake},
+@code{arraymake} oder @code{ev} wird das Argument ausgewertet.
+
+@example
+(%i1) [F : I, u : x];
+(%o1)                        [I, x]
+(%i2) funmake (F, [u]);
+(%o2)                         I(x)
+(%i3) define (funmake (F, [u]), cos(u) + 1);
+(%o3)                  I(x) := cos(x) + 1
+(%i4) define (arraymake (F, [u]), cos(u) + 1);
+(%o4)                   I  := cos(x) + 1
+                         x
+(%i5) define (foo (x, y), bar (y, x));
+(%o5)                foo(x, y) := bar(y, x)
+(%i6) define (ev (foo (x, y)), sin(x) - cos(y));
+(%o6)             bar(y, x) := sin(x) - cos(y)
+@end example
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{define_variable}
+@deffn {Funktion} define_variable (@var{name}, @var{default_value}, @var{mode})
+
+Definiert eine globale Variable in der Maxima-Umgebung.  @code{define_variable}
+ist n@"utzlich f@"ur das Schreiben von Paketen, die h@"aufig @"ubersetzt oder 
+kompiliert werden.  @code{define_variable} f@"uhrt die folgenden Schritte aus:
+
+@enumerate
+@item
+@code{mode_declare(@var{name}, @var{mode})} deklariert den Typ der Variablen
+@var{name} f@"ur den @"Ubersetzer.  Siehe @mref{mode_declare} f@"ur eine Liste 
+der m@"oglichen Typen.
+
+@item
+Hat die Variable keinen Wert, wird der Variablen der Wert @var{default_value}
+zugewiesen.
+
+@item
+@code{declare(@var{name}, special)} deklariert die Variable als Special.
+
+@item
+Ordnet der Variablen @var{name} eine Testfunktion zu, um sicherzustellen, dass 
+der Variablen nur Werte zugewiesen werden k@"onnen.
+@end enumerate
+
+Einer mit @code{define_variable} definierten Variablen, die einen anderen Typ 
+als @code{any} erhalten hat, kann die Eigenschaft @code{value_check} zugewiesen
+werden.  Die @code{value_check}-Eigenschaft ist eine Aussagefunktion mit einer
+Variablen oder ein Lambda-Ausdruck, die aufgerufen werden, wenn der Variablen
+ein Wert zugewiesen werden soll.  Das Argument der @code{value_check}-Funktion
+ist der Wert, den die Variable erhalten soll.
+
+@code{define_variable} wertet @code{default_value} aus.  Die Argumente 
+@code{name} und @code{mode} werden nicht ausgewertet.  @code{define_variable}
+gibt den aktuellen Wert der Variable @code{name} zur@"uck.  Dieser ist
+@code{default_value}, wenn der Variablen bisher kein Wert zugewiesen wurde.
+
+Beispiele:
+
+@code{foo} ist eine boolesche Variable mit dem Wert @code{true}.
+
+@example
+(%i1) define_variable (foo, true, boolean);
+(%o1)                         true
+(%i2) foo;
+(%o2)                         true
+(%i3) foo: false;
+(%o3)                         false
+(%i4) foo: %pi;
+Error: foo was declared mode boolean, has value: %pi
+ -- an error.  Quitting.  To debug this try debugmode(true);
+(%i5) foo;
+(%o5)                         false
+@end example
+
+@code{bar} ist eine Variable mit dem Typ einer ganzen Zahl, die eine Primzahl
+sein muss.
+
+@example
+(%i1) define_variable (bar, 2, integer);
+(%o1)                           2
+(%i2) qput (bar, prime_test, value_check);
+(%o2)                      prime_test
+(%i3) prime_test (y) := if not primep(y) then
+                           error (y, "is not prime.");
+(%o3) prime_test(y) := if not primep(y)
+
+                                   then error(y, "is not prime.")
+(%i4) bar: 1439;
+(%o4)                         1439
+(%i5) bar: 1440;
+1440 is not prime.
+#0: prime_test(y=1440)
+ -- an error.  Quitting.  To debug this try debugmode(true);
+(%i6) bar;
+(%o6)                         1439
+@end example
+
+@code{baz_quux} ist eine Variable, der kein Wert zugewiesen werden kann.  Der
+Typ @code{any_check} ist vergleichbar mit @code{any}.  Aber @code{any_check} 
+ruft im Gegensatz zu @code{any} den @code{value_check}-Mechanismus auf.
+
+@example
+(%i1) define_variable (baz_quux, 'baz_quux, any_check);
+(%o1)                       baz_quux
+(%i2) F: lambda ([y], if y # 'baz_quux then
+                 error ("Cannot assign to `baz_quux'."));
+(%o2) lambda([y], if y # 'baz_quux
+
+                        then error(Cannot assign to `baz_quux'.))
+(%i3) qput (baz_quux, ''F, value_check);
+(%o3) lambda([y], if y # 'baz_quux
+
+                        then error(Cannot assign to `baz_quux'.))
+(%i4) baz_quux: 'baz_quux;
+(%o4)                       baz_quux
+(%i5) baz_quux: sqrt(2);
+Cannot assign to `baz_quux'.
+#0: lambda([y],if y # 'baz_quux then
+                 error("Cannot assign to `baz_quux'."))(y=sqrt(2))
+ -- an error.  Quitting.  To debug this try debugmode(true);
+(%i6) baz_quux;
+(%o6)                       baz_quux
+@end example
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{dispfun}
+@deffn  {Funktion} dispfun (@var{f_1}, @dots{}, @var{f_n})
+@deffnx {Funktion} dispfun (all)
+
+Zeigt die Definitionen der nutzerdefinierten Funktionen @var{f_1}, @dots{}, 
+@var{f_n} an.  Die Argumente k@"onnen gew@"ohnliche Funktionen, Makros, 
+Array-Funktionen oder indizierte Funktionen sein.
+
+@code{dispfun(all)} zeigt die Definitionen aller nutzerdefinierten Funktionen
+an, die in den Informationslisten @mrefcomma{functions} @mref{arrays} oder
+@mref{macros} enthalten sind.
+
+@code{dispfun} erzeugt Zwischenmarken @code{%t} f@"ur jede einzelne anzuzeigende
+Funktion und weist die Funktionsdefinitionen den Zwischenmarken zu.  Im 
+Gegensatz dazu, zeigt die Funktion @mref{fundef} die Funktionsdefinition ohne
+Zwischenmarken an.
+
+@code{dispfun} wertet die Argumente nicht aus.  @code{dispfun} gibt eine Liste
+mit den Zwischenmarken zur@"uck, die zu den angezeigten Funktionen geh@"oren.
+
+Beispiele:
+
+@example
+(%i1) m(x, y) ::= x^(-y);
+                                     - y
+(%o1)                   m(x, y) ::= x
+(%i2) f(x, y) :=  x^(-y);
+                                     - y
+(%o2)                    f(x, y) := x
+(%i3) g[x, y] :=  x^(-y);
+                                    - y
+(%o3)                     g     := x
+                           x, y
+(%i4) h[x](y) :=  x^(-y);
+                                    - y
+(%o4)                     h (y) := x
+                           x
+(%i5) i[8](y) :=  8^(-y);
+                                    - y
+(%o5)                     i (y) := 8
+                           8
+(%i6) dispfun (m, f, g, h, h[5], h[10], i[8]);
+                                     - y
+(%t6)                   m(x, y) ::= x
+
+                                     - y
+(%t7)                    f(x, y) := x
+
+                                    - y
+(%t8)                     g     := x
+                           x, y
+
+                                    - y
+(%t9)                     h (y) := x
+                           x
+
+                                    1
+(%t10)                     h (y) := --
+                            5        y
+                                    5
+
+@group
+                                     1
+(%t11)                    h  (y) := ---
+                           10         y
+                                    10
+@end group
+
+                                    - y
+(%t12)                    i (y) := 8
+                           8
+
+(%o12)       [%t6, %t7, %t8, %t9, %t10, %t11, %t12]
+(%i12) ''%;
+@group
+                     - y              - y            - y
+(%o12) [m(x, y) ::= x   , f(x, y) := x   , g     := x   , 
+                                            x, y
+                  - y           1              1             - y
+        h (y) := x   , h (y) := --, h  (y) := ---, i (y) := 8   ]
+         x              5        y   10         y   8
+                                5             10
+@end group
+@end example
+@end deffn
+
+@c --- 15.10.2010 DK -----------------------------------------------------------
+@anchor{fullmap}
+@deffn {Funktion} fullmap (@var{f}, @var{expr_1}, @dots{})
+
+Die Funktion @code{fullmap} ist vergleichbar mit der Funktion @mrefdot{map}@w{}
+Im  Unterschied zu der Funktion @code{map} kann @code{fullmap} auf
+verschachtelte Ausdr@"ucke angewendet werden.
+
+Intern wird @code{fullmap} von Maxima f@"ur die Vereinfachung von Matrizen 
+aufgerufen.  Daher k@"onnen bei der Vereinfachung von Matrizen Fehlermeldungen 
+im Zusammenhang mit @code{fullmap} auftreten, ohne dass die Funktion direkt 
+aufgerufen wurde.
+
+Beispiele:
+
+@example
+(%i1) a + b * c;
+(%o1)                        b c + a
+(%i2) fullmap (g, %);
+(%o2)                   g(b) g(c) + g(a)
+(%i3) map (g, %th(2));
+(%o3)                     g(b c) + g(a)
+@end example
+@end deffn
+
+@c --- 15.10.2010 DK -----------------------------------------------------------
+@anchor{fullmapl}
+@deffn {Funktion} fullmapl (@var{f}, @var{list_1}, @dots{})
+
+Die Funktion @code{fullmapl} ist vergleichbar mit @mrefdot{fullmap}@w{}
+@code{fullmapl} kann jedoch nur auf Matrizen und Listen angewendet werden kann.
+
+Beispiele:
+
+@example
+(%i1) fullmapl ("+", [3, [4, 5]], [[a, 1], [0, -1.5]]);
+(%o1)                [[a + 3, 4], [4, 3.5]]
+@end example
+@end deffn
+
+@c --- 19.11.2010 DK -----------------------------------------------------------
+@anchor{functions}
+@defvr {Systemvariable} functions
+Standardwert: @code{[]}
+
+@code{functions} ist eine Informationsliste, die die vom Nutzer mit dem
+Operator @mref{:=} oder der Funktion @mref{define} definierten Funktionen
+enth@"alt.  Siehe auch die Systemvariable @mrefdot{infolists}
+
+Array-Funktionen und indizierte Funktionen werden nicht in die Informationsliste
+@mrefcomma{functions} sondern in die Informationsliste @mref{arrays}@w{}
+eingetragen.
+
+Beispiele:
+
+@example
+(%i1) F_1 (x) := x - 100;
+(%o1)                   F_1(x) := x - 100
+(%i2) F_2 (x, y) := x / y;
+                                      x
+(%o2)                    F_2(x, y) := -
+                                      y
+(%i3) define (F_3 (x), sqrt (x));
+(%o3)                   F_3(x) := sqrt(x)
+(%i4) G_1 [x] := x - 100;
+(%o4)                    G_1  := x - 100
+                            x
+(%i5) G_2 [x, y] := x / y;
+                                     x
+(%o5)                     G_2     := -
+                             x, y    y
+(%i6) define (G_3 [x], sqrt (x));
+(%o6)                    G_3  := sqrt(x)
+                            x
+(%i7) H_1 [x] (y) := x^y;
+                                      y
+(%o7)                     H_1 (y) := x
+                             x
+(%i8) functions;
+(%o8)              [F_1(x), F_2(x, y), F_3(x)]
+(%i9) arrays;
+(%o9)                 [G_1, G_2, G_3, H_1]
+@end example
+@end defvr
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{fundef}
+@deffn {Funktion} fundef (@var{f})
+
+Gibt die Definition der Funktion @var{f} zur@"uck.
+
+Das Argument @var{f} kann eine gew@"ohnliche Funktion, eine Makro-Funktion, eine
+Array-Funktion oder eine indizierte Funktion sein.
+
+@code{fundef} wertet das Argument aus.  Siehe auch @mrefdot{dispfun}
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{funmake}
+@deffn {Funktion} funmake (@var{F}, [@var{arg_1}, @dots{}, @var{arg_n}])
+
+Gibt den Ausdruck @code{@var{F}(@var{arg_1}, ..., @var{arg_n})} zur@"uck.  Die
+R@"uckgabe wird vereinfacht, aber nicht ausgewertet.  Die Funktion @var{F} wird
+also nicht aufgerufen, auch wenn diese existiert.
+
+@code{funmake} versucht nicht, Array-Funktionen von gew@"ohnlichen Funktionen zu 
+unterscheiden.  Ist @var{F} der Name einer Array-Funktion, dann gibt
+@code{funmake} einen Ausdruck der Form @code{@var{F}(...)} zur@"uck.
+F@"ur Array-Funktionen kann die Funktion @mref{arraymake} verwendet werden.
+
+@code{funmake} wertet die Argumente aus.
+
+Beispiele:
+
+@code{funmake} angewendet auf eine gew@"ohnliche Funktion.
+
+@example
+(%i1) F (x, y) := y^2 - x^2;
+                                   2    2
+(%o1)                  F(x, y) := y  - x
+(%i2) funmake (F, [a + 1, b + 1]);
+(%o2)                    F(a + 1, b + 1)
+(%i3) ''%;
+                              2          2
+(%o3)                  (b + 1)  - (a + 1)
+@end example
+
+@code{funmake} angewendet auf ein Makro.
+
+@example
+(%i1) G (x) ::= (x - 1)/2;
+                                  x - 1
+(%o1)                    G(x) ::= -----
+                                    2
+(%i2) funmake (G, [u]);
+(%o2)                         G(u)
+(%i3) ''%;
+                              u - 1
+(%o3)                         -----
+                                2
+@end example
+
+@code{funmake} angewendet auf eine indizierte Funktion.
+
+@example
+(%i1) H [a] (x) := (x - 1)^a;
+                                        a
+(%o1)                   H (x) := (x - 1)
+                         a
+(%i2) funmake (H [n], [%e]);
+                                       n
+(%o2)               lambda([x], (x - 1) )(%e)
+(%i3) ''%;
+                                    n
+(%o3)                       (%e - 1)
+(%i4) funmake ('(H [n]), [%e]);
+(%o4)                        H (%e)
+                              n
+(%i5) ''%;
+                                    n
+(%o5)                       (%e - 1)
+@end example
+
+@code{funmake} angewendet auf ein Symbol, welches keine Funktion 
+repr@"asentiert.
+
+@example
+(%i1) funmake (A, [u]);
+(%o1)                         A(u)
+(%i2) ''%;
+(%o2)                         A(u)
+@end example
+
+@code{funmake} wertet die Argumente, aber nicht die R@"uckgabe aus.
+
+@example
+(%i1) det(a,b,c) := b^2 -4*a*c;
+                                    2
+(%o1)              det(a, b, c) := b  - 4 a c
+(%i2) (x : 8, y : 10, z : 12);
+(%o2)                          12
+(%i3) f : det;
+(%o3)                          det
+(%i4) funmake (f, [x, y, z]);
+(%o4)                    det(8, 10, 12)
+(%i5) ''%;
+(%o5)                         - 284
+@end example
+
+Maxima vereinfacht den R@"uckgabewert der Funktion @code{funmake}.
+
+@example
+(%i1) funmake (sin, [%pi / 2]);
+(%o1)                           1
+@end example
+@end deffn
+
+@c --- 04.01.2011 DK -----------------------------------------------------------
+@anchor{lambda}
+@deffn  {Funktion} lambda ([@var{x_1}, @dots{}, @var{x_m}], @var{expr_1}, @dots{}, @var{expr_n})
+@deffnx {Funktion} lambda ([[@var{L}]], @var{expr_1}, @dots{}, @var{expr_n})
+@deffnx {Funktion} lambda ([@var{x_1}, @dots{}, @var{x_m}, [@var{L}]], @var{expr_1}, @dots{}, @var{expr_n})
+
+Definiert einen Lambda-Ausdruck, der auch als anonyme Funktion bezeichnet wird,
+und gibt diesen zur@"uck.  Die Funktion kann Argumente @var{x_1}, @dots{},
+@var{x_m} und optionale Argumente @var{L} haben.  Die R@"uckgabe der Funktion
+ist das Ergebnis des Ausdrucks @var{exprn}.  Ein Lambda-Ausdruck kann einer
+Variablen zugewiesen werden und wertet wie eine gew@"ohnliche Funktion aus.  Ein
+Lambda-Ausdruck kann an solchen Stellen verwendet werden, wo der Name einer
+Funktion erwartet wird.
+
+Wird der Lambda-Ausdruck ausgewertet, werden lokale Variablen @var{x_1}, 
+@dots{}, @var{x_m} erzeugt.  @code{lambda} kann innerhalb von Bl@"ocken oder 
+anderen Lambda-Ausdr@"ucken verwendet werden.  Mit jeder @code{block}-Anweisung 
+oder jedem Lambda-Ausdruck werden erneut lokale Variablen erzeugt.  Die lokalen
+Variablen sind jeweils global zu jeder eingeschlossenen @code{block}-Anweisung
+oder zu jedem eingeschlossenen Lambda-Ausdruck.  Ist eine Variable innerhalb von
+@code{block} oder @code{lambda} nicht lokal, hat sie den Wert der 
+n@"achst h@"oheren Anweisung, die ihr einen Wert gibt oder den globalen Wert der 
+Maxima-Umgebung.
+
+Nachdem die lokalen Variablen erzeugt sind, werden die Ausdr@"ucke @var{expr_1},
+@dots{}, @var{expr_n} nacheinander ausgewertet.  Die Systemvariable @code{%%},
+welche das Ergebnis eines vorhergehendes Ausdrucks enth@"alt, kann verwendet 
+werden.  In einem Lambda-Ausdruck k@"onnen die Anweisungen @mref{catch} und
+@mref{throw} verwendet werden.
+
+Die @mref{return}-Anweisung kann in einem Lambda-Ausdruck nur verwendet werden,
+wenn sie von einer @code{block}-Anweisung eingeschlossen wird.  Die 
+@code{return}-Anweisung definiert jedoch den R@"uckgabewert des Blocks und nicht 
+des Lambda-Ausdrucks.  Auch die @mref{go}-Anweisung kann in einem
+Lambda-Ausdrucks nur in einem Block verwendet werden.
+
+@code{lambda} wertet die Argumente nicht aus.
+
+Beispiele:
+
+Ein Lambda-Ausdruck kann einer Variablen zugewiesen werden und wie eine
+gew@"ohnliche Funktion ausgewertet werden.
+
+@example
+(%i1) f: lambda ([x], x^2);
+                                      2
+(%o1)                    lambda([x], x )
+(%i2) f(a);
+                                2
+(%o2)                          a
+@end example
+
+Ein Lamda-Ausdruck kann an Stellen verwendet werden, wo der Name einer Funktion
+erwartet wird.
+
+@example
+(%i3) lambda ([x], x^2) (a);
+                                2
+(%o3)                          a
+(%i4) apply (lambda ([x], x^2), [a]);
+                                2
+(%o4)                          a
+(%i5) map (lambda ([x], x^2), [a, b, c, d, e]);
+                        2   2   2   2   2
+(%o5)                 [a , b , c , d , e ]
+@end example
+
+Die Argumente sind lokale Variablen.  Andere Variablen sind globale Variablen.
+Globale Variablen werden zu dem Zeitpunkt ausgewertet, wenn der Lambda-Ausdruck
+ausgewertet wird.
+
+@example
+(%i6) a: %pi$
+(%i7) b: %e$
+(%i8) g: lambda ([a], a*b);
+(%o8)                   lambda([a], a b)
+(%i9) b: %gamma$
+(%i10) g(1/2);
+                             %gamma
+(%o10)                       ------
+                               2
+(%i11) g2: lambda ([a], a*''b);
+(%o11)                lambda([a], a %gamma)
+(%i12) b: %e$
+(%i13) g2(1/2);
+                             %gamma
+(%o13)                       ------
+                               2
+@end example
+
+Lambda-Ausdr@"ucke k@"onnen verschachtelt werden.  Lokale Variablen eines
+@"au@ss{}eren Lambda-Ausdrucks sind global zu den enthaltenen
+Lambda-Ausdr@"ucken, au@ss{}er diese werden wieder als lokal erkl@"art.
+
+@example
+(%i14) h: lambda ([a, b], h2: lambda ([a], a*b), h2(1/2));
+                                                   1
+(%o14)    lambda([a, b], h2 : lambda([a], a b), h2(-))
+                                                   2
+(%i15) h(%pi, %gamma);
+                             %gamma
+(%o15)                       ------
+                               2
+@end example
+
+Da @code{lambda} die Argumente nicht auswertet, definiert der unten angegebene
+Ausdruck @code{i} keine Funktion "multipliziere mit @code{a}".  Solch eine
+Funktion kann mit Hilfe der Funktion @mref{buildq} definiert werden.
+
+@example
+(%i16) i: lambda ([a], lambda ([x], a*x));
+(%o16)            lambda([a], lambda([x], a x))
+(%i17) i(1/2);
+(%o17)                  lambda([x], a x)
+(%i18) i2: lambda([a], buildq([a: a], lambda([x], a*x)));
+(%o18)    lambda([a], buildq([a : a], lambda([x], a x)))
+(%i19) i2(1/2);
+                                     x
+(%o19)                   lambda([x], -)
+                                     2
+(%i20) i2(1/2)(%pi);
+                               %pi
+(%o20)                         ---
+                                2
+@end example
+
+Ein Lambda-Ausdruck kann eine variable Anzahl an Argumenten haben, wenn das
+letzte Argument eine Liste mit einem Element ist.
+
+@example
+(%i1) f : lambda ([aa, bb, [cc]], aa * cc + bb);
+(%o1)          lambda([aa, bb, [cc]], aa cc + bb)
+(%i2) f (foo, %i, 17, 29, 256);
+(%o2)       [17 foo + %i, 29 foo + %i, 256 foo + %i]
+(%i3) g : lambda ([[aa]], apply ("+", aa));
+(%o3)             lambda([[aa]], apply(+, aa))
+(%i4) g (17, 29, x, y, z, %e);
+(%o4)                  z + y + x + %e + 46
+@end example
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{map}
+@deffn {Funktion} map (@var{f}, @var{expr_1}, @dots{}, @var{expr_n})
+
+Gibt einen Ausdruck zur@"uck, dessen Hauptoperator derselbe ist, wie der der
+Argumente @var{expr_1}, @dots{}, @var{expr_n} aber dessen Operanden das Ergebnis
+der Anwendung des Operators @var{f} auf die Teilausdr@"ucke des Ausdrucks sind.
+@var{f} ist entweder der Name einer Funktion mit @math{n} Argumenten oder
+ein Lambda-Ausdruck mit @math{n} Argumenten.
+
+Hat @mref{maperror} den Wert @code{false}, wird die Anwendung der Funktion
+@var{f} gestoppt, (1) wenn die Anwendung auf den k@"urzesten Ausdruck 
+@var{expr_i} beendet ist und die Ausdr@"ucke nicht alle dieselbe L@"ange haben 
+oder (2) wenn die Ausdr@"ucke @var{expr_i} einen verschiedenen Typ haben.  Hat 
+@code{maperror} den Wert @code{true} wird in den obigen F@"allen eine 
+Fehlermeldung ausgegeben.
+
+@c TODO: NICHT UEBERSETZT
+@c One of the uses of this function is to @code{map} a function (e.g. 
+@c @code{partfrac}) onto each term of a very large expression where it 
+@c ordinarily wouldn't be possible to use the function on the entire expression 
+@c due to an exhaustion of list storage space in the course of the computation.
+
+   @c IN THESE EXAMPLES, SPELL OUT WHAT IS THE MAIN OPERATOR AND SHOW HOW THE 
+   @c RESULT FOLLOWS FROM THE DESCRIPTION STATED IN THE FIRST PARAGRAPH
+
+Beispiele:
+
+@example
+(%i1) map(f,x+a*y+b*z);
+(%o1)                        f(b z) + f(a y) + f(x)
+(%i2) map(lambda([u],partfrac(u,x)),x+1/(x^3+4*x^2+5*x+2));
+                           1       1        1
+(%o2)                     ----- - ----- + -------- + x
+                         x + 2   x + 1          2
+                                         (x + 1)
+(%i3) map(ratsimp, x/(x^2+x)+(y^2+y)/y);
+                                      1
+(%o3)                            y + ----- + 1
+                                    x + 1
+(%i4) map("=",[a,b],[-0.5,3]);
+(%o4)                          [a = - 0.5, b = 3]
+
+
+@end example
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{mapatom}
+@deffn {Funktion} mapatom (@var{expr})
+
+Gibt den Wert @code{true} zur@"uck, wenn der Ausdruck @var{expr} von Funktionen 
+die auf Argumente angewendete werden, als ein Atom betrachtet wird.  Als Atome
+werden Zahlen, einschlie@ss{}lich rationaler Zahlen und gro@ss{}er 
+Gleitkommazahlen, Symbole und indizierte Symbole betrachtet.
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{maperror}
+@defvr {Optionsvariable} maperror
+Standardwert: @code{true}
+
+Hat @code{maperror} den Wert @code{false}, wird die Anwendung der Funktion 
+@var{f} gestoppt, (1) wenn die Anwendung auf den k@"urzesten Ausdruck 
+@var{expr_i} beendet ist und die Ausdr@"ucke nicht alle dieselbe L@"ange haben 
+oder (2) wenn die Ausdr@"ucke @var{expr_i} einen verschiedenen Typ haben.  Hat 
+@code{maperror} den Wert @code{true} wird in den obigen F@"allen eine 
+Fehlermeldung ausgegeben.
+@end defvr
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{mapprint}
+@defvr {Optionsvariable} mapprint
+Standardwert: @code{true}
+
+Hat @code{mapprint} den Wert @code{true}, werden verschiedene Informationen von
+den Funktionen @mrefcomma{map} @mref{maplist} und @mref{fullmap} ausgegeben.
+Dies ist der Fall, wenn die Funktion @code{map} die Funktion @code{apply}
+aufruft oder wenn f@"ur die Funktion @code{map} die Argumente eine verschiedene
+L@"ange haben.
+
+Hat @code{mapprint} den Wert @code{false}, werden diese Meldungen unterdr@"uckt.
+@end defvr
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{maplist}
+@deffn {Funktion} maplist (@var{f}, @var{expr_1}, @dots{}, @var{expr_n})
+
+Wendet die Funktion @var{f} auf die Ausdr@"ucke @var{expr_1}, @dots{}, 
+@var{expr_n} an und gibt das Ergebnis als eine Liste zur@"uck.  @var{f} ist der 
+Name einer Funktion oder ein lambda-Ausdruck.
+
+Im Unterschied zu @code{maplist} gibt die Funktion @mref{map} einen Ausdruck
+zur@"uck, der denselben Hauptoperator wie die Ausdr@"ucke @var{expr_i} hat.
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{outermap}
+@deffn {Funktion} outermap (@var{f}, @var{a_1}, @dots{}, @var{a_n})
+
+Wendet die Funktion @var{f} auf jedes Element des @"au@ss{}eren Produktes der
+Argumente @var{a_1} @code{x} @var{a_2} @code{x} @dots{} @code{x} @var{a_n} an. 
+
+@var{f} ist der Name einer Funktion mit @math{n} Argumenten oder ein 
+Lambda-Ausdruck mit @math{n} Argumenten.  Jedes Argument @var{a_k} kann eine
+Liste oder verschachtelte Liste, eine Matrix oder irgendein anderer Ausdruck
+sein.
+
+@c TODO: OBIGE UEBERSETZUNG FEHLEN
+@c Note that the effect of @code{outermap} is different from that of applying 
+@c @var{f} to each one of the elements of the outer product returned by 
+@c @code{cartesian_product}. @code{outermap} preserves the structure of the 
+@c arguments in the return value, while @code{cartesian_product} does not.
+
+@code{outermap} wertet die Argumente aus.
+
+Siehe auch @mrefcomma{map} @mref{maplist} und @mrefdot{apply}
+
+Beispiele:
+
+Einfaches Beispiel f@"ur @code{outermap}.  Die Funktion @code{F} ist 
+undefiniert.
+
+@example
+(%i1) outermap(F, [a, b, c], [1, 2, 3]);
+(%o1) [[F(a, 1), F(a, 2), F(a, 3)], [F(b, 1), F(b, 2), F(b, 3)], 
+                                     [F(c, 1), F(c, 2), F(c, 3)]]
+(%i2) outermap(F, matrix([a, b],[c, d]), matrix([1, 2],[3, 4]));
+         [ [ F(a, 1)  F(a, 2) ]  [ F(b, 1)  F(b, 2) ] ]
+         [ [                  ]  [                  ] ]
+         [ [ F(a, 3)  F(a, 4) ]  [ F(b, 3)  F(b, 4) ] ]
+(%o2)    [                                            ]
+         [ [ F(c, 1)  F(c, 2) ]  [ F(d, 1)  F(d, 2) ] ]
+         [ [                  ]  [                  ] ]
+         [ [ F(c, 3)  F(c, 4) ]  [ F(d, 3)  F(d, 4) ] ]
+(%i3) outermap (F, [a, b], x, matrix ([1, 2], [3, 4]));
+       [ F(a, x, 1)  F(a, x, 2) ]  [ F(b, x, 1)  F(b, x, 2) ]
+(%o3) [[                        ], [                        ]]
+       [ F(a, x, 3)  F(a, x, 4) ]  [ F(b, x, 3)  F(b, x, 4) ]
+(%i4) outermap (F, [a, b], matrix ([1, 2]), matrix ([x], [y]));
+       [ [ F(a, 1, x) ]  [ F(a, 2, x) ] ]
+(%o4) [[ [            ]  [            ] ], 
+       [ [ F(a, 1, y) ]  [ F(a, 2, y) ] ]
+                              [ [ F(b, 1, x) ]  [ F(b, 2, x) ] ]
+                              [ [            ]  [            ] ]]
+                              [ [ F(b, 1, y) ]  [ F(b, 2, y) ] ]
+(%i5) outermap ("+", [a, b, c], [1, 2, 3]);
+(%o5) [[a + 1, a + 2, a + 3], [b + 1, b + 2, b + 3], 
+                                           [c + 1, c + 2, c + 3]]
+@end example
+
+Das Beispiel zeigt die R@"uckgabe der Funktion @code{outermap} detaillierter.
+Das erste, zweite und dritte Argument sind eine Matrix, eine Liste und eine
+Matrix.  Der R@"uckgabewert ist eine Matrix.  Jedes Element der Matrix ist eine
+Liste und jedes Element der Liste ist eine Matrix.
+
+@example
+(%i1) arg_1 :  matrix ([a, b], [c, d]);
+                            [ a  b ]
+(%o1)                       [      ]
+                            [ c  d ]
+(%i2) arg_2 : [11, 22];
+(%o2)                       [11, 22]
+(%i3) arg_3 : matrix ([xx, yy]);
+(%o3)                      [ xx  yy ]
+(%i4) xx_0 : outermap(lambda([x, y, z], x / y + z), arg_1,
+                                                   arg_2, arg_3);
+               [  [      a        a  ]  [      a        a  ]  ]
+               [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+               [  [      11       11 ]  [      22       22 ]  ]
+(%o4)  Col 1 = [                                              ]
+               [  [      c        c  ]  [      c        c  ]  ]
+               [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+               [  [      11       11 ]  [      22       22 ]  ]
+                 [  [      b        b  ]  [      b        b  ]  ]
+                 [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+                 [  [      11       11 ]  [      22       22 ]  ]
+         Col 2 = [                                              ]
+                 [  [      d        d  ]  [      d        d  ]  ]
+                 [ [[ xx + --  yy + -- ], [ xx + --  yy + -- ]] ]
+                 [  [      11       11 ]  [      22       22 ]  ]
+(%i5) xx_1 : xx_0 [1][1];
+           [      a        a  ]  [      a        a  ]
+(%o5)     [[ xx + --  yy + -- ], [ xx + --  yy + -- ]]
+           [      11       11 ]  [      22       22 ]
+(%i6) xx_2 : xx_0 [1][1] [1];
+                      [      a        a  ]
+(%o6)                 [ xx + --  yy + -- ]
+                      [      11       11 ]
+(%i7) xx_3 : xx_0 [1][1] [1] [1][1];
+                                  a
+(%o7)                        xx + --
+                                  11
+(%i8) [op (arg_1), op (arg_2), op (arg_3)];
+(%o8)                  [matrix, [, matrix]
+(%i9) [op (xx_0), op (xx_1), op (xx_2)];
+(%o9)                  [matrix, [, matrix]
+@end example
+
+@code{outermap} erh@"alt die Struktur der Argumente im Ergebnis.  Die Funktion
+@code{cartesian_product} erh@"alt die Struktur der Argumente nicht.
+
+@example
+(%i1) outermap (F, [a, b, c], [1, 2, 3]);
+(%o1) [[F(a, 1), F(a, 2), F(a, 3)], [F(b, 1), F(b, 2), F(b, 3)], 
+                                     [F(c, 1), F(c, 2), F(c, 3)]]
+(%i2) setify (flatten (%));
+(%o2) @{F(a, 1), F(a, 2), F(a, 3), F(b, 1), F(b, 2), F(b, 3), 
+                                       F(c, 1), F(c, 2), F(c, 3)@}
+(%i3) map(lambda([L], apply(F, L)),
+                     cartesian_product(@{a, b, c@}, @{1, 2, 3@}));
+(%o3) @{F(a, 1), F(a, 2), F(a, 3), F(b, 1), F(b, 2), F(b, 3), 
+                                       F(c, 1), F(c, 2), F(c, 3)@}
+(%i4) is (equal (%, %th (2)));
+(%o4)                         true
+@end example
+@end deffn
+
+@c --- 19.04.2011 DK -----------------------------------------------------------
+@anchor{remfunction}
+@deffn  {Funktion} remfunction (@var{f_1}, @dots{}, @var{f_n})
+@deffnx {Funktion} remfunction (all)
+
+Hebt die Bindung der Symbole @var{f_1}, @dots{}, @var{f_n} an ihre
+Funktionsdefinitionen auf.  Die Argumente k@"onnen die Namen von Funktionen 
+sein, die mit dem Operator @mref{:=} oder der Funktion @mref{define} definiert
+wurden sowie Makro-Funktionen, die mit dem Operator @mref{::=} definiert wurden.
+
+@code{remfunction(all)} entfernt alle Bindungen von Funktionsdefinitionen.
+
+@code{remfunction} gibt eine Liste mit den Symbolen zur@"uck, die von ihren 
+Funktionsdefinitionen entbunden wurden.  @code{false} wird f@"ur die Symbole
+zur@"uckgegeben, f@"ur die es keine Funktionsdefinition gibt.
+
+@code{remfunction} wertet die Argumente nicht aus.
+
+@code{remfunction} kann nicht auf Array-Funktionen und indizierte Funktionen
+angewendet werden.  F@"ur diese Funktionen kann @mref{remarray} verwendet
+werden.
+@end deffn
+
+@c --- 03.01.2011 DK -----------------------------------------------------------
+@anchor{scanmap}
+@deffn  {Funktion} scanmap (@var{f}, @var{expr})
+@deffnx {Funktion} scanmap (@var{f}, @var{expr}, bottomup)
+
+Wendet die Funktion @var{f} rekursiv auf alle Teilausdr@"ucke in @var{expr} an.
+Dies kann zum Beispiel verwendet werden, um einen Ausdruck vollst@"andig zu 
+faktorisieren.
+
+Beispiele:
+
+@example
+(%i1) exp:(a^2+2*a+1)*y + x^2$
+(%i2) scanmap(factor,exp);
+                                    2      2
+(%o2)                         (a + 1)  y + x
+@end example
+
+@example
+(%i3) scanmap(factor,expand(exp));
+                           2                  2
+(%o3)                      a  y + 2 a y + y + x
+@end example
+
+Ein weiteres Beispiel f@"ur die Anwendung einer Funktion auf alle 
+Teilausdr@"ucke.
+
+@example
+(%i4) expr : u*v^(a*x+b) + c$
+(%i5) scanmap('f, expr);
+                    f(f(f(a) f(x)) + f(b))
+(%o5) f(f(f(u) f(f(v)                      )) + f(c))
+@end example
+
+@code{scanmap (@var{f}, @var{expr}, bottomup)} wendet die Funktion @var{f}
+Bottom-up auf den Ausdruck @var{expr} an.
+
+@c TODO: BESSERES BEISPIEL UM DEN UNTERSCHIED ZU ZEIGEN.
+
+@example
+scanmap(f,a*x+b) ->
+   f(a*x+b) -> f(f(a*x)+f(b)) -> f(f(f(a)*f(x))+f(b))
+scanmap(f,a*x+b,bottomup) -> f(a)*f(x)+f(b)
+    -> f(f(a)*f(x))+f(b) ->
+     f(f(f(a)*f(x))+f(b))
+@end example
+@end deffn
+
+@c --- End of file Function.de.texi --------------------------------------------
+

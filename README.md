@@ -36,6 +36,18 @@ QMole is designed and authored by [Chris Kohlhepp](https://chriskohlhepp.wordpre
 
 ![Flying Mole Banner](qmolefly.png)
 
+## The Story
+
+So here is a small story. Some years ago my wife gave me an "generation one" iPad as a present - my first touch screen device. Since the iPad had a solid state drive, it would outlast, on a full battery charge, any notebook with a conventional hard drive that I had at the time. I could, and did, fly from Sydney to Los Angeles and keep using my iPad. Yet my initial euphoria was short lived. I quickly found myself in Apple's "Walled Garden." I had to "buy to try," and more often than not, apps failed to provide the feature depth and breadth of comparable applications on Microsoft Windows or Linux - even where the Windows or Linux competitors were entirely free. Frequently, I found myself buying multiple apps for the same purpose to arrive at something to my liking. Very early did I realise that if I wanted the functionality I sought, I would need to build it myself. Cydia already provided access to a host of GNU / Linux applications on the iPhone, but only terminal based. I wanted Java. I wanted a GTK desktop. I wanted the iPhython notebook (to tun OCaml). I wanted a tiling window manager that routed my apps to virtual desktops on demand - load balancing for touch screen apps. And I wanted it on my iPhone. So I built it and I called it QMole. A mole because it subsumed what was there (the garden) and "Q" because I didn't want another "I" something.
+
+Over the years, QMole served me well. I built everything on the iPhone and iPad. In due time, I had built almost an entire "Linux" distribution with some 170 Debian packages, comprising some 35 million lines of code . As time went on, Apple changed from 32 bit CPUs to 64 bit CPUs. The format for executables on iOS changed a number of times. Ultimately, I had to decide if I wanted to maintain my own Linux distribution or give Linux back to whom it belongs: the community.
+
+So today I have done just that. I released QMole open-source on Github. A separate Github repository holds the Debian packages which makes for a smaller download footprint.
+
+Let it fly (hence the painting of the flying mole).
+
+Happy hacking !
+
 ## Manifest
 
 ### QMOLEDEV

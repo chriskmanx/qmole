@@ -10,16 +10,16 @@
 
 ## What is Qmole?
 
-1) It’s a "Smart Routing Tiling Window Manager" for touch screen tablets and smart phones.
+### 1) It’s a "Smart Routing Tiling Window Manager" for touch screen tablets and smart phones.
 
-[Linux Applications on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/)
+[Graphical Linux Applications, Native on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/)
 
-That’s kind of a world’s first !
+42 million lines of Linux code on iOS. That’s kind of a world’s first !
 
 ![Testimonials](notepad.png)
 
 
-2) It’s a compatibility container
+### 2) It’s a compatibility container
 
 QMole allows iPhones and iPads to run graphical Linux applications. It enables touch-screen operation of Linux applications executing together with native iOS applications on a self contained Linux style desktop. This desktop introduces automatic window management for the touch screen and enables full access to the data on your device.
 

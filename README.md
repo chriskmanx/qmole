@@ -1,18 +1,16 @@
-# qmole
-GNU Linux Desktop System for IPhone &amp; IPad
+# GNU Linux Desktop System for IPhone &amp; IPad
 
 ![QMole Banner](qmole.png)
 
-[Cydia Reposity Packages Github Repository](https://github.com/chriskmanx/qmole-packages)
+[See also: QMole Cydia Reposity on Github](https://github.com/chriskmanx/qmole-packages)
 
-[iPyhton Notebook on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/ipython-notebook-on-iphone/)
+[See also: iPyhton Notebook on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/ipython-notebook-on-iphone/)
 
-[QMole Linux Desktop Manual](https://chriskohlhepp.wordpress.com/linux-on-iphone/qmole-linux-desktop-for-ios-manual/)
+[See also: QMole Linux Desktop Manual](https://chriskohlhepp.wordpress.com/linux-on-iphone/qmole-linux-desktop-for-ios-manual/)
 
 ## What is Qmole?
 
-
-1) It’s a smart routing tiling window manager for tablets.
+1) It’s a "Smart Routing Tiling Window Manager" for touch screen tablets and smart phones.
 
 [Linux Applications on iPhone](https://chriskohlhepp.wordpress.com/linux-on-iphone/)
 

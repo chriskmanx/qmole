@@ -1,0 +1,36 @@
+#!/usr/bin/expect -f
+# Test the full QMole-terminal flow: as mobile, 'apt install -y nano' ->
+# wrapper auto-escalates via su -> password alpine -> package installs.
+set timeout 120
+log_user 1
+spawn sshpass -p alpine ssh -tt -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o HostKeyAlgorithms=ssh-rsa root@localhost
+expect {
+    -re {root#} {}
+    timeout { puts "\nTIMEOUT root prompt"; exit 2 }
+}
+send "su mobile\r"
+expect {
+    -re {mobile\$} {}
+    timeout { puts "\nTIMEOUT mobile prompt"; exit 3 }
+}
+send "apt install -y nano\r"
+expect {
+    -re {[Pp]assword} { send "alpine\r" }
+    -re {sorry} { puts "\nSU_AUTH_FAILED"; exit 4 }
+    timeout { puts "\nTIMEOUT su password prompt"; exit 5 }
+}
+expect {
+    -re {Setting up nano} { puts "\nINSTALL_CONFIRMED" }
+    -re {already the newest version} { puts "\nALREADY_INSTALLED" }
+    timeout { puts "\nTIMEOUT waiting for install"; exit 6 }
+}
+send "which nano && echo NANO_PRESENT\r"
+expect {
+    -re {NANO_PRESENT} { puts "\nVERIFY_OK" }
+    timeout { puts "\nVERIFY_FAILED"; exit 7 }
+}
+send "exit\r"
+expect -re {root#}
+send "exit\r"
+expect eof
+puts "\nTEST_DONE"

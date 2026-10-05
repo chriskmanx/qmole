@@ -1,0 +1,44 @@
+#!/bin/bash
+# apt wrapper for iOS/Cydia-era apt 0.7.25 (QMole)
+# The unified 'apt' tool (apt install/update/...) only exists in apt >= 1.0,
+# which was never shipped for iphoneos-arm. This translates modern syntax to
+# apt-get/apt-cache and auto-escalates to root (via su) for mutating commands,
+# so 'apt install foo' works directly in QMole's mobile terminal.
+
+CMD="$1"
+[ -z "$CMD" ] && CMD="--help"
+shift
+
+case "$CMD" in
+  update|autoremove|clean|autoclean)
+    ROOT_CMD="$CMD" ;;
+  install|remove|purge|upgrade|dist-upgrade)
+    ROOT_CMD="$CMD" ;;
+  full-upgrade)          # old apt-get has no full-upgrade; dist-upgrade is equivalent
+    ROOT_CMD="dist-upgrade" ;;
+  search|show|policy|depends|rdepends|pkgnames)
+    exec /usr/bin/apt-cache "$CMD" "$@" ;;
+  list)                  # 'apt list <prefix>' -> 'apt-cache pkgnames <prefix>'
+    exec /usr/bin/apt-cache pkgnames "$@" ;;
+  -h|--help|help)
+    cat <<EOF
+apt (QMole wrapper for apt 0.7.25) — modern syntax on old apt:
+  apt update                 refresh package lists        (auto-su)
+  apt install <pkg>...       install packages             (auto-su)
+  apt remove|purge <pkg>...  remove packages              (auto-su)
+  apt upgrade                upgrade all                  (auto-su)
+  apt search <term>          search packages
+  apt show <pkg>             package details
+  apt list [prefix]          list package names
+EOF
+    exit 0 ;;
+  *)
+    ROOT_CMD="$CMD" ;;
+esac
+
+if [ "$(id -u)" = "0" ]; then
+  exec /usr/bin/apt-get "$ROOT_CMD" "$@"
+else
+  # Not root (QMole terminal runs as mobile): escalate via su, prompting once.
+  exec /bin/su -c "/usr/bin/apt-get $ROOT_CMD $*" root
+fi

@@ -110,6 +110,17 @@ It is expected that QMole would function on Android devices after appropriate re
 
 QMole comprises some *42 million* lines of ported and original code. Most of the core components are written in either Objective-C or OCaml, with OCaml solutions rarely beyond a few hundred lines of code. Most of the ported Unix code is C and C++. QMole has been built "on device," either on iPhone or iPad.
 
+## 2026 Revival Patch (iOS 7.1.2, jailbroken iPhone 4S)
+
+The shipped beta refuses to run on any modern date: **three baked-in offline date gates** (app UI, `qmole-ctrl`, herbstluftwm `autostart`) compare against September 2016 cutoffs and silently disable QMole. The [`patches/`](patches/) directory contains:
+
+- original + patched binaries (app, service controller, desktop autostart) with md5 checksums
+- byte-exact, re-runnable patch scripts and the disassembly tooling that located the gates
+- [root-cause write-up](patches/README.md) of all three gates
+- [step-by-step setup guide](patches/SETUP.md): USB SSH via `iproxy -l`, deployment, VNC, and package management (`apt` wrapper for the device's apt 0.7.25 + `su`)
+
+With the patch, QMole runs permanently on a jailbroken iPhone 4S (iOS 7.1.2): desktop, Xvnc, herbstluftwm and the bmpanel2 panels all come up, and packages install via apt.
+
 
 ## Happy Hacking!
 
